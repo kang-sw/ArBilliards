@@ -6,7 +6,6 @@
 
 namespace billiards
 {
-
 /**
  * 당구대, 당구공, 큐대 전반적인 인식을 담당하는 클래스입니다.
  * 모든 거리 단위는 meter, 각도 단위는 degree입니다.
@@ -40,7 +39,8 @@ public:
      */
     struct image_feed
     {
-        cv::Mat cam;
+        cv::Mat Rgb;
+        cv::Mat Depth;
     };
 
     /**

@@ -19,6 +19,5 @@ target_link_directories(Recognition PUBLIC ${ZED_LIBRARY_DIR} ${CUDA_DEP_LIBRARI
 target_link_libraries(Recognition PUBLIC ${OpenCV_LIBS} ${ZED_LIBRARIES})
 target_include_directories(Recognition PUBLIC ${OpenCV_INCLUDE_DIRS} ${ZED_INCLUDE_DIRS})
 
-
 # TODO: Add tests and install targets if needed.
 
