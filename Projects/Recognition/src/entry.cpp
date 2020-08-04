@@ -81,7 +81,7 @@ int main()
             continue;
         }
 
-        cv::Mat Image;
+        cv::Mat Frame;
         {
             sl::Mat Captured;
             if (auto err = zed.retrieveImage(Captured, sl::VIEW::LEFT);
@@ -90,7 +90,7 @@ int main()
                 printf("Retrieve failed for code %d\n", err);
                 continue;
             }
-            Image = slMat2cvMat(Captured).clone();
+            Frame = slMat2cvMat(Captured).clone();
         }
 
         cv::TickMeter frame_counter;
@@ -99,7 +99,8 @@ int main()
         cv::TickMeter tick;
 
         /* 이미지의 너비가 960이 되게 리사이즈 */
-        cv::resize(Image, Image, {}, 960.0 / Image.cols, 960.0 / Image.cols);
+        cv::resize(Frame, Frame, {}, 960.0 / Frame.cols, 960.0 / Frame.cols);
+        cv::Mat Image = Frame.clone();
 
         /* 이미지를 GPU로 migrate */
         auto UImage = Image.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
@@ -107,12 +108,13 @@ int main()
 
         tick.start();
 
-        if (true) /* HSI 모드 */
+        if (false) /* HSI 모드 */
         {
             /* RGB TO HSL 색공간 변환 */
             cv::cvtColor(UImage, UImage, cv::COLOR_BGR2HLS);
 
             /* 색공간에서 일부 엘리먼트만 추출 */
+            if (false)
             {
                 cv::Scalar HLS_MULT(1, 0, 1);
                 cv::Scalar HLS_ADD(0, 128, 0);
@@ -121,20 +123,34 @@ int main()
                 cv::add(UImage.mul(cv::UMat(UImage.rows, UImage.cols, COLORCODE, HLS_MULT)), cv::UMat(UImage.rows, UImage.cols, COLORCODE, HLS_ADD), UImage);
             }
 
-            /* 출력을 위한 색공간 변환 */
-            cv::cvtColor(UImage, UImage, cv::COLOR_HLS2RGB);
-
             /* Filtering 수행 */
             {
-                // cv::inRange()
+                cv::Scalar HLS_FILTER_MIN(0, 0, 150);
+                cv::Scalar HLS_FILTER_MAX(25, 180, 200);
+                cv::Scalar HLS_FILTER_MIN2(170, 0, 150);
+                cv::Scalar HLS_FILTER_MAX2(180, 180, 200);
+
+                UImage.copyTo(Image);
+                cv::UMat TmpImg;
+                cv::inRange(Image, HLS_FILTER_MIN, HLS_FILTER_MAX, UImage);
+                cv::inRange(Image, HLS_FILTER_MIN2, HLS_FILTER_MAX2, TmpImg);
+                cv::add(UImage, TmpImg, UImage);
+                UImage.copyTo(Image);
+                // UImage = UImage.mul(255);
+
+                cv::bitwise_and(Frame, Frame, UImage, Image);
             }
+
+            /* 출력을 위한 색공간 변환 */
+            // cv::cvtColor(UImage, UImage, cv::COLOR_HLS2RGB);
         }
         else if (true) /* YUV MODE */
         {
             /* 색공간 변환 */
-            cv::cvtColor(UImage, UImage, cv::COLOR_BGR2Lab);
+            cv::cvtColor(UImage, UImage, cv::COLOR_BGR2YUV);
 
             /* 색공간에서 UV 추출 */
+            if (false)
             {
                 cv::Scalar YUV_MULT(0, 1, 1);
                 cv::Scalar YUV_ADD(128, 0, 0);
@@ -143,8 +159,23 @@ int main()
                 cv::add(UImage.mul(cv::UMat(UImage.rows, UImage.cols, COLORCODE, YUV_MULT)), cv::UMat(UImage.rows, UImage.cols, COLORCODE, YUV_ADD), UImage);
             }
 
+            /* 필터링 */
+            {
+                cv::Scalar HLS_FILTER_MIN(0, 90, 190);
+                cv::Scalar HLS_FILTER_MAX(135, 110, 255);
+
+                UImage.copyTo(Image);
+                cv::UMat TmpImg;
+                cv::inRange(Image, HLS_FILTER_MIN, HLS_FILTER_MAX, UImage);
+                cv::dilate(UImage, UImage, {}, {-1, -1}, 25);
+                cv::erode(UImage, UImage, {}, {-1, -1}, 25);
+                UImage.copyTo(Image);
+
+                // cv::bitwise_and(Frame, Frame, UImage, Image);
+            }
+
             /* 출력을 위한 색공간 변환 */
-            cv::cvtColor(UImage, UImage, cv::COLOR_Lab2RGB);
+            //   cv::cvtColor(UImage, UImage, cv::COLOR_YUV2RGB);
         }
 
         tick.stop();
@@ -154,6 +185,7 @@ int main()
 
         cv::putText(Image, "Measured: "s + to_string(tick.getTimeSec()), {0, Image.rows - 5}, 0, 1, {255.f, 0.0f, 0.0f});
         cv::imshow("Vlah", Image);
+        cv::imshow("Source", Frame);
 #endif // true
         frame_counter.stop();
         to_wait = max<int>(1e3 / TARGET_FPS - frame_counter.getTimeMilli(), 1);
