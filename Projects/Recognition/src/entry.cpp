@@ -7,7 +7,7 @@
 
 using namespace std;
 
-cv::Mat slMat2cvMat(Mat& input)
+cv::Mat slMat2cvMat(sl::Mat& input)
 {
     using namespace sl;
     // Mapping between MAT_TYPE and CV_TYPE
@@ -89,31 +89,59 @@ int main()
             Image = slMat2cvMat(Captured).clone();
         }
 
+#if true
         cv::TickMeter tick;
 
         auto UImage = Image.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
-        // UImage.convertTo(UImage, CV_32FC4, 1.0 / 255.0);
+        cv::cvtColor(UImage, UImage, cv::COLOR_RGBA2BGR);
 
         tick.start();
-        cv::cvtColor(UImage, UImage, cv::COLOR_RGBA2BGR);
-        cv::cvtColor(UImage, UImage, cv::COLOR_BGR2HLS);
-        // Image = Image.mul(cv::Vec3f(1.f, 0.f, 0.f));
 
+        if (false) // HSI 모드
         {
-            cv::Scalar Multiply(1, 0, 1);
-            cv::Scalar Add(0, 128, 0);
+            /* RGB TO HSL 색공간 변환 */
+            cv::cvtColor(UImage, UImage, cv::COLOR_BGR2HLS);
 
-            int const COLORCODE = CV_8UC3;
-            cv::add(UImage.mul(cv::UMat(UImage.rows, UImage.cols, COLORCODE, Multiply)), cv::UMat(UImage.rows, UImage.cols, COLORCODE, Add), UImage);
+            /* 색공간에서 일부 엘리먼트만 추출 */
+            {
+                cv::Scalar HLS_MULT(1, 0, 1);
+                cv::Scalar HLS_ADD(0, 128, 0);
+
+                int const COLORCODE = CV_8UC3;
+                cv::add(UImage.mul(cv::UMat(UImage.rows, UImage.cols, COLORCODE, HLS_MULT)), cv::UMat(UImage.rows, UImage.cols, COLORCODE, HLS_ADD), UImage);
+            }
+
+            /* 출력을 위한 색공간 변환 */
+            cv::cvtColor(UImage, UImage, cv::COLOR_HLS2RGB);
         }
 
-        cv::cvtColor(UImage, UImage, cv::COLOR_HLS2RGB);
+        /* YUV 모드 */
+        if (true)
+        {
+            /* 색공간 변환 */
+            cv::cvtColor(UImage, UImage, cv::COLOR_BGR2Lab);
+
+            /* 색공간에서 UV 추출 */
+            {
+                cv::Scalar YUV_MULT(0, 1, 1);
+                cv::Scalar YUV_ADD(128, 0, 0);
+
+                int const COLORCODE = CV_8UC3;
+                cv::add(UImage.mul(cv::UMat(UImage.rows, UImage.cols, COLORCODE, YUV_MULT)), cv::UMat(UImage.rows, UImage.cols, COLORCODE, YUV_ADD), UImage);
+            }
+
+            /* 출력을 위한 색공간 변환 */
+            cv::cvtColor(UImage, UImage, cv::COLOR_Lab2RGB);
+        }
+
         tick.stop();
 
+        /* 출력 */
         UImage.copyTo(Image);
 
         cv::putText(Image, "Measured: "s + to_string(tick.getTimeSec()), {0, Image.rows - 5}, 0, 1, {255.f, 0.0f, 0.0f});
         cv::imshow("Vlah", Image);
+#endif // true
     }
 
     // Close the camera
