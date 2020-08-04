@@ -6,10 +6,10 @@
 #include <sl/Camera.hpp>
 
 using namespace std;
-using namespace sl;
 
 cv::Mat slMat2cvMat(Mat& input)
 {
+    using namespace sl;
     // Mapping between MAT_TYPE and CV_TYPE
     int cv_type = -1;
     switch (input.getDataType())
@@ -50,16 +50,16 @@ cv::Mat slMat2cvMat(Mat& input)
 int main()
 {
     // Create a ZED camera object
-    Camera zed;
+    sl::Camera zed;
 
     // Set configuration parameters
-    InitParameters init_params;
+    sl::InitParameters init_params;
     init_params.sdk_verbose = true; // Disable verbose mode
     init_params.camera_fps = 30;
 
     // Open the camera
-    ERROR_CODE err = zed.open(init_params);
-    if (err != ERROR_CODE::SUCCESS)
+    sl::ERROR_CODE err = zed.open(init_params);
+    if (err != sl::ERROR_CODE::SUCCESS)
     {
         printf("Open failed ... %d", err);
         exit(-1);
@@ -71,7 +71,7 @@ int main()
 
     for (int val = 0; (val = (cv::waitKey(1))) != 'q';)
     {
-        if (auto err = zed.grab(); err != ERROR_CODE::SUCCESS)
+        if (auto err = zed.grab(); err != sl::ERROR_CODE::SUCCESS)
         {
             printf("Capture failed for code %d\n", err);
             continue;
@@ -80,8 +80,8 @@ int main()
         cv::Mat Image;
         {
             sl::Mat Captured;
-            if (auto err = zed.retrieveImage(Captured, VIEW::LEFT);
-                err != ERROR_CODE::SUCCESS)
+            if (auto err = zed.retrieveImage(Captured, sl::VIEW::LEFT);
+                err != sl::ERROR_CODE::SUCCESS)
             {
                 printf("Retrieve failed for code %d\n", err);
                 continue;
@@ -91,23 +91,29 @@ int main()
 
         cv::TickMeter tick;
 
-        tick.start();
-
         auto UImage = Image.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
-        // UImage.convertTo(UImage, CV_32FC4);
+        // UImage.convertTo(UImage, CV_32FC4, 1.0 / 255.0);
+
+        tick.start();
         cv::cvtColor(UImage, UImage, cv::COLOR_RGBA2BGR);
         cv::cvtColor(UImage, UImage, cv::COLOR_BGR2HLS);
         // Image = Image.mul(cv::Vec3f(1.f, 0.f, 0.f));
 
-        cv::add(UImage.mul(cv::UMat(UImage.rows, UImage.cols, CV_8UC3, cv::Scalar(1.0, 0.0, 0.0, 0.0))), cv::UMat(UImage.rows, UImage.cols, CV_8UC3, cv::Scalar(0.0, 128, 128, 0)), UImage);
+        {
+            cv::Scalar Multiply(1, 0, 1);
+            cv::Scalar Add(0, 128, 0);
+
+            int const COLORCODE = CV_8UC3;
+            cv::add(UImage.mul(cv::UMat(UImage.rows, UImage.cols, COLORCODE, Multiply)), cv::UMat(UImage.rows, UImage.cols, COLORCODE, Add), UImage);
+        }
 
         cv::cvtColor(UImage, UImage, cv::COLOR_HLS2RGB);
-        UImage.copyTo(Image);
-
         tick.stop();
 
+        UImage.copyTo(Image);
+
+        cv::putText(Image, "Measured: "s + to_string(tick.getTimeSec()), {0, Image.rows - 5}, 0, 1, {255.f, 0.0f, 0.0f});
         cv::imshow("Vlah", Image);
-        printf("Measrued: %f\n", tick.getTimeSec());
     }
 
     // Close the camera
