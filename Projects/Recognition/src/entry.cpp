@@ -47,6 +47,9 @@ cv::Mat slMat2cvMat(sl::Mat& input)
     return cv::Mat(input.getHeight(), input.getWidth(), cv_type, input.getPtr<sl::uchar1>(MEM::CPU));
 }
 
+// CONSTANT DEFS
+#define TARGET_FPS 30
+
 int main()
 {
     // Create a ZED camera object
@@ -54,6 +57,7 @@ int main()
 
     // Set configuration parameters
     sl::InitParameters init_params;
+    init_params.camera_resolution = sl::RESOLUTION::HD720;
     init_params.sdk_verbose = true; // Disable verbose mode
     init_params.camera_fps = 30;
 
@@ -69,7 +73,7 @@ int main()
     int zed_serial = zed.getCameraInformation().serial_number;
     printf("Hello! This is my serial number: %d\n", zed_serial);
 
-    for (int val = 0; (val = (cv::waitKey(1))) != 'q';)
+    for (int val = 0, to_wait = 1; (val = (cv::waitKey(to_wait))) != 'q';)
     {
         if (auto err = zed.grab(); err != sl::ERROR_CODE::SUCCESS)
         {
@@ -89,15 +93,21 @@ int main()
             Image = slMat2cvMat(Captured).clone();
         }
 
+        cv::TickMeter frame_counter;
+        frame_counter.start();
 #if true
         cv::TickMeter tick;
 
+        /* 이미지의 너비가 960이 되게 리사이즈 */
+        cv::resize(Image, Image, {}, 960.0 / Image.cols, 960.0 / Image.cols);
+
+        /* 이미지를 GPU로 migrate */
         auto UImage = Image.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
         cv::cvtColor(UImage, UImage, cv::COLOR_RGBA2BGR);
 
         tick.start();
 
-        if (false) // HSI 모드
+        if (true) /* HSI 모드 */
         {
             /* RGB TO HSL 색공간 변환 */
             cv::cvtColor(UImage, UImage, cv::COLOR_BGR2HLS);
@@ -113,10 +123,13 @@ int main()
 
             /* 출력을 위한 색공간 변환 */
             cv::cvtColor(UImage, UImage, cv::COLOR_HLS2RGB);
-        }
 
-        /* YUV 모드 */
-        if (true)
+            /* Filtering 수행 */
+            {
+                // cv::inRange()
+            }
+        }
+        else if (true) /* YUV MODE */
         {
             /* 색공간 변환 */
             cv::cvtColor(UImage, UImage, cv::COLOR_BGR2Lab);
@@ -142,6 +155,8 @@ int main()
         cv::putText(Image, "Measured: "s + to_string(tick.getTimeSec()), {0, Image.rows - 5}, 0, 1, {255.f, 0.0f, 0.0f});
         cv::imshow("Vlah", Image);
 #endif // true
+        frame_counter.stop();
+        to_wait = max<int>(1e3 / TARGET_FPS - frame_counter.getTimeMilli(), 1);
     }
 
     // Close the camera
