@@ -1,9 +1,9 @@
 ﻿{
   "configurations": [
     {
-      "name": "x64-Debug",
+      "name": "x64-Develop",
       "generator": "Ninja",
-      "configurationType": "Debug",
+      "configurationType": "RelWithDebInfo",
       "inheritEnvironments": [ "msvc_x64_x64" ],
       "buildRoot": "${projectDir}\\out\\build\\${name}",
       "installRoot": "${projectDir}\\out\\install\\${name}",
@@ -14,6 +14,11 @@
         {
           "name": "OpenCV_DIR",
           "value": "E:\\Programs\\OpenCV\\4.4.0\\opencv\\build",
+          "type": "PATH"
+        },
+        {
+          "name": "CUDA_SDK_ROOT_DIR",
+          "value": "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v11.0",
           "type": "PATH"
         }
       ]
