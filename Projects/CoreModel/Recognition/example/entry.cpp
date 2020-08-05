@@ -205,7 +205,7 @@ int main()
             }
 
             /* Contour 검출 */
-            vector<cv::Point> FoundContours;
+            vector<cv::Vec2f> FoundContours;
             {
                 // 먼저 에지 검출합니다.
                 UImage = TableMask.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
@@ -226,19 +226,22 @@ int main()
                     cv::approxPolyDP(vector(Contour), Contour, 10, true);
 
                     auto Size = cv::contourArea(Contour);
-                    if (Size > 30e3 && Contour.size() == 4)
+                    if (Size > 20e3 && Contour.size() == 4)
                     {
                         // 당구대를 찾았습니다.
                         cv::drawContours(UImage, Contours, Index, {255.f, 255.f, 255.f}, 2, cv::LINE_8);
                         cv::putText(UImage, "Num: "s + to_string(Contours[Index].size()) + " / Size: " + to_string(Size), Contours[Index][0], cv::FONT_HERSHEY_PLAIN, 1, {255.f, 255.f, 255.f});
-                        FoundContours = move(Contour);
+                        for (auto Pt : Contour)
+                        {
+                            FoundContours.push_back(cv::Vec2f(Pt.x, Pt.y));
+                        }
                         break;
                     }
                 }
             }
 
             /* 당구대의 피봇 구하기 */
-            vector<cv::Point> PivotContours;
+            vector<cv::Vec2f> PivotContours;
             if (!FoundContours.empty())
             {
                 // 당구대의 종횡 길이 구하기
@@ -249,22 +252,25 @@ int main()
                 static double const span_x = atan(table_x) / fov_x, span_y = atan(table_y) / fov_y;
                 int const res_x = span_x * UImage.cols, res_y = span_y * UImage.rows;
 
-                double mult_x[] = {0.5, 1.5, 1.5, 0.5};
-                double mult_y[] = {0.5, 1.5, 0.5, 1.5};
+                double mult_x[] = {0.5, 0.5, 1.5, 1.5};
+                double mult_y[] = {1.5, 0.5, 1.5, 0.5};
                 for (int i = 0; i < 4; ++i)
                 {
-                    cv::Point pt = {int(mult_x[i] * res_x), int(mult_y[i] * res_y)};
+                    cv::Vec2f pt(mult_x[i] * res_x, mult_y[i] * res_y);
                     PivotContours.push_back(pt);
 
-                    cv::circle(UImage, pt, 5, {0, 255, 255}, 2);
+                    cv::circle(UImage, {int(pt.val[0]), int(pt.val[1])}, 5, {0, 255, 255}, 2);
                 }
-
             }
 
             /* Perspective 계산 */
-            if(!FoundContours.empty())
+            if (!FoundContours.empty())
             {
-                
+                auto Transform = cv::getPerspectiveTransform(PivotContours, FoundContours);
+                cout << Transform << endl;
+
+                Transform = cv::findHomography(PivotContours, FoundContours);
+                cout << Transform << "\n----------------------------------\n";
             }
         }
 
