@@ -173,16 +173,17 @@ int main()
                 cv::erode(UImage, UImage, {}, {-1, -1}, 25);
 
                 UImage.copyTo(TableMask);
-                cv::bitwise_xor(Frame, Frame, Frame, TableMask);
+
+                // cv::bitwise_xor(Frame, Frame, Frame, TableMask);
             }
 
             /* 깊이 이미지 추출 */
-            if (false)
+            if (true)
             {
                 cv::Mat Depth;
                 {
                     sl::Mat Captured;
-                    if (auto err = zed.retrieveImage(Captured, sl::VIEW::DEPTH);
+                    if (auto err = zed.retrieveMeasure(Captured, sl::MEASURE::DEPTH);
                         err != sl::ERROR_CODE::SUCCESS)
                     {
                         printf("Failed to retrieve depth image by error %d\n", err);
@@ -193,11 +194,11 @@ int main()
                     cv::resize(Depth, Depth, {Frame.cols, Frame.rows});
                 }
 
-                /* 깊이 이미지에 마스크 */
+                /* 프레임 중앙에 거리 표시 */
                 {
-                    cv::bitwise_and(Depth, Depth, UImage, TableMask);
-                    cv::add(Frame, UImage, UImage);
-                    // cv::bitwise_or(UImage, Frame, UImage, (cv::bitwise_not(TableMask, TableMask), TableMask));
+                    int y = Depth.rows / 2, x = Depth.cols / 2;
+                    float Dist = Depth.at<float>(y, x);
+                    cv::putText(Frame, to_string(Dist), {x, y}, cv::FONT_HERSHEY_PLAIN, 1.0, {255.f, 255.f, 255.f}, 2);
                 }
             }
 
@@ -232,8 +233,7 @@ int main()
                 }
             }
 
-            /* 출력을 위한 색공간 변환 */
-            //   cv::cvtColor(UImage, UImage, cv::COLOR_YUV2RGB);
+            /* 당구대의 네 귀퉁이에 대해, */
         }
 
         /* 출력 */
