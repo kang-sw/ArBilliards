@@ -1,6 +1,7 @@
 // Recognition.cpp : Defines the entry point for the application.
 //
 
+#define _USE_MATH_DEFINES
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
 #include <sl/Camera.hpp>
@@ -198,11 +199,13 @@ int main()
                 {
                     int y = Depth.rows / 2, x = Depth.cols / 2;
                     float Dist = Depth.at<float>(y, x);
+                    cv::circle(Frame, {x, y}, 5, {0, 0, 255}, 2);
                     cv::putText(Frame, to_string(Dist), {x, y}, cv::FONT_HERSHEY_PLAIN, 1.0, {255.f, 255.f, 255.f}, 2);
                 }
             }
 
             /* Contour 검출 */
+            vector<cv::Point> FoundContours;
             {
                 // 먼저 에지 검출합니다.
                 UImage = TableMask.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
@@ -223,17 +226,46 @@ int main()
                     cv::approxPolyDP(vector(Contour), Contour, 10, true);
 
                     auto Size = cv::contourArea(Contour);
-                    if (Size < 40e3 || Contour.size() != 4)
+                    if (Size > 30e3 && Contour.size() == 4)
                     {
-                        continue;
+                        // 당구대를 찾았습니다.
+                        cv::drawContours(UImage, Contours, Index, {255.f, 255.f, 255.f}, 2, cv::LINE_8);
+                        cv::putText(UImage, "Num: "s + to_string(Contours[Index].size()) + " / Size: " + to_string(Size), Contours[Index][0], cv::FONT_HERSHEY_PLAIN, 1, {255.f, 255.f, 255.f});
+                        FoundContours = move(Contour);
+                        break;
                     }
-
-                    cv::drawContours(UImage, Contours, Index, {255.f, 255.f, 255.f}, 2, cv::LINE_8);
-                    cv::putText(UImage, "Num: "s + to_string(Contours[Index].size()) + " / Size: " + to_string(Size), Contours[Index][0], cv::FONT_HERSHEY_PLAIN, 1, {255.f, 255.f, 255.f});
                 }
             }
 
-            /* 당구대의 네 귀퉁이에 대해, */
+            /* 당구대의 피봇 구하기 */
+            vector<cv::Point> PivotContours;
+            if (!FoundContours.empty())
+            {
+                // 당구대의 종횡 길이 구하기
+                double constexpr DTOR = M_PI / 180.0, RTOD = 180.0 / M_PI;
+                double constexpr fov_x = 90 * DTOR, fov_y = 60 * DTOR;
+                double constexpr table_x = 0.96, table_y = 0.51;
+
+                static double const span_x = atan(table_x) / fov_x, span_y = atan(table_y) / fov_y;
+                int const res_x = span_x * UImage.cols, res_y = span_y * UImage.rows;
+
+                double mult_x[] = {0.5, 1.5, 1.5, 0.5};
+                double mult_y[] = {0.5, 1.5, 0.5, 1.5};
+                for (int i = 0; i < 4; ++i)
+                {
+                    cv::Point pt = {int(mult_x[i] * res_x), int(mult_y[i] * res_y)};
+                    PivotContours.push_back(pt);
+
+                    cv::circle(UImage, pt, 5, {0, 255, 255}, 2);
+                }
+
+            }
+
+            /* Perspective 계산 */
+            if(!FoundContours.empty())
+            {
+                
+            }
         }
 
         /* 출력 */
