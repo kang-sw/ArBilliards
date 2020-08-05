@@ -169,10 +169,12 @@ int main()
                 cv::inRange(Image, HLS_FILTER_MIN, HLS_FILTER_MAX, UImage);
                 cv::dilate(UImage, UImage, {}, {-1, -1}, 25);
                 cv::erode(UImage, UImage, {}, {-1, -1}, 25);
-                UImage.copyTo(Image);
 
+                // UImage.copyTo(Image);
                 // cv::bitwise_and(Frame, Frame, UImage, Image);
             }
+
+            /* */
 
             /* 출력을 위한 색공간 변환 */
             //   cv::cvtColor(UImage, UImage, cv::COLOR_YUV2RGB);
