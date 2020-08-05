@@ -70,11 +70,14 @@ int main()
     }
 
     // Get camera information (ZED serial number)
-    int zed_serial = zed.getCameraInformation().serial_number;
+    auto zed_serial = zed.getCameraInformation().serial_number;
     printf("Hello! This is my serial number: %d\n", zed_serial);
 
     for (int val = 0, to_wait = 1; (val = (cv::waitKey(to_wait))) != 'q';)
     {
+        cv::TickMeter frame_counter;
+        frame_counter.start();
+
         if (auto err = zed.grab(); err != sl::ERROR_CODE::SUCCESS)
         {
             printf("Capture failed for code %d\n", err);
@@ -93,8 +96,6 @@ int main()
             Frame = slMat2cvMat(Captured).clone();
         }
 
-        cv::TickMeter frame_counter;
-        frame_counter.start();
 #if true
         cv::TickMeter tick;
 
@@ -160,9 +161,10 @@ int main()
             }
 
             /* 필터링 */
+            cv::Mat TableMask;
             {
-                cv::Scalar HLS_FILTER_MIN(0, 90, 190);
-                cv::Scalar HLS_FILTER_MAX(135, 110, 255);
+                cv::Scalar HLS_FILTER_MIN(0, 90, 170);
+                cv::Scalar HLS_FILTER_MAX(110, 120, 255);
 
                 UImage.copyTo(Image);
                 cv::UMat TmpImg;
@@ -170,26 +172,81 @@ int main()
                 cv::dilate(UImage, UImage, {}, {-1, -1}, 25);
                 cv::erode(UImage, UImage, {}, {-1, -1}, 25);
 
-                // UImage.copyTo(Image);
-                // cv::bitwise_and(Frame, Frame, UImage, Image);
+                UImage.copyTo(TableMask);
+                cv::bitwise_xor(Frame, Frame, Frame, TableMask);
             }
 
-            /* */
+            /* 깊이 이미지 추출 */
+            if (false)
+            {
+                cv::Mat Depth;
+                {
+                    sl::Mat Captured;
+                    if (auto err = zed.retrieveImage(Captured, sl::VIEW::DEPTH);
+                        err != sl::ERROR_CODE::SUCCESS)
+                    {
+                        printf("Failed to retrieve depth image by error %d\n", err);
+                        continue;
+                    }
+
+                    Depth = slMat2cvMat(Captured).clone();
+                    cv::resize(Depth, Depth, {Frame.cols, Frame.rows});
+                }
+
+                /* 깊이 이미지에 마스크 */
+                {
+                    cv::bitwise_and(Depth, Depth, UImage, TableMask);
+                    cv::add(Frame, UImage, UImage);
+                    // cv::bitwise_or(UImage, Frame, UImage, (cv::bitwise_not(TableMask, TableMask), TableMask));
+                }
+            }
+
+            /* Contour 검출 */
+            {
+                // 먼저 에지 검출합니다.
+                UImage = TableMask.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+                {
+                    cv::erode(UImage, UImage, {});
+                    cv::subtract(TableMask, UImage, UImage);
+                }
+
+                vector<vector<cv::Point>> Contours;
+                vector<cv::Vec4i> Hierachy;
+                cv::findContours(UImage, Contours, Hierachy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
+
+                Frame.copyTo(UImage);
+
+                for (int Index = 0; Index < Contours.size(); Index++)
+                {
+                    auto& Contour = Contours[Index];
+                    cv::approxPolyDP(vector(Contour), Contour, 10, true);
+
+                    auto Size = cv::contourArea(Contour);
+                    if (Size < 40e3 || Contour.size() != 4)
+                    {
+                        continue;
+                    }
+
+                    cv::drawContours(UImage, Contours, Index, {255.f, 255.f, 255.f}, 2, cv::LINE_8);
+                    cv::putText(UImage, "Num: "s + to_string(Contours[Index].size()) + " / Size: " + to_string(Size), Contours[Index][0], cv::FONT_HERSHEY_PLAIN, 1, {255.f, 255.f, 255.f});
+                }
+            }
 
             /* 출력을 위한 색공간 변환 */
             //   cv::cvtColor(UImage, UImage, cv::COLOR_YUV2RGB);
         }
 
-        tick.stop();
-
         /* 출력 */
         UImage.copyTo(Image);
 
-        cv::putText(Image, "Measured: "s + to_string(tick.getTimeSec()), {0, Image.rows - 5}, 0, 1, {255.f, 0.0f, 0.0f});
+        tick.stop();
+        frame_counter.stop();
+
+        cv::putText(Image, "Measured: "s + to_string(tick.getTimeSec()), {0, Image.rows - 45}, 0, 1, {255.f, 0.0f, 0.0f});
+        cv::putText(Image, "Total: "s + to_string(frame_counter.getTimeSec()), {0, Image.rows - 5}, 0, 1, {0.f, 0.f, 255.0f});
         cv::imshow("Vlah", Image);
         cv::imshow("Source", Frame);
 #endif // true
-        frame_counter.stop();
         to_wait = max<int>(1e3 / TARGET_FPS - frame_counter.getTimeMilli(), 1);
     }
 
