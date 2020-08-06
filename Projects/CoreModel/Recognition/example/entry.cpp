@@ -61,6 +61,7 @@ int main()
     init_params.camera_resolution = sl::RESOLUTION::HD720;
     init_params.sdk_verbose = true; // Disable verbose mode
     init_params.camera_fps = 30;
+    //init_params.coordinate_system = 
 
     // Open the camera
     sl::ERROR_CODE err = zed.open(init_params);
@@ -178,32 +179,6 @@ int main()
                 // cv::bitwise_xor(Frame, Frame, Frame, TableMask);
             }
 
-            /* 깊이 이미지 추출 */
-            if (true)
-            {
-                cv::Mat Depth;
-                {
-                    sl::Mat Captured;
-                    if (auto err = zed.retrieveMeasure(Captured, sl::MEASURE::DEPTH);
-                        err != sl::ERROR_CODE::SUCCESS)
-                    {
-                        printf("Failed to retrieve depth image by error %d\n", err);
-                        continue;
-                    }
-
-                    Depth = slMat2cvMat(Captured).clone();
-                    cv::resize(Depth, Depth, {Frame.cols, Frame.rows});
-                }
-
-                /* 프레임 중앙에 거리 표시 */
-                {
-                    int y = Depth.rows / 2, x = Depth.cols / 2;
-                    float Dist = Depth.at<float>(y, x);
-                    cv::circle(Frame, {x, y}, 5, {0, 0, 255}, 2);
-                    cv::putText(Frame, to_string(Dist), {x, y}, cv::FONT_HERSHEY_PLAIN, 1.0, {255.f, 255.f, 255.f}, 2);
-                }
-            }
-
             /* Contour 검출 */
             vector<cv::Vec2f> FoundContours;
             {
@@ -240,37 +215,79 @@ int main()
                 }
             }
 
-            /* 당구대의 피봇 구하기 */
-            vector<cv::Vec2f> PivotContours;
-            if (!FoundContours.empty())
+            /* 당구대의 피봇 구하기 - Deprecated method ! ! ! */
+            if (false)
             {
-                // 당구대의 종횡 길이 구하기
-                double constexpr DTOR = M_PI / 180.0, RTOD = 180.0 / M_PI;
-                double constexpr fov_x = 90 * DTOR, fov_y = 60 * DTOR;
-                double constexpr table_x = 0.96, table_y = 0.51;
-
-                static double const span_x = atan(table_x) / fov_x, span_y = atan(table_y) / fov_y;
-                int const res_x = span_x * UImage.cols, res_y = span_y * UImage.rows;
-
-                double mult_x[] = {0.5, 0.5, 1.5, 1.5};
-                double mult_y[] = {1.5, 0.5, 1.5, 0.5};
-                for (int i = 0; i < 4; ++i)
+                vector<cv::Vec2f> PivotContours;
+                if (!FoundContours.empty())
                 {
-                    cv::Vec2f pt(mult_x[i] * res_x, mult_y[i] * res_y);
-                    PivotContours.push_back(pt);
+                    // 당구대의 종횡 길이 구하기
+                    double constexpr DTOR = M_PI / 180.0, RTOD = 180.0 / M_PI;
+                    double constexpr fov_x = 90 * DTOR, fov_y = 60 * DTOR;
+                    double constexpr table_x = 0.96, table_y = 0.51;
 
-                    cv::circle(UImage, {int(pt.val[0]), int(pt.val[1])}, 5, {0, 255, 255}, 2);
+                    static double const span_x = atan(table_x) / fov_x, span_y = atan(table_y) / fov_y;
+                    int const res_x = span_x * UImage.cols, res_y = span_y * UImage.rows;
+
+                    double mult_x[] = {0.5, 0.5, 1.5, 1.5};
+                    double mult_y[] = {1.5, 0.5, 1.5, 0.5};
+                    for (int i = 0; i < 4; ++i)
+                    {
+                        cv::Vec2f pt(mult_x[i] * res_x, mult_y[i] * res_y);
+                        PivotContours.push_back(pt);
+
+                        cv::circle(UImage, {int(pt.val[0]), int(pt.val[1])}, 5, {0, 255, 255}, 2);
+                    }
+                }
+
+                /* Perspective 계산 */
+                if (!FoundContours.empty())
+                {
+                    auto Transform = cv::getPerspectiveTransform(PivotContours, FoundContours);
+                    cout << Transform << endl;
+
+                    Transform = cv::findHomography(PivotContours, FoundContours);
+                    cout << Transform << "\n----------------------------------\n";
                 }
             }
 
-            /* Perspective 계산 */
-            if (!FoundContours.empty())
+            /* 포인트 클라우드 추출 */
+            if (true)
             {
-                auto Transform = cv::getPerspectiveTransform(PivotContours, FoundContours);
-                cout << Transform << endl;
+                cv::Mat PtCloud;
+                {
+                    sl::Mat Captured;
+                    if (auto err = zed.retrieveMeasure(Captured, sl::MEASURE::XYZBGRA);
+                        err != sl::ERROR_CODE::SUCCESS)
+                    {
+                        printf("Failed to retrieve depth image by error %d\n", err);
+                        continue;
+                    }
 
-                Transform = cv::findHomography(PivotContours, FoundContours);
-                cout << Transform << "\n----------------------------------\n";
+                    PtCloud = slMat2cvMat(Captured).clone();
+                    cv::resize(PtCloud, PtCloud, {Frame.cols, Frame.rows});
+                }
+
+                /* 프레임 중앙에 거리 표시 */
+                {
+                    int y = PtCloud.rows / 2, x = PtCloud.cols / 2;
+                    auto Center = PtCloud.at<cv::Vec4f>(y, x);
+                    Center.val[3] = 0;
+                    float Dist;
+                    Dist = sqrt(cv::sum(Center.mul(Center)).val[0]);
+
+                    cv::circle(Frame, {x, y}, 5, {0, 0, 255}, 2);
+                    cv::putText(Frame, to_string(Dist), {x, y}, cv::FONT_HERSHEY_PLAIN, 1.0, {255.f, 255.f, 255.f}, 2);
+                }
+
+                /* 당구대 각 귀퉁이 좌표 표시 */
+                for (auto& Point : FoundContours)
+                {
+                    cv::Point Pt(Point.val[0], Point.val[1] - 20);
+                    auto Coord = *(cv::Vec3f*)&PtCloud.at<array<float, 4>>(Pt.y, Pt.x);
+
+                    cv::putText(UImage, (stringstream() << Coord).str(), Pt, cv::FONT_HERSHEY_PLAIN, 1.4f, {0, 0, 255}, 2);
+                }
             }
         }
 
