@@ -22,6 +22,8 @@
   - [200805-1700](#200805-1700)
   - [200807-0830](#200807-0830)
   - [200807-1000](#200807-1000)
+  - [200807-1730](#200807-1730)
+  - [200807-2030](#200807-2030)
 
 ## 당구대 인식
 
@@ -250,4 +252,84 @@ ZED 평가용 어플리케이션을 실행했을 때엔 꽤 정확하게 world r
 
 그러길 바랍니다 (..)
 
-[GO TO TOP](#영상-인식---개요)
+## 200807-1730
+
+**KEYWORDS**
+- Eight-point algorithm
+- PnP algorithm
+
+당구대의 크기를 이미 알고 있고, 카메라의 intrinsic parameter 또한 SDK의 도움으로 손쉽게 획득할 수 있습니다. 
+
+교수님의 도움으로 몇 가지 유용한 알고리즘에 대한 정보를 얻었습니다. 위 알고리즘을 통해 이미지 상에 투영된 당구대의 네 귀퉁이로부터, 정확한 extrinsic을 도출해낼 수 있을 것으로 보입니다.
+
+``` c++
+vector<cv::Vec2f> FoundContours;
+vector<cv::Vec3f> Pivots;
+{
+    double HalfX = 0.96 / 2;
+    double HalfZ = 0.51 / 2;
+
+    // OpenCV 좌표계 참조
+    Pivots.push_back({-HalfX, 0, HalfZ});
+    Pivots.push_back({-HalfX, 0, -HalfZ});
+    Pivots.push_back({HalfX, 0, -HalfZ});
+    Pivots.push_back({HalfX, 0, HalfZ});
+}
+
+cv::Mat RotVec, TransVec;
+cv::solvePnP(Pivots, FoundContours, CameraMat, DistortionMat, RotVec, TransVec, false, cv::SOLVEPNP_IPPE);
+```
+
+우리는 평면 상에 위치한 4개의 점을 매칭시킬 것이므로, SOLVEPNP_IPPE를 먼저 시도합니다.
+
+![](GIF%202020-08-07%20오후%206-33-38.gif)
+
+먼저 위 방법을 통해 도출된 Translation Vector(카메라 좌표계)를 당구대 중심에 표기해 보았습니다. 이따금씩 큰 폭으로 진동하는 경우를 제외하면, 대부분 값은 10mm 범위 내에서 수렴합니다. 제가 카메라를 손으로 들고 있어서 바들바들 떨리는 것까지 고려하면, 아마도 진동 폭은 더 작을 것으로 생각됩니다.
+
+이제 이 좌표를 다시 월드 좌표계로 변환해야 하는데, 일단 강체의 회전은 고려하지 않고 translation 좌표만 카메라의 position에 더해 보았습니다.
+
+## 200807-2030
+
+그렇게 간단한 문제가 아니라는 것을 알았습니다 ..
+
+<video controls width="100%">
+  <source src="2020-08-07 21-00-37.mp4" type="video/mp4">
+</video>
+
+생각해보니, 카메라에서 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+***[GO TO TOP](#영상-인식---개요)***
+
+
