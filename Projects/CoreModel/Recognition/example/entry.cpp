@@ -5,6 +5,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
 #include <sl/Camera.hpp>
+#include <optional>
 
 using namespace std;
 
@@ -57,23 +58,37 @@ int main()
     sl::Camera zed;
 
     // Set configuration parameters
-    sl::InitParameters init_params;
-    init_params.camera_resolution = sl::RESOLUTION::HD720;
-    init_params.sdk_verbose = true; // Disable verbose mode
-    init_params.camera_fps = 30;
-    //init_params.coordinate_system = 
-
-    // Open the camera
-    sl::ERROR_CODE err = zed.open(init_params);
-    if (err != sl::ERROR_CODE::SUCCESS)
     {
-        printf("Open failed ... %d", err);
-        exit(-1);
+        sl::InitParameters init_params;
+        init_params.camera_resolution = sl::RESOLUTION::HD720;
+        init_params.sdk_verbose = true; // Disable verbose mode
+        init_params.camera_fps = 30;
+        init_params.coordinate_units = sl::UNIT::METER;
+
+        // Open the camera
+        sl::ERROR_CODE err = zed.open(init_params);
+        if (err != sl::ERROR_CODE::SUCCESS)
+        {
+            printf("Open failed ... %d", err);
+            exit(-1);
+        }
     }
 
     // Get camera information (ZED serial number)
     auto zed_serial = zed.getCameraInformation().serial_number;
     printf("Hello! This is my serial number: %d\n", zed_serial);
+
+    // 위치 트래킹 활성화
+    {
+        sl::PositionalTrackingParameters parms;
+
+        sl::ERROR_CODE err = zed.enablePositionalTracking(parms);
+        if (err != sl::ERROR_CODE::SUCCESS)
+        {
+            printf("Position tracking enable failed ... %d", err);
+            exit(-1);
+        }
+    }
 
     for (int val = 0, to_wait = 1; (val = (cv::waitKey(to_wait))) != 'q';)
     {
@@ -171,8 +186,8 @@ int main()
                 UImage.copyTo(Image);
                 cv::UMat TmpImg;
                 cv::inRange(Image, HLS_FILTER_MIN, HLS_FILTER_MAX, UImage);
-                cv::dilate(UImage, UImage, {}, {-1, -1}, 25);
-                cv::erode(UImage, UImage, {}, {-1, -1}, 25);
+                cv::dilate(UImage, UImage, {}, {-1, -1}, 10);
+                cv::erode(UImage, UImage, {}, {-1, -1}, 10);
 
                 UImage.copyTo(TableMask);
 
@@ -183,7 +198,7 @@ int main()
             vector<cv::Vec2f> FoundContours;
             {
                 // 먼저 에지 검출합니다.
-                UImage = TableMask.getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+                UImage = TableMask.clone().getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
                 {
                     cv::erode(UImage, UImage, {});
                     cv::subtract(TableMask, UImage, UImage);
@@ -251,6 +266,28 @@ int main()
                 }
             }
 
+            /* 카메라 포지션 계산 */
+            optional<sl::Matrix4f> CameraTransform;
+            {
+                using namespace sl;
+                sl::Pose CamPose;
+
+                // Get the distance between the center of the camera and the left eye
+                float translation_left_to_center = zed.getCameraInformation().calibration_parameters.T.x * 0.5f;
+                // Retrieve and transform the pose data into a new frame located at the center of the camera
+                sl::POSITIONAL_TRACKING_STATE tracking_state = zed.getPosition(CamPose, sl::REFERENCE_FRAME::WORLD);
+
+                if (CamPose.pose_confidence > 90)
+                {
+                    Transform transform_;
+                    transform_.setIdentity();
+                    // Translate the tracking frame by tx along the X axis
+                    transform_.tx = translation_left_to_center;
+                    // Pose(new reference frame) = M.inverse() * Pose (camera frame) * M, where M is the transform between two frames
+                    CameraTransform = Transform::inverse(transform_) * CamPose.pose_data * transform_;
+                }
+            }
+
             /* 포인트 클라우드 추출 */
             if (true)
             {
@@ -286,8 +323,29 @@ int main()
                     cv::Point Pt(Point.val[0], Point.val[1] - 20);
                     auto Coord = *(cv::Vec3f*)&PtCloud.at<array<float, 4>>(Pt.y, Pt.x);
 
-                    cv::putText(UImage, (stringstream() << Coord).str(), Pt, cv::FONT_HERSHEY_PLAIN, 1.4f, {0, 0, 255}, 2);
+                    // 트랜슬레이션 계산
+                    if (CameraTransform)
+                    {
+                        sl::Vector4<float> pt;
+                        memcpy(pt.v, Coord.val, 3 * sizeof(float));
+                        pt.w = 1.0f;
+
+                        pt = pt * CameraTransform.value();
+
+                        memcpy(Coord.val, pt.v, 3 * sizeof(float));
+                    }
+                    else
+                    {
+                        break;
+                    }
+
+                    cv::putText(UImage, (stringstream() << Coord).str(), Pt, cv::FONT_HERSHEY_PLAIN, 1.4f, {255, 0, 233}, 2);
                 }
+            }
+
+            /* 마스크 시각화 */
+            {
+                cv::bitwise_xor(Frame, Frame, Frame, TableMask);
             }
         }
 
