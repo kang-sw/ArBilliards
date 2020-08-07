@@ -292,9 +292,7 @@ cv::solvePnP(Pivots, FoundContours, CameraMat, DistortionMat, RotVec, TransVec, 
 
 그렇게 간단한 문제가 아니라는 것을 알았습니다 ..
 
-<video controls width="100%">
-  <source src="2020-08-07 21-00-37.mp4" type="video/mp4">
-</video>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/2kkCd01lM6k" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 생각해보니, 카메라에서 
 
