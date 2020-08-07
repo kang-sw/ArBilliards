@@ -78,7 +78,7 @@ int main()
     auto zed_serial = zed.getCameraInformation().serial_number;
     printf("Hello! This is my serial number: %d\n", zed_serial);
 
-    // 위치 트래킹 활성화
+    /* 위치 트래킹 활성화 */
     {
         sl::PositionalTrackingParameters parms;
 
@@ -90,6 +90,17 @@ int main()
         }
     }
 
+    /* 카메라 인트린식 획득 */
+    auto CameraInfo = zed.getCameraInformation({960, 540});
+    cv::Mat CameraMat, DistortionMat;
+    {
+        auto& p = CameraInfo.camera_configuration.calibration_parameters.left_cam;
+        double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
+        CameraMat = cv::Mat(3, 3, CV_64FC1, M);
+        DistortionMat = cv::Mat(4, 1, CV_64FC1, p.disto);
+    }
+
+    /* 메인 루프 */
     for (int val = 0, to_wait = 1; (val = (cv::waitKey(to_wait))) != 'q';)
     {
         cv::TickMeter frame_counter;
@@ -181,13 +192,13 @@ int main()
             cv::Mat TableMask;
             {
                 cv::Scalar HLS_FILTER_MIN(0, 90, 170);
-                cv::Scalar HLS_FILTER_MAX(110, 120, 255);
+                cv::Scalar HLS_FILTER_MAX(110, 140, 255);
 
                 UImage.copyTo(Image);
                 cv::UMat TmpImg;
                 cv::inRange(Image, HLS_FILTER_MIN, HLS_FILTER_MAX, UImage);
-                cv::dilate(UImage, UImage, {}, {-1, -1}, 10);
-                cv::erode(UImage, UImage, {}, {-1, -1}, 10);
+                // cv::dilate(UImage, UImage, {}, {-1, -1}, 10);
+                // cv::erode(UImage, UImage, {}, {-1, -1}, 10);
 
                 UImage.copyTo(TableMask);
 
@@ -272,24 +283,59 @@ int main()
                 using namespace sl;
                 sl::Pose CamPose;
 
-                // Get the distance between the center of the camera and the left eye
-                float translation_left_to_center = zed.getCameraInformation().calibration_parameters.T.x * 0.5f;
                 // Retrieve and transform the pose data into a new frame located at the center of the camera
-                sl::POSITIONAL_TRACKING_STATE tracking_state = zed.getPosition(CamPose, sl::REFERENCE_FRAME::WORLD);
+                zed.getPosition(CamPose, sl::REFERENCE_FRAME::WORLD);
 
-                if (CamPose.pose_confidence > 90)
+                if (CamPose.valid && CamPose.pose_confidence > 90)
                 {
-                    Transform transform_;
-                    transform_.setIdentity();
-                    // Translate the tracking frame by tx along the X axis
-                    transform_.tx = translation_left_to_center;
-                    // Pose(new reference frame) = M.inverse() * Pose (camera frame) * M, where M is the transform between two frames
-                    CameraTransform = Transform::inverse(transform_) * CamPose.pose_data * transform_;
+                    CameraTransform = CamPose.pose_data;
+                }
+            }
+
+            /* 당구대의 위치 계산 ... PnP 메소드 활용 */
+            if (FoundContours.empty() == false)
+            {
+                /* 당구대의 월드 포인트  */
+                // findContour로 찾아진 포인트는 반드시 반시계 방향 정렬되므로 이를 고려해 3D 원점을 설정합니다. 기본 설정은 카메라 원점에 당구대 중심을 위치시키고, 수평 가로로 놓은 상태입니다.
+                vector<cv::Vec3f> Pivots;
+                {
+                    float HalfX = 0.96 / 2;
+                    float HalfZ = 0.51 / 2;
+
+                    // OpenCV 좌표계 참조
+                    Pivots.push_back({-HalfX, 0, HalfZ});
+                    Pivots.push_back({-HalfX, 0, -HalfZ});
+                    Pivots.push_back({HalfX, 0, -HalfZ});
+                    Pivots.push_back({HalfX, 0, HalfZ});
+                }
+
+                cv::Mat RotVec, TransVec;
+                cv::solvePnP(Pivots, FoundContours, CameraMat, DistortionMat, RotVec, TransVec, false, cv::SOLVEPNP_IPPE);
+
+                auto ImgCenter = cv::sum(FoundContours) / 4;
+
+                // 도출된 Translate Vector 표시
+                {
+                    stringstream ss;
+                    TransVec.convertTo(TransVec, CV_32FC1);
+                    ss.precision(4);
+
+                    auto Coord = *(cv::Vec3f*)TransVec.data;
+
+                    // 트랜슬레이션 계산
+                    if (CameraTransform)
+                    {
+                        sl::Vector4<float> Vect(Coord.val[0], Coord.val[1], Coord.val[2], 1.f);
+                        Vect = Vect * (*CameraTransform);
+                        Coord = *(cv::Vec3f*)Vect.v;
+
+                        cv::putText(UImage, ((stringstream&)(ss << Coord)).str(), {(int)ImgCenter.val[0], (int)ImgCenter.val[1]}, cv::FONT_HERSHEY_PLAIN, 1.3, {0, 0, 255}, 2);
+                    }
                 }
             }
 
             /* 포인트 클라우드 추출 */
-            if (true)
+            if (false)
             {
                 cv::Mat PtCloud;
                 {

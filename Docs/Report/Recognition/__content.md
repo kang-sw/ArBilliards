@@ -24,6 +24,7 @@
   - [200807-1000](#200807-1000)
   - [200807-1730](#200807-1730)
   - [200807-2030](#200807-2030)
+  - [200807-2130](#200807-2130)
 
 ## 당구대 인식
 
@@ -290,12 +291,24 @@ cv::solvePnP(Pivots, FoundContours, CameraMat, DistortionMat, RotVec, TransVec, 
 
 ## 200807-2030
 
-그렇게 간단한 문제가 아니라는 것을 알았습니다 ..
+[![Vid](http://img.youtube.com/vi/2kkCd01lM6k/0.jpg)](https://youtu.be/2kkCd01lM6k)
+*클릭하여 재생*
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/2kkCd01lM6k" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+카메라에 대한 테이블의 상대 좌표 $P_{camera}$의 월드 좌표를 구한 식은 다음과 같습니다.
 
-생각해보니, 카메라에서 
+$P_{world} = P_{camera} \times T_{camera}$(단, $T_{camera}$는 카메라 트랜스폼 행렬)
 
+간헐적으로 세 개의 값이 모두 바뀌는 경우(Candidate가 노멀이 위를 향하는 방향, 아래를 향하는 방향으로 총 2개이므로)를 제외하면, 값이 꽤 적은 오차범위(약 5~6cm)에서 수렴하는 것을 확인할 수 있습니다.
+
+이제 노멀이 위를 향하는 방향의 candidate만을 선별하고 LPF를 통해 테이블의 위치를 수렴시키는 방향으로 구현하면 당구대 인식은 어느 정도 마무리할 수 있을 것으로 보입니다.
+
+> NOTE: 정답을 앞에 두고 엄한 곳을 헤매고 있었습니다 ... 앞서 테이블의 포즈를 추정하는 데 사용한 PnP 함수가 두 개의 candidate를 순서 없이 반환해서, 한 번씩 값이 뒤틀리는 것을 보고 위 식이 잘못된 줄 알았었네요.
+
+## 200807-2130
+
+![](2020-08-07-21-59-56.png)
+
+노트: 노멀이 위를 향하는 candidate만 걸러내기 ...
 
 
 
