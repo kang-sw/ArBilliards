@@ -367,7 +367,7 @@ int main()
                 for (auto& Point : FoundContours)
                 {
                     cv::Point Pt(Point.val[0], Point.val[1] - 20);
-                    auto Coord = *(cv::Vec3f*)&PtCloud.at<array<float, 4>>(Pt.y, Pt.x);
+                    auto Coord = *(cv::Vec3f*)&PtCloud.at<cv::Vec4f>(Pt.y, Pt.x);
 
                     // 트랜슬레이션 계산
                     if (CameraTransform)

@@ -5,8 +5,8 @@ cmake_minimum_required (VERSION 3.8)
 
 project ("Recognition")
 
-find_package(OpenCV REQUIRED)
-find_package(ZED REQUIRED)
+find_package(OpenCV 4 REQUIRED)
+find_package(ZED 2 REQUIRED)
 
 find_package(CUDA REQUIRED)
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
@@ -30,3 +30,4 @@ add_dependencies(RecognitionTest Recognition)
 target_link_libraries(RecognitionTest PUBLIC Recognition)
 
 
+message("SHOW: ${OpenCV_LIBS}")

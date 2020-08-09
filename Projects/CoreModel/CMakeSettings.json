@@ -1,7 +1,7 @@
 ﻿{
   "configurations": [
     {
-      "name": "x64-Debug",
+      "name": "x64-Develop",
       "generator": "Ninja",
       "configurationType": "RelWithDebInfo",
       "inheritEnvironments": [ "msvc_x64_x64" ],
@@ -13,7 +13,35 @@
       "variables": [
         {
           "name": "OpenCV_DIR",
-          "value": "E:/Programs/OpenCV/4.4.0/opencv/build",
+          "value": "D:/Repositories/OpenCV/4.4.0/out/install/x64-Release",
+          "type": "PATH"
+        },
+        {
+          "name": "CUDA_SDK_ROOT_DIR",
+          "value": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.0",
+          "type": "PATH"
+        }
+      ]
+    },
+    {
+      "name": "x64-Debug",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "",
+      "ctestCommandArgs": "",
+      "inheritEnvironments": [ "msvc_x64_x64" ],
+      "variables": [
+        {
+          "name": "OpenCV_DIR",
+          "value": "D:/Repositories/OpenCV/4.4.0/out/install/x64-Debug",
+          "type": "PATH"
+        },
+        {
+          "name": "CUDA_SDK_ROOT_DIR",
+          "value": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.0",
           "type": "PATH"
         }
       ]
