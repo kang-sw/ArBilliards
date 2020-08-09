@@ -25,6 +25,8 @@
   - [200807-1730](#200807-1730)
   - [200807-2030](#200807-2030)
   - [200807-2130](#200807-2130)
+  - [200809-1700](#200809-1700)
+  - [200809-1800](#200809-1800)
 
 ## 당구대 인식
 
@@ -310,10 +312,27 @@ $P_{world} = P_{camera} \times T_{camera}$(단, $T_{camera}$는 카메라 트랜
 
 노트: 노멀이 위를 향하는 candidate만 걸러내기 ...
 
+> NOTE: OpenCV의 SolvePNP는 강체의 회전 각도를 회전축(x,y,z)과 각도($\theta$)로 이루어진 Rodrigues 표현법으로 반환합니다. 당구대의 위치를 인식한 OpenCV와 이를 표기할 Unity는 서로 사용하는 좌표계가 달라 회전 좌표계의 변환이 좀 어려울 것 같았는데, Rodrigues 표현법으로 표현된 회전각은 회전축 방향 벡터의 좌표계만 변환하면 될 것으로 보입니다.
 
+## 200809-1700
 
+오큘러스 리프트를 유니티 엔진에서 빌드하기 위한 작업에 들어갔습니다.
 
+1. Oculus App 설치 후 장치 초기 설정 완료
+2. Unity 2019.4.7f1(LTS) 설치
+3. [빌드 셋팅 문서화](https://developer.oculus.com/documentation/unity/unity-conf-settings/#build-settings)에 따라 프로젝트 설정
 
+이 시점에서 오큘러스 리프트로 화면을 띄우는 것까진 성공했습니다. 그러나 아무것도 설정하지 않은 상태에서는, 헤드 트레킹 등의 기능은 작동하지 않는 걸로 보입니다.
+
+## 200809-1800
+
+오큘러스에서 Unity integration을 위해 제작한 [Occulus Integration](https://assetstore.unity.com/packages/tools/integration/oculus-integration-82022) 패키지를 import합니다.
+
+![](GIF%202020-08-09%20오후%206-10-59.gif)
+
+이후 해당 패키지에서 제공하는 Prefab 중, OVRCameraRig을 활용하면 간단하게 헤드 트래킹을 사용 가능합니다.
+
+이제 ZED Stereo 카메라로부터 이미지를 받아와 AR 장치로 뿌려주면, 기본적인 셋팅은 끝나게 됩니다.
 
 
 
@@ -342,5 +361,3 @@ $P_{world} = P_{camera} \times T_{camera}$(단, $T_{camera}$는 카메라 트랜
 
 
 ***[GO TO TOP](#영상-인식---개요)***
-
-

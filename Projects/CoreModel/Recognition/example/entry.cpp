@@ -195,29 +195,25 @@ int main()
                 cv::Scalar HLS_FILTER_MAX(110, 140, 255);
 
                 UImage.copyTo(Image);
-                cv::UMat TmpImg;
-                cv::inRange(Image, HLS_FILTER_MIN, HLS_FILTER_MAX, UImage);
-                // cv::dilate(UImage, UImage, {}, {-1, -1}, 10);
-                // cv::erode(UImage, UImage, {}, {-1, -1}, 10);
+                cv::inRange(Image, HLS_FILTER_MIN, HLS_FILTER_MAX, Image);
 
-                UImage.copyTo(TableMask);
-
-                // cv::bitwise_xor(Frame, Frame, Frame, TableMask);
+                Image.copyTo(TableMask);
             }
 
             /* Contour 검출 */
             vector<cv::Vec2f> FoundContours;
             {
                 // 먼저 에지 검출합니다.
-                UImage = TableMask.clone().getUMat(cv::ACCESS_RW, cv::USAGE_ALLOCATE_DEVICE_MEMORY);
+                Image = TableMask.clone();
+                UImage = Image.getUMat(cv::ACCESS_RW);
                 {
                     cv::erode(UImage, UImage, {});
                     cv::subtract(TableMask, UImage, UImage);
                 }
 
                 vector<vector<cv::Point>> Contours;
-                vector<cv::Vec4i> Hierachy;
-                cv::findContours(UImage, Contours, Hierachy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
+                vector<cv::Vec4i> Hierarchy;
+                cv::findContours(UImage, Contours, Hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
                 Frame.copyTo(UImage);
 
@@ -327,9 +323,9 @@ int main()
                     {
                         sl::Vector4<float> Vect(Coord.val[0], Coord.val[1], Coord.val[2], 1.f);
                         Vect = Vect * (*CameraTransform);
-                        Coord = *(cv::Vec3f*)Vect.v;
+                        // Coord = *(cv::Vec3f*)Vect.v;
 
-                        cv::putText(UImage, ((stringstream&)(ss << Coord)).str(), {(int)ImgCenter.val[0], (int)ImgCenter.val[1]}, cv::FONT_HERSHEY_PLAIN, 1.3, {0, 0, 255}, 2);
+                        cv::putText(UImage, ((stringstream&)(ss << TransVec.rows << ": " << Coord)).str(), {(int)ImgCenter.val[0], (int)ImgCenter.val[1]}, cv::FONT_HERSHEY_PLAIN, 1.3, {0, 0, 255}, 2);
                     }
                 }
             }
@@ -405,6 +401,8 @@ int main()
         cv::putText(Image, "Total: "s + to_string(frame_counter.getTimeSec()), {0, Image.rows - 5}, 0, 1, {0.f, 0.f, 255.0f});
         cv::imshow("Vlah", Image);
         cv::imshow("Source", Frame);
+        UImage.release();
+
 #endif // true
         to_wait = max<int>(1e3 / TARGET_FPS - frame_counter.getTimeMilli(), 1);
     }
