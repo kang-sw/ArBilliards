@@ -6,7 +6,10 @@
 #include <opencv2/opencv.hpp>
 #include <sl/Camera.hpp>
 #include <optional>
+#include <nlohmann/json.hpp>
+#include <sockpp/socket.h>
 
+using json = nlohmann::json;
 using namespace std;
 
 cv::Mat slMat2cvMat(sl::Mat& input)
@@ -54,6 +57,9 @@ cv::Mat slMat2cvMat(sl::Mat& input)
 
 int main()
 {
+    // Initailize winsock
+    sockpp::socket_initializer socket_initializer;
+    
     // Create a ZED camera object
     sl::Camera zed;
 
@@ -325,7 +331,12 @@ int main()
                         Vect = Vect * (*CameraTransform);
                         // Coord = *(cv::Vec3f*)Vect.v;
 
-                        cv::putText(UImage, ((stringstream&)(ss << TransVec.rows << ": " << Coord)).str(), {(int)ImgCenter.val[0], (int)ImgCenter.val[1]}, cv::FONT_HERSHEY_PLAIN, 1.3, {0, 0, 255}, 2);
+                        cv::putText(UImage, ((stringstream&)(ss << RotVec.rows << ": " << Coord)).str(), {(int)ImgCenter.val[0], (int)ImgCenter.val[1]}, cv::FONT_HERSHEY_PLAIN, 1.3, {0, 0, 255}, 2);
+
+                        json d;
+                        d["coord"] = *(array<float, 3>*)&Coord;
+
+                        std::cout << d;
                     }
                 }
             }

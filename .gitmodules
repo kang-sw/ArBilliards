@@ -1,0 +1,3 @@
+[submodule "Projects/CoreModel/sockpp"]
+	path = Projects/CoreModel/Recognition/third/socketpp
+	url = https://github.com/fpagliughi/sockpp.git

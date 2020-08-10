@@ -27,6 +27,7 @@
   - [200807-2130](#200807-2130)
   - [200809-1700](#200809-1700)
   - [200809-1800](#200809-1800)
+  - [200810-1630](#200810-1630)
 
 ## 당구대 인식
 
@@ -333,6 +334,25 @@ $P_{world} = P_{camera} \times T_{camera}$(단, $T_{camera}$는 카메라 트랜
 이후 해당 패키지에서 제공하는 Prefab 중, OVRCameraRig을 활용하면 간단하게 헤드 트래킹을 사용 가능합니다.
 
 이제 ZED Stereo 카메라로부터 이미지를 받아와 AR 장치로 뿌려주면, 기본적인 셋팅은 끝나게 됩니다.
+
+## 200810-1630
+
+OpenCV의 SolvePnP를 통해 획득한 당구대의 좌표를 Unity 엔진에서 확인해봅니다. 
+
+Unity좌표계(OpenCV 좌표계에서 Y방향 반전; 왼손 좌표계)로 변환된 테이블 위치와 Rodrigues 방향 벡터를 TCP 프로토콜로 전송합니다.
+
+![](2020-08-10-16-50-15.png)
+
+C++ 프로그램의 JSON 라이브러리는 [nlohmann/json](https://github.com/nlohmann/json)을 사용합니다.
+
+Socket은 버클리 소켓 API를 그대로 사용하는 대신 깃허브에서 [fpagliughi/sockpp](https://github.com/fpagliughi/sockpp) 라이브러리를 사용합니다.
+
+
+
+
+
+
+
 
 
 
