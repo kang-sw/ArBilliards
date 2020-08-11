@@ -8,6 +8,7 @@ project ("Recognition")
 # Third-party libraries
 add_subdirectory(third/socketpp)
 
+find_package(Boost REQUIRED system) 
 find_package(OpenCV 4 REQUIRED)
 find_package(ZED 2 REQUIRED)
 
@@ -45,6 +46,7 @@ target_link_libraries(
 		sockpp-static
 		${OpenCV_LIBS} 
 		${ZED_LIBRARIES}
+		${Boost_LIBRARIES}
 )
 
 target_include_directories(
@@ -56,4 +58,5 @@ target_include_directories(
 		"third/cpp-base64/" 
 		${OpenCV_INCLUDE_DIRS} 
 		${ZED_INCLUDE_DIRS}
+		${Boost_INCLUDE_DIRS}
 )

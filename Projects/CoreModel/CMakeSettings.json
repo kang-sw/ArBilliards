@@ -51,12 +51,12 @@
         },
         {
           "name": "Boost_DIR",
-          "value": "D:/Repositories/Boost/1.73.0/stage",
+          "value": "C:/Repositories/Boost/1.73.0/stage",
           "type": "PATH"
         },
         {
           "name": "Boost_INCLUDE_DIR",
-          "value": "D:\\Repositories\\Boost\\1.73.0",
+          "value": "C:\\Repositories\\Boost\\1.73.0",
           "type": "PATH"
         }
       ]

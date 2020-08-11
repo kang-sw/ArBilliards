@@ -6,12 +6,22 @@
 #include <sstream>
 #include <atomic>
 #include <thread>
+#include <boost/asio.hpp>
 
 using namespace std;
-
+using namespace boost::asio;
+using namespace boost::posix_time;
 #define RECOGNIZE_IPC_PORT 25033
 
 int main(void)
+{
+    io_service io;
+    deadline_timer t(io, 100ms);
+
+
+}
+
+int main_2(void)
 {
     sockpp::socket_initializer socket_initializer;
     sockpp::tcp_acceptor acceptor(RECOGNIZE_IPC_PORT);
