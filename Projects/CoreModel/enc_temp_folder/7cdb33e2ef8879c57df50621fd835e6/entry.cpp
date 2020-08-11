@@ -40,7 +40,7 @@ int main(void)
         socket.read_timeout(1500ms);
         socket.set_non_blocking(false);
         this_thread::sleep_for(33ms);
-        
+
         while (socket.is_open() && is_alive)
         {
             // 각 JSON 청크는 null 종료로 구별합니다.

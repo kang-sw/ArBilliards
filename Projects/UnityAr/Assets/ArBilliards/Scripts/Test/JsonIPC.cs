@@ -9,10 +9,12 @@ using System.IO;
 
 public class JsonIPC : MonoBehaviour
 {
-	public UInt16 PortNumber = 16667;
+	public UInt16 PortNumber = 25033;
 	public string IpAddr = "localhost";
-	public Transform Tracking;
+	public Transform TrackingTransform;
+	public float UpdatePeriod = 1.0f;
 
+	float PeriodTimer = 0;
 	TcpClient Connection;
 	StreamWriter NetWrite;
 	System.Threading.Tasks.Task AsyncConnectTask;
@@ -31,9 +33,23 @@ public class JsonIPC : MonoBehaviour
 		Connection = new TcpClient();
 	}
 
+	private void OnDestroy()
+	{
+		if(Connection.Connected)
+		{
+			Connection.Close();
+		}
+	}
+
 	// Update is called once per frame
 	void Update()
 	{
+		if ((PeriodTimer += Time.deltaTime) < UpdatePeriod)
+		{
+			return;
+		}
+		PeriodTimer -= UpdatePeriod;
+
 		if (!Connection.Connected)
 		{
 			if (AsyncConnectTask == null || AsyncConnectTask.Status == System.Threading.Tasks.TaskStatus.Faulted)
@@ -53,15 +69,16 @@ public class JsonIPC : MonoBehaviour
 			NetWrite = new StreamWriter(Connection.GetStream());
 		}
 
-		if (Tracking)
+		if (TrackingTransform)
 		{
 			// Debug.Log(JsonUtility.ToJson(Tracking));
 			var JsonObj = new TestJsonObject();
-			var pos = transform.position;
-			var rot = transform.rotation.eulerAngles;
+			var pos = TrackingTransform.position;
+			var rot = TrackingTransform.rotation.eulerAngles;
 			JsonObj.Translation = new float[] { pos.x, -pos.y, pos.z };
 			JsonObj.Orientation = new float[] { rot.x, -rot.y, rot.z };
-			NetWrite.Write(JsonUtility.ToJson(JsonObj));
+			NetWrite.WriteLine(JsonUtility.ToJson(JsonObj));
+			NetWrite.Write((char)3);
 			NetWrite.Flush();
 		}
 	}
