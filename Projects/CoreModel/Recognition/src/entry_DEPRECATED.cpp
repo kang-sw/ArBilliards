@@ -55,11 +55,11 @@ cv::Mat slMat2cvMat(sl::Mat& input)
 // CONSTANT DEFS
 #define TARGET_FPS 30
 
-int main()
+int main_DEPRECATED()
 {
     // Initailize winsock
     sockpp::socket_initializer socket_initializer;
-    
+
     // Create a ZED camera object
     sl::Camera zed;
 
