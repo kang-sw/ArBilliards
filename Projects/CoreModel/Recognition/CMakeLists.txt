@@ -15,7 +15,7 @@ find_package(CUDA REQUIRED)
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
 
 set(RECOGNITION_SOURCE_DIR "src") 
-file(GLOB_RECURSE RECOGNITION_SOURCES "${RECOGNITION_SOURCE_DIR}/*.cpp")
+aux_source_directory(${RECOGNITION_SOURCE_DIR} RECOGNITION_SOURCES)
 
 #target_compile_features(Recognition PUBLIC cxx_std_17)
 #target_link_directories(Recognition PUBLIC ${ZED_LIBRARY_DIR} ${CUDA_DEP_LIBRARIES_ZED})
@@ -25,6 +25,7 @@ file(GLOB_RECURSE RECOGNITION_SOURCES "${RECOGNITION_SOURCE_DIR}/*.cpp")
 add_executable(
 	Recognition 
 	${RECOGNITION_SOURCES}
+	"third/cpp-base64/base64.cpp"
 )
 
 target_compile_features(
@@ -52,7 +53,7 @@ target_include_directories(
 		"include/"
 		$<TARGET_PROPERTY:sockpp-static,INTERFACE_INCLUDE_DIRECTORIES>
 		"third/nlohmann/include/" 
+		"third/cpp-base64/" 
 		${OpenCV_INCLUDE_DIRS} 
 		${ZED_INCLUDE_DIRS}
 )
-

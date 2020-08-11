@@ -1,3 +1,9 @@
 [submodule "Projects/CoreModel/sockpp"]
 	path = Projects/CoreModel/Recognition/third/socketpp
 	url = https://github.com/fpagliughi/sockpp.git
+[submodule "Projects/CoreModel/Recognition/third/base64"]
+	path = Projects/CoreModel/Recognition/third/base64
+	url = https://github.com/aklomp/base64.git
+[submodule "Projects/CoreModel/Recognition/third/cpp-base64"]
+	path = Projects/CoreModel/Recognition/third/cpp-base64
+	url = https://github.com/ReneNyffenegger/cpp-base64.git

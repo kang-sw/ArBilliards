@@ -48,6 +48,16 @@
           "name": "CUDA_TOOLKIT_ROOT_DIR",
           "value": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.2",
           "type": "PATH"
+        },
+        {
+          "name": "Boost_DIR",
+          "value": "D:/Repositories/Boost/1.73.0/stage",
+          "type": "PATH"
+        },
+        {
+          "name": "Boost_INCLUDE_DIR",
+          "value": "D:\\Repositories\\Boost\\1.73.0",
+          "type": "PATH"
         }
       ]
     }
