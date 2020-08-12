@@ -8,7 +8,7 @@ project ("Recognition")
 # Third-party libraries
 add_subdirectory(third/socketpp)
 
-find_package(Boost REQUIRED system) 
+find_package(Boost REQUIRED system thread) 
 find_package(OpenCV 4 REQUIRED)
 find_package(ZED 2 REQUIRED)
 
