@@ -13,8 +13,11 @@ class error_code;
 
 struct tcp_connection_desc
 {
+    std::weak_ptr<boost::asio::io_context> io;
     boost::asio::ip::tcp::socket& socket;
     boost::asio::io_context::strand& strand;
+
+    tcp_connection_desc() noexcept = delete;
 
     template <typename Fn>
     auto operator()(Fn&& f) const
@@ -38,5 +41,5 @@ public:
     bool is_running() const;
 
 private:
-    std::unique_ptr<class connection_impl> pimpl_;
+    std::unique_ptr<class tcp_server_impl> pimpl_;
 };

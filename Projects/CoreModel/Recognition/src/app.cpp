@@ -11,13 +11,14 @@ using namespace boost::asio;
 using namespace boost::asio::ip;
 
 using std::make_unique;
+using std::shared_ptr;
 using std::unique_ptr;
 
 // ================================================================================================
-class connection_impl
+class tcp_server_impl
 {
 public:
-    unique_ptr<io_context> io;
+    std::shared_ptr<io_context> io;
     boost::thread_group io_thr;
     std::map<size_t, unique_ptr<io_context::strand>> io_strands;
 
@@ -30,8 +31,9 @@ public:
 class channel_type
 {
 public:
-    channel_type(tcp::acceptor&& acpt, io_context::strand& strand_ref, tcp_server::accept_handler_type&& on_accept, tcp_server::read_handler_type&& on_read) noexcept
-        : acpt_(std::move(acpt))
+    channel_type(tcp_server_impl& srv, tcp::acceptor&& acpt, io_context::strand& strand_ref, tcp_server::accept_handler_type&& on_accept, tcp_server::read_handler_type&& on_read) noexcept
+        : srv_(srv)
+        , acpt_(std::move(acpt))
         , strand_(strand_ref)
         , on_accept_(std::move(on_accept))
         , on_read_(std::move(on_read))
@@ -42,6 +44,7 @@ public:
     io_context& io() { return static_cast<io_context&>(acpt_.get_executor().context()); }
 
 private:
+    tcp_server_impl& srv_;
     tcp::acceptor acpt_;
     io_context::strand& strand_;
     tcp_server::accept_handler_type on_accept_;
@@ -54,14 +57,14 @@ void channel_type::start(size_t buflen)
     {
     public:
         channel_type& channel;
-        shared_ptr<tcp::socket> socket;
-        shared_ptr<std::vector<char>> membuf;
+        std::shared_ptr<tcp::socket> socket;
+        std::shared_ptr<std::vector<char>> membuf;
 
     public:
         // Read handler
         void operator()(system::error_code error, size_t bytes_in)
         {
-            tcp_connection_desc desc{*socket, channel.strand_};
+            tcp_connection_desc desc{channel.srv_.io, *socket, channel.strand_};
 
             channel.on_read_(error, desc, asio::buffer(membuf->data(), bytes_in));
 
@@ -74,7 +77,7 @@ void channel_type::start(size_t buflen)
         // Accept handler
         void operator()(system::error_code error)
         {
-            tcp_connection_desc desc{*socket, channel.strand_};
+            tcp_connection_desc desc{channel.srv_.io, *socket, channel.strand_};
 
             if (channel.on_accept_) { channel.on_accept_(error, desc); }
 
@@ -90,14 +93,14 @@ void channel_type::start(size_t buflen)
         ~connection_handler_type() noexcept = default;
     };
 
-    connection_handler_type handler{*this, make_shared<tcp::socket>(io()), make_shared<std::vector<char>>()};
+    connection_handler_type handler{*this, std::make_shared<tcp::socket>(io()), std::make_shared<std::vector<char>>()};
     handler.membuf->resize(buflen);
     acpt_.async_accept(*handler.socket, strand_.wrap(move(handler)));
 }
 
 // ================================================================================================
 tcp_server::tcp_server() noexcept
-    : pimpl_(make_unique<connection_impl>())
+    : pimpl_(make_unique<tcp_server_impl>())
 {
 }
 
@@ -119,7 +122,7 @@ void tcp_server::open_channel(std::string_view ip_expr, uint16_t port, accept_ha
     }
 
     auto& strand = found_it->second;
-    auto& channel = m.channels.emplace_back(channel_type(tcp::acceptor(*m.io, tcp::endpoint(make_address(ip_expr), port)), *strand, std::move(on_accept), std::move(on_receive)));
+    auto& channel = m.channels.emplace_back(channel_type(m, tcp::acceptor(*m.io, tcp::endpoint(make_address(ip_expr), port)), *strand, std::move(on_accept), std::move(on_receive)));
 
     channel.start(default_buffer_size);
 }
