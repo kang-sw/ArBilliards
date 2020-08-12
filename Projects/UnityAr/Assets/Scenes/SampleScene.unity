@@ -447,7 +447,7 @@ MonoBehaviour:
   PortNumber: 16667
   IpAddr: 127.0.0.1
   TrackingTransform: {fileID: 2042116236}
-  UpdatePeriod: 0.033
+  UpdatePeriod: 0.000001
 --- !u!4 &1049340132
 Transform:
   m_ObjectHideFlags: 0
