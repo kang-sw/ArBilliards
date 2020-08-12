@@ -44,19 +44,20 @@ public:
     /**
      *
      */
-    using accept_handler_type = std::function<
-      void(
-        boost::system::error_code const& ec,
-        tcp_connection_desc connection)>;
-
-    /**
-     *
-     */
     using read_handler_type = std::function<
       void(
         boost::system::error_code const& ec,
         tcp_connection_desc connection,
         boost::asio::const_buffer data_in)>;
+
+    /**
+     *
+     */
+    using accept_handler_type = std::function<
+      void(
+        boost::system::error_code const& ec,
+        tcp_connection_desc connection,
+        read_handler_type& out_read_handler)>;
 
 public:
     static accept_strand_group_assignment_handler_type strand_group_identical_assignment_handler()
@@ -69,7 +70,7 @@ public:
 public:
     tcp_server() noexcept;
     ~tcp_server() noexcept;
-    void open_channel(std::string_view ip_expr, uint16_t port, accept_strand_group_assignment_handler_type&& on_assign_strand_group, accept_handler_type&& on_accept, read_handler_type&& on_receive, size_t default_buffer_size = 1024);
+    void open_channel(std::string_view ip_expr, uint16_t port, accept_strand_group_assignment_handler_type&& on_assign_strand_group, accept_handler_type&& on_accept, size_t default_buffer_size = 1024);
     void initialize(size_t num_io_threads = 1);
     void abort() noexcept;
     bool is_running() const;

@@ -31,12 +31,11 @@ public:
 class channel_type
 {
 public:
-    channel_type(tcp_server_impl& srv, tcp::acceptor&& acpt, tcp_server::accept_strand_group_assignment_handler_type&& on_assign_strand_group, tcp_server::accept_handler_type&& on_accept, tcp_server::read_handler_type&& on_read) noexcept
+    channel_type(tcp_server_impl& srv, tcp::acceptor&& acpt, tcp_server::accept_strand_group_assignment_handler_type&& on_assign_strand_group, tcp_server::accept_handler_type&& on_accept) noexcept
         : srv_(srv)
         , acpt_(std::move(acpt))
         , on_assign_strand_group_(std::move(on_assign_strand_group))
         , on_accept_(std::move(on_accept))
-        , on_read_(std::move(on_read))
     {
     }
 
@@ -48,7 +47,6 @@ private:
     tcp::acceptor acpt_;
     tcp_server::accept_strand_group_assignment_handler_type on_assign_strand_group_;
     tcp_server::accept_handler_type on_accept_;
-    tcp_server::read_handler_type on_read_;
 };
 
 void channel_type::start(size_t buflen)
@@ -56,71 +54,82 @@ void channel_type::start(size_t buflen)
     struct connection_handler_type
     {
     public:
-        channel_type& channel;
-        io_context::strand* strand;
-        std::shared_ptr<tcp::socket> socket;
-        std::shared_ptr<std::vector<char>> membuf;
+        struct body_type
+        {
+            channel_type& channel;
+            io_context::strand* strand;
+            std::shared_ptr<tcp::socket> socket;
+            std::vector<char> membuf;
+            tcp_server::read_handler_type on_read;
+        };
+
+        std::shared_ptr<body_type> body;
 
     public:
         // Read handler
         void operator()(system::error_code error, size_t bytes_in)
         {
-            tcp_connection_desc desc{channel.srv_.io, socket, strand};
+            auto& m = *body;
+            tcp_connection_desc desc{m.channel.srv_.io, m.socket, m.strand};
 
-            channel.on_read_(error, desc, asio::buffer(membuf->data(), bytes_in));
+            if (m.on_read)
+            {
+                m.on_read(error, desc, asio::buffer(m.membuf.data(), bytes_in));
+            }
 
             if (!error)
             {
-                socket->async_read_some(asio::buffer(membuf->data(), membuf->size()), strand->wrap(*this));
+                m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), m.strand->wrap(*this));
             }
         }
 
         // Accept handler
         void operator()(system::error_code error)
         {
-            tcp_connection_desc desc{channel.srv_.io, socket, strand};
+            auto& m = *body;
+            tcp_connection_desc desc{body->channel.srv_.io, body->socket, body->strand};
             size_t strand_group_hash = 0;
 
-            if (channel.on_assign_strand_group_)
+            if (m.channel.on_assign_strand_group_)
             {
-                channel.on_assign_strand_group_(error, desc, strand_group_hash);
+                m.channel.on_assign_strand_group_(error, desc, strand_group_hash);
             }
 
             // strand 그룹을 지정합니다.
             {
-                auto& m = channel.srv_;
-                auto found_it = m.io_strands.find(strand_group_hash);
+                auto& srv = m.channel.srv_;
+                auto found_it = srv.io_strands.find(strand_group_hash);
 
-                if (found_it == m.io_strands.end())
+                if (found_it == srv.io_strands.end())
                 {
-                    auto [it, succeeded] = m.io_strands.try_emplace(strand_group_hash, make_unique<io_context::strand>(*m.io));
+                    auto [it, succeeded] = srv.io_strands.try_emplace(strand_group_hash, make_unique<io_context::strand>(*srv.io));
                     found_it = it;
                 }
 
-                strand = found_it->second.get();
+                m.strand = found_it->second.get();
             }
 
-            if (channel.on_accept_)
+            if (m.channel.on_accept_)
             {
-                desc.strand = strand;
-                channel.on_accept_(error, desc);
+                desc.strand = m.strand;
+                m.channel.on_accept_(error, desc, m.on_read);
             }
 
-            if (!error)
+            if (!error && m.on_read)
             {
-                socket->async_read_some(asio::buffer(membuf->data(), membuf->size()), strand->wrap(*this));
+                m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), m.strand->wrap(*this));
             }
 
-            channel.start(membuf->size());
+            m.channel.start(m.membuf.size());
         }
 
         connection_handler_type() noexcept = delete;
         ~connection_handler_type() noexcept = default;
     };
 
-    connection_handler_type handler{*this, nullptr, std::make_shared<tcp::socket>(io()), std::make_shared<std::vector<char>>()};
-    handler.membuf->resize(buflen);
-    acpt_.async_accept(*handler.socket, move(handler));
+    connection_handler_type handler{std::make_shared<connection_handler_type::body_type>(connection_handler_type::body_type{*this, nullptr, std::make_shared<tcp::socket>(io()), std::vector<char>()})};
+    handler.body->membuf.resize(buflen);
+    acpt_.async_accept(*handler.body->socket, move(handler));
 }
 
 // ================================================================================================
@@ -134,10 +143,10 @@ tcp_server::~tcp_server() noexcept
     abort();
 }
 
-void tcp_server::open_channel(std::string_view ip_expr, uint16_t port, tcp_server::accept_strand_group_assignment_handler_type&& on_assign_strand_group, tcp_server ::accept_handler_type&& on_accept, read_handler_type&& on_receive, size_t default_buffer_size)
+void tcp_server::open_channel(std::string_view ip_expr, uint16_t port, tcp_server::accept_strand_group_assignment_handler_type&& on_assign_strand_group, tcp_server ::accept_handler_type&& on_accept, size_t default_buffer_size)
 {
     auto& m = *pimpl_;
-    auto& channel = m.channels.emplace_back(channel_type(m, tcp::acceptor(*m.io, tcp::endpoint(make_address(ip_expr), port)), std::move(on_assign_strand_group), std::move(on_accept), std::move(on_receive)));
+    auto& channel = m.channels.emplace_back(channel_type(m, tcp::acceptor(*m.io, tcp::endpoint(make_address(ip_expr), port)), std::move(on_assign_strand_group), std::move(on_accept)));
 
     channel.start(default_buffer_size);
 }
