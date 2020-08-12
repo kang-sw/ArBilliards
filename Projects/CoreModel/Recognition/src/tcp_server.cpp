@@ -79,7 +79,14 @@ void channel_type::start(size_t buflen)
 
             if (!error)
             {
-                m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), m.strand->wrap(*this));
+                if (m.strand)
+                {
+                    m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), m.strand->wrap(*this));
+                }
+                else
+                {
+                    m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), *this);
+                }
             }
         }
 
@@ -96,6 +103,7 @@ void channel_type::start(size_t buflen)
             }
 
             // strand 그룹을 지정합니다.
+            if (strand_group_hash != 0)
             {
                 auto& srv = m.channel.srv_;
                 auto found_it = srv.io_strands.find(strand_group_hash);
@@ -108,6 +116,10 @@ void channel_type::start(size_t buflen)
 
                 m.strand = found_it->second.get();
             }
+            else
+            {
+                m.strand = nullptr;
+            }
 
             if (m.channel.on_accept_)
             {
@@ -117,7 +129,14 @@ void channel_type::start(size_t buflen)
 
             if (!error && m.on_read)
             {
-                m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), m.strand->wrap(*this));
+                if (m.strand)
+                {
+                    m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), m.strand->wrap(*this));
+                }
+                else
+                {
+                    m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), *this);
+                }
             }
 
             m.channel.start(m.membuf.size());
