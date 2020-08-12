@@ -7,7 +7,6 @@
 #include <sl/Camera.hpp>
 #include <optional>
 #include <nlohmann/json.hpp>
-#include <sockpp/socket.h>
 
 using json = nlohmann::json;
 using namespace std;
@@ -57,9 +56,6 @@ cv::Mat slMat2cvMat(sl::Mat& input)
 
 int main_DEPRECATED()
 {
-    // Initailize winsock
-    sockpp::socket_initializer socket_initializer;
-
     // Create a ZED camera object
     sl::Camera zed;
 

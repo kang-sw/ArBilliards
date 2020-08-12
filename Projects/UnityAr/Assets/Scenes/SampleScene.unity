@@ -425,6 +425,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1049340132}
   - component: {fileID: 1049340131}
+  - component: {fileID: 1049340133}
   m_Layer: 0
   m_Name: JsonIPC
   m_TagString: Untagged
@@ -447,7 +448,7 @@ MonoBehaviour:
   PortNumber: 16667
   IpAddr: 127.0.0.1
   TrackingTransform: {fileID: 2042116236}
-  UpdatePeriod: 0.000001
+  UpdatePeriod: 0.3
 --- !u!4 &1049340132
 Transform:
   m_ObjectHideFlags: 0
@@ -462,6 +463,22 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 4
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1049340133
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1049340130}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3c0e46b0c38399642b0b0f578b1860b8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  PortNumber: 16667
+  IpAddr: 127.0.0.1
+  TrackingTransform: {fileID: 2042116236}
+  UpdatePeriod: 0.3
 --- !u!4 &1132933744 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 459718, guid: 126d619cf4daa52469682f85c1378b4a,

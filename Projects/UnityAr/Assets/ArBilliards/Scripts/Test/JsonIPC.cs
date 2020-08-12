@@ -35,7 +35,7 @@ public class JsonIPC : MonoBehaviour
 
 	private void OnDestroy()
 	{
-		if(Connection.Connected)
+		if (Connection.Connected)
 		{
 			Connection.Close();
 		}
@@ -78,7 +78,7 @@ public class JsonIPC : MonoBehaviour
 			JsonObj.Translation = new float[] { pos.x, -pos.y, pos.z };
 			JsonObj.Orientation = new float[] { rot.x, -rot.y, rot.z };
 			NetWrite.WriteLine(JsonUtility.ToJson(JsonObj));
-			NetWrite.Write((char)3);
+			NetWrite.Write((char)0);
 			NetWrite.Flush();
 		}
 	}

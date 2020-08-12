@@ -1,4 +1,4 @@
-#include "app.hpp"
+#include "tcp_server.hpp"
 #include <atomic>
 #include <unordered_map>
 #include <boost/asio.hpp>
@@ -65,7 +65,7 @@ void channel_type::start(size_t buflen)
         // Read handler
         void operator()(system::error_code error, size_t bytes_in)
         {
-            tcp_connection_desc desc{channel.srv_.io, *socket, strand};
+            tcp_connection_desc desc{channel.srv_.io, socket, strand};
 
             channel.on_read_(error, desc, asio::buffer(membuf->data(), bytes_in));
 
@@ -78,7 +78,7 @@ void channel_type::start(size_t buflen)
         // Accept handler
         void operator()(system::error_code error)
         {
-            tcp_connection_desc desc{channel.srv_.io, *socket, strand};
+            tcp_connection_desc desc{channel.srv_.io, socket, strand};
             size_t strand_group_hash = 0;
 
             if (channel.on_assign_strand_group_)
@@ -142,7 +142,7 @@ void tcp_server::open_channel(std::string_view ip_expr, uint16_t port, tcp_serve
     channel.start(default_buffer_size);
 }
 
-void tcp_server::execute(size_t num_io_thr)
+void tcp_server::initialize(size_t num_io_thr)
 {
     auto& m = *pimpl_;
 
@@ -162,6 +162,7 @@ void tcp_server::abort() noexcept
     {
         return;
     }
+
     m.io_work = nullptr;
     m.io->stop();
     m.io_thr.join_all();
