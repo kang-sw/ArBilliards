@@ -33,6 +33,7 @@
   - [200811-1946](#200811-1946)
   - [200811-2323](#200811-2323)
   - [200812-1139](#200812-1139)
+  - [200812-1654](#200812-1654)
 
 ## 당구대 인식
 
@@ -431,7 +432,15 @@ OpenCV에서 이미지를 디코딩하는 것도 꾀까다로운 일이고 말�
 ## 200812-1139
 
 전날 sockpp의 원인을 알 수 없는 에러와 모호한 문서화로 한동안 삽질을 하다가, 결국 Boost 라이브러리를 쓰기로 결정했습니다. 이쯤 오니 얌전히 기본 소켓 API를 쓸걸 그랬다는 생각도 드네요 ...
+  
+## 200812-1654
 
+한나절 가까이 삽질한 끝에, Boost.ASIO를 활용하는 멀티스레드 비동기 TCP 서버 클래스를 작성했습니다. 
+
+사실 비동기와 멀티스레드는 필요 없는 항목이었지만, boost 공부를 할 기회 삼아 이것저것 다 쓰까 보았습니다.
+
+[코드 보기.hpp](https://github.com/kang-sw/ArBilliards/blob/master/Projects/CoreModel/Recognition/include/app.hpp)
+<br>[코드 보기.cpp](https://github.com/kang-sw/ArBilliards/blob/master/Projects/CoreModel/Recognition/src/app.cpp)
 
 
 
