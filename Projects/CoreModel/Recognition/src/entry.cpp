@@ -4,6 +4,11 @@
 
 using namespace std;
 
+struct 
+{
+    
+};
+
 int main(void)
 {
     tcp_server app;
@@ -20,6 +25,13 @@ int main(void)
               cout << "connection established  \n";
           },
           [](boost::system::error_code const& err, tcp_connection_desc, boost::asio::const_buffer buf) {
+
+              if(err)
+              {
+                  cout << "connection lost" << endl;
+                  return;
+              }
+
               cout.write(static_cast<const char*>(buf.data()), buf.size());
               auto str = std::string_view(static_cast<char const*>(buf.data()), buf.size());
 

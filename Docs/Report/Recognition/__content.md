@@ -34,6 +34,7 @@
   - [200811-2323](#200811-2323)
   - [200812-1139](#200812-1139)
   - [200812-1654](#200812-1654)
+  - [200812-1833](#200812-1833)
 
 ## 당구대 인식
 
@@ -439,12 +440,32 @@ OpenCV에서 이미지를 디코딩하는 것도 꾀까다로운 일이고 말�
 
 사실 비동기와 멀티스레드는 필요 없는 항목이었지만, boost 공부를 할 기회 삼아 이것저것 다 쓰까 보았습니다.
 
-[코드 보기.hpp](https://github.com/kang-sw/ArBilliards/blob/master/Projects/CoreModel/Recognition/include/app.hpp)
-<br>[코드 보기.cpp](https://github.com/kang-sw/ArBilliards/blob/master/Projects/CoreModel/Recognition/src/app.cpp)
+[코드 보기.hpp](https://github.com/kang-sw/ArBilliards/blob/master/Projects/CoreModel/Recognition/include/tcp_server.hpp)
+<br>[코드 보기.cpp](https://github.com/kang-sw/ArBilliards/blob/master/Projects/CoreModel/Recognition/src/tcp_server.cpp)
 
+## 200812-1833
 
+JSON, TCP IPC가 모두 준비되었으므로, Unity에서 Zed 카메라의 이미지를 복사해 c++ 프로그램으로 전송합니다. 
 
+``` C#
 
+if (Pixels == null)
+{
+  Pixels = Zed.zedCamera.CreateTextureImageType(VIEW.LEFT);
+}
+if (Depths == null)
+{
+  Depths = Zed.zedCamera.CreateTextureMeasureType(MEASURE.DEPTH);
+}
+
+JsonObj.ImageW = Pixels.width;
+JsonObj.ImageH = Pixels.height;
+JsonObj.Pixels = Convert.ToBase64String(Pixels.GetRawTextureData());
+JsonObj.Depths = Convert.ToBase64String(Depths.GetRawTextureData());
+
+```
+
+`Zed.zedCamera.CreateTextureImageType` 메서드를 통해 매 프레임 ZED 카메라의 이미지로 갱신되는 텍스쳐 레퍼런스를 획득할 수 있습니다. 이를 Base64 인코딩해 전송합니다.
 
 
 
