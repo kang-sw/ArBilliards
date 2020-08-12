@@ -24,7 +24,7 @@ public:
 
     unique_ptr<io_context::work> io_work;
 
-    boost::container::vector<class channel_type> channels;
+    boost::container::vector<std::unique_ptr<class channel_type>> channels;
 };
 
 // ================================================================================================
@@ -40,7 +40,7 @@ public:
     }
 
     void start(size_t buflen);
-    io_context& io() { return static_cast<io_context&>(acpt_.get_executor().context()); }
+    io_context& io() { return *srv_.io; }
 
 private:
     tcp_server_impl& srv_;
@@ -61,6 +61,8 @@ void channel_type::start(size_t buflen)
             std::shared_ptr<tcp::socket> socket;
             std::vector<char> membuf;
             tcp_server::read_handler_type on_read;
+
+            ~body_type() noexcept = default;
         };
 
         std::shared_ptr<body_type> body;
@@ -164,10 +166,15 @@ tcp_server::~tcp_server() noexcept
 
 void tcp_server::open_channel(std::string_view ip_expr, uint16_t port, tcp_server::accept_strand_group_assignment_handler_type&& on_assign_strand_group, tcp_server ::accept_handler_type&& on_accept, size_t default_buffer_size)
 {
-    auto& m = *pimpl_;
-    auto& channel = m.channels.emplace_back(channel_type(m, tcp::acceptor(*m.io, tcp::endpoint(make_address(ip_expr), port)), std::move(on_assign_strand_group), std::move(on_accept)));
+    if (!pimpl_)
+    {
+        throw std::logic_error("open_channel must be called after initialization");
+    }
 
-    channel.start(default_buffer_size);
+    auto& m = *pimpl_;
+    auto& channel = m.channels.emplace_back(make_unique<channel_type>(channel_type(m, tcp::acceptor(*m.io, tcp::endpoint(make_address(ip_expr), port)), std::move(on_assign_strand_group), std::move(on_accept))));
+
+    channel->start(default_buffer_size);
 }
 
 void tcp_server::initialize(size_t num_io_thr)
