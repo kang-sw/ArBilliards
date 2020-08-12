@@ -86,6 +86,7 @@ void channel_type::start(size_t buflen)
             channel.start(membuf->size());
         }
 
+        connection_handler_type() noexcept = delete;
         ~connection_handler_type() noexcept = default;
     };
 
