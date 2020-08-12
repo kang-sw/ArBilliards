@@ -1,7 +1,6 @@
 #include "app.hpp"
 #include <atomic>
 #include <unordered_map>
-#include <iostream>
 #include <boost/asio.hpp>
 #include <boost/function.hpp>
 #include <boost/thread.hpp>
@@ -64,7 +63,7 @@ void channel_type::start(size_t buflen)
         {
             tcp_connection_desc desc{*socket, channel.strand_};
 
-            if (channel.on_read_) { channel.on_read_(error, desc, asio::buffer(membuf->data(), bytes_in)); }
+            channel.on_read_(error, desc, asio::buffer(membuf->data(), bytes_in));
 
             if (!error)
             {
@@ -75,11 +74,8 @@ void channel_type::start(size_t buflen)
         // Accept handler
         void operator()(system::error_code error)
         {
-            struct read_handler_type
-            {
-            };
-
             tcp_connection_desc desc{*socket, channel.strand_};
+
             if (channel.on_accept_) { channel.on_accept_(error, desc); }
 
             if (!error)
@@ -90,14 +86,10 @@ void channel_type::start(size_t buflen)
             channel.start(membuf->size());
         }
 
-        ~connection_handler_type() noexcept
-        {
-            std::cout << "accept handler destroyed. refcnt:  " << socket.use_count() << '\n';
-        }
+        ~connection_handler_type() noexcept = default;
     };
 
-    connection_handler_type handler{*this, make_shared<tcp::socket>(io())};
-    handler.membuf = make_unique<std::vector<char>>();
+    connection_handler_type handler{*this, make_shared<tcp::socket>(io()), make_shared<std::vector<char>>()};
     handler.membuf->resize(buflen);
     acpt_.async_accept(*handler.socket, strand_.wrap(move(handler)));
 }
@@ -155,5 +147,13 @@ void tcp_server::abort() noexcept
     m.io->stop();
     m.io_thr.join_all();
 
+    m.io_strands.clear();
+    m.channels.clear();
+
     m.io.reset();
+}
+
+bool tcp_server::is_running() const
+{
+    return !!pimpl_->io;
 }

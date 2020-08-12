@@ -35,6 +35,7 @@ public:
     void open_channel(std::string_view ip_expr, uint16_t port, accept_handler_type&& on_accept, read_handler_type&& on_receive, size_t default_buffer_size = 1024, size_t strand_group_hash = 0);
     void execute(size_t num_io_threads = 1);
     void abort() noexcept;
+    bool is_running() const;
 
 private:
     std::unique_ptr<class connection_impl> pimpl_;
