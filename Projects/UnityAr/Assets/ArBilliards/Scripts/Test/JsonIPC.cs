@@ -10,6 +10,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using sl;
 using Oculus.Platform;
+using UnityEngine.Rendering;
 
 public class JsonIPC : MonoBehaviour
 {
@@ -48,7 +49,7 @@ public class JsonIPC : MonoBehaviour
 			}
 
 			if (Connected)
-			{	
+			{
 				return;
 			}
 
@@ -74,11 +75,11 @@ public class JsonIPC : MonoBehaviour
 		}
 	}
 
-	public Conn Cmd { get; private set; }
-	public Conn Bin { get; private set; }
+	Conn Cmd;
+	Conn Bin;
 
-	Texture2D Pixels;
-	Texture2D Depths;
+	public Texture2D Pixels;
+	public Texture2D Depths;
 	int StampGen = 0;
 
 	[Serializable]
@@ -89,8 +90,11 @@ public class JsonIPC : MonoBehaviour
 		public float[] Translation;
 		public float[] Orientation;
 
-		public int ImageW;
-		public int ImageH;
+		public int RgbW;
+		public int RgbH;
+
+		public int DepthW;
+		public int DepthH;
 	}
 
 	// Start is called before the first frame update
@@ -133,39 +137,41 @@ public class JsonIPC : MonoBehaviour
 		if (TrackingTransform && Zed.IsZEDReady)
 		{
 			// Debug.Log(JsonUtility.ToJson(Tracking));
-			var JsonObj = new TestJsonObject();
-			JsonObj.Stamp = StampGen++;
+			var O = new TestJsonObject();
+			O.Stamp = StampGen++;
 
 			var pos = TrackingTransform.position;
 			var rot = TrackingTransform.rotation.eulerAngles;
-			JsonObj.Translation = new float[] { pos.x, -pos.y, pos.z };
-			JsonObj.Orientation = new float[] { rot.x, -rot.y, rot.z };
+			O.Translation = new float[] { pos.x, -pos.y, pos.z };
+			O.Orientation = new float[] { rot.x, -rot.y, rot.z };
 
 			if (Pixels == null)
-			{
 				Pixels = Zed.zedCamera.CreateTextureImageType(VIEW.LEFT);
-			}
 			if (Depths == null)
-			{
 				Depths = Zed.zedCamera.CreateTextureMeasureType(MEASURE.DEPTH);
-			}
 
-			JsonObj.ImageW = Pixels.width;
-			JsonObj.ImageH = Pixels.height;
+			O.RgbW = Pixels.width;
+			O.RgbH = Pixels.height;
+			O.DepthW = Depths.width;
+			O.DepthH = Depths.height;
 
-			Cmd.WrS.Write(JsonUtility.ToJson(JsonObj));
-			Cmd.WrB.Write((char)0);
+			Cmd.WrS.Write(JsonUtility.ToJson(O));
+			Cmd.WrS.Write((char)3);
 			Cmd.WrS.Flush();
 
 			Bin.WrB.Write(0x00abcdef);
-			Bin.WrB.Write(JsonObj.Stamp);
+			Bin.WrB.Write(O.Stamp);
 
-			var PixelBuf = Pixels.GetRawTextureData();
-			var DepthBuf = Pixels.GetRawTextureData();
+			var PixelReadRequest = AsyncGPUReadback.Request(Pixels);
+			var DepthReadRequest = AsyncGPUReadback.Request(Depths);
+			AsyncGPUReadback.WaitAllRequests();
+
+			var PixelBuf = PixelReadRequest.GetData<byte>();
+			var DepthBuf = DepthReadRequest.GetData<byte>();
 			Bin.WrB.Write(PixelBuf.Length);
 			Bin.WrB.Write(DepthBuf.Length);
-			Bin.WrB.Write(PixelBuf);
-			Bin.WrB.Write(DepthBuf);
+			Bin.WrB.Write(PixelBuf.ToArray());
+			Bin.WrB.Write(DepthBuf.ToArray());
 			Bin.WrB.Flush();
 		}
 	}
