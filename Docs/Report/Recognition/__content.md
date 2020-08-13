@@ -37,6 +37,9 @@
   - [200812-1833](#200812-1833)
   - [200812-2000](#200812-2000)
   - [200812-2318](#200812-2318)
+  - [200813-1637](#200813-1637)
+  - [200813-1850](#200813-1850)
+  - [200813-2005](#200813-2005)
 
 ## 당구대 인식
 
@@ -486,8 +489,68 @@ Base64 인코딩으로 이미지를 전송하는 데까지는 성공했지만, �
 
 내일은 바이너리 스트림과 이미지 요청 스트림의 데이터를 동기화하고(timestamp로 구별), 과연 제대로 캡쳐가 이루어졌는지 확인해보아야 하겠습니다.
 
+## 200813-1637
+
+![](2020-08-13-16-37-04.png)
+
+Json 스트림과 바이너리 스트림을 동기화하는 데 성공했습니다. 
+
+``` c++
+struct image_t
+{
+    cv::Vec3f translation;
+    cv::Vec3f orientation;
+    cv::Size image_size; 
+    cv::Mat rgb;
+    cv::Mat depth;
+};
+```
+
+전송된 두 스트림은 위와 같은 형식으로 병합됩니다.
+
+## 200813-1850
+
+유니티 엔진에서 ZED 카메라의 출력을 Texture2D로 받아올 수 있는데, Texture2D는 메모리가 GPU에 할당되어있기 때문에 이를 CPU로 받아와야 했습니다. 
+
+```c#
+Texture2D.GetRawTextureData()
+Texture2D.GetPixels()
+Texture2D.EncodeTo[JPG|PNG]()
+```
+
+등의 함수를 사용해 보았지만 하얀색 버퍼만 읽혔는데, 아래의 함수를 찾았습니다.
+
+```C#
+Rendering.AsyncGPUReadback.Request()
+
+...
+
+var PixelReadRequest = AsyncGPUReadback.Request(Pixels);
+var DepthReadRequest = AsyncGPUReadback.Request(Depths);
+AsyncGPUReadback.WaitAllRequests();
+
+var PixelBuf = PixelReadRequest.GetData<byte>();
+var DepthBuf = DepthReadRequest.GetData<byte>();
+```
+
+이 함수는 비동기적으로 Texture2D의 바이트 청크를 CPU로 읽어오는데, 이 시간은 매우 짧기 때문에 WaitWallRequest()로 동기적으로 대기해도 무방할 것으로 보입니다.
+
+아무튼, 이 함수를 써서 가까스로 ZED 카메라의 캡처 데이터를 읽어들일 수 있었습니다.
 
 
+
+
+
+
+## 200813-2005
+
+![](2020-08-13-20-05-41.png)
+
+이는 깊이 이미지를 캡쳐한 것으로, 일단 동작 확인을 위해 넣어두었습니다.
+
+위에서 캡쳐 및 전송 동작을 동기적으로 수행하고 있는데, 이게 꽤 부하가 되는 걸로 보입니다. Update() 동작에서 병목이 생긴 탓에 카메라 오브젝트가 트래킹을 따라가질 못하고, VR HMD 상의 화면이 한 박자 느리게 따라오거나 버벅거려 멀미를 유발합니다...
+
+일단 위의 AsyncGPUReaback.Request 호출부를 비동기화 해봅니다.
 
 
 

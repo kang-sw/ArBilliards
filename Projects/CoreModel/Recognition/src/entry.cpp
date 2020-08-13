@@ -5,24 +5,40 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgcodecs.hpp>
 
 using namespace std;
 using nlohmann::json;
+
+mutex g_show_lock;
+cv::Mat g_show;
 
 // ================================================================================================
 struct image_desc_t
 {
     array<float, 3> translation;
     array<float, 3> orientation;
-    int image_w;
-    int image_h;
+    int rgb_w;
+    int rgb_h;
+    int depth_w;
+    int depth_h;
 };
 
 struct image_chunk_t
 {
     vector<char> chunk;
-    string_view image_view;
+    string_view rgb_view;
     string_view depth_view;
+};
+
+struct image_t
+{
+    cv::Vec3f translation;
+    cv::Vec3f orientation;
+    cv::Mat rgb;
+    cv::Mat depth;
 };
 
 class image_retrieve_map_t
@@ -42,7 +58,7 @@ public:
         auto& [desc, ph__] = it->second;
         desc = desc_in;
 
-        async_try_proc_img(it);
+        async_try_proc_img(stamp, it);
     }
 
     void put_chunk(stamp_type stamp, image_chunk_t&& chunk_in)
@@ -53,12 +69,47 @@ public:
         auto& [ph__, chnk] = it->second;
         chnk = move(chunk_in);
 
-        async_try_proc_img(it);
+        async_try_proc_img(stamp, it);
     }
 
 private:
-    void async_try_proc_img(container_type::iterator it)
+    void async_try_proc_img(stamp_type stamp, container_type::iterator it)
     {
+        auto& [odesc, ochnk] = it->second;
+
+        if (odesc && ochnk)
+        {
+            {
+                char buf[1024];
+                snprintf(buf, sizeof buf,
+                         "--- data recv successful ---\n"
+                         "  stamp: %d\n"
+                         "  w, h: [%d, %d]\n"
+                         "  chunk size: %llu\n",
+                         stamp,
+                         odesc->rgb_w,
+                         odesc->rgb_h,
+                         ochnk->chunk.size());
+                cout << buf;
+            }
+
+            image_t image;
+            image.orientation = *(cv::Vec3f*)&odesc->orientation;
+            image.translation = *reinterpret_cast<const cv::Vec<float, 3>*>(&odesc->translation);
+            cv::Point rgb_size(odesc->rgb_w, odesc->rgb_h);
+            cv::Point depth_size(odesc->depth_w, odesc->depth_h);
+            image.rgb.create(rgb_size, CV_8UC4);
+            memcpy(image.rgb.data, ochnk->rgb_view.data(), ochnk->rgb_view.size());
+            image.depth.create(depth_size, CV_32FC1);
+            memcpy(image.depth.data, ochnk->depth_view.data(), ochnk->depth_view.size());
+
+            cv::Mat rgb = image.rgb;
+            cv::Mat depth = image.depth;
+
+            lock_guard<mutex> lck(g_show_lock);
+            g_show = depth / 3.f;
+            table_.erase(it);
+        }
     }
 
 private:
@@ -87,7 +138,7 @@ public:
         string_view data((char const*)data_in.data(), data_in.size());
         for (auto ch : data)
         {
-            if (ch == 0)
+            if (ch < 9)
             {
                 if (!json_raw.empty())
                 {
@@ -96,13 +147,14 @@ public:
                     try
                     {
                         obj = json::parse(json_raw);
-
                         if (body->json_handler) { body->json_handler(obj); }
+                        json_raw.clear();
                     }
                     catch (json::parse_error const& perr)
                     {
+                        cout << json_raw << '\n'
+                             << perr.what() << endl;
                         json_raw.clear();
-                        cout << perr.what();
                     }
                 }
             }
@@ -158,7 +210,7 @@ public:
 
             if (bin.size() >= 16)
             {
-                auto const& header = *reinterpret_cast<array<int32_t, 4>*>(bin.data());
+                auto const header = *reinterpret_cast<array<int32_t, 4>*>(bin.data());
                 if (header[0] != 0x00abcdef)
                 {
                     cout << "error: invalid header received\n";
@@ -168,7 +220,7 @@ public:
 
                 int64_t ntotal = header[2] + header[3];
                 int64_t nto_read = ntotal - (bin.size() - 16);
-                int64_t nread = max(nto_read, end - head);
+                int64_t nread = min(nto_read, end - head);
 
                 bin.insert(bin.end(), head, head + nread);
                 nto_read -= nread;
@@ -179,8 +231,8 @@ public:
                     // 모든 바이트를 읽어들이고, 완성 이미지 입력을 시도합니다.
                     image_chunk_t chnk;
                     chnk.chunk = move(bin);
-                    chnk.image_view = string_view(chnk.chunk.data(), header[2]);
-                    chnk.depth_view = string_view(chnk.chunk.data() + header[2], header[3]);
+                    chnk.rgb_view = string_view(chnk.chunk.data() + 16, header[2]);
+                    chnk.depth_view = string_view(chnk.chunk.data() + 16 + header[2], header[3]);
 
                     g_retrieve_map.put_chunk(header[1], move(chnk));
                     bin.clear();
@@ -219,14 +271,16 @@ static void on_image_request(json const& parsed)
         image_desc_t desc;
         desc.orientation = parsed["Orientation"].get<array<float, 3>>();
         desc.translation = parsed["Translation"].get<array<float, 3>>();
-        desc.image_h = parsed["ImageH"].get<int>();
-        desc.image_w = parsed["ImageW"].get<int>();
+        desc.rgb_h = parsed["RgbH"].get<int>();
+        desc.rgb_w = parsed["RgbW"].get<int>();
+        desc.depth_w = parsed["DepthW"].get<int>();
+        desc.depth_h = parsed["DepthH"].get<int>();
 
         g_retrieve_map.put_desc(parsed["Stamp"].get<int>(), desc);
     }
     catch (json::type_error const& e)
     {
-        cout << "error: " << e.what();
+        cout << "error: " << e.what() << endl;
     }
 }
 
@@ -242,7 +296,7 @@ int main(void)
           16667,
           {},
           [](boost::system::error_code const& err, tcp_connection_desc, tcp_server::read_handler_type& out_handler) {
-              cout << "connection established for image request channel \n";
+              cout << "connection established qfor image request channel \n";
               out_handler = json_handler_t(&on_image_request);
           },
           65536);
@@ -262,7 +316,19 @@ int main(void)
           2 << 20);
     }
 
-    getchar();
+    while ((cv::waitKey(1) & 0xff) != 'q')
+    {
+        cv::Mat to_disp;
+        {
+            lock_guard<mutex> lck(g_show_lock);
+            to_disp = g_show.clone();
+        }
+
+        if (to_disp.data)
+        {
+            cv::imshow("hell", to_disp);
+        }
+    }
     g_app.abort();
     return 0;
 }

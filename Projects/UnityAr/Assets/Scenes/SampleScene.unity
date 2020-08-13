@@ -372,6 +372,8 @@ MonoBehaviour:
   TrackingTransform: {fileID: 2042116236}
   UpdatePeriod: 0.033
   Zed: {fileID: 1359819196}
+  Pixels: {fileID: 0}
+  Depths: {fileID: 0}
 --- !u!4 &1049340132
 Transform:
   m_ObjectHideFlags: 0
@@ -451,10 +453,20 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 114025688240506870, guid: e13ee7e0790c7d243b7aa67fe604acac,
+        type: 3}
+      propertyPath: viewMode
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 114495480594432558, guid: e13ee7e0790c7d243b7aa67fe604acac,
+        type: 3}
+      propertyPath: viewMode
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
       propertyPath: depthMode
-      value: 1
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
