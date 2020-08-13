@@ -74,6 +74,7 @@ public:
     void initialize(size_t num_io_threads = 1);
     void abort() noexcept;
     bool is_running() const;
+    boost::asio::io_context* context() const;
 
 private:
     std::unique_ptr<class tcp_server_impl> pimpl_;

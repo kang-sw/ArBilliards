@@ -212,3 +212,8 @@ bool tcp_server::is_running() const
 {
     return !!pimpl_->io;
 }
+
+boost::asio::io_context* tcp_server::context() const
+{
+    return pimpl_->io.get();
+}
