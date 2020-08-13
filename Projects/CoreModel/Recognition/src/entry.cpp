@@ -107,7 +107,7 @@ private:
             cv::Mat depth = image.depth;
 
             lock_guard<mutex> lck(g_show_lock);
-            g_show = depth / 3.f;
+            g_show = rgb;
             table_.erase(it);
         }
     }
@@ -321,7 +321,7 @@ int main(void)
         cv::Mat to_disp;
         {
             lock_guard<mutex> lck(g_show_lock);
-            to_disp = g_show.clone();
+            to_disp = g_show;
         }
 
         if (to_disp.data)

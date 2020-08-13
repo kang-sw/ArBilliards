@@ -40,6 +40,9 @@
   - [200813-1637](#200813-1637)
   - [200813-1850](#200813-1850)
   - [200813-2005](#200813-2005)
+  - [200813-2041](#200813-2041)
+  - [200813-2111](#200813-2111)
+  - [200813-2137](#200813-2137)
 
 ## 당구대 인식
 
@@ -548,15 +551,73 @@ var DepthBuf = DepthReadRequest.GetData<byte>();
 
 이는 깊이 이미지를 캡쳐한 것으로, 일단 동작 확인을 위해 넣어두었습니다.
 
+![](GIF%202020-08-13%20오후%208-36-59.gif)<br>*사진에서 중앙에 위치한 것이 카메라고, 바깥쪽에 위치한 것이 오큘러스 트래킹 모듈입니다. 두 오브젝트는 서로 계층 구조로 연결되어 있음에도, 미세한 랙이 발생합니다.*
+
 위에서 캡쳐 및 전송 동작을 동기적으로 수행하고 있는데, 이게 꽤 부하가 되는 걸로 보입니다. Update() 동작에서 병목이 생긴 탓에 카메라 오브젝트가 트래킹을 따라가질 못하고, VR HMD 상의 화면이 한 박자 느리게 따라오거나 버벅거려 멀미를 유발합니다...
 
 일단 위의 AsyncGPUReaback.Request 호출부를 비동기화 해봅니다.
 
 
+## 200813-2041
 
+호출부를 비동기화했음에도 여전히 랙이 발생합니다.
 
+## 200813-2111
 
+랙의 원인
 
+- 높은 Depth Map Quality 
+  - *Depth Map Quality 설정을 낮춰 해결*
+- Texture2D 데이터의 동기적 retrieving
+  - *비동기 + 콜백으로 해결*
+- 바이너리 데이터의 IPC 전송 병목
+``` c#
+if (ProcessingDepthBuf != null && ProcessingPixelBuf != null)
+{
+  Bin.WrB.Write(0x00abcdef);
+  Bin.WrB.Write(Stamp);
+
+  Bin.WrB.Write(ProcessingPixelBuf.Length);
+  Bin.WrB.Write(ProcessingDepthBuf.Length);
+  Bin.WrB.Write(ProcessingPixelBuf.ToArray());
+  Bin.WrB.Write(ProcessingDepthBuf.ToArray());
+  Bin.WrB.Flush();
+
+  bProcessingAsyncReadback = false;
+}
+```
+위 코드는 ZED 카메라로부터 획득한 GPU 이미지를 CPU에 비동기적으로 복사해온 뒤 호출되는 콜백으로, 병목이 심각합니다. 아무래도 메가바이트 단위의 데이터를 IPC에서 동기적으로 전송하는 것은 설계상 결함으로 보입니다.
+
+```C#
+await new Task(() =>
+{
+  if (ProcessingDepthBuf != null && ProcessingPixelBuf != null)
+  {
+    new Task(() =>
+    {
+      Bin.WrB.Write(0x00abcdef);
+      Bin.WrB.Write(Stamp);
+
+      Bin.WrB.Write(ProcessingPixelBuf.Length);
+      Bin.WrB.Write(ProcessingDepthBuf.Length);
+      Bin.WrB.Write(ProcessingPixelBuf.ToArray());
+      Bin.WrB.Write(ProcessingDepthBuf.ToArray());
+      Bin.WrB.Flush();
+
+      bProcessingAsyncReadback = false;
+      ProcessingDepthBuf = ProcessingPixelBuf = null;
+    }).Start();
+  }
+});
+```
+
+## 200813-2137
+
+![](2020-08-13-21-57-34.png)
+
+몇 번의 수정 끝에 비교적 안정적인 퍼포먼스로 Unity 엔진에서 이미지를 스트리밍할 수 있게 되었습니다. 
+
+[나흘 전](#200809-1700)에 시작한 작업이니, 꽤 많은 시간 삽질을 한 셈입니다 ...
 
 
 

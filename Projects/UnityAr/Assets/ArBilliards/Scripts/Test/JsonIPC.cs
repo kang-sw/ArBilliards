@@ -39,7 +39,7 @@ public class JsonIPC : MonoBehaviour
 			get { return Socket != null && Socket.Connected; }
 		}
 
-		public async void Connect(string IpAddr, ushort Port)
+		public async void Connect(JsonIPC Host, string IpAddr, ushort Port)
 		{
 			this.Port = Port;
 
@@ -61,12 +61,22 @@ public class JsonIPC : MonoBehaviour
 			Socket = new TcpClient();
 			ConnectTask = Socket.ConnectAsync(IpAddr, Port);
 
-			await ConnectTask;
-			ConnectTask = null;
-			WrB = new BinaryWriter(Socket.GetStream());
-			RdB = new BinaryReader(Socket.GetStream());
-			WrS = new StreamWriter(Socket.GetStream());
-			RdS = new StreamReader(Socket.GetStream());
+			try
+			{
+				await ConnectTask;
+				ConnectTask = null;
+				WrB = new BinaryWriter(Socket.GetStream());
+				RdB = new BinaryReader(Socket.GetStream());
+				WrS = new StreamWriter(Socket.GetStream());
+				RdS = new StreamReader(Socket.GetStream());
+
+				Host.bProcessingAsyncReadback = false;
+				Host.ProcessingPixelBuf = Host.ProcessingDepthBuf = null;
+			}
+			catch
+			{
+
+			}
 		}
 
 		public void Close()
@@ -81,6 +91,10 @@ public class JsonIPC : MonoBehaviour
 	public Texture2D Pixels;
 	public Texture2D Depths;
 	int StampGen = 0;
+
+	bool bProcessingAsyncReadback;
+	byte[] ProcessingPixelBuf;
+	byte[] ProcessingDepthBuf;
 
 	[Serializable]
 	struct TestJsonObject
@@ -121,12 +135,12 @@ public class JsonIPC : MonoBehaviour
 
 		if (!Cmd.Connected)
 		{
-			Cmd.Connect(IpAddr, CmdPort);
+			Cmd.Connect(this, IpAddr, CmdPort);
 		}
 
 		if (!Bin.Connected)
 		{
-			Bin.Connect(IpAddr, BinPort);
+			Bin.Connect(this, IpAddr, BinPort);
 		}
 
 		if (!Cmd.Connected || !Bin.Connected)
@@ -134,7 +148,7 @@ public class JsonIPC : MonoBehaviour
 			return;
 		}
 
-		if (TrackingTransform && Zed.IsZEDReady)
+		if (TrackingTransform && Zed.IsZEDReady && !bProcessingAsyncReadback)
 		{
 			// Debug.Log(JsonUtility.ToJson(Tracking));
 			var O = new TestJsonObject();
@@ -159,20 +173,47 @@ public class JsonIPC : MonoBehaviour
 			Cmd.WrS.Write((char)3);
 			Cmd.WrS.Flush();
 
-			Bin.WrB.Write(0x00abcdef);
-			Bin.WrB.Write(O.Stamp);
+			int Stamp = O.Stamp;
 
-			var PixelReadRequest = AsyncGPUReadback.Request(Pixels);
-			var DepthReadRequest = AsyncGPUReadback.Request(Depths);
-			AsyncGPUReadback.WaitAllRequests();
+			bProcessingAsyncReadback = true;
 
-			var PixelBuf = PixelReadRequest.GetData<byte>();
-			var DepthBuf = DepthReadRequest.GetData<byte>();
-			Bin.WrB.Write(PixelBuf.Length);
-			Bin.WrB.Write(DepthBuf.Length);
-			Bin.WrB.Write(PixelBuf.ToArray());
-			Bin.WrB.Write(DepthBuf.ToArray());
-			Bin.WrB.Flush();
+			var PixelCallback = new Action<AsyncGPUReadbackRequest>((AsyncGPUReadbackRequest d) =>
+			{
+				ProcessingPixelBuf = d.GetData<byte>().ToArray();
+
+				TryCheckSendBinaryBuf(Stamp);
+			});
+
+			var DepthCallback = new Action<AsyncGPUReadbackRequest>((AsyncGPUReadbackRequest d) =>
+			{
+				ProcessingDepthBuf = d.GetData<byte>().ToArray();
+
+				TryCheckSendBinaryBuf(Stamp);
+			});
+
+			var PixelReadRequest = AsyncGPUReadback.Request(Pixels, 0, PixelCallback);
+			var DepthReadRequest = AsyncGPUReadback.Request(Depths, 0, DepthCallback);
+		}
+	}
+
+	void TryCheckSendBinaryBuf(int Stamp)
+	{
+		if (ProcessingDepthBuf != null && ProcessingPixelBuf != null)
+		{
+			new Task(() =>
+			{
+				Bin.WrB.Write(0x00abcdef);
+				Bin.WrB.Write(Stamp);
+
+				Bin.WrB.Write(ProcessingPixelBuf.Length);
+				Bin.WrB.Write(ProcessingDepthBuf.Length);
+				Bin.WrB.Write(ProcessingPixelBuf.ToArray());
+				Bin.WrB.Write(ProcessingDepthBuf.ToArray());
+				Bin.WrB.Flush();
+
+				bProcessingAsyncReadback = false;
+				ProcessingDepthBuf = ProcessingPixelBuf = null;
+			}).Start();
 		}
 	}
 }
