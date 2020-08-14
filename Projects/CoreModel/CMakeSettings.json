@@ -1,29 +1,6 @@
 ﻿{
   "configurations": [
     {
-      "name": "x64-Develop",
-      "generator": "Ninja",
-      "configurationType": "RelWithDebInfo",
-      "inheritEnvironments": [ "msvc_x64_x64" ],
-      "buildRoot": "${projectDir}\\out\\build\\${name}",
-      "installRoot": "${projectDir}\\out\\install\\${name}",
-      "cmakeCommandArgs": "",
-      "buildCommandArgs": "",
-      "ctestCommandArgs": "",
-      "variables": [
-        {
-          "name": "OpenCV_DIR",
-          "value": "D:/Repositories/OpenCV/4.4.0/out/install/x64-Release",
-          "type": "PATH"
-        },
-        {
-          "name": "CUDA_SDK_ROOT_DIR",
-          "value": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.0",
-          "type": "PATH"
-        }
-      ]
-    },
-    {
       "name": "x64-Debug",
       "generator": "Ninja",
       "configurationType": "Debug",
@@ -58,6 +35,26 @@
           "name": "Boost_INCLUDE_DIR",
           "value": "C:\\Repositories\\Boost\\1.73.0",
           "type": "PATH"
+        },
+        {
+          "name": "NANA_STATIC_STDLIB",
+          "value": "True",
+          "type": "BOOL"
+        },
+        {
+          "name": "NANA_CMAKE_ENABLE_MINGW_STD_THREADS_WITH_MEGANZ",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "BUILD_SHARED_LIBS",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "MSVC_USE_STATIC_RUNTIME",
+          "value": "False",
+          "type": "BOOL"
         }
       ]
     }
