@@ -111,17 +111,49 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     cvtColor(uclor, uclor, COLOR_RGB2YUV);
     show("yuv", uclor);
 
-    // 색역 필터링
+    // 색역 필터링 및 에지 검출
     UMat filtered;
     inRange(uclor, m.table.yuv_min, m.table.yuv_max, filtered);
+    {
+        UMat eroded;
+        erode(filtered, eroded, {});
+        bitwise_xor(filtered, eroded, filtered);
+    }
     show("filtered", filtered);
 
+    // 컨투어 검출
+    vector<Vec2f> contour_table;
+    {
+        vector<vector<Point>> candidates;
+        vector<Vec4i> hierarchy;
+        findContours(filtered, candidates, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_NONE);
+
+        // 사각형 컨투어 찾기
+        for (int idx = 0; idx < candidates.size(); ++idx) {
+            auto& contour = candidates[idx];
+            approxPolyDP(vector(contour), contour, m.table.polydp_approx_epsilon, true);
+
+            auto area_size = contourArea(contour);
+            bool const table_found = area_size > m.table.min_pxl_area_threshold && contour.size() == 4;
+
+            drawContours(rgb, candidates, idx, {0, 0, 255});
+            putText(rgb, (stringstream() << "[" << contour.size() << ", " << area_size << "]").str(), contour[0], FONT_HERSHEY_PLAIN, 1.0, {0, 255, 0});
+
+            if (table_found) {
+                drawContours(rgb, candidates, idx, {255, 255, 255}, 2);
+                // marshal
+                for (auto& pt : contour) {
+                    contour_table.push_back(Vec2f(pt.x, pt.y));
+                }
+            }
+        }
+    }
+
+    // 결과물 출력
     tick_tot.stop();
     float elapsed = tick_tot.getTimeMilli();
     putText(rgb, (stringstream() << "Elpased: " << elapsed << " ms").str(), {0, rgb.rows - 5}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
     show("source", rgb);
-
-    // 
     return desc;
 }
 

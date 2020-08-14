@@ -38,7 +38,7 @@ public: /* exposed properties */
         cv::Scalar yuv_max = {110, 140, 255};
 
         double polydp_approx_epsilon = 10;
-        double min_area_pxls = 20e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.
+        double min_pxl_area_threshold = 2e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.
     } table;
 
     // 큐대 관련 프로퍼티
