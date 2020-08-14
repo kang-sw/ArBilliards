@@ -37,10 +37,12 @@ public:
     /**
      * 공급 이미지 서술 구조체
      */
-    struct image_feed
+    struct parameter
     {
-        cv::Mat Rgb;
-        cv::Mat Depth;
+        cv::Vec3f camera_translation;
+        cv::Vec3f camera_orientation; // In Euler angles ..
+        cv::Mat rgb;
+        cv::Mat depth;
     };
 
     /**
@@ -48,7 +50,13 @@ public:
      * 백그라운드에서 실행 될 수 있으며, 실행 완료 후 재생할 콜백의 지정이 필요합니다.
      * 먼저 공급된 이미지의 처리가 시작되기 전에 새로운 이미지가 공급된 경우, 이전에 공급된 이미지는 버려집니다.
      */
-    void refresh_image(image_feed image, process_finish_callback_type callback = {});
+    void refresh_image(parameter image, process_finish_callback_type callback = {});
+
+    /**
+     * 메인 스레드 루프입니다.
+     * 주로 GUI를 띄우는 용도입니다.
+     */
+    void poll();
 
     /**
      * 내부에 캐시된 이미지 인식 정보를 반환합니다.
@@ -58,7 +66,7 @@ public:
     /**
      * 내부에 캐시된 이미지를 반환합니다.
      */
-    image_feed const* get_image() const;
+    parameter const* get_image() const;
 
 private:
 };

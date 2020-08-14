@@ -1,4 +1,3 @@
-#include "tcp_server.hpp"
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <vector>
@@ -8,12 +7,13 @@
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include "tcp_server.hpp"
+#include "recognition.hpp"
 
 using namespace std;
 using nlohmann::json;
 
-mutex g_show_lock;
-cv::Mat g_show;
+billiards::recognizer g_recognizer; 
 
 // ================================================================================================
 struct image_desc_t
@@ -31,14 +31,6 @@ struct image_chunk_t
     vector<char> chunk;
     string_view rgb_view;
     string_view depth_view;
-};
-
-struct image_t
-{
-    cv::Vec3f translation;
-    cv::Vec3f orientation;
-    cv::Mat rgb;
-    cv::Mat depth;
 };
 
 class image_retrieve_map_t
@@ -79,6 +71,7 @@ private:
 
         if (odesc && ochnk)
         {
+            if (false)
             {
                 char buf[1024];
                 snprintf(buf, sizeof buf,
@@ -93,9 +86,10 @@ private:
                 cout << buf;
             }
 
-            image_t image;
-            image.orientation = *(cv::Vec3f*)&odesc->orientation;
-            image.translation = *reinterpret_cast<const cv::Vec<float, 3>*>(&odesc->translation);
+            billiards::recognizer::parameter image;
+
+            image.camera_translation = *(cv::Vec3f*)&odesc->translation;
+            image.camera_orientation = *(cv::Vec3f*)&odesc->orientation;
             cv::Point rgb_size(odesc->rgb_w, odesc->rgb_h);
             cv::Point depth_size(odesc->depth_w, odesc->depth_h);
             image.rgb.create(rgb_size, CV_8UC4);
@@ -103,11 +97,8 @@ private:
             image.depth.create(depth_size, CV_32FC1);
             memcpy(image.depth.data, ochnk->depth_view.data(), ochnk->depth_view.size());
 
-            cv::Mat rgb = image.rgb;
-            cv::Mat depth = image.depth;
+            g_recognizer.refresh_image(image);
 
-            lock_guard<mutex> lck(g_show_lock);
-            g_show = rgb;
             table_.erase(it);
         }
     }
@@ -316,18 +307,8 @@ int main(void)
           2 << 20);
     }
 
-    while ((cv::waitKey(1) & 0xff) != 'q')
+    while ((cv::waitKey(16) & 0xff) != 'q')
     {
-        cv::Mat to_disp;
-        {
-            lock_guard<mutex> lck(g_show_lock);
-            to_disp = g_show;
-        }
-
-        if (to_disp.data)
-        {
-            cv::imshow("hell", to_disp);
-        }
     }
     g_app.abort();
     return 0;
