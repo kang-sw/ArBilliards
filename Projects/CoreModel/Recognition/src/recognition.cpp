@@ -7,9 +7,9 @@
 #include <iostream>
 #include <map>
 #include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 
 using namespace std;
-using namespace cv;
 
 namespace billiards
 {
@@ -21,7 +21,8 @@ using write_lock = unique_lock<shared_mutex>;
 class recognizer_impl_t
 {
 public:
-public:
+    recognizer_t& m;
+
     thread worker;
     atomic_bool worker_is_alive;
     condition_variable_any worker_event_wait;
@@ -34,8 +35,11 @@ public:
     map<string, cv::Mat> img_show;
     shared_mutex img_show_mtx;
 
+    recognition_desc prev_desc;
+
 public:
-    recognizer_impl_t()
+    recognizer_impl_t(recognizer_t& owner)
+        : m(owner)
     {
         worker_is_alive = true;
         worker = thread(&recognizer_impl_t::async_worker_thread, this);
@@ -50,7 +54,12 @@ public:
         }
     }
 
-    void show_image(string wnd_name, cv::Mat img)
+    void show(string wnd_name, cv::UMat img)
+    {
+        show(move(wnd_name), img.getMat(cv::ACCESS_FAST).clone());
+    }
+
+    void show(string wnd_name, cv::Mat img)
     {
         write_lock lock(img_show_mtx);
         img_show[move(wnd_name)] = move(img);
@@ -76,20 +85,48 @@ public:
             if (img.has_value()) {
                 auto desc = proc_img(*img);
                 if (on_finish) { on_finish(*img, desc); }
+                prev_desc = desc;
             }
         }
     }
 
-    recognition_desc proc_img(img_t const& img)
-    {
-        // TODO: 이미지 처리하기
-        show_image("default", img.rgb);
-        return {};
-    }
+    recognition_desc proc_img(img_t const& img);
 };
 
+recognition_desc recognizer_impl_t::proc_img(img_t const& img)
+{
+    using namespace cv;
+
+    recognition_desc desc = {};
+
+    TickMeter tick_tot;
+    tick_tot.start();
+    auto& rgb = img.rgb;
+
+    UMat uclor;
+    img.rgb.copyTo(uclor);
+
+    // 색공간 변환
+    cvtColor(uclor, uclor, COLOR_RGBA2RGB);
+    cvtColor(uclor, uclor, COLOR_RGB2YUV);
+    show("yuv", uclor);
+
+    // 색역 필터링
+    UMat filtered;
+    inRange(uclor, m.table.yuv_min, m.table.yuv_max, filtered);
+    show("filtered", filtered);
+
+    tick_tot.stop();
+    float elapsed = tick_tot.getTimeMilli();
+    putText(rgb, (stringstream() << "Elpased: " << elapsed << " ms").str(), {0, rgb.rows - 5}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
+    show("source", rgb);
+
+    // 
+    return desc;
+}
+
 recognizer_t::recognizer_t()
-    : impl_(make_unique<recognizer_impl_t>())
+    : impl_(make_unique<recognizer_impl_t>(*this))
 {
 }
 

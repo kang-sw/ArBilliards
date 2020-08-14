@@ -258,7 +258,9 @@ static void on_image_request(json const& parsed)
 // ================================================================================================
 int main(void)
 {
-    g_app.initialize(8);
+    size_t num_thr = thread::hardware_concurrency();
+    cout << "info: initializing tcp server for " << num_thr << " threads ...\n";
+    g_app.initialize(num_thr);
 
     // 이미지 파싱 요청을 수신하기 위한 채널입니다.
     {
@@ -267,7 +269,7 @@ int main(void)
           16667,
           {},
           [](boost::system::error_code const& err, tcp_connection_desc, tcp_server::read_handler_type& out_handler) {
-              cout << "connection established for image request channel \n";
+              cout << "info: connection established for image request channel \n";
               out_handler = json_handler_t(&on_image_request);
           },
           65536);
@@ -281,13 +283,13 @@ int main(void)
           16668,
           {},
           [](boost::system::error_code const& err, tcp_connection_desc, tcp_server::read_handler_type& out_handler) {
-              cout << "connection established for binary receive channel \n";
+              cout << "info: connection established for binary receive channel \n";
               out_handler = binary_recv_channel_handler({});
           },
           2 << 20);
     }
 
-    cout << "Initializing recognizer ... \n";
+    cout << "info: initializing recognizer ... \n";
 
     while ((cv::waitKey(16) & 0xff) != 'q') {
         g_recognizer.poll();

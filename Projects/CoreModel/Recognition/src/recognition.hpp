@@ -4,7 +4,7 @@
 #include <opencv2/core.hpp>
 
 namespace billiards
-{ 
+{
 /**
  * 당구대, 당구공, 큐대 전반적인 인식을 담당하는 클래스입니다.
  * 모든 거리 단위는 meter, 각도 단위는 degree입니다.
@@ -34,7 +34,7 @@ public: /* exposed properties */
     struct table_param_type
     {
         cv::Vec2f size = {0.96f, 0.51f};
-        cv::Scalar yuv_min = {0, 90, 170};
+        cv::Scalar yuv_min = {0, 90, 150};
         cv::Scalar yuv_max = {110, 140, 255};
 
         double polydp_approx_epsilon = 10;
@@ -95,9 +95,10 @@ struct recognition_desc
      */
     struct ball_recognition_result
     {
-        cv::Vec3f position;
+        float position[3];
         float confidence;
     };
+
     union
     {
         ball_recognition_result balls[4];
@@ -107,7 +108,7 @@ struct recognition_desc
             ball_recognition_result red2;
             ball_recognition_result white;
             ball_recognition_result orange;
-        } ball_name;
+        } ball;
     };
 
     /**
