@@ -55,6 +55,11 @@
           "name": "MSVC_USE_STATIC_RUNTIME",
           "value": "False",
           "type": "BOOL"
+        },
+        {
+          "name": "CMAKE_CXX_FLAGS",
+          "value": "/DWIN32 /D_WINDOWS /W3 /GR /EHsc",
+          "type": "STRING"
         }
       ]
     }

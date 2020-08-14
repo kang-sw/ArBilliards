@@ -13,7 +13,8 @@
 using namespace std;
 using nlohmann::json;
 
-billiards::recognizer g_recognizer;
+billiards::recognizer_t g_recognizer;
+tcp_server g_app;
 
 // ================================================================================================
 struct image_desc_t
@@ -84,7 +85,7 @@ private:
                 cout << buf;
             }
 
-            billiards::recognizer::parameter image;
+            billiards::recognizer_t::parameter_type image;
 
             image.camera_translation = *(cv::Vec3f*)&odesc->translation;
             image.camera_orientation = *(cv::Vec3f*)&odesc->orientation;
@@ -107,7 +108,6 @@ private:
 };
 
 static image_retrieve_map_t g_retrieve_map;
-tcp_server g_app;
 
 // ================================================================================================
 class json_handler_t
@@ -210,7 +210,7 @@ public:
                     chnk.depth_view = string_view(chnk.chunk.data() + 16 + header[2], header[3]);
 
                     g_retrieve_map.put_chunk(header[1], move(chnk));
-                    bin.clear();
+                    bin = {}; // 명시적으로 moved_from 오브젝트를 초기화합니다.
                 }
             }
         } while (head != end);
@@ -267,7 +267,7 @@ int main(void)
           16667,
           {},
           [](boost::system::error_code const& err, tcp_connection_desc, tcp_server::read_handler_type& out_handler) {
-              cout << "connection established qfor image request channel \n";
+              cout << "connection established for image request channel \n";
               out_handler = json_handler_t(&on_image_request);
           },
           65536);
@@ -287,9 +287,12 @@ int main(void)
           2 << 20);
     }
 
+    cout << "Initializing recognizer ... \n";
+
     while ((cv::waitKey(16) & 0xff) != 'q') {
         g_recognizer.poll();
     }
+
     g_app.abort();
     return 0;
 }
