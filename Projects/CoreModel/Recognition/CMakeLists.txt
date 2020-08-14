@@ -48,7 +48,6 @@ target_link_libraries(
 target_include_directories(
 	Recognition
 	PRIVATE
-		"include/"
 		"third/nlohmann/include/" 
 		"third/cpp-base64/" 
 		${OpenCV_INCLUDE_DIRS} 
