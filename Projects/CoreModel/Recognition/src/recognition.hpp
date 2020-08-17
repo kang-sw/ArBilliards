@@ -128,8 +128,8 @@ struct recognition_desc
      */
     struct table_result
     {
-        cv::Vec3f position;
-        cv::Vec3f normal;
+        cv::Vec3f position; // X Y Z in unity
+        cv::Vec4f orientation; // Quaternion representation in unity coord
         float confidence;
     } table;
 

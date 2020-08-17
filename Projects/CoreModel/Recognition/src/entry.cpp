@@ -25,6 +25,10 @@ struct image_desc_t
     int rgb_h;
     int depth_w;
     int depth_h;
+
+    billiards::recognizer_t::camera_param_type camera;
+
+    weak_ptr<boost::asio::ip::tcp::socket> connection;
 };
 
 struct image_chunk_t
@@ -96,7 +100,26 @@ private:
             image.depth.create(depth_size, CV_32FC1);
             memcpy(image.depth.data, ochnk->depth_view.data(), ochnk->depth_view.size());
 
-            g_recognizer.refresh_image(image);
+            image.camera = odesc->camera;
+            auto improc_callback = [sock = odesc->connection](billiards::recognizer_t::parameter_type const& image, billiards::recognition_desc const& result) {
+                if (auto conn = sock.lock()) {
+                    json to_send;
+                    auto& table = to_send["Table"];
+
+                    table["Translation"] = *(array<float, 3>*)&result.table.position;
+                    table["Orientation"] = *(array<float, 4>*)&result.table.orientation;
+                    table["Confidence"] = result.table.confidence;
+
+                    auto p_str = make_shared<string>();
+                    *p_str = to_send.dump();
+                    p_str->push_back('\n');
+
+                    conn->async_write_some(boost::asio::const_buffer(p_str->c_str(), p_str->length()), [p_str](boost::system::error_code ec, std::size_t cnt) {
+                        cout << ec << "::" << cnt << " bytes sent\n";
+                    });
+                }
+            };
+            g_recognizer.refresh_image(image, move(improc_callback));
 
             table_.erase(it);
         }
@@ -131,7 +154,7 @@ public:
 
                     try {
                         obj = json::parse(json_raw);
-                        if (body->json_handler) { body->json_handler(obj); }
+                        if (body->json_handler) { body->json_handler(connection, obj); }
                         json_raw.clear();
                     } catch (json::parse_error const& perr) {
                         cout << json_raw << '\n'
@@ -145,7 +168,7 @@ public:
         }
     }
 
-    json_handler_t(std::function<void(json const& parsed)>&& handler)
+    json_handler_t(std::function<void(tcp_connection_desc const& conn, json const& parsed)>&& handler)
         : body(make_shared<body_type>())
     {
         body->json_handler = move(handler);
@@ -155,7 +178,7 @@ private:
     struct body_type
     {
         string json_raw;
-        std::function<void(json const& parsed)> json_handler;
+        std::function<void(tcp_connection_desc const& conn, json const& parsed)> json_handler;
     };
 
     shared_ptr<body_type> body;
@@ -238,16 +261,31 @@ private:
     shared_ptr<body_type> body;
 };
 
-static void on_image_request(json const& parsed)
+static void on_image_request(tcp_connection_desc const& conn, json const& parsed)
 {
     try {
         image_desc_t desc;
-        desc.orientation = parsed["Orientation"].get<array<float, 3>>();
-        desc.translation = parsed["Translation"].get<array<float, 3>>();
-        desc.rgb_h = parsed["RgbH"].get<int>();
-        desc.rgb_w = parsed["RgbW"].get<int>();
-        desc.depth_w = parsed["DepthW"].get<int>();
-        desc.depth_h = parsed["DepthH"].get<int>();
+        desc.orientation = parsed["Orientation"];
+        desc.translation = parsed["Translation"];
+        desc.rgb_h = parsed["RgbH"];
+        desc.rgb_w = parsed["RgbW"];
+        desc.depth_w = parsed["DepthW"];
+        desc.depth_h = parsed["DepthH"];
+        desc.connection = conn.socket;
+
+        if (auto camera = parsed.find("Camera");
+            camera != parsed.end()) {
+            auto& c = desc.camera;
+#define PARSE__(arg) camera->at(#arg).get_to(c.arg)
+            PARSE__(fx);
+            PARSE__(fy);
+            PARSE__(cx);
+            PARSE__(cy);
+            PARSE__(k1);
+            PARSE__(k2);
+            PARSE__(p1);
+            PARSE__(p2);
+        }
 
         g_retrieve_map.put_desc(parsed["Stamp"].get<int>(), desc);
     } catch (json::type_error const& e) {

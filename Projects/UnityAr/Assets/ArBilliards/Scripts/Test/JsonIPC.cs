@@ -21,6 +21,8 @@ public class JsonIPC : MonoBehaviour
 	public float UpdatePeriod = 1.0f;
 	public ZEDManager Zed;
 
+	public Transform TableTransformRaw;
+
 	float PeriodTimer = 0;
 
 	public class Conn
@@ -70,8 +72,7 @@ public class JsonIPC : MonoBehaviour
 				WrS = new StreamWriter(Socket.GetStream());
 				RdS = new StreamReader(Socket.GetStream());
 
-				Host.bProcessingAsyncReadback = false;
-				Host.ProcessingPixelBuf = Host.ProcessingDepthBuf = null;
+				Host.OnConnect();
 			}
 			catch
 			{
@@ -95,6 +96,8 @@ public class JsonIPC : MonoBehaviour
 	bool bProcessingAsyncReadback;
 	byte[] ProcessingPixelBuf;
 	byte[] ProcessingDepthBuf;
+
+	string JsonRecognitionResult;
 
 	[Serializable]
 	struct JsonPacket
@@ -122,6 +125,20 @@ public class JsonIPC : MonoBehaviour
 
 	JsonCameraParams? CameraParamCache;
 
+	[Serializable]
+	struct JsonRecognitionReturnArg
+	{
+		[Serializable]
+		public struct TableRecognitionArg
+		{
+			public float[] Translation;
+			public float[] Orientation;
+			public float Confidence;
+		}
+
+		public TableRecognitionArg Table;
+	}
+
 	// Start is called before the first frame update
 	void Start()
 	{
@@ -138,6 +155,27 @@ public class JsonIPC : MonoBehaviour
 	// Update is called once per frame
 	void Update()
 	{
+		if (JsonRecognitionResult != null)
+		{
+			var JsonStr = JsonRecognitionResult;
+			JsonRecognitionResult = null;
+			Debug.Log(JsonStr);
+
+			var Result = JsonUtility.FromJson<JsonRecognitionReturnArg>(JsonStr);
+
+			if (TableTransformRaw)
+			{
+				if (Result.Table.Confidence > 0.5f)
+				{
+					var pos = new Vector3();
+					pos.x = Result.Table.Translation[0];
+					pos.y = Result.Table.Translation[1];
+					pos.z = Result.Table.Translation[2];
+					TableTransformRaw.localPosition = pos;
+				}
+			}
+		}
+
 		if ((PeriodTimer += Time.deltaTime) < UpdatePeriod)
 		{
 			return;
@@ -226,7 +264,26 @@ public class JsonIPC : MonoBehaviour
 
 			var PixelReadRequest = AsyncGPUReadback.Request(Pixels, 0, PixelCallback);
 			var DepthReadRequest = AsyncGPUReadback.Request(Depths, 0, DepthCallback);
+
+			try
+			{
+				Cmd.RdS.ReadLineAsync().ContinueWith(OnAsyncResultJsonLineRecv);
+			}
+			catch (InvalidOperationException) { }
 		}
+	}
+
+	void OnConnect()
+	{
+		bProcessingAsyncReadback = false;
+		ProcessingPixelBuf = ProcessingDepthBuf = null;
+
+	}
+
+	void OnAsyncResultJsonLineRecv(Task<string> Op)
+	{
+		var JsonStr = Op.Result;
+		JsonRecognitionResult = JsonStr;
 	}
 
 	void TryCheckSendBinaryBuf(int Stamp)
