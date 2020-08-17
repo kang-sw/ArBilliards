@@ -2,6 +2,7 @@
 #include <memory>
 #include <functional>
 #include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 
 namespace billiards
 {
@@ -20,7 +21,8 @@ public:
     recognizer_t();
     ~recognizer_t();
 
-public: /* exposed properties */
+public: /* exposed properties */ 
+
     /* 당구공 관련 프로퍼티 */
     // 크기 및 색상을 설정 가능합니다.
     // red, white, orange의 경우 표기명으로, 공의 실제 색상과는 상이할 수 있습니다.
@@ -34,8 +36,9 @@ public: /* exposed properties */
     struct table_param_type
     {
         cv::Vec2f size = {0.96f, 0.51f};
-        cv::Scalar yuv_min = {0, 90, 150};
-        cv::Scalar yuv_max = {110, 140, 255};
+        int color_cvt_type_rgb_to = cv::COLOR_RGB2HSV;
+        cv::Scalar color_filter_min = {0, 90, 150};
+        cv::Scalar color_filter_max = {130, 140, 255};
 
         double polydp_approx_epsilon = 10;
         double min_pxl_area_threshold = 2e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.
@@ -45,6 +48,13 @@ public: /* exposed properties */
     // TODO: 효과적인 큐대 인식 방법 생각해보기
 
 public:
+    /* 카메라 파라미터 구조체 */
+    struct camera_param_type
+    {
+        double fx, cx, fy, cy;
+        double k1, k2, p1, p2;
+    };
+
     /**
      * 공급 이미지 서술 구조체
      */
@@ -54,6 +64,8 @@ public:
         cv::Vec3f camera_orientation; // In Euler angles ..
         cv::Mat rgb;
         cv::Mat depth;
+
+        camera_param_type camera;
     };
 
     using process_finish_callback_type = std::function<void(struct parameter_type const& image, struct recognition_desc const& result)>;
@@ -63,7 +75,7 @@ public:
      * 백그라운드에서 실행 될 수 있으며, 실행 완료 후 재생할 콜백의 지정이 필요합니다.
      * 먼저 공급된 이미지의 처리가 시작되기 전에 새로운 이미지가 공급된 경우, 이전에 공급된 이미지는 버려집니다.
      */
-    void refresh_image(parameter_type image, process_finish_callback_type callback = {});
+    void refresh_image(parameter_type image, process_finish_callback_type&& callback = {});
 
     /**
      * 메인 스레드 루프입니다.

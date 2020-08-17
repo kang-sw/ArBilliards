@@ -6,6 +6,7 @@
 #include <condition_variable>
 #include <iostream>
 #include <map>
+#include <opencv2/calib3d.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -113,7 +114,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
     // 색역 필터링 및 에지 검출
     UMat filtered;
-    inRange(uclor, m.table.yuv_min, m.table.yuv_max, filtered);
+    inRange(uclor, m.table.color_filter_min, m.table.color_filter_max, filtered);
     {
         UMat eroded;
         erode(filtered, eroded, {});
@@ -149,6 +150,47 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         }
     }
 
+    // 검출된 컨투어에 대해 SolvePnp 적용
+    if (contour_table.empty() == false) {
+        thread_local static vector<Vec3f> obj_pts;
+        thread_local static Mat tvec;
+        thread_local static Mat rvec;
+        auto& p = img.camera;
+        double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
+
+        double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
+        auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
+        auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
+
+        {
+            float half_x = m.table.size.val[0] / 2;
+            float half_z = m.table.size.val[1] / 2;
+
+            // ref: OpenCV coordinate system
+            obj_pts.clear();
+            obj_pts.push_back({-half_x, 0, half_z});
+            obj_pts.push_back({-half_x, 0, -half_z});
+            obj_pts.push_back({half_x, 0, -half_z});
+            obj_pts.push_back({half_x, 0, half_z});
+        }
+
+        bool const solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_IPPE);
+
+        if (solve_successful) {
+            Vec2f sum = {};
+            for (auto v : contour_table) { sum += v; }
+            Point draw_at = {int(sum.val[0] / 4), int(sum.val[1] / 4)};
+
+            auto translation = *(Vec3d*)tvec.data;
+            double scale = 2.0 / sqrt(translation.dot(translation));
+            int thickness = max<int>(1, scale);
+
+            putText(rgb, (stringstream() << Vec3f(translation)).str(), draw_at, FONT_HERSHEY_PLAIN, scale, {0, 0, 255}, thickness);
+
+            desc.table.position = Vec3f(translation) - img.camera_translation;
+        }
+    }
+
     // 결과물 출력
     tick_tot.stop();
     float elapsed = tick_tot.getTimeMilli();
@@ -164,7 +206,7 @@ recognizer_t::recognizer_t()
 
 recognizer_t::~recognizer_t() = default;
 
-void recognizer_t::refresh_image(parameter_type image, process_finish_callback_type callback)
+void recognizer_t::refresh_image(parameter_type image, recognizer_t::process_finish_callback_type&& callback)
 {
     auto& m = *impl_;
     bool img_swap_before_prev_img_proc = false;

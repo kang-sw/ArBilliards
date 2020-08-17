@@ -97,7 +97,7 @@ public class JsonIPC : MonoBehaviour
 	byte[] ProcessingDepthBuf;
 
 	[Serializable]
-	struct TestJsonObject
+	struct JsonPacket
 	{
 		public int Stamp;
 
@@ -109,7 +109,18 @@ public class JsonIPC : MonoBehaviour
 
 		public int DepthW;
 		public int DepthH;
+
+		public JsonCameraParams Camera;
 	}
+
+	[Serializable]
+	struct JsonCameraParams
+	{
+		public double fx, fy, cx, cy;
+		public double k1, k2, p1, p2;
+	}
+
+	JsonCameraParams? CameraParamCache;
 
 	// Start is called before the first frame update
 	void Start()
@@ -145,13 +156,14 @@ public class JsonIPC : MonoBehaviour
 
 		if (!Cmd.Connected || !Bin.Connected)
 		{
+			CameraParamCache = null;
 			return;
 		}
 
 		if (TrackingTransform && Zed.IsZEDReady && !bProcessingAsyncReadback)
 		{
 			// Debug.Log(JsonUtility.ToJson(Tracking));
-			var O = new TestJsonObject();
+			var O = new JsonPacket();
 			O.Stamp = StampGen++;
 
 			var pos = TrackingTransform.position;
@@ -168,6 +180,27 @@ public class JsonIPC : MonoBehaviour
 			O.RgbH = Pixels.height;
 			O.DepthW = Depths.width;
 			O.DepthH = Depths.height;
+
+			if (CameraParamCache == null)
+			{
+				var c = new JsonCameraParams();
+				var cm = Zed.zedCamera.CalibrationParametersRectified.leftCam;
+				c.cx = cm.cx;
+				c.cy = cm.cy;
+				c.fx = cm.fx;
+				c.fy = cm.fy;
+				if (cm.disto != null)
+				{
+					c.k1 = cm.disto[0];
+					c.k2 = cm.disto[1];
+					c.p1 = cm.disto[2];
+					c.p2 = cm.disto[3];
+				}
+
+				CameraParamCache = c;
+			}
+
+			O.Camera = CameraParamCache.Value;
 
 			Cmd.WrS.Write(JsonUtility.ToJson(O));
 			Cmd.WrS.Write((char)3);
