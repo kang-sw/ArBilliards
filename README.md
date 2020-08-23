@@ -13,8 +13,6 @@
 - Oculus SDK v1.43.0
 - OpenCV 4.4.0
 
-# 리포트 문서
+# 리포트 문서 
 
-1. [구현 로드맵](/Docs/Report/Roadmap/__content.md)
-2. [작업 일지](/Docs/Report/Log/__content.md)
-3. [영상 인식 알고리즘](/Docs/Report/Recognition/__content.md)
+1. [영상 인식 알고리즘 작업 일지](/Docs/Report/Recognition/__content.md)
