@@ -21,7 +21,7 @@ public class JsonIPC : MonoBehaviour
 	public float UpdatePeriod = 1.0f;
 	public ZEDManager Zed;
 
-	public Transform TableTransformRaw;
+	public Transform TableTransform;
 
 	float PeriodTimer = 0;
 
@@ -106,6 +106,7 @@ public class JsonIPC : MonoBehaviour
 
 		public float[] Translation;
 		public float[] Orientation;
+		public float[] Transform;
 
 		public int RgbW;
 		public int RgbH;
@@ -159,19 +160,22 @@ public class JsonIPC : MonoBehaviour
 		{
 			var JsonStr = JsonRecognitionResult;
 			JsonRecognitionResult = null;
-			Debug.Log(JsonStr);
 
 			var Result = JsonUtility.FromJson<JsonRecognitionReturnArg>(JsonStr);
 
-			if (TableTransformRaw)
+			if (TableTransform)
 			{
 				if (Result.Table.Confidence > 0.5f)
 				{
-					var pos = new Vector3();
-					pos.x = Result.Table.Translation[0];
-					pos.y = Result.Table.Translation[1];
-					pos.z = Result.Table.Translation[2];
-					TableTransformRaw.localPosition = pos;
+					var vec = new Vector3();
+					vec.x = Result.Table.Translation[0];
+					vec.y = Result.Table.Translation[1];
+					vec.z = Result.Table.Translation[2];
+					TableTransform.localPosition = vec;
+					vec.x = Result.Table.Orientation[0];
+					vec.y = Result.Table.Orientation[1];
+					vec.z = Result.Table.Orientation[2];
+					TableTransform.localRotation = Quaternion.Euler(vec.x, vec.y, vec.z);
 				}
 			}
 		}
@@ -204,10 +208,21 @@ public class JsonIPC : MonoBehaviour
 			var O = new JsonPacket();
 			O.Stamp = StampGen++;
 
-			var pos = TrackingTransform.position;
-			var rot = TrackingTransform.rotation.eulerAngles;
-			O.Translation = new float[] { pos.x, -pos.y, pos.z };
-			O.Orientation = new float[] { rot.x, -rot.y, rot.z };
+			{
+				var pos = TrackingTransform.position;
+				var rot = TrackingTransform.rotation;
+				O.Translation = new float[] { pos.x, pos.y, pos.z };
+				O.Orientation = new float[] { rot.w, rot.x, rot.y, rot.z };
+			}
+			{
+				var m = TrackingTransform.localToWorldMatrix;
+				O.Transform = new float[] {
+					m.m00, m.m01, m.m02, m.m03,
+					m.m10, m.m11, m.m12, m.m13,
+					m.m20, m.m21, m.m22, m.m23,
+					m.m30, m.m31, m.m32, m.m33,
+				};
+			}
 
 			if (Pixels == null)
 				Pixels = Zed.zedCamera.CreateTextureImageType(VIEW.LEFT);

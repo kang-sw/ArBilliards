@@ -61,7 +61,8 @@ public:
     struct parameter_type
     {
         cv::Vec3f camera_translation;
-        cv::Vec3f camera_orientation; // In Euler angles ..
+        cv::Vec4f camera_orientation; // In Euler angles ..
+        cv::Matx<float, 4, 4> camera_transform;
         cv::Mat rgb;
         cv::Mat depth;
 

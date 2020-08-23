@@ -94,8 +94,6 @@ public:
     recognition_desc proc_img(img_t const& img);
 };
 
-static cv::Mat euler_to_rot(cv::Vec3d euler);
-
 recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 {
     using namespace cv;
@@ -179,22 +177,29 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         bool const solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_IPPE);
 
         if (solve_successful) {
-            Vec2f sum = {};
-            for (auto v : contour_table) { sum += v; }
-            Point draw_at = {int(sum.val[0] / 4), int(sum.val[1] / 4)};
+            {
+                Vec2f sum = {};
+                for (auto v : contour_table) { sum += v; }
+                Point draw_at = {int(sum.val[0] / 4), int(sum.val[1] / 4)};
 
-            auto translation = *(Vec3d*)tvec.data;
-            double scale = 2.0 / sqrt(translation.dot(translation));
-            int thickness = max<int>(1, scale);
+                auto translation = *(Vec3d*)tvec.data;
+                double dist = sqrt(translation.dot(translation));
+                int thickness = max<int>(1, 2.0 / dist);
 
-            putText(rgb, (stringstream() << Vec3f(translation)).str(), draw_at, FONT_HERSHEY_PLAIN, scale, {0, 0, 255}, thickness);
+                putText(rgb, (stringstream() << Vec3f(dist)).str(), draw_at, FONT_HERSHEY_PLAIN, 2.0 / dist, {0, 0, 255}, thickness);
+            }
 
-            auto orient = img.camera_orientation;
-            orient = orient.mul(CV_PI / 180.f);
-            Mat rot = euler_to_rot(orient).inv();
+            // tvec은 카메라 기준의 상대 좌표를 담고 있습니다.
+            // img 구조체 인스턴스에는 카메라의 월드 트랜스폼이 담겨 있습니다.
+            // tvec을 카메라의 orientation만큼 회전시키고, 여기에 카메라의 translation을 적용하면 물체의 월드 좌표를 알 수 있습니다.
+            // rvec에는 카메라의 orientation을 곱해줍니다.
+            Vec4f pos = *(Vec4d*)tvec.data;
+            pos[1] = -pos[1], pos[3] = 1.0;
+            pos = img.camera_transform * pos;
+            // pos[3] = 1.0, pos[1] = -pos[1];
+            // auto trs = pos.t() * img.camera_transform;
 
-            desc.table.position = translation;
-            desc.table.position[1] *= -1;
+            desc.table.position = *(Vec3f*)pos.val;
             desc.table.confidence = 0.9f;
         }
     }
@@ -205,47 +210,6 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     putText(rgb, (stringstream() << "Elpased: " << elapsed << " ms").str(), {0, rgb.rows - 5}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
     show("source", rgb);
     return desc;
-}
-
-static cv::Mat euler_to_rot(cv::Vec3d euler)
-{
-    cv::Mat rotationMatrix(3, 3, CV_64F);
-
-    double x = euler[0];
-    double y = euler[1];
-    double z = euler[2];
-
-    // Assuming the angles are in radians.
-    double ch = cos(z);
-    double sh = sin(z);
-    double ca = cos(y);
-    double sa = sin(y);
-    double cb = cos(x);
-    double sb = sin(x);
-
-    double m00, m01, m02, m10, m11, m12, m20, m21, m22;
-
-    m00 = ch * ca;
-    m01 = sh * sb - ch * sa * cb;
-    m02 = ch * sa * sb + sh * cb;
-    m10 = sa;
-    m11 = ca * cb;
-    m12 = -ca * sb;
-    m20 = -sh * ca;
-    m21 = sh * sa * cb + ch * sb;
-    m22 = -sh * sa * sb + ch * cb;
-
-    rotationMatrix.at<double>(0, 0) = m00;
-    rotationMatrix.at<double>(0, 1) = m01;
-    rotationMatrix.at<double>(0, 2) = m02;
-    rotationMatrix.at<double>(1, 0) = m10;
-    rotationMatrix.at<double>(1, 1) = m11;
-    rotationMatrix.at<double>(1, 2) = m12;
-    rotationMatrix.at<double>(2, 0) = m20;
-    rotationMatrix.at<double>(2, 1) = m21;
-    rotationMatrix.at<double>(2, 2) = m22;
-
-    return rotationMatrix;
 }
 
 recognizer_t::recognizer_t()

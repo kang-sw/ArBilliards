@@ -20,7 +20,8 @@ tcp_server g_app;
 struct image_desc_t
 {
     array<float, 3> translation;
-    array<float, 3> orientation;
+    array<float, 4> orientation;
+    array<float, 16> transform;
     int rgb_w;
     int rgb_h;
     int depth_w;
@@ -92,7 +93,8 @@ private:
             billiards::recognizer_t::parameter_type image;
 
             image.camera_translation = *(cv::Vec3f*)&odesc->translation;
-            image.camera_orientation = *(cv::Vec3f*)&odesc->orientation;
+            image.camera_orientation = *(cv::Vec4f*)&odesc->orientation;
+            image.camera_transform = *(cv::Matx44f*)&odesc->transform;
             cv::Point rgb_size(odesc->rgb_w, odesc->rgb_h);
             cv::Point depth_size(odesc->depth_w, odesc->depth_h);
             image.rgb.create(rgb_size, CV_8UC4);
@@ -267,6 +269,7 @@ static void on_image_request(tcp_connection_desc const& conn, json const& parsed
         image_desc_t desc;
         desc.orientation = parsed["Orientation"];
         desc.translation = parsed["Translation"];
+        desc.transform = parsed["Transform"];
         desc.rgb_h = parsed["RgbH"];
         desc.rgb_w = parsed["RgbW"];
         desc.depth_w = parsed["DepthW"];
