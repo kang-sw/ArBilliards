@@ -202,11 +202,6 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 pt[1] = z_metric * ((v - c.cy) / c.fy);
             }
 
-            // 3d 포즈를추정해냅니다.
-            Mat affine;
-            Mat inliers;
-            estimateAffine3D(obj_pts, table_points_3d, affine, inliers);
-
             // tvec은 평균치를 사용합니다.
             {
                 Vec3d tvec_init = {};
@@ -217,54 +212,10 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 tvec = Mat(tvec_init);
                 rvec = tvec;
             }
-
-            //tvec = affine.col(3);
-            //auto obj_rotation = affine.colRange(0, 3);
-            //Rodrigues(obj_rotation, rvec); // [0, 3)열을 rodrigues 표현식으로 전환
-
-            //// 회전을 검증합니다.
-            //{
-            //    vector<Vec3d> table_point_set = table_points_3d;
-            //    vector<double> dists;
-
-            //    // 오브젝트의 모델 공간 포인트에 아핀 변환을 적용하고, 가장 오차가 적은 점을 찾습니다.
-            //    for (auto const& obj_pt : obj_pts) {
-            //        Vec4d tr = (Vec4f&)obj_pt;
-            //        tr[3] = 1.0;
-
-            //        tr = (Vec4d&)Mat(affine * tr).at<double>(0);
-
-            //        double dist_min = numeric_limits<double>::max();
-            //        decltype(table_point_set.begin()) min_it;
-            //        for (auto it = table_point_set.begin();
-            //             it != table_point_set.end();
-            //             ++it) {
-            //            auto dist_vec = (*it - (Vec3d&)tr);
-            //            double dist = sqrt(dist_vec.dot(dist_vec));
-
-            //            if (dist < dist_min) {
-            //                dist_min = dist;
-            //                min_it = it;
-            //            }
-            //        }
-
-            //        dists.push_back(dist_min);
-            //        table_point_set.erase(min_it);
-            //    }
-
-            //    double dist_avg = 0.0;
-            //    for (auto& dist : dists) {
-            //        dist_avg += dist;
-            //    }
-
-            //    dist_avg /= 4.0;
-            //    cout << "info: average distances is " << dist_avg << "\n";
-            //    estimation_valid = dist_avg < 0.05;
-            //}
         }
 
         //*
-        bool solve_successful = estimation_valid;
+        bool solve_successful = true;
         /*/
         bool const solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, true, SOLVEPNP_IPPE);
         //*/
@@ -293,9 +244,27 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 desc.table.position = (Vec3f&)pos;
             }
 
-            // 테이블의 각 점을 월드 기준으로 바꿉니다.
             {
-                
+                // 테이블의 각 점에 월드 트랜스폼을 적용합니다.
+                for (auto& pt : table_points_3d) {
+                    Vec4d pos = (Vec4d&)pt;
+                    pos[3] = 1.0, pos[1] *= -1.0;
+
+                    pos = img.camera_transform * (Vec4f)pos;
+                    pt = (Vec3d&)pos;
+                }
+
+                // 아핀 변환 계산
+                Mat affine;
+                estimateAffine3D(obj_pts, table_points_3d, affine, {});
+
+                Mat rotation_rodrigues_mat;
+                Rodrigues(affine({0, 3}, {0, 3}), rotation_rodrigues_mat);
+
+                Vec4d rotation_rodrigues = *(Vec4d*)rotation_rodrigues_mat.data;
+                rotation_rodrigues[3] = 0;
+                rotation_rodrigues[1] *= -1.0;
+                desc.table.orientation = rotation_rodrigues;
             }
 
             // 회전 또한 카메라 기준이므로, 트랜스폼을 적용합니다.
