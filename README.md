@@ -4,15 +4,15 @@
 
 # 실행 시 dll 필요
 
-- CUDA v11.0
+- CUDA v10.0
 - OpenCV v4.4.0
 
 # 빌드 의존성
 
 - ZED SDK v3.2.1
-- Oculus SDK v1.43.0
 - OpenCV 4.4.0
+- Unity 2019.3 LTS
 
-# 리포트 문서 
+# INDEX
 
 1. [영상 인식 알고리즘 작업 일지](/Docs/Report/Recognition/__content.md)

@@ -172,10 +172,19 @@ public class JsonIPC : MonoBehaviour
 					vec.y = Result.Table.Translation[1];
 					vec.z = Result.Table.Translation[2];
 					TableTransform.localPosition = vec;
+
+					// Orientation은 Rodrigues 표현식을 사용하므로, 축 및 회전으로 표현합니다.
 					vec.x = Result.Table.Orientation[0];
 					vec.y = Result.Table.Orientation[1];
 					vec.z = Result.Table.Orientation[2];
-					TableTransform.localRotation = Quaternion.Euler(vec.x, vec.y, vec.z);
+
+					var rot = Quaternion.AngleAxis(vec.magnitude * 180.0f / (float)Math.PI, vec.normalized);
+
+					// 만들어진 rotation으로부터, yaw 회전을 제외한 나머지 회전을 suppress합니다.
+					// var euler = rot.eulerAngles;
+					// euler.z = euler.x = 0;
+					// rot.eulerAngles = euler;
+					TableTransform.localRotation = rot;
 				}
 			}
 		}

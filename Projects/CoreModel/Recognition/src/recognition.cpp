@@ -116,9 +116,11 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     UMat filtered;
     inRange(uclor, m.table.color_filter_min, m.table.color_filter_max, filtered);
     {
-        UMat eroded;
-        erode(filtered, eroded, {});
-        bitwise_xor(filtered, eroded, filtered);
+        UMat umat_temp;
+        // dilate(filtered, umat_temp, {}, {-1, -1}, 4);
+        // erode(umat_temp, filtered, {}, {-1, -1}, 4);
+        erode(filtered, umat_temp, {});
+        bitwise_xor(filtered, umat_temp, filtered);
     }
     show("filtered", filtered);
 
@@ -138,14 +140,16 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             bool const table_found = area_size > m.table.min_pxl_area_threshold && contour.size() == 4;
 
             drawContours(rgb, candidates, idx, {0, 0, 255});
-            putText(rgb, (stringstream() << "[" << contour.size() << ", " << area_size << "]").str(), contour[0], FONT_HERSHEY_PLAIN, 1.0, {0, 255, 0});
 
             if (table_found) {
                 drawContours(rgb, candidates, idx, {255, 255, 255}, 2);
+
                 // marshal
                 for (auto& pt : contour) {
                     contour_table.push_back(Vec2f(pt.x, pt.y));
                 }
+
+                putText(rgb, (stringstream() << "[" << contour.size() << ", " << area_size << "]").str(), contour[0], FONT_HERSHEY_PLAIN, 1.0, {0, 255, 0});
             }
         }
     }
@@ -174,7 +178,49 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             obj_pts.push_back({half_x, 0, half_z});
         }
 
-        bool const solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_IPPE);
+        // tvec의 초기값을 지정해주기 위해, 깊이 이미지를 이용하여 당구대 중점 위치를 추정합니다.
+        {
+            // 카메라 파라미터는 컬러 이미지 기준이므로, 깊이 이미지 해상도를 일치시킵니다.
+            Mat depth;
+            resize(img.depth, depth, {img.rgb.cols, img.rgb.rows});
+
+            auto& c = img.camera;
+            vector<Vec3d> table_points_3d = {};
+
+            // 당구대의 네 점의 좌표를 적절한 포인트 클라우드로 변환합니다.
+            for (auto& uv : contour_table) {
+                auto u = uv[0];
+                auto v = uv[1];
+                auto z_metric = depth.at<float>(v, u);
+
+                auto& pt = table_points_3d.emplace_back();
+                pt[2] = z_metric;
+                pt[0] = z_metric * ((u - c.cx) / c.fx);
+                pt[1] = z_metric * ((v - c.cy) / c.fy);
+            }
+
+            // 3d 포즈를추정해냅니다.
+            Mat tr_est;
+            estimateAffine3D(obj_pts, table_points_3d, tr_est, {});
+
+            // tvec은 평균치를 사용합니다.
+            {
+                Vec3d tvec_init = {};
+                for (auto& pt : table_points_3d) {
+                    tvec_init += pt;
+                }
+                tvec_init /= static_cast<float>(table_points_3d.size());
+                tvec = Mat(tvec_init);
+            }
+
+            Rodrigues(tr_est.colRange(0, 3), rvec); // [0, 3)열을 rodrigues 표현식으로 전환
+        }
+
+        //**
+        bool solve_successful = true;
+        /*/
+        bool const solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, true, SOLVEPNP_ITERATIVE);
+        //*/
 
         if (solve_successful) {
             {
@@ -193,14 +239,30 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             // img 구조체 인스턴스에는 카메라의 월드 트랜스폼이 담겨 있습니다.
             // tvec을 카메라의 orientation만큼 회전시키고, 여기에 카메라의 translation을 적용하면 물체의 월드 좌표를 알 수 있습니다.
             // rvec에는 카메라의 orientation을 곱해줍니다.
-            Vec4f pos = *(Vec4d*)tvec.data;
-            pos[1] = -pos[1], pos[3] = 1.0;
-            pos = img.camera_transform * pos;
-            // pos[3] = 1.0, pos[1] = -pos[1];
-            // auto trs = pos.t() * img.camera_transform;
+            {
+                Vec4f pos = *(Vec4d*)tvec.data;
+                pos[1] = -pos[1], pos[3] = 1.0;
+                pos = img.camera_transform * pos;
+                desc.table.position = (Vec3f&)pos;
+            }
 
-            desc.table.position = *(Vec3f*)pos.val;
-            desc.table.confidence = 0.9f;
+            // 회전 또한 카메라 기준이므로, 트랜스폼을 적용합니다.
+            {
+                auto rod = *(Vec3d*)rvec.data;
+                rod[1] *= -1; // 좌표계 변환 ... y축 반전. 
+                Mat rot_mat, cam_rot = Mat(img.camera_transform)(Rect(0, 0, 3, 3));
+                Rodrigues(rod, rot_mat);
+
+                rot_mat = rot_mat * cam_rot;
+                Rodrigues(rot_mat, rot_mat);
+                auto rot_calculated = *(Vec4d*)rot_mat.data;
+
+                desc.table.orientation = rot_calculated;
+                desc.table.orientation[3] = 0.0;
+                desc.table.orientation = img.camera_transform * desc.table.orientation;
+
+                desc.table.confidence = 0.9f;
+            }
         }
     }
 
