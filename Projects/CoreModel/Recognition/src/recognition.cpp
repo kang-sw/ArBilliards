@@ -38,6 +38,8 @@ public:
     shared_mutex img_show_mtx;
 
     recognition_desc prev_desc;
+    cv::Vec3d table_pos_flt = {};
+    double table_yaw_flt = 0;
 
 public:
     recognizer_impl_t(recognizer_t& owner)
@@ -214,14 +216,22 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             }
         }
 
+        // 3D 테이블 포인트를 
+        {
+            
+        }
+
+
+        bool solve_successful;
         //*
-        bool solve_successful = true;
+        solve_successful = true;
         /*/
-        bool const solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, true, SOLVEPNP_IPPE);
+        solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, true, SOLVEPNP_IPPE);
         //*/
 
         if (solve_successful) {
             {
+                // 추정 거리를`
                 Vec2f sum = {};
                 for (auto v : contour_table) { sum += v; }
                 Point draw_at = {int(sum.val[0] / 4), int(sum.val[1] / 4)};
@@ -230,7 +240,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 double dist = sqrt(translation.dot(translation));
                 int thickness = max<int>(1, 2.0 / dist);
 
-                putText(rgb, (stringstream() << Vec3f(dist)).str(), draw_at, FONT_HERSHEY_PLAIN, 2.0 / dist, {0, 0, 255}, thickness);
+                putText(rgb, (stringstream() << dist).str(), draw_at, FONT_HERSHEY_PLAIN, 2.0 / dist, {0, 0, 255}, thickness);
             }
 
             // tvec은 카메라 기준의 상대 좌표를 담고 있습니다.
@@ -238,10 +248,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             // tvec을 카메라의 orientation만큼 회전시키고, 여기에 카메라의 translation을 적용하면 물체의 월드 좌표를 알 수 있습니다.
             // rvec에는 카메라의 orientation을 곱해줍니다.
             {
-                Vec4f pos = Vec4d(tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2), 0);
+                Vec4d pos = Vec4d(tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2), 0);
                 pos[1] = -pos[1], pos[3] = 1.0;
                 pos = img.camera_transform * pos;
-                desc.table.position = (Vec3f&)pos;
+
+                auto alpha = m.table.LPF_alpha_pos;
+                table_pos_flt = table_pos_flt * (1 - alpha) + (Vec3d&)pos * alpha;
+
+                desc.table.position = table_pos_flt;
             }
 
             // 테이블의 각 점에 월드 트랜스폼을 적용합니다.
@@ -286,8 +300,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 yaw_rad *= table_world_dir.cross(table_model_dir)[1] > 0 ? 1.0 : -1.0;
 
                 // Yaw 방향의 회전을 Rodrigues 표현식을 활용하여 전송합니다.
-                Vec4f orientation(0, -yaw_rad, 0, 0); // Unity 좌표계
-                desc.table.orientation = orientation;
+                if (abs(abs(yaw_rad - table_yaw_flt) - CV_PI) < 0.05) { // 180도 회전에 대해 내성 부여
+                    yaw_rad = table_yaw_flt;
+                }
+
+                auto alpha = m.table.LPF_alpha_rot;
+                table_yaw_flt = table_yaw_flt * (1 - alpha) + yaw_rad * alpha;
+
+                desc.table.orientation = Vec4d(0, -table_yaw_flt, 0, 0);
             }
 
             if (false) {

@@ -21,8 +21,7 @@ public:
     recognizer_t();
     ~recognizer_t();
 
-public: /* exposed properties */ 
-
+public: /* exposed properties */
     /* 당구공 관련 프로퍼티 */
     // 크기 및 색상을 설정 가능합니다.
     // red, white, orange의 경우 표기명으로, 공의 실제 색상과는 상이할 수 있습니다.
@@ -42,6 +41,9 @@ public: /* exposed properties */
 
         double polydp_approx_epsilon = 10;
         double min_pxl_area_threshold = 2e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.
+
+        double LPF_alpha_pos = 0.03;
+        double LPF_alpha_rot = 0.03;
     } table;
 
     // 큐대 관련 프로퍼티
@@ -129,7 +131,7 @@ struct recognition_desc
      */
     struct table_result
     {
-        cv::Vec3f position; // X Y Z in unity
+        cv::Vec3f position;    // X Y Z in unity
         cv::Vec4f orientation; // Quaternion representation in unity coord
         float confidence;
     } table;
