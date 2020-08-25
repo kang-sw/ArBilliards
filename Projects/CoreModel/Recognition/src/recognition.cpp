@@ -244,16 +244,53 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 desc.table.position = (Vec3f&)pos;
             }
 
-            {
-                // 테이블의 각 점에 월드 트랜스폼을 적용합니다.
-                for (auto& pt : table_points_3d) {
-                    Vec4d pos = (Vec4d&)pt;
-                    pos[3] = 1.0, pos[1] *= -1.0;
+            // 테이블의 각 점에 월드 트랜스폼을 적용합니다.
+            for (auto& pt : table_points_3d) {
+                Vec4d pos = (Vec4d&)pt;
+                pos[3] = 1.0, pos[1] *= -1.0;
 
-                    pos = img.camera_transform * (Vec4f)pos;
-                    pt = (Vec3d&)pos;
+                pos = img.camera_transform * (Vec4f)pos;
+                pt = (Vec3d&)pos;
+            }
+
+            // 테이블의 Yaw 방향 회전을 계산합니다.
+            {
+                // 모델 방향은 항상 우측(x축) 방향 고정입니다
+                Vec3d table_model_dir(1, 0, 0);
+
+                // 먼저 테이블의 긴 방향 벡터를 구해야 합니다.
+                // 테이블의 대각선 방향 벡터 두 개의 합으로 계산합니다.
+                Vec3d table_world_dir;
+                {
+                    auto& t = table_points_3d;
+                    auto v1 = t[2] - t[0];
+                    auto v2 = t[3] - t[1];
+
+                    // 테이블의 월드 정점의 순서에 따라 v2, v1의 벡터 순서가 뒤바뀔 수 있습니다. 이 경우 두 벡터의 합은 짧은 방향을 가리키게 됩니다. 이를 방지하기 위해, 두 벡터 사이의 각도가 둔각이라면(즉, 짧은 방향을 가리킨다면) v2를 반전합니다.
+                    auto theta = acos(v1.dot(v2) / (norm(v1) * norm(v2)));
+
+                    if (theta >= CV_PI / 2)
+                        v2 = -v2;
+
+                    // 수직 방향 값을 suppress하고, 노멀을 구합니다.
+                    // 당구대가 항상 수평 상태라고 가정하고, 약간의 오차를 무시합니다.
+                    table_world_dir = normalize((v1 + v2).mul({1, 0, 1}));
+
+                    {
+                        cout << "Suppressed Y value: " << normalize(v1 + v2)[1] << '\n';
+                    }
                 }
 
+                // 각도를 계산하고, 외적을 통해 각도의 방향 또한 계산합니다.
+                auto yaw_rad = acos(table_model_dir.dot(table_world_dir)); // unit vector
+                yaw_rad *= table_world_dir.cross(table_model_dir)[1] > 0 ? 1.0 : -1.0;
+
+                // Yaw 방향의 회전을 Rodrigues 표현식을 활용하여 전송합니다.
+                Vec4f orientation(0, -yaw_rad, 0, 0); // Unity 좌표계
+                desc.table.orientation = orientation;
+            }
+
+            if (false) {
                 // 아핀 변환 계산
                 Mat affine;
                 estimateAffine3D(obj_pts, table_points_3d, affine, {});
