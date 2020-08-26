@@ -806,10 +806,11 @@ await new Task(() =>
 사실, 당구대 평면을 찾을 때 수 밀리미터 단위의 정확도가 나오는 것도 아니니 기우에 가깝지만 말입니다...
 
 **경과**
+- **18:21** 3D 월드 지점을 평면상에 어떻게 투사할지 고민하고 있었는데, 다행히도 OpenCV에서 간편한 방법을 제공합니다; [`cv::projectPoints(...)`](https://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html#void%20projectPoints(InputArray%20objectPoints,%20InputArray%20rvec,%20InputArray%20tvec,%20InputArray%20cameraMatrix,%20InputArray%20distCoeffs,%20OutputArray%20imagePoints,%20OutputArray%20jacobian,%20double%20aspectRatio))
 
-
-
-
+- **19:44**   
+![](GIF%202020-08-26%20오후%207-44-41.gif)  
+당구대가 시야에서 어느정도 벗어난 상태에서도 위치를 추적할 수 있게 되었습니다. 단, 조금씩 위치가 어긋나는 것은 얼마간 트랙킹 오차로 보입니다. 
 
 <br>
 <br>

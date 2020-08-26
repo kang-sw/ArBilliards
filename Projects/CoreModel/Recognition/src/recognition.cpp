@@ -131,15 +131,9 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
     }
 
     if (contour_table.size() == 4) {
-        thread_local static vector<cv::Vec3f> obj_pts;
-        thread_local static cv::Mat tvec;
-        thread_local static cv::Mat rvec;
-        auto& p = img.camera;
-        double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
-
-        double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
-        auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
-        auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
+        vector<Vec3f> obj_pts;
+        Mat tvec;
+        Mat rvec;
 
         {
             float half_x = m.table.size.val[0] / 2;
@@ -147,7 +141,6 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
             // ref: OpenCV coordinate system
             // 참고: findContour로 찾아진 외각 컨투어 세트는 항상 반시계방향으로 정렬됩니다.
-            obj_pts.clear();
             obj_pts.push_back({-half_x, 0, half_z});
             obj_pts.push_back({-half_x, 0, -half_z});
             obj_pts.push_back({half_x, 0, -half_z});
@@ -229,6 +222,13 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                     break;
                 }
             }
+            auto& p = img.camera;
+            double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
+
+            double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
+            auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
+            auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
+
             auto tvec_estimate = tvec.clone();
             solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, true, cv::SOLVEPNP_IPPE);
 
@@ -350,6 +350,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     // 테이블 위치 탐색
     vector<Vec2f> contour_table; // 2D 컨투어도 반환받습니다.
     find_table(img, desc, rgb, filtered, contour_table);
+    auto mm = Mat(img.camera_transform);
 
     /* 당구공 위치 찾기 */
     // 1. 당구대 ROI를 추출합니다.
@@ -362,8 +363,60 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     Rect rect_ROI;
 
     // 만약 contour_table이 비어 있다면, 이는 2D 이미지 내에 당구대 일부만 들어와있거나, 당구대가 없어 정확한 위치가 검출되지 않은 경우입니다. 따라서 먼저 당구대의 알려진 월드 위치를 transformation하여 화면 상에 투사한 뒤, contour_table을 구성해주어야 합니다.
-    if(contour_table.empty()) {
-        
+    if (contour_table.empty()) {
+        auto& p = img.camera;
+        double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
+
+        double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
+        auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
+        auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
+
+        vector<cv::Vec3f> obj_pts;
+        {
+            float half_x = m.table.size[0] / 2;
+            float half_z = m.table.size[1] / 2;
+
+            obj_pts.push_back({-half_x, 0, half_z});
+            obj_pts.push_back({-half_x, 0, -half_z});
+            obj_pts.push_back({half_x, 0, -half_z});
+            obj_pts.push_back({half_x, 0, half_z});
+        }
+
+        // obj_pts 점을 카메라에 대한 상대 좌표로 치환합니다.
+        Mat inv_camera_transform = Mat(img.camera_transform).inv();
+        Mat world_transform(4, 4, CV_32FC1);
+        world_transform.setTo(0);
+        world_transform.at<float>(3, 3) = 1.0f;
+        {
+            Vec3f pos = table_pos_flt;
+            Vec3f rot(0, -table_yaw_flt, 0);
+            auto tr_mat = world_transform({0, 3}, {3, 4});
+            auto rot_mat = world_transform({0, 3}, {0, 3});
+            copyTo(pos, tr_mat, {});
+            Rodrigues(rot, rot_mat);
+        }
+
+        for (auto& opt : obj_pts) {
+            auto pt = (Vec4f&)opt;
+            pt[3] = 1.0f;
+
+            pt = *(Vec4f*)Mat(inv_camera_transform * world_transform * pt).data;
+
+            // 좌표계 변환
+            pt[1] *= -1.0f;
+            opt = (Vec3f&)pt;
+        }
+
+        // 각 점을 매핑합니다.
+        projectPoints(obj_pts, Vec3f(0, 0, 0), Vec3f(0, 0, 0), mat_cam, mat_disto, contour_table);
+
+        // debug draw contours
+        {
+            vector<vector<Point>> contour_draw;
+            auto& tbl = contour_draw.emplace_back();
+            for (auto& pt : contour_table) { tbl.push_back({(int)pt[0], (int)pt[1]}); }
+            drawContours(rgb, contour_draw, 0, {0, 0, 255}, 3);
+        }
     }
 
     {
