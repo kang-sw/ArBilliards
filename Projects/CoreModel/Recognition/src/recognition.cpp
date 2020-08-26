@@ -7,9 +7,13 @@
 #include <iostream>
 #include <map>
 #include <set>
+#include <boost/detail/container_fwd.hpp>
+#include <boost/detail/container_fwd.hpp>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/core/affine.hpp>
+#include <opencv2/core/affine.hpp>
 
 using namespace std;
 
@@ -95,10 +99,10 @@ public:
     }
 
     recognition_desc proc_img(img_t const& img);
-    void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f> contour_table);
+    void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& contour_table);
 };
 
-void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f> contour_table)
+void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& contour_table)
 {
     using namespace cv;
 
@@ -184,11 +188,13 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             // 만약 정규 값보다 10% 이상 오차가 발생하면, 드랍합니다.
             {
                 auto const& t = table_points_3d;
+                auto sz_desired = m.table.size[0] * m.table.size[1];
+
                 auto sz1 = 0.5 * norm((t[2] - t[1]).cross(t[0] - t[1]));
                 auto sz2 = 0.5 * norm((t[0] - t[3]).cross(t[2] - t[3]));
+                auto size = sz1 + sz2;
 
-                auto sz_desired = m.table.size[0] * m.table.size[1];
-                auto err = abs(sz_desired - (sz1 + sz2));
+                auto err = abs(sz_desired - size);
 
                 if (err > sz_desired * 0.3) {
                     estimation_valid = false;
@@ -197,6 +203,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         }
 
         bool solve_successful = false;
+        bool use_pnp_data = false;
         /*
         solve_successful = estimation_valid;
         /*/
@@ -230,19 +237,20 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
 
             auto tvec_estimate = tvec.clone();
-            solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, true, cv::SOLVEPNP_IPPE);
+            solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_IPPE);
 
             auto error_estimate = norm((tvec_estimate - tvec));
 
             if (error_estimate > 0.2) {
                 tvec = tvec_estimate;
+            } else {
+                use_pnp_data = true;
             }
         }
         //*/
 
         if (solve_successful) {
             {
-                // 추정 거리를`
                 cv::Vec2f sum = {};
                 for (auto v : contour_table) { sum += v; }
                 cv::Point draw_at = {int(sum.val[0] / 4), int(sum.val[1] / 4)};
@@ -308,8 +316,47 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
                 auto alpha = m.table.LPF_alpha_rot;
                 table_yaw_flt = table_yaw_flt * (1 - alpha) + yaw_rad * alpha;
+                desc.table.orientation = Vec4f(0, -table_yaw_flt, 0, 0);
+            }
 
-                desc.table.orientation = cv::Vec4d(0, -table_yaw_flt, 0, 0);
+            // rvec의 validity를 테스트합니다.
+            if (true) {
+                auto& p = img.camera;
+                double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
+
+                double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
+                auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
+                auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
+                auto test_pts = obj_pts;
+                Mat rot;
+                Rodrigues(rvec, rot);
+                for (auto& pt : test_pts) {
+                    pt = *(Vec3d*)Mat(rot * (Vec3d)pt).data + *(Vec3d*)tvec.data;
+                }
+                vector<Vec2f> proj;
+                projectPoints(test_pts, Vec3f::zeros(), Vec3f::zeros(), mat_cam, mat_disto, proj);
+
+                vector<vector<Point>> contour_draw;
+                auto& tbl = contour_draw.emplace_back();
+                for (auto& pt : proj) { tbl.push_back({(int)pt[0], (int)pt[1]}); }
+                drawContours(rgb, contour_draw, 0, {0, 255, 0}, 3);
+            }
+
+            if (false) {
+                // solvePnP로 검출된 로테이션 데이터를 사용하는 케이스입니다.
+                // 먼저 Rodrigues 표현법으로 저장된 벡터를 회전행렬로 바꾸고, 이를 카메라 트랜스폼으로 전환합니다.
+                Mat rot_mat(4, 4, CV_32FC1);
+                rot_mat.setTo(0);
+                rot_mat.at<float>(3, 3) = 1.0f;
+                rvec.convertTo(rvec, CV_32FC1);
+                // Rodrigues(rvec, rot_mat({0, 3}, {0, 3}));
+
+                // Rodrigues(rot_mat({0, 3}, {0, 3}), rvec);
+                // rvec.push_back(0.f);
+                // rvec = img.camera_transform * rvec;
+
+                desc.table.orientation = *(Vec4f*)rvec.data;
+                desc.table.orientation[1] *= -1;
             }
 
             desc.table.confidence = 0.9f;
@@ -363,7 +410,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     Rect rect_ROI;
 
     // 만약 contour_table이 비어 있다면, 이는 2D 이미지 내에 당구대 일부만 들어와있거나, 당구대가 없어 정확한 위치가 검출되지 않은 경우입니다. 따라서 먼저 당구대의 알려진 월드 위치를 transformation하여 화면 상에 투사한 뒤, contour_table을 구성해주어야 합니다.
-    if (contour_table.empty()) {
+    {
         auto& p = img.camera;
         double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
 
@@ -390,6 +437,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         {
             Vec3f pos = table_pos_flt;
             Vec3f rot(0, -table_yaw_flt, 0);
+            // Vec3f rot = (Vec3f&)desc.table.orientation;
             auto tr_mat = world_transform({0, 3}, {3, 4});
             auto rot_mat = world_transform({0, 3}, {0, 3});
             copyTo(pos, tr_mat, {});

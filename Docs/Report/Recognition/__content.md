@@ -807,11 +807,19 @@ await new Task(() =>
 
 **경과**
 - **18:21** 3D 월드 지점을 평면상에 어떻게 투사할지 고민하고 있었는데, 다행히도 OpenCV에서 간편한 방법을 제공합니다; [`cv::projectPoints(...)`](https://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html#void%20projectPoints(InputArray%20objectPoints,%20InputArray%20rvec,%20InputArray%20tvec,%20InputArray%20cameraMatrix,%20InputArray%20distCoeffs,%20OutputArray%20imagePoints,%20OutputArray%20jacobian,%20double%20aspectRatio))
-
 - **19:44**   
 ![](GIF%202020-08-26%20오후%207-44-41.gif)  
-당구대가 시야에서 어느정도 벗어난 상태에서도 위치를 추적할 수 있게 되었습니다. 단, 조금씩 위치가 어긋나는 것은 얼마간 트랙킹 오차로 보입니다. 
+당구대가 시야에서 어느정도 벗어난 상태에서도 위치를 추적할 수 있게 되었습니다. 단, 조금씩 위치가 어긋나는 것은 얼마간 트랙킹 오차로 보입니다.  
+또한 간헐적으로 라인이 튀는 현상이 보입니다. 프로젝션 과정의 오류 같은데, 이를 해결하기 위해서는 따로 시야 절두체에 대한 컬링을 수행해야 할 것 같습니다 ... 만 제 역량으로 할 수 있는 일일지는 모르겠네요..
+- **21:04** 잠시, 회전 추정의 정확도를 높이기 위해 solvePnP의 rvec을 활용하려 해봤는데, 몇 번을 해봐도 rvec이 엉뚱한 값을 내놓습니다 ... 이유를 모르겠네요 ...
+- **22:46** 일단 지금까지의 방법으로 어느정도 정확도를 확보할 수 있었고, 현재 오큘러스 리프트의 트래킹 성능이 유일한 drawback이므로, 테이블 위치 추적은 이 정도 선에서 마무리하기로 합니다. 
 
+**내일의 목표**
+- 기하학 공부도 할 겸, 절두체 커팅을 구현해 봅니다. 3D 렌더링을 하는 것이 아니기 때문에 far, near 평면은 고려하지 않고, 시야 사각뿔의 네 평면을 바탕으로 당구대 다각형을 culling합니다. 
+
+![](2020-08-26-23-06-04.png)
+
+![](2020-08-26-23-06-16.png)
 <br>
 <br>
 <br>
