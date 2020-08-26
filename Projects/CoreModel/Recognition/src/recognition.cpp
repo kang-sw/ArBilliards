@@ -142,7 +142,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             auto area_size = contourArea(contour);
             bool const table_found = area_size > m.table.min_pxl_area_threshold && contour.size() == 4;
 
-            drawContours(rgb, candidates, idx, {0, 0, 255});
+            // drawContours(rgb, candidates, idx, {0, 0, 255});
 
             if (table_found) {
                 drawContours(rgb, candidates, idx, {255, 255, 255}, 2);
@@ -158,7 +158,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     }
 
     // 검출된 컨투어에 대해 SolvePnp 적용
-    if (contour_table.empty() == false) {
+    if (contour_table.size() == 4) {
         thread_local static vector<Vec3f> obj_pts;
         thread_local static Mat tvec;
         thread_local static Mat rvec;
@@ -183,7 +183,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         }
 
         // tvec의 초기값을 지정해주기 위해, 깊이 이미지를 이용하여 당구대 중점 위치를 추정합니다.
-        bool estimation_valid = false;
+        bool estimation_valid = true;
         vector<Vec3d> table_points_3d = {};
         {
             // 카메라 파라미터는 컬러 이미지 기준이므로, 깊이 이미지 해상도를 일치시킵니다.
@@ -192,7 +192,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
             auto& c = img.camera;
 
-            // 당구대의 네 점의 좌표를 적절한 포인트 클라우드로 변환합니다.
+            // 당구대의 네 점의 좌표를 적절한 3D 좌표로 변환합니다.
             for (auto& uv : contour_table) {
                 auto u = uv[0];
                 auto v = uv[1];
@@ -214,19 +214,58 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 tvec = Mat(tvec_init);
                 rvec = tvec;
             }
+
+            // 테이블 포인트의 면적을 계산합니다.
+            // 만약 정규 값보다 10% 이상 오차가 발생하면, 드랍합니다.
+            {
+                auto const& t = table_points_3d;
+                auto sz1 = 0.5 * norm((t[2] - t[1]).cross(t[0] - t[1]));
+                auto sz2 = 0.5 * norm((t[0] - t[3]).cross(t[2] - t[3]));
+
+                auto sz_desired = m.table.size[0] * m.table.size[1];
+                auto err = abs(sz_desired - (sz1 + sz2));
+
+                if (err > sz_desired * 0.3) {
+                    estimation_valid = false;
+                }
+            }
         }
 
-        // 3D 테이블 포인트를 
-        {
-            
-        }
-
-
-        bool solve_successful;
-        //*
-        solve_successful = true;
+        bool solve_successful = false;
+        /*
+        solve_successful = estimation_valid;
         /*/
-        solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, true, SOLVEPNP_IPPE);
+        // 3D 테이블 포인트를 바탕으로 2D 포인트를 정렬합니다.
+        // 모델 공간에서 테이블의 인덱스는 짧은 쿠션에서 시작해 긴 쿠션으로 반시계 방향 정렬된 상태입니다. 이미지에서 검출된 컨투어는 테이블의 반시계 방향 정렬만을 보장하므로, 모델 공간에서의 정점과 같은 순서가 되도록 contour를 재정렬합니다.
+        if (estimation_valid) {
+            assert(contour_table.size() == table_points_3d.size());
+
+            // 오차를 감안해 공간에서 변의 길이가 table size의 mean보다 작은 값을 선정합니다.
+            auto thres = sum(m.table.size)[0] * 0.5;
+            for (int idx = 0; idx < contour_table.size() - 1; idx++) {
+                auto& t = table_points_3d;
+                auto& c = contour_table;
+                auto len = norm(t[idx + 1] - t[idx]);
+
+                // 다음 인덱스까지의 거리가 문턱값보다 짧다면 해당 인덱스를 가장 앞으로 당깁니다(재정렬).
+                if (len < thres) {
+                    c.insert(c.end(), c.begin(), c.begin() + idx);
+                    t.insert(t.end(), t.begin(), t.begin() + idx);
+                    c.erase(c.begin(), c.begin() + idx);
+                    t.erase(t.begin(), t.begin() + idx);
+
+                    break;
+                }
+            }
+            auto tvec_estimate = tvec.clone();
+            solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, true, SOLVEPNP_IPPE);
+
+            auto error_estimate = norm((tvec_estimate - tvec));
+
+            if (error_estimate > 0.2) {
+                tvec = tvec_estimate;
+            }
+        }
         //*/
 
         if (solve_successful) {
@@ -288,65 +327,18 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
                     // 수직 방향 값을 suppress하고, 노멀을 구합니다.
                     // 당구대가 항상 수평 상태라고 가정하고, 약간의 오차를 무시합니다.
-                    table_world_dir = normalize((v1 + v2).mul({1, 0, 1}));
-
-                    {
-                        cout << "Suppressed Y value: " << normalize(v1 + v2)[1] << '\n';
-                    }
+                    table_world_dir = normalize((v1 + v2).mul({1, 0, 1})); 
                 }
 
                 // 각도를 계산하고, 외적을 통해 각도의 방향 또한 계산합니다.
                 auto yaw_rad = acos(table_model_dir.dot(table_world_dir)); // unit vector
                 yaw_rad *= table_world_dir.cross(table_model_dir)[1] > 0 ? 1.0 : -1.0;
 
-                // Yaw 방향의 회전을 Rodrigues 표현식을 활용하여 전송합니다.
-                if (abs(abs(yaw_rad - table_yaw_flt) - CV_PI) < 0.05) { // 180도 회전에 대해 내성 부여
-                    yaw_rad = table_yaw_flt;
-                }
-
                 auto alpha = m.table.LPF_alpha_rot;
                 table_yaw_flt = table_yaw_flt * (1 - alpha) + yaw_rad * alpha;
 
                 desc.table.orientation = Vec4d(0, -table_yaw_flt, 0, 0);
-            }
-
-            if (false) {
-                // 아핀 변환 계산
-                Mat affine;
-                estimateAffine3D(obj_pts, table_points_3d, affine, {});
-
-                Mat rotation_rodrigues_mat;
-                Rodrigues(affine({0, 3}, {0, 3}), rotation_rodrigues_mat);
-
-                Vec4d rotation_rodrigues = *(Vec4d*)rotation_rodrigues_mat.data;
-                rotation_rodrigues[3] = 0;
-                rotation_rodrigues[1] *= -1.0;
-                desc.table.orientation = rotation_rodrigues;
-            }
-
-            // 회전 또한 카메라 기준이므로, 트랜스폼을 적용합니다.
-            if (false) {
-                Mat cam_rotation = Mat(img.camera_transform)(Rect(0, 0, 3, 3));
-                Mat obj_rotation;
-                rvec.at<double>(1) *= -1; // 축 반전
-                Rodrigues(rvec, obj_rotation);
-                cam_rotation.convertTo(cam_rotation, CV_64FC1);
-
-                // 두 회전을 순차 적용합니다.
-                Mat rotation = cam_rotation * obj_rotation;
-                Mat rotation_rodrigues;
-                Rodrigues(rotation, rotation_rodrigues);
-
-                desc.table.orientation = (Vec4d&)rotation_rodrigues.at<double>(0);
-            }
-
-            if (false) {
-                Mat rod;
-                Rodrigues(Mat(img.camera_transform)(Rect(0, 0, 3, 3)), rod);
-                auto rod_vec = *(Vec4f*)rod.data;
-
-                desc.table.orientation = rod_vec;
-            }
+            } 
 
             desc.table.confidence = 0.9f;
         }

@@ -39,11 +39,11 @@ public: /* exposed properties */
         cv::Scalar color_filter_min = {0, 90, 150};
         cv::Scalar color_filter_max = {130, 140, 255};
 
-        double polydp_approx_epsilon = 10;
+        double polydp_approx_epsilon = 8;
         double min_pxl_area_threshold = 2e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.
 
-        double LPF_alpha_pos = 0.03;
-        double LPF_alpha_rot = 0.03;
+        double LPF_alpha_pos = 0.33;
+        double LPF_alpha_rot = 1;
     } table;
 
     // 큐대 관련 프로퍼티
