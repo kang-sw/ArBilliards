@@ -95,11 +95,41 @@ public:
     }
 
     recognition_desc proc_img(img_t const& img);
-    void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, vector<cv::Vec2f> contour_table);
+    void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f> contour_table);
 };
 
-void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, vector<cv::Vec2f> contour_table)
+void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f> contour_table)
 {
+    using namespace cv;
+
+    {
+        vector<vector<Point>> candidates;
+        vector<Vec4i> hierarchy;
+        findContours(filtered, candidates, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_NONE);
+
+        // 사각형 컨투어 찾기
+        for (int idx = 0; idx < candidates.size(); ++idx) {
+            auto& contour = candidates[idx];
+            approxPolyDP(vector(contour), contour, m.table.polydp_approx_epsilon, true);
+
+            auto area_size = contourArea(contour);
+            bool const table_found = area_size > m.table.min_pxl_area_threshold && contour.size() == 4;
+
+            // drawContours(rgb, candidates, idx, {0, 0, 255});
+
+            if (table_found) {
+                drawContours(rgb, candidates, idx, {255, 255, 255}, 2);
+
+                // marshal
+                for (auto& pt : contour) {
+                    contour_table.push_back(Vec2f(pt.x, pt.y));
+                }
+
+                putText(rgb, (stringstream() << "[" << contour.size() << ", " << area_size << "]").str(), contour[0], FONT_HERSHEY_PLAIN, 1.0, {0, 255, 0});
+            }
+        }
+    }
+
     if (contour_table.size() == 4) {
         thread_local static vector<cv::Vec3f> obj_pts;
         thread_local static cv::Mat tvec;
@@ -317,38 +347,30 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     }
     show("filtered", filtered);
 
-    // 컨투어 검출
-    vector<Vec2f> contour_table;
-    {
-        vector<vector<Point>> candidates;
-        vector<Vec4i> hierarchy;
-        findContours(filtered, candidates, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_NONE);
+    // 테이블 위치 탐색
+    vector<Vec2f> contour_table; // 2D 컨투어도 반환받습니다.
+    find_table(img, desc, rgb, filtered, contour_table);
 
-        // 사각형 컨투어 찾기
-        for (int idx = 0; idx < candidates.size(); ++idx) {
-            auto& contour = candidates[idx];
-            approxPolyDP(vector(contour), contour, m.table.polydp_approx_epsilon, true);
+    /* 당구공 위치 찾기 */
+    // 1. 당구대 ROI를 추출합니다.
+    // 2. 당구대 중점(desc.table... or filtered...) 및 노멀(항상 {0, 1, 0})을 찾습니다.
+    // 3. 당구공의 uv 중점 좌표를 이용해 당구공과 카메라를 잇는 직선을 찾습니다.
+    // 4. 위 직선을 투사하여, 당구대 평면과 충돌하는 지점을 찾습니다.
+    // 5. PROFIT!
 
-            auto area_size = contourArea(contour);
-            bool const table_found = area_size > m.table.min_pxl_area_threshold && contour.size() == 4;
+    // ROI 추출
+    Rect rect_ROI;
 
-            // drawContours(rgb, candidates, idx, {0, 0, 255});
-
-            if (table_found) {
-                drawContours(rgb, candidates, idx, {255, 255, 255}, 2);
-
-                // marshal
-                for (auto& pt : contour) {
-                    contour_table.push_back(Vec2f(pt.x, pt.y));
-                }
-
-                putText(rgb, (stringstream() << "[" << contour.size() << ", " << area_size << "]").str(), contour[0], FONT_HERSHEY_PLAIN, 1.0, {0, 255, 0});
-            }
-        }
+    // 만약 contour_table이 비어 있다면, 이는 2D 이미지 내에 당구대 일부만 들어와있거나, 당구대가 없어 정확한 위치가 검출되지 않은 경우입니다. 따라서 먼저 당구대의 알려진 월드 위치를 transformation하여 화면 상에 투사한 뒤, contour_table을 구성해주어야 합니다.
+    if(contour_table.empty()) {
+        
     }
 
-    // 테이블 위치 탐색
-    find_table(img, desc, rgb, contour_table);
+    {
+        int xbeg, ybeg, xend, yend;
+        xbeg = ybeg = numeric_limits<int>::max();
+        xend = yend = -1;
+    }
 
     // 결과물 출력
     tick_tot.stop();
