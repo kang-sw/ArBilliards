@@ -95,7 +95,197 @@ public:
     }
 
     recognition_desc proc_img(img_t const& img);
+    void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, vector<cv::Vec2f> contour_table);
 };
+
+void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, vector<cv::Vec2f> contour_table)
+{
+    if (contour_table.size() == 4) {
+        thread_local static vector<cv::Vec3f> obj_pts;
+        thread_local static cv::Mat tvec;
+        thread_local static cv::Mat rvec;
+        auto& p = img.camera;
+        double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
+
+        double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
+        auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
+        auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
+
+        {
+            float half_x = m.table.size.val[0] / 2;
+            float half_z = m.table.size.val[1] / 2;
+
+            // ref: OpenCV coordinate system
+            // 참고: findContour로 찾아진 외각 컨투어 세트는 항상 반시계방향으로 정렬됩니다.
+            obj_pts.clear();
+            obj_pts.push_back({-half_x, 0, half_z});
+            obj_pts.push_back({-half_x, 0, -half_z});
+            obj_pts.push_back({half_x, 0, -half_z});
+            obj_pts.push_back({half_x, 0, half_z});
+        }
+
+        // tvec의 초기값을 지정해주기 위해, 깊이 이미지를 이용하여 당구대 중점 위치를 추정합니다.
+        bool estimation_valid = true;
+        vector<cv::Vec3d> table_points_3d = {};
+        {
+            // 카메라 파라미터는 컬러 이미지 기준이므로, 깊이 이미지 해상도를 일치시킵니다.
+            cv::Mat depth;
+            resize(img.depth, depth, {img.rgb.cols, img.rgb.rows});
+
+            auto& c = img.camera;
+
+            // 당구대의 네 점의 좌표를 적절한 3D 좌표로 변환합니다.
+            for (auto& uv : contour_table) {
+                auto u = uv[0];
+                auto v = uv[1];
+                auto z_metric = depth.at<float>(v, u);
+
+                auto& pt = table_points_3d.emplace_back();
+                pt[2] = z_metric;
+                pt[0] = z_metric * ((u - c.cx) / c.fx);
+                pt[1] = z_metric * ((v - c.cy) / c.fy);
+            }
+
+            // tvec은 평균치를 사용합니다.
+            {
+                cv::Vec3d tvec_init = {};
+                for (auto& pt : table_points_3d) {
+                    tvec_init += pt;
+                }
+                tvec_init /= static_cast<float>(table_points_3d.size());
+                tvec = cv::Mat(tvec_init);
+                rvec = tvec;
+            }
+
+            // 테이블 포인트의 면적을 계산합니다.
+            // 만약 정규 값보다 10% 이상 오차가 발생하면, 드랍합니다.
+            {
+                auto const& t = table_points_3d;
+                auto sz1 = 0.5 * norm((t[2] - t[1]).cross(t[0] - t[1]));
+                auto sz2 = 0.5 * norm((t[0] - t[3]).cross(t[2] - t[3]));
+
+                auto sz_desired = m.table.size[0] * m.table.size[1];
+                auto err = abs(sz_desired - (sz1 + sz2));
+
+                if (err > sz_desired * 0.3) {
+                    estimation_valid = false;
+                }
+            }
+        }
+
+        bool solve_successful = false;
+        /*
+        solve_successful = estimation_valid;
+        /*/
+        // 3D 테이블 포인트를 바탕으로 2D 포인트를 정렬합니다.
+        // 모델 공간에서 테이블의 인덱스는 짧은 쿠션에서 시작해 긴 쿠션으로 반시계 방향 정렬된 상태입니다. 이미지에서 검출된 컨투어는 테이블의 반시계 방향 정렬만을 보장하므로, 모델 공간에서의 정점과 같은 순서가 되도록 contour를 재정렬합니다.
+        if (estimation_valid) {
+            assert(contour_table.size() == table_points_3d.size());
+
+            // 오차를 감안해 공간에서 변의 길이가 table size의 mean보다 작은 값을 선정합니다.
+            auto thres = sum(m.table.size)[0] * 0.5;
+            for (int idx = 0; idx < contour_table.size() - 1; idx++) {
+                auto& t = table_points_3d;
+                auto& c = contour_table;
+                auto len = norm(t[idx + 1] - t[idx]);
+
+                // 다음 인덱스까지의 거리가 문턱값보다 짧다면 해당 인덱스를 가장 앞으로 당깁니다(재정렬).
+                if (len < thres) {
+                    c.insert(c.end(), c.begin(), c.begin() + idx);
+                    t.insert(t.end(), t.begin(), t.begin() + idx);
+                    c.erase(c.begin(), c.begin() + idx);
+                    t.erase(t.begin(), t.begin() + idx);
+
+                    break;
+                }
+            }
+            auto tvec_estimate = tvec.clone();
+            solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, true, cv::SOLVEPNP_IPPE);
+
+            auto error_estimate = norm((tvec_estimate - tvec));
+
+            if (error_estimate > 0.2) {
+                tvec = tvec_estimate;
+            }
+        }
+        //*/
+
+        if (solve_successful) {
+            {
+                // 추정 거리를`
+                cv::Vec2f sum = {};
+                for (auto v : contour_table) { sum += v; }
+                cv::Point draw_at = {int(sum.val[0] / 4), int(sum.val[1] / 4)};
+
+                auto translation = cv::Vec3d(tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2));
+                double dist = sqrt(translation.dot(translation));
+                int thickness = max<int>(1, 2.0 / dist);
+
+                putText(rgb, (stringstream() << dist).str(), draw_at, cv::FONT_HERSHEY_PLAIN, 2.0 / dist, {0, 0, 255}, thickness);
+            }
+
+            // tvec은 카메라 기준의 상대 좌표를 담고 있습니다.
+            // img 구조체 인스턴스에는 카메라의 월드 트랜스폼이 담겨 있습니다.
+            // tvec을 카메라의 orientation만큼 회전시키고, 여기에 카메라의 translation을 적용하면 물체의 월드 좌표를 알 수 있습니다.
+            // rvec에는 카메라의 orientation을 곱해줍니다.
+            {
+                cv::Vec4d pos = cv::Vec4d(tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2), 0);
+                pos[1] = -pos[1], pos[3] = 1.0;
+                pos = img.camera_transform * pos;
+
+                auto alpha = m.table.LPF_alpha_pos;
+                table_pos_flt = table_pos_flt * (1 - alpha) + (cv::Vec3d&)pos * alpha;
+
+                desc.table.position = table_pos_flt;
+            }
+
+            // 테이블의 각 점에 월드 트랜스폼을 적용합니다.
+            for (auto& pt : table_points_3d) {
+                cv::Vec4d pos = (cv::Vec4d&)pt;
+                pos[3] = 1.0, pos[1] *= -1.0;
+
+                pos = img.camera_transform * (cv::Vec4f)pos;
+                pt = (cv::Vec3d&)pos;
+            }
+
+            // 테이블의 Yaw 방향 회전을 계산합니다.
+            {
+                // 모델 방향은 항상 우측(x축) 방향 고정입니다
+                cv::Vec3d table_model_dir(1, 0, 0);
+
+                // 먼저 테이블의 긴 방향 벡터를 구해야 합니다.
+                // 테이블의 대각선 방향 벡터 두 개의 합으로 계산합니다.
+                cv::Vec3d table_world_dir;
+                {
+                    auto& t = table_points_3d;
+                    auto v1 = t[2] - t[0];
+                    auto v2 = t[3] - t[1];
+
+                    // 테이블의 월드 정점의 순서에 따라 v2, v1의 벡터 순서가 뒤바뀔 수 있습니다. 이 경우 두 벡터의 합은 짧은 방향을 가리키게 됩니다. 이를 방지하기 위해, 두 벡터 사이의 각도가 둔각이라면(즉, 짧은 방향을 가리킨다면) v2를 반전합니다.
+                    auto theta = acos(v1.dot(v2) / (norm(v1) * norm(v2)));
+
+                    if (theta >= CV_PI / 2)
+                        v2 = -v2;
+
+                    // 수직 방향 값을 suppress하고, 노멀을 구합니다.
+                    // 당구대가 항상 수평 상태라고 가정하고, 약간의 오차를 무시합니다.
+                    table_world_dir = normalize((v1 + v2).mul({1, 0, 1}));
+                }
+
+                // 각도를 계산하고, 외적을 통해 각도의 방향 또한 계산합니다.
+                auto yaw_rad = acos(table_model_dir.dot(table_world_dir)); // unit vector
+                yaw_rad *= table_world_dir.cross(table_model_dir)[1] > 0 ? 1.0 : -1.0;
+
+                auto alpha = m.table.LPF_alpha_rot;
+                table_yaw_flt = table_yaw_flt * (1 - alpha) + yaw_rad * alpha;
+
+                desc.table.orientation = cv::Vec4d(0, -table_yaw_flt, 0, 0);
+            }
+
+            desc.table.confidence = 0.9f;
+        }
+    }
+}
 
 recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 {
@@ -157,192 +347,8 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         }
     }
 
-    // 검출된 컨투어에 대해 SolvePnp 적용
-    if (contour_table.size() == 4) {
-        thread_local static vector<Vec3f> obj_pts;
-        thread_local static Mat tvec;
-        thread_local static Mat rvec;
-        auto& p = img.camera;
-        double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
-
-        double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
-        auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
-        auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
-
-        {
-            float half_x = m.table.size.val[0] / 2;
-            float half_z = m.table.size.val[1] / 2;
-
-            // ref: OpenCV coordinate system
-            // 참고: findContour로 찾아진 외각 컨투어 세트는 항상 반시계방향으로 정렬됩니다.
-            obj_pts.clear();
-            obj_pts.push_back({-half_x, 0, half_z});
-            obj_pts.push_back({-half_x, 0, -half_z});
-            obj_pts.push_back({half_x, 0, -half_z});
-            obj_pts.push_back({half_x, 0, half_z});
-        }
-
-        // tvec의 초기값을 지정해주기 위해, 깊이 이미지를 이용하여 당구대 중점 위치를 추정합니다.
-        bool estimation_valid = true;
-        vector<Vec3d> table_points_3d = {};
-        {
-            // 카메라 파라미터는 컬러 이미지 기준이므로, 깊이 이미지 해상도를 일치시킵니다.
-            Mat depth;
-            resize(img.depth, depth, {img.rgb.cols, img.rgb.rows});
-
-            auto& c = img.camera;
-
-            // 당구대의 네 점의 좌표를 적절한 3D 좌표로 변환합니다.
-            for (auto& uv : contour_table) {
-                auto u = uv[0];
-                auto v = uv[1];
-                auto z_metric = depth.at<float>(v, u);
-
-                auto& pt = table_points_3d.emplace_back();
-                pt[2] = z_metric;
-                pt[0] = z_metric * ((u - c.cx) / c.fx);
-                pt[1] = z_metric * ((v - c.cy) / c.fy);
-            }
-
-            // tvec은 평균치를 사용합니다.
-            {
-                Vec3d tvec_init = {};
-                for (auto& pt : table_points_3d) {
-                    tvec_init += pt;
-                }
-                tvec_init /= static_cast<float>(table_points_3d.size());
-                tvec = Mat(tvec_init);
-                rvec = tvec;
-            }
-
-            // 테이블 포인트의 면적을 계산합니다.
-            // 만약 정규 값보다 10% 이상 오차가 발생하면, 드랍합니다.
-            {
-                auto const& t = table_points_3d;
-                auto sz1 = 0.5 * norm((t[2] - t[1]).cross(t[0] - t[1]));
-                auto sz2 = 0.5 * norm((t[0] - t[3]).cross(t[2] - t[3]));
-
-                auto sz_desired = m.table.size[0] * m.table.size[1];
-                auto err = abs(sz_desired - (sz1 + sz2));
-
-                if (err > sz_desired * 0.3) {
-                    estimation_valid = false;
-                }
-            }
-        }
-
-        bool solve_successful = false;
-        /*
-        solve_successful = estimation_valid;
-        /*/
-        // 3D 테이블 포인트를 바탕으로 2D 포인트를 정렬합니다.
-        // 모델 공간에서 테이블의 인덱스는 짧은 쿠션에서 시작해 긴 쿠션으로 반시계 방향 정렬된 상태입니다. 이미지에서 검출된 컨투어는 테이블의 반시계 방향 정렬만을 보장하므로, 모델 공간에서의 정점과 같은 순서가 되도록 contour를 재정렬합니다.
-        if (estimation_valid) {
-            assert(contour_table.size() == table_points_3d.size());
-
-            // 오차를 감안해 공간에서 변의 길이가 table size의 mean보다 작은 값을 선정합니다.
-            auto thres = sum(m.table.size)[0] * 0.5;
-            for (int idx = 0; idx < contour_table.size() - 1; idx++) {
-                auto& t = table_points_3d;
-                auto& c = contour_table;
-                auto len = norm(t[idx + 1] - t[idx]);
-
-                // 다음 인덱스까지의 거리가 문턱값보다 짧다면 해당 인덱스를 가장 앞으로 당깁니다(재정렬).
-                if (len < thres) {
-                    c.insert(c.end(), c.begin(), c.begin() + idx);
-                    t.insert(t.end(), t.begin(), t.begin() + idx);
-                    c.erase(c.begin(), c.begin() + idx);
-                    t.erase(t.begin(), t.begin() + idx);
-
-                    break;
-                }
-            }
-            auto tvec_estimate = tvec.clone();
-            solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, true, SOLVEPNP_IPPE);
-
-            auto error_estimate = norm((tvec_estimate - tvec));
-
-            if (error_estimate > 0.2) {
-                tvec = tvec_estimate;
-            }
-        }
-        //*/
-
-        if (solve_successful) {
-            {
-                // 추정 거리를`
-                Vec2f sum = {};
-                for (auto v : contour_table) { sum += v; }
-                Point draw_at = {int(sum.val[0] / 4), int(sum.val[1] / 4)};
-
-                auto translation = Vec3d(tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2));
-                double dist = sqrt(translation.dot(translation));
-                int thickness = max<int>(1, 2.0 / dist);
-
-                putText(rgb, (stringstream() << dist).str(), draw_at, FONT_HERSHEY_PLAIN, 2.0 / dist, {0, 0, 255}, thickness);
-            }
-
-            // tvec은 카메라 기준의 상대 좌표를 담고 있습니다.
-            // img 구조체 인스턴스에는 카메라의 월드 트랜스폼이 담겨 있습니다.
-            // tvec을 카메라의 orientation만큼 회전시키고, 여기에 카메라의 translation을 적용하면 물체의 월드 좌표를 알 수 있습니다.
-            // rvec에는 카메라의 orientation을 곱해줍니다.
-            {
-                Vec4d pos = Vec4d(tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2), 0);
-                pos[1] = -pos[1], pos[3] = 1.0;
-                pos = img.camera_transform * pos;
-
-                auto alpha = m.table.LPF_alpha_pos;
-                table_pos_flt = table_pos_flt * (1 - alpha) + (Vec3d&)pos * alpha;
-
-                desc.table.position = table_pos_flt;
-            }
-
-            // 테이블의 각 점에 월드 트랜스폼을 적용합니다.
-            for (auto& pt : table_points_3d) {
-                Vec4d pos = (Vec4d&)pt;
-                pos[3] = 1.0, pos[1] *= -1.0;
-
-                pos = img.camera_transform * (Vec4f)pos;
-                pt = (Vec3d&)pos;
-            }
-
-            // 테이블의 Yaw 방향 회전을 계산합니다.
-            {
-                // 모델 방향은 항상 우측(x축) 방향 고정입니다
-                Vec3d table_model_dir(1, 0, 0);
-
-                // 먼저 테이블의 긴 방향 벡터를 구해야 합니다.
-                // 테이블의 대각선 방향 벡터 두 개의 합으로 계산합니다.
-                Vec3d table_world_dir;
-                {
-                    auto& t = table_points_3d;
-                    auto v1 = t[2] - t[0];
-                    auto v2 = t[3] - t[1];
-
-                    // 테이블의 월드 정점의 순서에 따라 v2, v1의 벡터 순서가 뒤바뀔 수 있습니다. 이 경우 두 벡터의 합은 짧은 방향을 가리키게 됩니다. 이를 방지하기 위해, 두 벡터 사이의 각도가 둔각이라면(즉, 짧은 방향을 가리킨다면) v2를 반전합니다.
-                    auto theta = acos(v1.dot(v2) / (norm(v1) * norm(v2)));
-
-                    if (theta >= CV_PI / 2)
-                        v2 = -v2;
-
-                    // 수직 방향 값을 suppress하고, 노멀을 구합니다.
-                    // 당구대가 항상 수평 상태라고 가정하고, 약간의 오차를 무시합니다.
-                    table_world_dir = normalize((v1 + v2).mul({1, 0, 1})); 
-                }
-
-                // 각도를 계산하고, 외적을 통해 각도의 방향 또한 계산합니다.
-                auto yaw_rad = acos(table_model_dir.dot(table_world_dir)); // unit vector
-                yaw_rad *= table_world_dir.cross(table_model_dir)[1] > 0 ? 1.0 : -1.0;
-
-                auto alpha = m.table.LPF_alpha_rot;
-                table_yaw_flt = table_yaw_flt * (1 - alpha) + yaw_rad * alpha;
-
-                desc.table.orientation = Vec4d(0, -table_yaw_flt, 0, 0);
-            } 
-
-            desc.table.confidence = 0.9f;
-        }
-    }
+    // 테이블 위치 탐색
+    find_table(img, desc, rgb, contour_table);
 
     // 결과물 출력
     tick_tot.stop();
