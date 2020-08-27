@@ -331,7 +331,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             }
 
             // rvec의 validity를 테스트합니다.
-            if (false) {
+            if (true) {
                 auto& p = img.camera;
                 double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
 
@@ -608,7 +608,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 vector<vector<Point>> contour_draw;
                 auto& tbl = contour_draw.emplace_back();
                 for (auto& pt : contour_table) { tbl.push_back({(int)pt[0], (int)pt[1]}); }
-                drawContours(rgb, contour_draw, 0, {0, 0, 255}, 8);
+                drawContours(rgb, contour_draw, 0, {0, 0, 255}, 3);
             }
         }
     }
