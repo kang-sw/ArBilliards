@@ -60,7 +60,7 @@ public:
 
     void show(string wnd_name, cv::UMat img)
     {
-        bshow(move(wnd_name), img.getMat(cv::ACCESS_FAST).clone());
+        show(move(wnd_name), img.getMat(cv::ACCESS_FAST).clone());
     }
 
     void show(string wnd_name, cv::Mat img)
@@ -95,12 +95,12 @@ public:
     }
 
     recognition_desc proc_img(img_t const& img);
-    void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& contour_table);
+    void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours);
 
     static void frustum_culling(float hfov_rad, float vfov_rad, vector<cv::Vec3f>& obj_pts);
 };
 
-void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& contour_table)
+void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
 {
     using namespace cv;
 
@@ -124,7 +124,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
                 // marshal
                 for (auto& pt : contour) {
-                    contour_table.push_back(Vec2f(pt.x, pt.y));
+                    table_contours.push_back(Vec2f(pt.x, pt.y));
                 }
 
                 putText(rgb, (stringstream() << "[" << contour.size() << ", " << area_size << "]").str(), contour[0], FONT_HERSHEY_PLAIN, 1.0, {0, 255, 0});
@@ -132,7 +132,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         }
     }
 
-    if (contour_table.size() == 4) {
+    if (table_contours.size() == 4) {
         vector<Vec3f> obj_pts;
         Mat tvec;
         Mat rvec;
@@ -160,7 +160,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             auto& c = img.camera;
 
             // 당구대의 네 점의 좌표를 적절한 3D 좌표로 변환합니다.
-            for (auto& uv : contour_table) {
+            for (auto& uv : table_contours) {
                 auto u = uv[0];
                 auto v = uv[1];
                 auto z_metric = depth.at<float>(v, u);
@@ -208,13 +208,13 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         // 3D 테이블 포인트를 바탕으로 2D 포인트를 정렬합니다.
         // 모델 공간에서 테이블의 인덱스는 짧은 쿠션에서 시작해 긴 쿠션으로 반시계 방향 정렬된 상태입니다. 이미지에서 검출된 컨투어는 테이블의 반시계 방향 정렬만을 보장하므로, 모델 공간에서의 정점과 같은 순서가 되도록 contour를 재정렬합니다.
         if (estimation_valid) {
-            assert(contour_table.size() == table_points_3d.size());
+            assert(table_contours.size() == table_points_3d.size());
 
             // 오차를 감안해 공간에서 변의 길이가 table size의 mean보다 작은 값을 선정합니다.
             auto thres = sum(m.table.size)[0] * 0.5;
-            for (int idx = 0; idx < contour_table.size() - 1; idx++) {
+            for (int idx = 0; idx < table_contours.size() - 1; idx++) {
                 auto& t = table_points_3d;
-                auto& c = contour_table;
+                auto& c = table_contours;
                 auto len = norm(t[idx + 1] - t[idx]);
 
                 // 다음 인덱스까지의 거리가 문턱값보다 짧다면 해당 인덱스를 가장 앞으로 당깁니다(재정렬).
@@ -235,7 +235,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
 
             auto tvec_estimate = tvec.clone();
-            solve_successful = solvePnP(obj_pts, contour_table, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_IPPE);
+            solve_successful = solvePnP(obj_pts, table_contours, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_IPPE);
 
             auto error_estimate = norm((tvec_estimate - tvec));
 
@@ -251,7 +251,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         if (solve_successful) {
             {
                 cv::Vec2f sum = {};
-                for (auto v : contour_table) { sum += v; }
+                for (auto v : table_contours) { sum += v; }
                 cv::Point draw_at = {int(sum.val[0] / 4), int(sum.val[1] / 4)};
 
                 auto translation = cv::Vec3d(tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2));
@@ -286,7 +286,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             }
 
             // 테이블의 Yaw 방향 회전을 계산합니다.
-            {
+            if (false) {
                 // 모델 방향은 항상 우측(x축) 방향 고정입니다
                 cv::Vec3d table_model_dir(1, 0, 0);
 
@@ -315,6 +315,98 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
                 auto alpha = m.table.LPF_alpha_rot;
                 table_yaw_flt = table_yaw_flt * (1 - alpha) + yaw_rad * alpha;
+                desc.table.orientation = Vec4f(0, -table_yaw_flt, 0, 0);
+            }
+
+            // 테이블의 Yaw 방향 회전을 계산합니다.
+            // 에러를 최소화하는 방향으로 회전 반복 적용합니다.
+            {
+                auto& p = img.camera;
+                float disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
+
+                float M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
+                auto mat_cam = cv::Mat(3, 3, CV_32FC1, M);
+                auto mat_disto = cv::Mat(4, 1, CV_32FC1, disto);
+
+                Mat inv_camera_transform = Mat(img.camera_transform).inv();
+                Mat world_transform(4, 4, CV_32FC1);
+                world_transform.setTo(0);
+                world_transform.at<float>(3, 3) = 1.0f;
+                {
+                    Vec3f pos = table_pos_flt;
+                    // Vec3f rot = (Vec3f&)desc.table.orientation;
+                    auto tr_mat = world_transform({0, 3}, {3, 4});
+                    copyTo(pos, tr_mat, {});
+                }
+
+                vector<Vec4f> pt_origin;
+                vector<Vec3f> proj_pts;
+                for (auto& pt : obj_pts) { pt_origin.emplace_back((Vec4f&)pt)[3] = 1.0f; }
+
+                // 오차를 구하는 함수입니다.
+                auto f = [&](float x, bool draw = false) {
+                    // 회전 각도만큼 rodrigues 생성, 월드 트랜스폼에 반영
+                    Vec3f rot(0, -x, 0);
+                    Rodrigues(rot, world_transform({0, 3}, {0, 3}));
+
+                    // 월드 트랜스폼 적용 + 카메라 공간으로 트랜스폼
+                    proj_pts.clear();
+                    for (auto& pt : pt_origin) {
+                        Mat tr_pt = (inv_camera_transform * world_transform * pt);
+                        proj_pts.emplace_back(*(Vec3f*)tr_pt.data)[1] *= -1.0f;
+                    }
+
+                    // 화면에 투영합니다.
+                    vector<Vec2f> proj_contours;
+                    projectPoints(proj_pts, Vec3f{0, 0, 0}, Vec3f{0, 0, 0}, mat_cam, mat_disto, proj_contours);
+
+                    if (draw) {
+                        vector<vector<Point>> ptda;
+                        ptda.emplace_back();
+                        for (auto& pt : proj_contours) {
+                            ptda[0].push_back({int(pt[0]), int(pt[1])});
+                        }
+                        drawContours(rgb, ptda, 0, {0, 255, 255}, 2);
+                    }
+
+                    // 오차를 계산합니다. 오차는 모든 점의 거리 합입니다.
+                    // 이 때 점 순서는 고려하지 않고 가장 작은 오차 선정
+                    assert(proj_contours.size() == table_contours.size());
+                    float err_sum_min = numeric_limits<float>::max();
+                    for (size_t idx_offset = 0; idx_offset < proj_contours.size(); ++idx_offset) {
+                        float err_sum = 0;
+                        for (size_t idx = 0; idx < proj_contours.size(); ++idx) {
+                            size_t idx_n = (idx + idx_offset) % proj_contours.size();
+                            Vec2f vec = proj_contours[idx] - table_contours[idx_n];
+                            err_sum += norm(vec);
+                        }
+
+                        err_sum_min = min(err_sum, err_sum_min);
+                    }
+
+                    return err_sum_min;
+                };
+
+                // 180개의 값 찾기
+                vector<float> all;
+                float x2 = numeric_limits<float>::max();
+                int at = -1;
+                int divide = 90;
+                for (int i = 0; i < divide; ++i) {
+                    float f_i = f(i * (CV_PI / divide), false);
+                    all.push_back(f_i);
+                    if (f_i < x2) {
+                        at = i;
+                        x2 = f_i;
+                    }
+                }
+
+                x2 = at * CV_PI / divide;
+                f(x2, true);
+
+                // 요 적용
+                auto alpha = m.table.LPF_alpha_rot;
+                table_yaw_flt = table_yaw_flt * (1 - alpha) + x2 * alpha;
                 desc.table.orientation = Vec4f(0, -table_yaw_flt, 0, 0);
             }
 
@@ -630,12 +722,12 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
         xbeg = max(0, xbeg);
         ybeg = max(0, ybeg);
-        xend = min(rgb.cols - 1, xend);
-        yend = min(rgb.rows - 1, yend);
+        xend = max(min(rgb.cols - 1, xend), xbeg);
+        yend = max(min(rgb.rows - 1, yend), ybeg);
         rect_ROI = Rect(xbeg, ybeg, xend - xbeg, yend - ybeg);
     }
 
-    // If ROI exists ...
+    // ROI 존재 = 당구 테이블이 시야 내에 있음
     if (rect_ROI.size().area() > 1000) {
         Mat roi_rgb = img.rgb(rect_ROI).clone();
         Mat roi_grey;
@@ -645,6 +737,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         filtered(rect_ROI).copyTo(roi_flt);
         show("roi_filtered", roi_flt);
 
+        //
         vector<Vec4f> circles;
         // HoughCircles(roi_flt, circles, HOUGH_GRADIENT, 1.0, 10, 100, 23);
 
