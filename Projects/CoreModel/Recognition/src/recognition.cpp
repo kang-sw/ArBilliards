@@ -60,7 +60,7 @@ public:
 
     void show(string wnd_name, cv::UMat img)
     {
-        show(move(wnd_name), img.getMat(cv::ACCESS_FAST).clone());
+        bshow(move(wnd_name), img.getMat(cv::ACCESS_FAST).clone());
     }
 
     void show(string wnd_name, cv::Mat img)
@@ -501,25 +501,41 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
     TickMeter tick_tot;
     tick_tot.start();
-    auto& rgb = img.rgb;
+    auto& rgb = img.rgb.clone();
 
     UMat uclor;
-    img.rgb.copyTo(uclor);
+    Mat hsv;
+    rgb.copyTo(uclor);
 
     // 색공간 변환
     cvtColor(uclor, uclor, COLOR_RGBA2RGB);
-    cvtColor(uclor, uclor, COLOR_RGB2YUV);
-    show("yuv", uclor);
+    cvtColor(uclor, uclor, COLOR_RGB2HSV);
+    uclor.copyTo(hsv);
+    show("hsv", uclor);
 
     // 색역 필터링 및 에지 검출
-    UMat filtered;
-    inRange(uclor, m.table.color_filter_min, m.table.color_filter_max, filtered);
+    UMat mask, filtered;
+    if (m.table.hue_filter_max < m.table.hue_filter_min) {
+        UMat hi, lo;
+        inRange(uclor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
+        inRange(uclor, Scalar(m.table.hue_filter_min, 0, 0), Scalar(255, 255, 255), hi);
+        inRange(uclor, Scalar(0, 0, 0), Scalar(m.table.hue_filter_max, 255, 255), lo);
+
+        bitwise_or(hi, lo, filtered);
+        bitwise_and(mask, filtered, mask);
+
+        show("mask", mask);
+    }
+    else {
+        inRange(uclor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
+    }
+
     {
         UMat umat_temp;
-        // dilate(filtered, umat_temp, {}, {-1, -1}, 4);
-        // erode(umat_temp, filtered, {}, {-1, -1}, 4);
-        erode(filtered, umat_temp, {});
-        bitwise_xor(filtered, umat_temp, filtered);
+        // dilate(mask, umat_temp, {}, {-1, -1}, 4);
+        // erode(umat_temp, mask, {}, {-1, -1}, 4);
+        dilate(mask, umat_temp, {});
+        bitwise_xor(mask, umat_temp, filtered);
     }
     show("filtered", filtered);
 
@@ -619,15 +635,30 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         rect_ROI = Rect(xbeg, ybeg, xend - xbeg, yend - ybeg);
     }
 
+    // If ROI exists ...
     if (rect_ROI.size().area() > 1000) {
-        auto roi_rgb = rgb(rect_ROI);
+        Mat roi_rgb = img.rgb(rect_ROI).clone();
+        Mat roi_grey;
+        cvtColor(roi_rgb, roi_grey, COLOR_RGBA2GRAY);
+
+        UMat roi_flt;
+        filtered(rect_ROI).copyTo(roi_flt);
+        show("roi_filtered", roi_flt);
+
+        vector<Vec4f> circles;
+        // HoughCircles(roi_flt, circles, HOUGH_GRADIENT, 1.0, 10, 100, 23);
+
+        for (auto& ccl : circles) {
+            circle(roi_rgb, {(int)ccl[0], (int)ccl[1]}, ccl[2], {0, 255, 0}, 2);
+        }
+
         show("roi", roi_rgb);
     }
 
     // 결과물 출력
     tick_tot.stop();
     float elapsed = tick_tot.getTimeMilli();
-    putText(rgb, (stringstream() << "Elpased: " << elapsed << " ms").str(), {0, rgb.rows - 5}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
+    putText(rgb, (stringstream() << "Elapsed: " << elapsed << " ms").str(), {0, rgb.rows - 5}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
     show("source", rgb);
     return desc;
 }

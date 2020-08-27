@@ -36,11 +36,13 @@ public: /* exposed properties */
     {
         cv::Vec2f size = {0.96f, 0.51f};
         int color_cvt_type_rgb_to = cv::COLOR_RGB2HSV;
-        cv::Scalar color_filter_min = {0, 90, 150};
-        cv::Scalar color_filter_max = {130, 140, 255};
+        cv::Scalar sv_filter_min = {0, 150, 30};
+        cv::Scalar sv_filter_max = {255, 255, 255};
+        int hue_filter_min = 165;
+        int hue_filter_max = 5;
 
         double polydp_approx_epsilon = 8;
-        double min_pxl_area_threshold = 2e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.
+        double min_pxl_area_threshold = 2e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.  
 
         double LPF_alpha_pos = 0.33;
         double LPF_alpha_rot = 1;
