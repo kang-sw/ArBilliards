@@ -7,21 +7,9 @@
 #include <iostream>
 #include <map>
 #include <set>
-#include <boost/detail/container_fwd.hpp>
-#include <boost/detail/container_fwd.hpp>
-#include <boost/detail/container_fwd.hpp>
-#include <boost/detail/container_fwd.hpp>
-#include <boost/detail/container_fwd.hpp>
-#include <boost/detail/container_fwd.hpp>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/core/affine.hpp>
-#include <opencv2/core/affine.hpp>
-#include <opencv2/core/affine.hpp>
-#include <opencv2/core/affine.hpp>
-#include <opencv2/core/affine.hpp>
-#include <opencv2/core/affine.hpp>
 
 using namespace std;
 
@@ -455,7 +443,7 @@ void recognizer_impl_t::frustum_culling(float hfov_rad, float vfov_rad, vector<c
         }
     }
 
-    // 교차점이 하나도 없다면, 드랍합니다.
+    // 평면 내에 있는 점이 하나도 없다면, 드랍합니다.
     if (cull_whole) {
         obj_pts.clear();
         return;
@@ -536,8 +524,8 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     show("filtered", filtered);
 
     // 테이블 위치 탐색
-    vector<Vec2f> contour_table; // 2D 컨투어도 반환받습니다.
-    find_table(img, desc, rgb, filtered, contour_table);
+    vector<Vec2f> table_contours; // 2D 컨투어도 반환받습니다.
+    find_table(img, desc, rgb, filtered, table_contours);
     auto mm = Mat(img.camera_transform);
 
     /* 당구공 위치 찾기 */
@@ -546,9 +534,6 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     // 3. 당구공의 uv 중점 좌표를 이용해 당구공과 카메라를 잇는 직선을 찾습니다.
     // 4. 위 직선을 투사하여, 당구대 평면과 충돌하는 지점을 찾습니다.
     // 5. PROFIT!
-
-    // ROI 추출
-    Rect rect_ROI;
 
     // 만약 contour_table이 비어 있다면, 이는 2D 이미지 내에 당구대 일부만 들어와있거나, 당구대가 없어 정확한 위치가 검출되지 않은 경우입니다. 따라서 먼저 당구대의 알려진 월드 위치를 transformation하여 화면 상에 투사한 뒤, contour_table을 구성해주어야 합니다.
     {
@@ -597,26 +582,46 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         }
 
         // 오브젝트 포인트에 frustum culling 수행
-        frustum_culling(45.0 * CV_PI / 180.0f, 45.0 * CV_PI / 180.0f, obj_pts);
+        frustum_culling(90 * CV_PI / 180.0f, 60 * CV_PI / 180.0f, obj_pts);
 
         if (!obj_pts.empty()) {
             // 각 점을 매핑합니다.
-            projectPoints(obj_pts, Vec3f(0, 0, 0), Vec3f(0, 0, 0), mat_cam, mat_disto, contour_table);
+            projectPoints(obj_pts, Vec3f(0, 0, 0), Vec3f(0, 0, 0), mat_cam, mat_disto, table_contours);
 
             // debug draw contours
             {
                 vector<vector<Point>> contour_draw;
                 auto& tbl = contour_draw.emplace_back();
-                for (auto& pt : contour_table) { tbl.push_back({(int)pt[0], (int)pt[1]}); }
+                for (auto& pt : table_contours) { tbl.push_back({(int)pt[0], (int)pt[1]}); }
                 drawContours(rgb, contour_draw, 0, {0, 0, 255}, 8);
             }
         }
     }
 
-    {
+    // ROI 추출
+    Rect rect_ROI;
+    if (table_contours.empty() == false) {
         int xbeg, ybeg, xend, yend;
         xbeg = ybeg = numeric_limits<int>::max();
         xend = yend = -1;
+
+        for (auto& pt : table_contours) {
+            xbeg = min<int>(pt[0], xbeg);
+            xend = max<int>(pt[0], xend);
+            ybeg = min<int>(pt[1], ybeg);
+            yend = max<int>(pt[1], yend);
+        }
+
+        xbeg = max(0, xbeg);
+        ybeg = max(0, ybeg);
+        xend = min(rgb.cols - 1, xend);
+        yend = min(rgb.rows - 1, yend);
+        rect_ROI = Rect(xbeg, ybeg, xend - xbeg, yend - ybeg);
+    }
+
+    if (rect_ROI.size().area() > 1000) {
+        auto roi_rgb = rgb(rect_ROI);
+        show("roi", roi_rgb);
     }
 
     // 결과물 출력
