@@ -215,7 +215,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             for (int idx = 0; idx < table_contours.size() - 1; idx++) {
                 auto& t = table_points_3d;
                 auto& c = table_contours;
-                auto len = norm(t[idx + 1] - t[idx]);
+                auto len = norm(t[idx + 1] - t[idx], NORM_L2);
 
                 // 다음 인덱스까지의 거리가 문턱값보다 짧다면 해당 인덱스를 가장 앞으로 당깁니다(재정렬).
                 if (len < thres) {
@@ -237,7 +237,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             auto tvec_estimate = tvec.clone();
             solve_successful = solvePnP(obj_pts, table_contours, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_IPPE);
 
-            auto error_estimate = norm((tvec_estimate - tvec));
+            auto error_estimate = norm(tvec_estimate - tvec);
 
             if (error_estimate > 0.2) {
                 tvec = tvec_estimate;
@@ -556,7 +556,7 @@ void recognizer_impl_t::frustum_culling(float hfov_rad, float vfov_rad, vector<c
             }
 
             // 평면 위->아래로 진입하는 문맥
-            // 새 점을 삽입합니다.
+            // 접점 상에 새 점을 삽입합니다.
             {
                 auto contact = plane.find_contact(o[idx], o[nidx]).value();
                 o.insert(o.begin() + nidx, contact);
@@ -707,7 +707,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     }
 
     // ROI 추출
-    Rect rect_ROI;
+    Rect ROI;
     if (table_contours.empty() == false) {
         int xbeg, ybeg, xend, yend;
         xbeg = ybeg = numeric_limits<int>::max();
@@ -724,27 +724,87 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         ybeg = max(0, ybeg);
         xend = max(min(rgb.cols - 1, xend), xbeg);
         yend = max(min(rgb.rows - 1, yend), ybeg);
-        rect_ROI = Rect(xbeg, ybeg, xend - xbeg, yend - ybeg);
+        ROI = Rect(xbeg, ybeg, xend - xbeg, yend - ybeg);
     }
 
     // ROI 존재 = 당구 테이블이 시야 내에 있음
-    if (rect_ROI.size().area() > 1000) {
-        Mat roi_rgb = img.rgb(rect_ROI).clone();
-        Mat roi_grey;
-        cvtColor(roi_rgb, roi_grey, COLOR_RGBA2GRAY);
+    if (ROI.size().area() > 1000) {
+        Mat4b roi_rgb = img.rgb(ROI);
+        UMat roi_edge;
+        mask(ROI).copyTo(roi_edge);
+        Mat roi_mask(ROI.size(), roi_edge.type());
+        roi_mask.setTo(0);
 
-        UMat roi_flt;
-        filtered(rect_ROI).copyTo(roi_flt);
-        show("roi_filtered", roi_flt);
+        // 현재 당구대 추정 위치 영역으로 마스크를 설정합니다.
+        // 이미지 기반으로 하는 것보다 정확성은 다소 떨어지지만, 이미 당구대가 시야에서 벗어나 위치 추정이 어긋나기 시작하는 시점에서 정확성을 따질 겨를이 없습니다.
+        {
+            vector<vector<Point>> contours_;
+            auto& contour = contours_.emplace_back();
+            for (auto& pt : table_contours) { contour.emplace_back((int)pt[0] - ROI.x, (int)pt[1] - ROI.y); }
 
-        //
-        vector<Vec4f> circles;
-        // HoughCircles(roi_flt, circles, HOUGH_GRADIENT, 1.0, 10, 100, 23);
-
-        for (auto& ccl : circles) {
-            circle(roi_rgb, {(int)ccl[0], (int)ccl[1]}, ccl[2], {0, 255, 0}, 2);
+            // 컨투어 영역만큼의 마스크를 그립니다.
+            drawContours(roi_mask, contours_, 0, {255}, FILLED);
         }
 
+        // ROI 내에서, 당구대 영역을 재지정합니다.
+        {
+            UMat sub;
+
+            // 당구대 영역으로 마스킹 수행
+            roi_edge = roi_edge.mul(roi_mask);
+
+            // 에지 검출 이전에, 팽창-침식 연산을 통해 에지를 단순화하고, 파편을 줄입니다.
+            //auto iterations = m.ball.roi_smoothing_iteration_count;
+            //dilate(roi_edge, roi_edge, {}, {-1, -1}, iterations);
+            //erode(roi_edge, roi_edge, {}, {-1, -1}, iterations);
+            GaussianBlur(roi_edge, roi_edge, {3, 3}, 15);
+            threshold(roi_edge, roi_edge, 128, 255, THRESH_BINARY);
+            show("roi_mask", roi_edge);
+
+            // 내부에 닫힌 도형을 만들수 있게끔, 경계선을 깎아냅니다.
+            roi_edge.row(0).setTo(0);
+            roi_edge.row(roi_edge.rows - 1).setTo(0);
+            roi_edge.col(0).setTo(0);
+            roi_edge.col(roi_edge.cols - 1).setTo(0);
+
+            erode(roi_edge, sub, {});
+            bitwise_xor(roi_edge, sub, roi_edge);
+            show("edge_new", roi_edge);
+        }
+
+        // 당구공 찾기 ... findContours 활용
+        vector<vector<Point>> ball_contours;
+        {
+            vector<vector<Point>> candidates;
+            vector<Vec4i> hierarchy;
+            findContours(roi_edge, candidates, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
+
+            // 부모 있는 컨투어만 남깁니다.
+            for (int idx = 0; idx < hierarchy.size(); ++idx) {
+                auto [prev, next, child_first, parent] = hierarchy[idx].val;
+
+                if (child_first == -1) {
+                    ball_contours.emplace_back(move(candidates[idx]));
+                }
+            }
+
+            // 디버그용 그리기 1
+            // drawContours(roi_rgb, ball_contours, -1, {0, 255, 255}, 1);
+            for (auto& ctr : ball_contours) {
+                auto moment = moments(ctr);
+                if (abs(moment.m00) < 1e-6) { continue; }
+
+                auto cx = moment.m10 / moment.m00;
+                auto cy = moment.m01 / moment.m00;
+                auto dist_far = sqrt(moment.m00 / CV_PI);
+
+                circle(roi_rgb, {(int)cx, (int)cy}, 3, {0, 0, 255}, -1);
+                circle(roi_rgb, {(int)cx, (int)cy}, dist_far, {255, 255, 255}, 1);
+            }
+        }
+
+        subtract(Scalar{255}, roi_mask, roi_mask);
+        bitwise_xor(roi_rgb, roi_rgb, roi_rgb, roi_mask);
         show("roi", roi_rgb);
     }
 

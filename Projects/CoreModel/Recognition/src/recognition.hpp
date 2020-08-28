@@ -25,11 +25,20 @@ public: /* exposed properties */
     /* 당구공 관련 프로퍼티 */
     // 크기 및 색상을 설정 가능합니다.
     // red, white, orange의 경우 표기명으로, 공의 실제 색상과는 상이할 수 있습니다.
-    float ball_radious = 0.042f; // 모든 당구공은 같은 크기를 갖는다 가정합니다.
-    cv::Vec3f ball_red1_rgb;     // 붉은색 공의 색상 값입니다.
-    cv::Vec3f ball_red2_rgb;     // 붉은색 공의 색상 값입니다.
-    cv::Vec3f ball_white_rgb;    // 흰 공의     색상 값입니다.
-    cv::Vec3f ball_orange_rgb;   // 오렌지 공의 색상 값입니다.
+
+    // 당구공 인식 관련 프로퍼티 목록
+    struct ball_param_type
+    {
+        float radius = 0.042f;
+        cv::Vec3f red1_rgb;
+        cv::Vec3f red2_rgb;
+        cv::Vec3f white_rgb;
+        cv::Vec3f orange_rgb;
+
+        // 당구대 ROI의 마스크를 스무싱하는 데 사용하는 파라미터입니다.
+        // 팽창-침식 연산을 통해 파편을 제거하며, 이 값은 이터레이션 횟수를 정의합니다.
+        int roi_smoothing_iteration_count = 4;
+    } ball;
 
     /* 테이블 관련 프로퍼티 */
     struct table_param_type
@@ -42,7 +51,7 @@ public: /* exposed properties */
         int hue_filter_max = 5;
 
         double polydp_approx_epsilon = 8;
-        double min_pxl_area_threshold = 2e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.  
+        double min_pxl_area_threshold = 2e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.
 
         double LPF_alpha_pos = 0.1;
         double LPF_alpha_rot = 1;
