@@ -233,9 +233,9 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
             auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
             auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
-
+            
             auto tvec_estimate = tvec.clone();
-            solve_successful = solvePnP(obj_pts, table_contours, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_IPPE);
+            solve_successful = solvePnP(obj_pts, table_contours, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_ITERATIVE);
 
             auto error_estimate = norm(tvec_estimate - tvec);
 
