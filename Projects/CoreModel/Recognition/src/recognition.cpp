@@ -402,7 +402,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 }
 
                 x2 = at * CV_PI / divide;
-                f(x2, true);
+                if (isnan(x2)) { x2 = 0.0f; }
 
                 // 요 적용
                 auto alpha = m.table.LPF_alpha_rot;
@@ -626,7 +626,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         UMat umat_temp;
         // dilate(mask, umat_temp, {}, {-1, -1}, 4);
         // erode(umat_temp, mask, {}, {-1, -1}, 4);
-        dilate(mask, umat_temp, {});
+        dilate(mask, umat_temp, {}, {-1, -1}, 1);
         bitwise_xor(mask, umat_temp, filtered);
     }
     show("filtered", filtered);

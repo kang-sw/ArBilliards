@@ -44,7 +44,7 @@ public: /* exposed properties */
         double polydp_approx_epsilon = 8;
         double min_pxl_area_threshold = 2e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.  
 
-        double LPF_alpha_pos = 0.33;
+        double LPF_alpha_pos = 0.1;
         double LPF_alpha_rot = 1;
     } table;
 
