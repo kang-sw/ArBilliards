@@ -39,6 +39,7 @@ public:
 
     recognition_desc prev_desc;
     cv::Vec3d table_pos_flt = {};
+    cv::Vec3d table_rot_flt = {};
     double table_yaw_flt = 0;
 
 public:
@@ -179,7 +180,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 }
                 tvec_init /= static_cast<float>(table_points_3d.size());
                 tvec = cv::Mat(tvec_init);
-                rvec = tvec;
+                //  rvec = tvec;
             }
 
             // 테이블 포인트의 면적을 계산합니다.
@@ -233,7 +234,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
             auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
             auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
-            
+
             auto tvec_estimate = tvec.clone();
             solve_successful = solvePnP(obj_pts, table_contours, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_ITERATIVE);
 
@@ -411,7 +412,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             }
 
             // rvec의 validity를 테스트합니다.
-            if (false) {
+            if (true) {
                 auto& p = img.camera;
                 double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
 
@@ -419,18 +420,57 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
                 auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
                 auto test_pts = obj_pts;
-                Mat rot;
+                test_pts.push_back({0.08, 0, 0});
+                test_pts.push_back({0, 0.08, 0});
+                test_pts.push_back({0, 0, 0.08});
+                test_pts.push_back({0, 0, 0});
+                Matx33d rot;
                 Rodrigues(rvec, rot);
-                for (auto& pt : test_pts) {
-                    pt = *(Vec3d*)Mat(rot * (Vec3d)pt).data + *(Vec3d*)tvec.data;
-                }
-                vector<Vec2f> proj;
-                projectPoints(test_pts, Vec3f::zeros(), Vec3f::zeros(), mat_cam, mat_disto, proj);
 
-                vector<vector<Point>> contour_draw;
-                auto& tbl = contour_draw.emplace_back();
-                for (auto& pt : proj) { tbl.push_back({(int)pt[0], (int)pt[1]}); }
-                drawContours(rgb, contour_draw, 0, {0, 255, 0}, 3);
+                {
+                    for (auto& pt : test_pts) {
+                        pt = (rot * (Vec3d)pt) + *(Vec3d*)tvec.data;
+                    }
+                    vector<Vec2f> proj_src;
+                    projectPoints(test_pts, Vec3f::zeros(), Vec3f::zeros(), mat_cam, mat_disto, proj_src);
+
+                    vector<Point> proj;
+                    for (auto& pt : proj_src) { proj.push_back({(int)pt[0], (int)pt[1]}); }
+
+                    vector<vector<Point>> contour_draw;
+                    auto& tbl = contour_draw.emplace_back();
+
+                    int iter = 4;
+                    for (auto& pt : proj) {
+                        if (iter-- > 0) tbl.push_back(pt);
+                    }
+
+                    drawContours(rgb, contour_draw, 0, {0, 255, 0}, 3);
+
+                    line(rgb, proj[7], proj[4], {0, 0, 255}, 3);
+                    line(rgb, proj[7], proj[5], {0, 255, 0}, 3);
+                    line(rgb, proj[7], proj[6], {255, 0, 0}, 3);
+                }
+            }
+
+            if (true) {
+                // 전체 트랜스폼 계산 후, 회전만 추출
+                // [u v w; Q] 행렬,
+                Mat1d coord = Mat1d::eye(4, 4);
+                coord({3, 4}, {0, 3}).setTo(1.0);
+
+                Mat1d transform
+                  = Mat1d::eye(4, 4);
+                Rodrigues(rvec, transform({0, 0, 3, 3}));
+                copyTo(tvec, transform({0, 3}, {3, 4}), {});
+
+                Mat1d camera = Mat1d((Matx44d)img.camera_transform);
+                coord = (camera * transform * coord).t();
+
+                Vec3d rotation;
+                Rodrigues(coord({0, 0, 3, 3}), rotation);
+
+                table_rot_flt = rotation;
             }
 
             if (false) {
@@ -450,6 +490,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 desc.table.orientation[1] *= -1;
             }
 
+            desc.table.orientation = (Vec4d&)table_rot_flt;
+            desc.table.orientation[1] *= -1.0;
             desc.table.confidence = 0.9f;
         }
     }
@@ -670,7 +712,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         world_transform.at<float>(3, 3) = 1.0f;
         {
             Vec3f pos = table_pos_flt;
-            Vec3f rot(0, -table_yaw_flt, 0);
+            Vec3f rot = table_rot_flt;
             // Vec3f rot = (Vec3f&)desc.table.orientation;
             auto tr_mat = world_transform({0, 3}, {3, 4});
             auto rot_mat = world_transform({0, 3}, {0, 3});
