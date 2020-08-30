@@ -23,6 +23,9 @@ public:
     ~recognizer_t();
 
 public: /* exposed properties */
+    /* 주요 영상처리 프로퍼티 */
+    cv::Size actual_process_size = {960, 540};
+
     /* 당구공 관련 프로퍼티 */
     // 크기 및 색상을 설정 가능합니다.
     // red, white, orange의 경우 표기명으로, 공의 실제 색상과는 상이할 수 있습니다.
@@ -60,7 +63,7 @@ public: /* exposed properties */
 
         int aruco_dictionary = cv::aruco::DICT_4X4_50;
         int aruco_index_map[4] = {0, 1, 2, 3};
-        cv::Point2f aruco_offset[4] = { };
+        cv::Point2f aruco_offset[4] = {};
     } table;
 
     // 큐대 관련 프로퍼티

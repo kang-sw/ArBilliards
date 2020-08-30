@@ -1,111 +1,7 @@
-#include "recognition.hpp"
-#include <thread>
-#include <shared_mutex>
-#include <atomic>
-#include <optional>
-#include <condition_variable>
-#include <iostream>
-#include <map>
-#include <set>
-#include <opencv2/calib3d.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/aruco.hpp>
-
-using namespace std;
+#include "recognition_impl.hpp"
 
 namespace billiards
 {
-using img_t = recognizer_t::parameter_type;
-using img_cb_t = recognizer_t::process_finish_callback_type;
-using opt_img_t = optional<img_t>;
-using read_lock = shared_lock<shared_mutex>;
-using write_lock = unique_lock<shared_mutex>;
-class recognizer_impl_t
-{
-public:
-    recognizer_t& m;
-
-    thread worker;
-    atomic_bool worker_is_alive;
-    condition_variable_any worker_event_wait;
-    mutex worker_event_wait_mtx;
-
-    opt_img_t img_cue;
-    shared_mutex img_cue_mtx;
-    img_cb_t img_cue_cb;
-
-    map<string, cv::Mat> img_show;
-    shared_mutex img_show_mtx;
-
-    recognition_desc prev_desc;
-    cv::Vec3d table_pos_flt = {};
-    cv::Vec3d table_rot_flt = {};
-
-    // cv::Vec3f table_points[4];
-    double table_yaw_flt = 0;
-
-public:
-    recognizer_impl_t(recognizer_t& owner)
-        : m(owner)
-    {
-        worker_is_alive = true;
-        worker = thread(&recognizer_impl_t::async_worker_thread, this);
-    }
-
-    ~recognizer_impl_t()
-    {
-        if (worker.joinable()) {
-            worker_is_alive = false;
-            worker_event_wait.notify_all();
-            worker.join();
-        }
-    }
-
-    void show(string wnd_name, cv::UMat img)
-    {
-        show(move(wnd_name), img.getMat(cv::ACCESS_FAST).clone());
-    }
-
-    void show(string wnd_name, cv::Mat img)
-    {
-        write_lock lock(img_show_mtx);
-        img_show[move(wnd_name)] = move(img);
-    }
-
-    void async_worker_thread()
-    {
-        while (worker_is_alive) {
-            {
-                unique_lock<mutex> lck(worker_event_wait_mtx);
-                worker_event_wait.wait(lck);
-            }
-
-            opt_img_t img;
-            img_cb_t on_finish;
-            if (read_lock lck(img_cue_mtx); img_cue.has_value()) {
-                img = move(*img_cue);
-                on_finish = move(img_cue_cb);
-                img_cue = {};
-                img_cue_cb = {};
-            }
-
-            if (img.has_value()) {
-                auto desc = proc_img(*img);
-                if (on_finish) { on_finish(*img, desc); }
-                prev_desc = desc;
-            }
-        }
-    }
-
-    recognition_desc proc_img(img_t const& img);
-    void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours);
-
-    static void cull_frustum(float hfov_rad, float vfov_rad, vector<cv::Vec3f>& obj_pts);
-
-    // void proj_to_screen(img_t const& img, vector<cv::Vec3f> model_pt, )
-};
-
 void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
 {
     using namespace cv;
@@ -287,7 +183,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 cv::Vec4d pos = (cv::Vec4d&)pt;
                 pos[3] = 1.0, pos[1] *= -1.0;
 
-                pos = img.camera_transform * (cv::Vec4f)pos;
+                pos = Vec4d(img.camera_transform * (cv::Vec4f)pos);
                 pt = (cv::Vec3d&)pos;
             }
 
@@ -456,20 +352,6 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             desc.table.confidence = 0.9f;
         }
     }
-    if (false) {
-        // 테이블 컨투어 크기가 4가 아닌 경우로, 테이블 영역으로부터 테이블 위치를 추정하는 데 실패한 경우입니다. 이 때 ArUco 마커를 활용하여 위치를 추정합니다.
-        auto dictionary = aruco::getPredefinedDictionary(aruco::DICT_4X4_50);
-
-        UMat color;
-        cvtColor(rgb, color, COLOR_RGBA2RGB);
-        std::vector<int> markerIds;
-        std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
-        auto parameters = cv::aruco::DetectorParameters::create();
-        cv::aruco::detectMarkers(color, dictionary, markerCorners, markerIds, parameters, rejectedCandidates);
-
-        cv::aruco::drawDetectedMarkers(color, markerCorners, markerIds);
-        show("marker", color);
-    }
 }
 
 // 평면을 나타내는 타입입니다.
@@ -604,6 +486,61 @@ void recognizer_impl_t::cull_frustum(float hfov_rad, float vfov_rad, vector<cv::
     }
 }
 
+void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform)
+{
+    world_transform = cv::Mat(4, 4, CV_32FC1);
+    world_transform.setTo(0);
+    world_transform.at<float>(3, 3) = 1.0f;
+    {
+        // Vec3f rot = (Vec3f&)desc.table.orientation;
+        auto tr_mat = world_transform({0, 3}, {3, 4});
+        auto rot_mat = world_transform({0, 3}, {0, 3});
+        copyTo(pos, tr_mat, {});
+        Rodrigues(rot, rot_mat);
+    }
+}
+
+void recognizer_impl_t::get_camera_matx(img_t const& img, cv::Mat& mat_cam, cv::Mat& mat_disto)
+{
+    auto& p = img.camera;
+    double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
+
+    double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
+    mat_cam = cv::Mat(3, 3, CV_64FC1, M).clone();
+    mat_disto = cv::Mat(4, 1, CV_64FC1, disto).clone();
+}
+
+void recognizer_impl_t::project_model(img_t const& img, vector<cv::Vec2f>& mapped_contours, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f> model_vertexes)
+{
+    // obj_pts 점을 카메라에 대한 상대 좌표로 치환합니다.
+    cv::Mat mat_cam, mat_disto;
+
+    get_camera_matx(img, mat_cam, mat_disto);
+
+    cv::Mat world_transform;
+    get_world_transform_matx(world_pos, world_rot, world_transform);
+
+    cv::Mat inv_camera_transform = cv::Mat(img.camera_transform).inv();
+    for (auto& opt : model_vertexes) {
+        auto pt = (cv::Vec4f&)opt;
+        pt[3] = 1.0f;
+
+        pt = *(cv::Vec4f*)cv::Mat(inv_camera_transform * world_transform * pt).data;
+
+        // 좌표계 변환
+        pt[1] *= -1.0f;
+        opt = (cv::Vec3f&)pt;
+    }
+
+    // 오브젝트 포인트에 frustum culling 수행
+    cull_frustum(90 * CV_PI / 180.0f, 60 * CV_PI / 180.0f, model_vertexes);
+
+    if (!model_vertexes.empty()) {
+        // 각 점을 매핑합니다.
+        projectPoints(model_vertexes, cv::Vec3f(0, 0, 0), cv::Vec3f(0, 0, 0), mat_cam, mat_disto, mapped_contours);
+    }
+}
+
 recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 {
     using namespace cv;
@@ -624,7 +561,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         cvtColor(uclor, uclor, COLOR_RGBA2RGB);
         cvtColor(uclor, uclor, COLOR_RGB2HSV);
         uclor.copyTo(hsv);
-        show("hsv", uclor);
+        // show("hsv", uclor);
 
         // 색역 필터링 및 에지 검출
         if (m.table.hue_filter_max < m.table.hue_filter_min) {
@@ -636,7 +573,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             bitwise_or(hi, lo, filtered);
             bitwise_and(mask, filtered, mask);
 
-            show("mask", mask);
+            // show("mask", mask);
         }
         else {
             inRange(uclor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
@@ -665,13 +602,11 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     // 5. PROFIT!
 
     // 만약 contour_table이 비어 있다면, 이는 2D 이미지 내에 당구대 일부만 들어와있거나, 당구대가 없어 정확한 위치가 검출되지 않은 경우입니다. 따라서 먼저 당구대의 알려진 월드 위치를 transformation하여 화면 상에 투사한 뒤, contour_table을 구성해주어야 합니다.
-    {
-        auto& p = img.camera;
-        double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
 
-        double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
-        auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
-        auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
+    bool const table_not_detect = table_contours.empty();
+    {
+        Vec3f pos = table_pos_flt;
+        Vec3f rot = table_rot_flt;
 
         vector<cv::Vec3f> obj_pts;
         {
@@ -684,46 +619,18 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             obj_pts.push_back({half_x, 0, half_z});
         }
 
-        // obj_pts 점을 카메라에 대한 상대 좌표로 치환합니다.
-        Mat inv_camera_transform = Mat(img.camera_transform).inv();
-        Mat world_transform(4, 4, CV_32FC1);
-        world_transform.setTo(0);
-        world_transform.at<float>(3, 3) = 1.0f;
-        {
-            Vec3f pos = table_pos_flt;
-            Vec3f rot = table_rot_flt;
-            // Vec3f rot = (Vec3f&)desc.table.orientation;
-            auto tr_mat = world_transform({0, 3}, {3, 4});
-            auto rot_mat = world_transform({0, 3}, {0, 3});
-            copyTo(pos, tr_mat, {});
-            Rodrigues(rot, rot_mat);
+        project_model(img, table_contours, pos, rot, obj_pts);
+
+        // debug draw contours
+        if (!table_contours.empty()) {
+            vector<vector<Point>> contour_draw;
+            auto& tbl = contour_draw.emplace_back();
+            for (auto& pt : table_contours) { tbl.push_back({(int)pt[0], (int)pt[1]}); }
+            drawContours(rgb, contour_draw, -1, {0, 0, 255}, 8);
         }
 
-        for (auto& opt : obj_pts) {
-            auto pt = (Vec4f&)opt;
-            pt[3] = 1.0f;
-
-            pt = *(Vec4f*)Mat(inv_camera_transform * world_transform * pt).data;
-
-            // 좌표계 변환
-            pt[1] *= -1.0f;
-            opt = (Vec3f&)pt;
-        }
-
-        // 오브젝트 포인트에 frustum culling 수행
-        cull_frustum(90 * CV_PI / 180.0f, 60 * CV_PI / 180.0f, obj_pts);
-
-        if (!obj_pts.empty()) {
-            // 각 점을 매핑합니다.
-            projectPoints(obj_pts, Vec3f(0, 0, 0), Vec3f(0, 0, 0), mat_cam, mat_disto, table_contours);
-
-            // debug draw contours
-            {
-                vector<vector<Point>> contour_draw;
-                auto& tbl = contour_draw.emplace_back();
-                for (auto& pt : table_contours) { tbl.push_back({(int)pt[0], (int)pt[1]}); }
-                drawContours(rgb, contour_draw, 0, {0, 0, 255}, 8);
-            }
+        if (table_not_detect) {
+            // 
         }
     }
 
@@ -790,7 +697,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
             erode(roi_edge, sub, {});
             bitwise_xor(roi_edge, sub, roi_edge);
-            show("edge_new", roi_edge);
+            // show("edge_new", roi_edge);
         }
 
         // 당구공 찾기 ... findContours 활용
