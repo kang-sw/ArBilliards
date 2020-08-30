@@ -3,6 +3,7 @@
 #include <functional>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/aruco.hpp>
 
 namespace billiards
 {
@@ -44,6 +45,7 @@ public: /* exposed properties */
     struct table_param_type
     {
         cv::Vec2f size = {0.96f, 0.51f};
+        cv::Vec2f outer_size = {1.22f, 0.76f};
         int color_cvt_type_rgb_to = cv::COLOR_RGB2HSV;
         cv::Scalar sv_filter_min = {0, 150, 30};
         cv::Scalar sv_filter_max = {255, 255, 255};
@@ -55,6 +57,10 @@ public: /* exposed properties */
 
         double LPF_alpha_pos = 0.66;
         double LPF_alpha_rot = 0.04;
+
+        int aruco_dictionary = cv::aruco::DICT_4X4_50;
+        int aruco_index_map[4] = {0, 1, 2, 3};
+        cv::Point2f aruco_offset[4] = { };
     } table;
 
     // 큐대 관련 프로퍼티

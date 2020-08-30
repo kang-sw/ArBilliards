@@ -10,6 +10,7 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/aruco.hpp>
 
 using namespace std;
 
@@ -100,7 +101,7 @@ public:
     recognition_desc proc_img(img_t const& img);
     void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours);
 
-    static void frustum_culling(float hfov_rad, float vfov_rad, vector<cv::Vec3f>& obj_pts);
+    static void cull_frustum(float hfov_rad, float vfov_rad, vector<cv::Vec3f>& obj_pts);
 };
 
 void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
@@ -123,7 +124,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             // drawContours(rgb, candidates, idx, {0, 0, 255});
 
             if (table_found) {
-                drawContours(rgb, candidates, idx, {255, 255, 255}, 2);
+                // drawContours(rgb, candidates, idx, {255, 255, 255}, 2);
 
                 // marshal
                 for (auto& pt : contour) {
@@ -158,7 +159,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         {
             // 카메라 파라미터는 컬러 이미지 기준이므로, 깊이 이미지 해상도를 일치시킵니다.
             cv::Mat depth;
-            resize(img.depth, depth, {img.rgb.cols, img.rgb.rows});
+            resize(img.depth, depth, {rgb.cols, rgb.rows});
 
             auto& c = img.camera;
 
@@ -243,7 +244,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             auto error_estimate = norm(tvec_estimate - tvec);
 
             if (error_estimate > 0.2) {
-                tvec = tvec_estimate;
+                solve_successful = false;
             }
             else {
                 use_pnp_data = true;
@@ -522,6 +523,20 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             desc.table.confidence = 0.9f;
         }
     }
+    if (false) {
+        // 테이블 컨투어 크기가 4가 아닌 경우로, 테이블 영역으로부터 테이블 위치를 추정하는 데 실패한 경우입니다. 이 때 ArUco 마커를 활용하여 위치를 추정합니다.
+        auto dictionary = aruco::getPredefinedDictionary(aruco::DICT_4X4_50);
+
+        UMat color;
+        cvtColor(rgb, color, COLOR_RGBA2RGB);
+        std::vector<int> markerIds;
+        std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
+        auto parameters = cv::aruco::DetectorParameters::create();
+        cv::aruco::detectMarkers(color, dictionary, markerCorners, markerIds, parameters, rejectedCandidates);
+
+        cv::aruco::drawDetectedMarkers(color, markerCorners, markerIds);
+        show("marker", color);
+    }
 }
 
 // 평면을 나타내는 타입입니다.
@@ -560,7 +575,7 @@ struct plane_type
     }
 };
 
-void recognizer_impl_t::frustum_culling(float hfov_rad, float vfov_rad, vector<cv::Vec3f>& obj_pts)
+void recognizer_impl_t::cull_frustum(float hfov_rad, float vfov_rad, vector<cv::Vec3f>& obj_pts)
 {
     using namespace cv;
     // 시야 사각뿔의 4개 평면은 반드시 원점을 지납니다.
@@ -617,7 +632,9 @@ void recognizer_impl_t::frustum_culling(float hfov_rad, float vfov_rad, vector<c
         // 각 평면에 대해 ...
         for (auto& plane : planes) {
             // 이 때, idx는 반드시 평면 안에 있습니다.
-            assert(plane.calc(o[idx]) >= 0);
+            if (plane.calc(o[idx]) < 0) {
+                continue;
+            }
 
             if (plane.has_contact(o[idx], o[nidx]) == false) {
                 // 이 문맥에서는 반드시 o[idx]가 평면 위에 위치합니다.
@@ -662,33 +679,35 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
     TickMeter tick_tot;
     tick_tot.start();
-    auto& rgb = img.rgb.clone();
+    Mat rgb = img.rgb.clone();
 
-    UMat uclor;
-    Mat hsv;
-    rgb.copyTo(uclor);
-
-    // 색공간 변환
-    cvtColor(uclor, uclor, COLOR_RGBA2RGB);
-    cvtColor(uclor, uclor, COLOR_RGB2HSV);
-    uclor.copyTo(hsv);
-    show("hsv", uclor);
-
-    // 색역 필터링 및 에지 검출
     UMat mask, filtered;
-    if (m.table.hue_filter_max < m.table.hue_filter_min) {
-        UMat hi, lo;
-        inRange(uclor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
-        inRange(uclor, Scalar(m.table.hue_filter_min, 0, 0), Scalar(255, 255, 255), hi);
-        inRange(uclor, Scalar(0, 0, 0), Scalar(m.table.hue_filter_max, 255, 255), lo);
+    {
+        UMat uclor;
+        Mat hsv;
+        rgb.copyTo(uclor);
 
-        bitwise_or(hi, lo, filtered);
-        bitwise_and(mask, filtered, mask);
+        // 색공간 변환 
+        cvtColor(uclor, uclor, COLOR_RGBA2RGB);
+        cvtColor(uclor, uclor, COLOR_RGB2HSV);
+        uclor.copyTo(hsv);
+        show("hsv", uclor);
 
-        show("mask", mask);
-    }
-    else {
-        inRange(uclor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
+        // 색역 필터링 및 에지 검출
+        if (m.table.hue_filter_max < m.table.hue_filter_min) {
+            UMat hi, lo;
+            inRange(uclor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
+            inRange(uclor, Scalar(m.table.hue_filter_min, 0, 0), Scalar(255, 255, 255), hi);
+            inRange(uclor, Scalar(0, 0, 0), Scalar(m.table.hue_filter_max, 255, 255), lo);
+
+            bitwise_or(hi, lo, filtered);
+            bitwise_and(mask, filtered, mask);
+
+            show("mask", mask);
+        }
+        else {
+            inRange(uclor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
+        }
     }
 
     {
@@ -698,7 +717,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         dilate(mask, umat_temp, {}, {-1, -1}, 1);
         bitwise_xor(mask, umat_temp, filtered);
     }
-    show("filtered", filtered);
+    show("filtered", filtered); 
 
     // 테이블 위치 탐색
     vector<Vec2f> table_contours; // 2D 컨투어도 반환받습니다.
@@ -723,8 +742,8 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
         vector<cv::Vec3f> obj_pts;
         {
-            float half_x = m.table.size[0] / 2;
-            float half_z = m.table.size[1] / 2;
+            float half_x = m.table.outer_size[0] / 2;
+            float half_z = m.table.outer_size[1] / 2;
 
             obj_pts.push_back({-half_x, 0, half_z});
             obj_pts.push_back({-half_x, 0, -half_z});
@@ -759,7 +778,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         }
 
         // 오브젝트 포인트에 frustum culling 수행
-        frustum_culling(90 * CV_PI / 180.0f, 60 * CV_PI / 180.0f, obj_pts);
+        cull_frustum(90 * CV_PI / 180.0f, 60 * CV_PI / 180.0f, obj_pts);
 
         if (!obj_pts.empty()) {
             // 각 점을 매핑합니다.
