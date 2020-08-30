@@ -102,6 +102,8 @@ public:
     void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours);
 
     static void cull_frustum(float hfov_rad, float vfov_rad, vector<cv::Vec3f>& obj_pts);
+
+    // void proj_to_screen(img_t const& img, vector<cv::Vec3f> model_pt, )
 };
 
 void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
@@ -290,39 +292,6 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             }
 
             // 테이블의 Yaw 방향 회전을 계산합니다.
-            if (false) {
-                // 모델 방향은 항상 우측(x축) 방향 고정입니다
-                cv::Vec3d table_model_dir(1, 0, 0);
-
-                // 먼저 테이블의 긴 방향 벡터를 구해야 합니다.
-                // 테이블의 대각선 방향 벡터 두 개의 합으로 계산합니다.
-                cv::Vec3d table_world_dir;
-                {
-                    auto& t = table_points_3d;
-                    auto v1 = t[2] - t[0];
-                    auto v2 = t[3] - t[1];
-
-                    // 테이블의 월드 정점의 순서에 따라 v2, v1의 벡터 순서가 뒤바뀔 수 있습니다. 이 경우 두 벡터의 합은 짧은 방향을 가리키게 됩니다. 이를 방지하기 위해, 두 벡터 사이의 각도가 둔각이라면(즉, 짧은 방향을 가리킨다면) v2를 반전합니다.
-                    auto theta = acos(v1.dot(v2) / (norm(v1) * norm(v2)));
-
-                    if (theta >= CV_PI / 2)
-                        v2 = -v2;
-
-                    // 수직 방향 값을 suppress하고, 노멀을 구합니다.
-                    // 당구대가 항상 수평 상태라고 가정하고, 약간의 오차를 무시합니다.
-                    table_world_dir = normalize((v1 + v2).mul({1, 0, 1}));
-                }
-
-                // 각도를 계산하고, 외적을 통해 각도의 방향 또한 계산합니다.
-                auto yaw_rad = acos(table_model_dir.dot(table_world_dir)); // unit vector
-                yaw_rad *= table_world_dir.cross(table_model_dir)[1] > 0 ? 1.0 : -1.0;
-
-                auto alpha = m.table.LPF_alpha_rot;
-                table_yaw_flt = table_yaw_flt * (1 - alpha) + yaw_rad * alpha;
-                desc.table.orientation = Vec4f(0, -table_yaw_flt, 0, 0);
-            }
-
-            // 테이블의 Yaw 방향 회전을 계산합니다.
             // 에러를 최소화하는 방향으로 회전 반복 적용합니다.
             if (false) {
                 auto& p = img.camera;
@@ -415,7 +384,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             }
 
             // 로테이션 계산
-            if (estimation_valid) {
+            {
                 auto& p = img.camera;
                 double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
 
@@ -434,6 +403,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                     pt = (rot * (Vec3d)pt) + *(Vec3d*)tvec.data;
                 }
 
+                // 디버그용 그리기
                 {
                     vector<Vec2f> proj_src;
                     projectPoints(table_pts, Vec3f::zeros(), Vec3f::zeros(), mat_cam, mat_disto, proj_src);
@@ -480,43 +450,6 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 Rodrigues(rotation, rod);
 
                 table_rot_flt = rod;
-            }
-
-            if (false) {
-                // 전체 트랜스폼 계산 후, 회전만 추출
-                // [u v w; Q] 행렬,
-                Mat1d coord = Mat1d::eye(4, 4);
-                coord({3, 4}, {0, 3}).setTo(1.0);
-
-                Mat1d transform
-                  = Mat1d::eye(4, 4);
-                Rodrigues(rvec, transform({0, 0, 3, 3}));
-                copyTo(tvec, transform({0, 3}, {3, 4}), {});
-
-                Mat1d camera = Mat1d((Matx44d)img.camera_transform);
-                coord = (camera * transform * coord).t();
-
-                Vec3d rotation;
-                Rodrigues(coord({0, 0, 3, 3}), rotation);
-
-                table_rot_flt = rotation;
-            }
-
-            if (false) {
-                // solvePnP로 검출된 로테이션 데이터를 사용하는 케이스입니다.
-                // 먼저 Rodrigues 표현법으로 저장된 벡터를 회전행렬로 바꾸고, 이를 카메라 트랜스폼으로 전환합니다.
-                Mat rot_mat(4, 4, CV_32FC1);
-                rot_mat.setTo(0);
-                rot_mat.at<float>(3, 3) = 1.0f;
-                rvec.convertTo(rvec, CV_32FC1);
-                // Rodrigues(rvec, rot_mat({0, 3}, {0, 3}));
-
-                // Rodrigues(rot_mat({0, 3}, {0, 3}), rvec);
-                // rvec.push_back(0.f);
-                // rvec = img.camera_transform * rvec;
-
-                desc.table.orientation = *(Vec4f*)rvec.data;
-                desc.table.orientation[1] *= -1;
             }
 
             desc.table.orientation = (Vec4d&)table_rot_flt;
@@ -687,7 +620,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         Mat hsv;
         rgb.copyTo(uclor);
 
-        // 색공간 변환 
+        // 색공간 변환
         cvtColor(uclor, uclor, COLOR_RGBA2RGB);
         cvtColor(uclor, uclor, COLOR_RGB2HSV);
         uclor.copyTo(hsv);
@@ -717,7 +650,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         dilate(mask, umat_temp, {}, {-1, -1}, 1);
         bitwise_xor(mask, umat_temp, filtered);
     }
-    show("filtered", filtered); 
+    show("filtered", filtered);
 
     // 테이블 위치 탐색
     vector<Vec2f> table_contours; // 2D 컨투어도 반환받습니다.

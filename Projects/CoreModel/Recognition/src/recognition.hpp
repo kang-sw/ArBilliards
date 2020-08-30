@@ -45,7 +45,7 @@ public: /* exposed properties */
     struct table_param_type
     {
         cv::Vec2f size = {0.96f, 0.51f};
-        cv::Vec2f outer_size = {1.22f, 0.76f};
+        cv::Vec2f outer_size = {1.21f, 0.66f};
         int color_cvt_type_rgb_to = cv::COLOR_RGB2HSV;
         cv::Scalar sv_filter_min = {0, 150, 30};
         cv::Scalar sv_filter_max = {255, 255, 255};
