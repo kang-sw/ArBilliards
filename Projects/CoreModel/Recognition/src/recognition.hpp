@@ -48,7 +48,7 @@ public: /* exposed properties */
     struct table_param_type
     {
         cv::Vec2f size = {0.96f, 0.51f};
-        cv::Vec2f outer_size = {1.21f, 0.66f};
+        cv::Vec2f outer_size = {1.31f, 0.76f};
         int color_cvt_type_rgb_to = cv::COLOR_RGB2HSV;
         cv::Scalar sv_filter_min = {0, 150, 30};
         cv::Scalar sv_filter_max = {255, 255, 255};
@@ -61,9 +61,14 @@ public: /* exposed properties */
         double LPF_alpha_pos = 0.66;
         double LPF_alpha_rot = 0.04;
 
+        // 이미지 내에서 '가깝다'고 판단하는 거리의 한계치입니다.
+        // 1미터 거리당 픽셀 개수입니다.
+        float pixel_distance_threshold_per_meter = 50;
+
+        float aruco_size_per_meter = 50;
         int aruco_dictionary = cv::aruco::DICT_4X4_50;
         int aruco_index_map[4] = {0, 1, 2, 3};
-        cv::Point2f aruco_offset[4] = {};
+        cv::Point2f aruco_offset = {0.035f, 0.035f};
     } table;
 
     // 큐대 관련 프로퍼티

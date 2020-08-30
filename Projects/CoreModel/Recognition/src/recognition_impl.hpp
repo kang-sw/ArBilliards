@@ -3,11 +3,11 @@
 #include <shared_mutex>
 #include <atomic>
 #include <optional>
-#include <condition_variable> 
-#include <map> 
-#include <vector> 
-#include <opencv2/calib3d.hpp> 
-#include <opencv2/core/base.hpp> 
+#include <condition_variable>
+#include <map>
+#include <vector>
+#include <opencv2/calib3d.hpp>
+#include <opencv2/core/base.hpp>
 
 using namespace std;
 
@@ -101,10 +101,13 @@ public:
     void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours);
 
     static void cull_frustum(float hfov_rad, float vfov_rad, vector<cv::Vec3f>& obj_pts);
-    void project_model(img_t const& img, vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f> model_vertexes);
+    void project_model(img_t const& img, vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true);
+    void transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes);
     void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform);
     static void get_camera_matx(img_t const& img, cv::Mat& mat_cam, cv::Mat& mat_disto);
 
+    void get_table_model(std::vector<cv::Vec3f>& vertexes);
+    static std::optional<cv::Mat> get_safe_ROI(cv::Mat const&, cv::Rect);
     // void proj_to_screen(img_t const& img, vector<cv::Vec3f> model_pt, )
 };
 } // namespace billiards
