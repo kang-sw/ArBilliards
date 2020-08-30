@@ -172,7 +172,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             // img 구조체 인스턴스에는 카메라의 월드 트랜스폼이 담겨 있습니다.
             // tvec을 카메라의 orientation만큼 회전시키고, 여기에 카메라의 translation을 적용하면 물체의 월드 좌표를 알 수 있습니다.
             // rvec에는 카메라의 orientation을 곱해줍니다.
-            if (estimation_valid) {
+            {
                 cv::Vec4d pos = cv::Vec4d(tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2), 0);
                 pos[1] = -pos[1], pos[3] = 1.0;
                 pos = img.camera_transform * pos;
@@ -534,14 +534,48 @@ std::optional<cv::Mat> recognizer_impl_t::get_safe_ROI(cv::Mat const& mat, cv::R
 
     roi.x = max(0, roi.x);
     roi.y = max(0, roi.y);
-    roi.width = min(mat.cols - roi.x, roi.width);
-    roi.height = min(mat.rows - roi.y, roi.height);
+    roi.width = max(0, min(mat.cols - roi.x, roi.width));
+    roi.height = max(0, min(mat.rows - roi.y, roi.height));
 
     if (roi.area() > 0) {
         return mat(roi);
     }
 
     return {};
+}
+
+void recognizer_impl_t::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec) const
+{
+    using namespace cv;
+    vector<Vec3f> uvw;
+    uvw.emplace_back(1, 0, 0);
+    uvw.emplace_back(0, 1, 0);
+    uvw.emplace_back(0, 0, 1);
+    uvw.emplace_back(0, 0, 0);
+
+    Matx33f rot;
+    Rodrigues(rvec, rot);
+
+    for (auto& pt : uvw) {
+        pt = (rot * pt) + tvec;
+
+        auto pt4 = (Vec4f&)pt;
+        pt4[3] = 1.0f, pt4[1] *= -1.0f;
+        pt4 = img.camera_transform * pt4;
+        pt = (Vec3f&)pt4;
+    }
+
+    auto u = uvw[0] - uvw[3];
+    auto v = uvw[1] - uvw[3];
+    auto w = uvw[2] - uvw[3];
+    tvec = uvw[3];
+
+    Mat1f rotation(3, 3);
+    copyTo(u, rotation.col(0), {});
+    copyTo(v, rotation.col(1), {});
+    copyTo(w, rotation.col(2), {});
+
+    Rodrigues(rotation, rvec);
 }
 
 void recognizer_impl_t::transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes)
@@ -796,6 +830,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
             vector<int> all_marker;
             vector<vector<Point2f>> all_corner;
+            vector<float> marker_distances;
 
             struct contour_desc_t
             {
@@ -843,7 +878,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             }
 
             for (auto& pt : table_contour_partial) {
-                circle(roi_rgb, pt, 10, {255, 0, 255}, -1);
+                circle(roi_rgb, pt, 5, {255, 64, 0}, -1);
 
                 // 당구대 모서리의 예측 지점과의 화면상 거리를 계산합니다.
                 float dist_scr_min = numeric_limits<float>::max();
@@ -891,9 +926,36 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
                 all_marker.insert(all_marker.end(), marker_ids.begin(), marker_ids.end());
                 all_corner.insert(all_corner.end(), marker_corners.begin(), marker_corners.end());
+
+                for (int i = 0; i < marker_corners.size(); ++i) { marker_distances.push_back(arg->distance); }
             }
 
             aruco::drawDetectedMarkers(rgb, all_corner, all_marker, {0, 0, 255});
+
+            // 가장 가까운 마커를 선택합니다.
+            if (marker_distances.empty() == false) {
+                auto idx = marker_distances.end() - 1 - min_element(marker_distances.begin(), marker_distances.end());
+                all_corner = {all_corner[idx]};
+                int marker_index = all_marker[idx];
+                vector<Vec3d> rvecs, tvecs;
+
+                aruco::estimatePoseSingleMarkers(all_corner, 0.0375, mat_cam, mat_disto, rvecs, tvecs);
+
+                Vec3f rvec = rvecs.front();
+                Vec3f tvec = tvecs.front();
+                camera_to_world(img, rvec, tvec);
+
+                { // 테스트
+                    vector<Vec2f> pos;
+                    vector<Vec3f> model = {{0, 0, 0}};
+                    project_model(img, pos, rvec, tvec, model, false);
+
+                    Point p(pos[0][0], pos[0][1]);
+                    circle(rgb, p, 10, {0, 255, 255}, -1);
+
+                    table_rot_flt = rvec;
+                }
+            }
         }
 
         subtract(Scalar{255}, roi_mask, roi_mask);

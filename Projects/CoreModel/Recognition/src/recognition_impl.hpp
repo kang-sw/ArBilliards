@@ -8,6 +8,10 @@
 #include <vector>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
 
 using namespace std;
 
@@ -108,6 +112,8 @@ public:
 
     void get_table_model(std::vector<cv::Vec3f>& vertexes);
     static std::optional<cv::Mat> get_safe_ROI(cv::Mat const&, cv::Rect);
+
+    void camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec) const;
     // void proj_to_screen(img_t const& img, vector<cv::Vec3f> model_pt, )
 };
 } // namespace billiards
