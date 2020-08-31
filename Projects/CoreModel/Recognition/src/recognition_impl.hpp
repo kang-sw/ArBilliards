@@ -48,8 +48,8 @@ public:
     shared_mutex img_show_mtx;
 
     recognition_desc prev_desc;
-    cv::Vec3d table_pos_flt = {};
-    cv::Vec3d table_rot_flt = {};
+    cv::Vec3f table_pos_flt = {};
+    cv::Vec3f table_rot_flt = {};
 
     // cv::Vec3f table_points[4];
     double table_yaw_flt = 0;
@@ -110,8 +110,12 @@ public:
     recognition_desc proc_img(img_t const& img);
     void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours);
 
+    cv::Vec3f set_filtered_pos(cv::Vec3f new_pos, float confidence = 1.0f);
+    cv::Vec3f set_filtered_rot(cv::Vec3f new_rot, float confidence = 1.0f);
+
     static void cull_frustum(float hfov_rad, float vfov_rad, vector<cv::Vec3f>& obj_pts);
     void project_model(img_t const& img, vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true) const;
+    void project_model(img_t const& img, vector<cv::Point>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true) const;
     void transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes) const;
     void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform) const;
     static void get_camera_matx(img_t const& img, cv::Mat& mat_cam, cv::Mat& mat_disto);

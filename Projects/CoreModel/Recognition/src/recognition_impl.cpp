@@ -173,12 +173,11 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             // tvec을 카메라의 orientation만큼 회전시키고, 여기에 카메라의 translation을 적용하면 물체의 월드 좌표를 알 수 있습니다.
             // rvec에는 카메라의 orientation을 곱해줍니다.
             {
-                cv::Vec4d pos = cv::Vec4d(tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2), 0);
+                cv::Vec4f pos = cv::Vec4d(tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2), 0);
                 pos[1] = -pos[1], pos[3] = 1.0;
                 pos = img.camera_transform * pos;
 
-                auto alpha = m.table.LPF_alpha_pos;
-                table_pos_flt = table_pos_flt * (1 - alpha) + (cv::Vec3d&)pos * alpha;
+                set_filtered_pos((Vec3f&)pos);
 
                 desc.table.position = table_pos_flt;
             }
@@ -192,79 +191,49 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 pt = (cv::Vec3d&)pos;
             }
 
-            // 로테이션 계산
             {
-                auto& p = img.camera;
-                double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
+                Vec3f rotation, translation;
+                rvec.convertTo(rotation, CV_32FC3);
+                tvec.convertTo(translation, CV_32FC3);
 
-                double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
-                auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
-                auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
-                auto table_pts = obj_pts;
-                table_pts.push_back({0.08, 0, 0});
-                table_pts.push_back({0, 0.08, 0});
-                table_pts.push_back({0, 0, 0.08});
-                table_pts.push_back({0, 0, 0});
-                Matx33d rot;
-                Rodrigues(rvec, rot);
+                camera_to_world(img, rotation, translation);
 
-                for (auto& pt : table_pts) {
-                    pt = (rot * (Vec3d)pt) + *(Vec3d*)tvec.data;
+                // 월드 yaw 축이 170도 이상 바뀌면, 180도 반전시킵니다.
+                if (abs(table_rot_flt[1] - rotation[1]) > (170.0f) * CV_PI / 180.0f) {
+                    rotation[1] += CV_PI;
                 }
 
-                // 디버그용 그리기
+                set_filtered_rot(rotation);
+
                 {
-                    vector<Vec2f> proj_src;
-                    projectPoints(table_pts, Vec3f::zeros(), Vec3f::zeros(), mat_cam, mat_disto, proj_src);
+                    // debug draw
+                    vector<Vec3f> table_pos;
+                    vector<vector<Point>> table_pts;
+                    get_table_model(table_pos);
 
-                    vector<Point> proj;
-                    for (auto& pt : proj_src) { proj.push_back({(int)pt[0], (int)pt[1]}); }
+                    project_model(img, table_pts.emplace_back(), translation, rotation, table_pos, true);
 
-                    vector<vector<Point>> contour_draw;
-                    auto& tbl = contour_draw.emplace_back();
-
-                    int iter = 4;
-                    for (auto& pt : proj) {
-                        if (iter-- > 0) tbl.push_back(pt);
-                    }
-
-                    drawContours(rgb, contour_draw, 0, {0, 255, 0}, 3);
-
-                    line(rgb, proj[7], proj[4], {0, 0, 255}, 3);
-                    line(rgb, proj[7], proj[5], {0, 255, 0}, 3);
-                    line(rgb, proj[7], proj[6], {255, 0, 0}, 3);
-
-                    table_pts.erase(table_pts.begin() + 4, table_pts.end());
+                    drawContours(rgb, table_pts, -1, {0, 0, 0}, 9);
+                    draw_axes(img, const_cast<cv::Mat&>(rgb), rotation, translation, 0.1, 3);
                 }
-
-                // 테이블 4개 점을 월드 좌표로 변환
-                for (auto& pt : table_pts) {
-                    Vec4f pt4 = (Vec4f&)pt;
-                    pt4[3] = 1.0f, pt4[1] *= -1.0f;
-                    pt4 = img.camera_transform * pt4;
-                    pt = (Vec3f&)pt4;
-                }
-
-                // 월드 좌표로부터 u, v, w 새로 계산(각각 x', y', z' 벡터)
-                auto u = normalize(table_pts[2] - table_pts[1]);
-                auto w = normalize(table_pts[0] - table_pts[1]);
-                auto v = w.cross(u);
-
-                Mat1f rotation(3, 3);
-                copyTo(u, rotation.col(0), {});
-                copyTo(v, rotation.col(1), {});
-                copyTo(w, rotation.col(2), {});
-
-                Vec3f rod;
-                Rodrigues(rotation, rod);
-
-                table_rot_flt = rod;
             }
 
-            desc.table.orientation = (Vec4d&)table_rot_flt;
+            desc.table.orientation = (Vec4f&)table_rot_flt;
             desc.table.confidence = 0.9f;
         }
     }
+}
+
+cv::Vec3f recognizer_impl_t::set_filtered_pos(cv::Vec3f new_pos, float confidence)
+{
+    float alpha = m.table.LPF_alpha_pos * confidence;
+    return table_pos_flt = (1 - alpha) * table_pos_flt + alpha * new_pos;
+}
+
+cv::Vec3f recognizer_impl_t::set_filtered_rot(cv::Vec3f new_rot, float confidence)
+{
+    float alpha = m.table.LPF_alpha_rot * confidence;
+    return table_rot_flt = (1 - alpha) * table_rot_flt + alpha * new_rot;
 }
 
 // 평면을 나타내는 타입입니다.
@@ -585,6 +554,17 @@ void recognizer_impl_t::project_model(img_t const& img, vector<cv::Vec2f>& mappe
     }
 }
 
+void billiards::recognizer_impl_t::project_model(img_t const& img, vector<cv::Point>& mapped, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull) const
+{
+    vector<cv::Vec2f> mapped_vec;
+    project_model(img, mapped_vec, obj_pos, obj_rot, model_vertexes, do_cull);
+
+    mapped.clear();
+    for (auto& pt : mapped_vec) {
+        mapped.emplace_back((int)pt[0], (int)pt[1]);
+    }
+}
+
 recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 {
     using namespace cv;
@@ -902,67 +882,51 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
             aruco::drawDetectedMarkers(rgb, all_corner, all_marker, {0, 0, 255});
 
-            auto board = makePtr<aruco::Board>();
-            board->dictionary = aruco_dict;
-            board->ids.assign(std::begin(m.table.aruco_index_map), std::end(m.table.aruco_index_map));
-
-            for (auto& pt : m.table.aruco_horizontal_points) {
-                Point3f center(pt[0], pt[1], pt[2]);
-                auto& corners = board->objPoints.emplace_back();
-
-                // 마커의 각 코너 위치를 계산합니다.
-                pair<float, float> mult[4] = {
-                  {-1.0f, 1.0f},
-                  {-1.0f, -1.0f},
-                  {1.0f, -1.0f},
-                  {1.0f, 1.0f},
-                };
-                for (int i = 0; i < 4; ++i) {
-                    float half_add = m.table.aruco_marker_size * 0.5f;
-                    Point3f adder = {mult[i].first * half_add, 0.0f, mult[i].second * half_add};
-                    corners.push_back(center + adder);
-                }
-            }
-
-            // 가장 가까운 마커를 선택합니다.
             if (marker_distances.empty() == false) {
-                // auto idx = marker_distances.end() - 1 - min_element/(marker_distances.begin (), /marker_distances.end());
-                // all_corner = {all_corner[idx]};
-                // int marker_index = all_marker[idx];
-                // vector<Vec3d> rvecs, tvecs;
-                //
-                // aruco::estimatePoseSingleMarkers(all_corner, 0.0375f, mat_cam, mat_disto, rvecs, tvecs);
-                Vec3d rvecd = table_rot_flt, tvecd = table_pos_flt;
-                aruco::estimatePoseBoard(all_corner, all_marker, board, mat_cam, mat_disto, rvecd, tvecd, false);
+                vector<Vec3d> rvecs, tvecs;
+                aruco::estimatePoseSingleMarkers(all_corner, m.table.aruco_marker_size, mat_cam, mat_disto, rvecs, tvecs);
 
-                Vec3f rvec = rvecd, tvec = tvecd;
-                rvec = rotate_local(rvec, {-(float)CV_PI / 2, 0, 0});
-                camera_to_world(img, rvec, tvec);
+                // 모든 마커에 대해 ...
+                for (int index = 0; index < rvecs.size(); ++index) {
+                    Vec3f rvec = rvecs[index], tvec = tvecs[index];
+                    int marker_index = all_marker[index];
+                    rvec = rotate_local(rvec, {-(float)CV_PI / 2, 0, 0});
+                    camera_to_world(img, rvec, tvec);
+                    draw_axes(img, rgb, rvec, tvec, 0.1, 3);
 
-                // table_rot_flt = rvec;
-                draw_axes(img, rgb, rvec, tvec, 0.05, 8);
+                    // 마커 번호에서 인덱스 획득
+                    int position_index = -1;
+                    if (auto it = find(std::begin(m.table.aruco_index_map), std::end(m.table.aruco_index_map), marker_index);
+                        it != std::end(m.table.aruco_index_map)) {
+                        position_index = it - std::begin(m.table.aruco_index_map);
+                    }
 
-                // 해당 마커가 어느 위치의 마커인지 확인하고, 테이블 위치를 계산해냅니다.
+                    if (position_index != -1) {
+                        // 테이블 중점에서 마커의 위치만큼을 빼 줍니다.
+                        auto pt = m.table.aruco_horizontal_points[position_index];
+                        Vec3f min_error_candidate = {};
 
-                // 마커 번호에서 인덱스 획득
-                //int position_index = -1;
-                //if (auto it = find(std::begin(m.table.aruco_index_map), std::end(m.table.aruco_index_map), marker_index);
-                //    it != std::end(m.table.aruco_index_map)) {
-                //    position_index = it - std::begin(m.table.aruco_index_map);
-                //}
+                        // 테이블의 방향은 보장되어있지 않으므로, 테이블의 회전에 대해 오차가 가장 적은 후보를 선택합니다.
 
-                //if (position_index != -1) {
-                //    // 테이블 중점에서 마커의 위치만큼을 빼 줍니다.
-                //    auto pt = m.table.aruco_horizontal_points[position_index];
-                //    Matx33f world_rot;
-                //    Rodrigues(rvec, world_rot);
-                //    auto table_pos_estimate = tvec - world_rot * pt;
-                //    draw_circle(img, rgb, 25, table_pos_estimate, {0, 255, 255});
+                        for (int i = 0; i < 2; ++i) {
+                            Matx33f world_rot;
+                            Vec3f table_rotation = rotate_local(table_rot_flt, {0, (float)CV_PI * i, 0});
 
-                //    table_rot_flt = rvec;
-                //    table_pos_flt = table_pos_estimate;
-                //    desc.table.confidence = 0.7f;
-                //}
+                            Rodrigues((Vec3f)table_rotation, world_rot);
+                            auto table_pos_estimate = tvec - world_rot * pt;
+                            auto err_my = norm(table_pos_estimate - (Vec3f)table_pos_flt);
+                            auto err_min = norm(min_error_candidate - (Vec3f)table_pos_flt);
+
+                            if (err_my < err_min) {
+                                min_error_candidate = table_pos_estimate;
+                            }
+                        }
+
+                        desc.table.orientation = (Vec4f&)table_rot_flt;
+                        desc.table.position = set_filtered_pos(min_error_candidate, 0.33f);
+                        desc.table.confidence = 0.7f;
+                    }
+                }
             }
         }
 

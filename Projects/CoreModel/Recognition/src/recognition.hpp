@@ -59,7 +59,7 @@ public: /* exposed properties */
         double min_pxl_area_threshold = 2e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.
 
         double LPF_alpha_pos = 0.66;
-        double LPF_alpha_rot = 0.04;
+        double LPF_alpha_rot = 0.33;
 
         // 이미지 내에서 '가깝다'고 판단하는 거리의 한계치입니다.
         // 1미터 거리당 픽셀 개수입니다.
