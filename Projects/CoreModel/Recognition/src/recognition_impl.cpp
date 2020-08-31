@@ -192,98 +192,6 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 pt = (cv::Vec3d&)pos;
             }
 
-            // 테이블의 Yaw 방향 회전을 계산합니다.
-            // 에러를 최소화하는 방향으로 회전 반복 적용합니다.
-            if (false) {
-                auto& p = img.camera;
-                float disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
-
-                float M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
-                auto mat_cam = cv::Mat(3, 3, CV_32FC1, M);
-                auto mat_disto = cv::Mat(4, 1, CV_32FC1, disto);
-
-                Mat inv_camera_transform = Mat(img.camera_transform).inv();
-                Mat world_transform(4, 4, CV_32FC1);
-                world_transform.setTo(0);
-                world_transform.at<float>(3, 3) = 1.0f;
-                {
-                    Vec3f pos = table_pos_flt;
-                    // Vec3f rot = (Vec3f&)desc.table.orientation;
-                    auto tr_mat = world_transform({0, 3}, {3, 4});
-                    copyTo(pos, tr_mat, {});
-                }
-
-                vector<Vec4f> pt_origin;
-                vector<Vec3f> proj_pts;
-                for (auto& pt : obj_pts) { pt_origin.emplace_back((Vec4f&)pt)[3] = 1.0f; }
-
-                // 오차를 구하는 함수입니다.
-                auto f = [&](float x, bool draw = false) {
-                    // 회전 각도만큼 rodrigues 생성, 월드 트랜스폼에 반영
-                    Vec3f rot(0, -x, 0);
-                    Rodrigues(rot, world_transform({0, 3}, {0, 3}));
-
-                    // 월드 트랜스폼 적용 + 카메라 공간으로 트랜스폼
-                    proj_pts.clear();
-                    for (auto& pt : pt_origin) {
-                        Mat tr_pt = (inv_camera_transform * world_transform * pt);
-                        proj_pts.emplace_back(*(Vec3f*)tr_pt.data)[1] *= -1.0f;
-                    }
-
-                    // 화면에 투영합니다.
-                    vector<Vec2f> proj_contours;
-                    projectPoints(proj_pts, Vec3f{0, 0, 0}, Vec3f{0, 0, 0}, mat_cam, mat_disto, proj_contours);
-
-                    if (draw) {
-                        vector<vector<Point>> ptda;
-                        ptda.emplace_back();
-                        for (auto& pt : proj_contours) {
-                            ptda[0].push_back({int(pt[0]), int(pt[1])});
-                        }
-                        drawContours(rgb, ptda, 0, {0, 255, 255}, 2);
-                    }
-
-                    // 오차를 계산합니다. 오차는 모든 점의 거리 합입니다.
-                    // 이 때 점 순서는 고려하지 않고 가장 작은 오차 선정
-                    assert(proj_contours.size() == table_contours.size());
-                    float err_sum_min = numeric_limits<float>::max();
-                    for (size_t idx_offset = 0; idx_offset < proj_contours.size(); ++idx_offset) {
-                        float err_sum = 0;
-                        for (size_t idx = 0; idx < proj_contours.size(); ++idx) {
-                            size_t idx_n = (idx + idx_offset) % proj_contours.size();
-                            Vec2f vec = proj_contours[idx] - table_contours[idx_n];
-                            err_sum += norm(vec);
-                        }
-
-                        err_sum_min = min(err_sum, err_sum_min);
-                    }
-
-                    return err_sum_min;
-                };
-
-                // 180개의 값 찾기
-                vector<float> all;
-                float x2 = numeric_limits<float>::max();
-                int at = -1;
-                int divide = 90;
-                for (int i = 0; i < divide; ++i) {
-                    float f_i = f(i * (CV_PI / divide), false);
-                    all.push_back(f_i);
-                    if (f_i < x2) {
-                        at = i;
-                        x2 = f_i;
-                    }
-                }
-
-                x2 = at * CV_PI / divide;
-                if (isnan(x2)) { x2 = 0.0f; }
-
-                // 요 적용
-                auto alpha = m.table.LPF_alpha_rot;
-                table_yaw_flt = table_yaw_flt * (1 - alpha) + x2 * alpha;
-                desc.table.orientation = Vec4f(0, -table_yaw_flt, 0, 0);
-            }
-
             // 로테이션 계산
             {
                 auto& p = img.camera;
@@ -491,7 +399,7 @@ void recognizer_impl_t::cull_frustum(float hfov_rad, float vfov_rad, vector<cv::
     }
 }
 
-void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform)
+void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform) const
 {
     world_transform = cv::Mat(4, 4, CV_32FC1);
     world_transform.setTo(0);
@@ -548,9 +456,9 @@ void recognizer_impl_t::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::V
 {
     using namespace cv;
     vector<Vec3f> uvw;
-    uvw.emplace_back(1, 0, 0);
-    uvw.emplace_back(0, 1, 0);
-    uvw.emplace_back(0, 0, 1);
+    uvw.emplace_back(0.1f, 0, 0);
+    uvw.emplace_back(0, -0.1f, 0);
+    uvw.emplace_back(0, 0, 0.1f);
     uvw.emplace_back(0, 0, 0);
 
     Matx33f rot;
@@ -565,9 +473,9 @@ void recognizer_impl_t::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::V
         pt = (Vec3f&)pt4;
     }
 
-    auto u = uvw[0] - uvw[3];
-    auto v = uvw[1] - uvw[3];
-    auto w = uvw[2] - uvw[3];
+    auto u = normalize(uvw[0] - uvw[3]);
+    auto v = normalize(uvw[1] - uvw[3]);
+    auto w = normalize(uvw[2] - uvw[3]);
     tvec = uvw[3];
 
     Mat1f rotation(3, 3);
@@ -576,9 +484,60 @@ void recognizer_impl_t::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::V
     copyTo(w, rotation.col(2), {});
 
     Rodrigues(rotation, rvec);
+
+    // uvw가 제대로 프로젝트되었는지 확인
+    // Mat dst = img.rgb.clone();
+    // draw_circle(img, dst, 10.0f, tvec + u * 0.1f, {0, 0, 255});
+    // draw_circle(img, dst, 10.0f, tvec + v * 0.1f, {0, 255, 0});
+    // draw_circle(img, dst, 10.0f, tvec + w * 0.1f, {255, 0, 0});
+    // draw_circle(img, dst, 10.0f, uvw[3], {255, 255, 255});
+    // const_cast<recognizer_impl_t*>(this)->show("axes", dst);
 }
 
-void recognizer_impl_t::transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes)
+cv::Vec3f recognizer_impl_t::rotate_local(cv::Vec3f target, cv::Vec3f rvec)
+{
+    using namespace cv;
+    Matx33f rotator;
+    Rodrigues(target, rotator);
+    rvec = rotator * rvec;
+    Rodrigues(rvec, rotator);
+    return rotator * target;
+}
+
+void recognizer_impl_t::draw_axes(img_t const& img, cv::Mat& dest, cv::Vec3f rvec, cv::Vec3f tvec, float marker_length, int thickness) const
+{
+    using namespace cv;
+    vector<Vec3f> pts;
+    pts.assign({{0, 0, 0}, {marker_length, 0, 0}, {0, -marker_length, 0}, {0, 0, marker_length}});
+
+    vector<Vec2f> mapped;
+    project_model(img, mapped, tvec, rvec, pts, false);
+
+    pair<int, int> pairs[] = {{0, 1}, {0, 2}, {0, 3}};
+    Scalar colors[] = {{0, 0, 255}, {0, 255, 0}, {255, 0, 0}};
+    for (int i = 0; i < 3; ++i) {
+        auto [beg, end] = pairs[i];
+        auto color = colors[i];
+
+        Point pt_beg(mapped[beg][0], mapped[beg][1]);
+        Point pt_end(mapped[end][0], mapped[end][1]);
+        line(dest, pt_beg, pt_end, color, thickness);
+    }
+}
+
+void recognizer_impl_t::draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color) const
+{
+    using namespace cv;
+    vector<Vec3f> pos{{0, 0, 0}};
+    vector<Vec2f> pt;
+
+    project_model(img, pt, tvec_world, Vec3f(), pos, false);
+
+    float size = base_size / norm(pos);
+    circle(dest, Point(pt[0][0], pt[0][1]), size, color, -1);
+}
+
+void recognizer_impl_t::transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes) const
 {
     cv::Mat world_transform;
     get_world_transform_matx(world_pos, world_rot, world_transform);
@@ -596,7 +555,7 @@ void recognizer_impl_t::transform_to_camera(img_t const& img, cv::Vec3f world_po
     }
 }
 
-void recognizer_impl_t::project_model(img_t const& img, vector<cv::Vec2f>& mapped_contours, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull)
+void recognizer_impl_t::project_model(img_t const& img, vector<cv::Vec2f>& mapped_contours, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull) const
 {
     transform_to_camera(img, world_pos, world_rot, model_vertexes);
 
@@ -803,7 +762,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             }
 
             // 테이블 컨투어를 찾습니다.
-            if (candidates.empty() == false) {
+            if (candidates.empty() == false && max_size_index >= 0) {
                 table_contour_partial = candidates[max_size_index];
             }
 
@@ -860,7 +819,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 vector<Vec2f> marker_proj_pts;
                 get_table_model(marker_pts);
                 {
-                    auto [x, z] = m.table.aruco_offset;
+                    auto [x, z] = m.table.aruco_offset_from_corner;
                     marker_pts[0] += Vec3f(-x, 0, z);
                     marker_pts[1] += Vec3f(-x, 0, -z);
                     marker_pts[2] += Vec3f(x, 0, -z);
@@ -939,21 +898,36 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 int marker_index = all_marker[idx];
                 vector<Vec3d> rvecs, tvecs;
 
-                aruco::estimatePoseSingleMarkers(all_corner, 0.0375, mat_cam, mat_disto, rvecs, tvecs);
+                aruco::estimatePoseSingleMarkers(all_corner, 0.0375f, mat_cam, mat_disto, rvecs, tvecs);
 
                 Vec3f rvec = rvecs.front();
+                // rvec = rotate_local(rvec, {-(float)CV_PI / 2, 0, 0});
                 Vec3f tvec = tvecs.front();
                 camera_to_world(img, rvec, tvec);
 
-                { // 테스트
-                    vector<Vec2f> pos;
-                    vector<Vec3f> model = {{0, 0, 0}};
-                    project_model(img, pos, rvec, tvec, model, false);
+                // table_rot_flt = rvec;
+                draw_axes(img, rgb, rvec, tvec, 0.05, 8);
+                draw_axes(img, rgb, table_rot_flt, table_pos_flt, 0.05, 8);
 
-                    Point p(pos[0][0], pos[0][1]);
-                    circle(rgb, p, 10, {0, 255, 255}, -1);
+                // 해당 마커가 어느 위치의 마커인지 확인하고, 테이블 위치를 계산해냅니다.
 
-                    table_rot_flt = rvec;
+                // 마커 번호에서 인덱스 획득
+                int position_index = -1;
+                if (auto it = find(std::begin(m.table.aruco_index_map), std::end(m.table.aruco_index_map), marker_index);
+                    it != std::end(m.table.aruco_index_map)) {
+                    position_index = it - std::begin(m.table.aruco_index_map);
+                }
+
+                if (position_index != -1) {
+                    // 테이블 중점에서 마커의 위치만큼을 빼 줍니다.
+                    auto pt = m.table.aruco_horizontal_points[position_index];
+                    Matx33f world_rot;
+                    Rodrigues(rvec, world_rot);
+                    auto world_offset = world_rot * pt;
+
+                    // table_rot_flt = rvec;
+                    // table_pos_flt = tvec - world_offset;
+                    // desc.table.confidence = 0.7f;
                 }
             }
         }

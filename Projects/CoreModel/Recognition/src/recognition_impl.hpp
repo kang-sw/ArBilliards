@@ -12,6 +12,10 @@
 #include <opencv2/core/base.hpp>
 #include <opencv2/core/base.hpp>
 #include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
 
 using namespace std;
 
@@ -23,6 +27,9 @@ using opt_img_t = optional<img_t>;
 using read_lock = shared_lock<shared_mutex>;
 using write_lock = unique_lock<shared_mutex>;
 
+/**
+ * @note 클래스 내부에서 사용하는 월드 좌표계는 모두 Unity 좌표계로 통일합니다. 단, 카메라 좌표계는 opencv 좌표계입니다.
+ */
 class recognizer_impl_t
 {
 public:
@@ -101,19 +108,32 @@ public:
     }
 
     recognition_desc proc_img(img_t const& img);
-    recognition_desc proc_img2(img_t const& img);
     void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours);
 
     static void cull_frustum(float hfov_rad, float vfov_rad, vector<cv::Vec3f>& obj_pts);
-    void project_model(img_t const& img, vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true);
-    void transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes);
-    void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform);
+    void project_model(img_t const& img, vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true) const;
+    void transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes) const;
+    void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform) const;
     static void get_camera_matx(img_t const& img, cv::Mat& mat_cam, cv::Mat& mat_disto);
 
     void get_table_model(std::vector<cv::Vec3f>& vertexes);
     static std::optional<cv::Mat> get_safe_ROI(cv::Mat const&, cv::Rect);
 
+    /**
+     * @param rvec oepncv 좌표계, 카메라 좌표계 기준 회전값입니다. 월드 회전으로 반환
+     * @param tvec opencv 좌표계, 카메라 좌표계 기준 위치값입니다. 월드 이동으로 반환
+     */
     void camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec) const;
+
+    /**
+     * 벡터를 로컬 좌표계에서 회전시킵니다.
+     * @param rvec_target 회전시킬 회전 벡터
+     * @param rvec_rotator 회전 정도
+     */
+    static cv::Vec3f rotate_local(cv::Vec3f rvec_target, cv::Vec3f rvec_rotator);
+
+    void draw_axes(img_t const& img, cv::Mat& dest, cv::Vec3f rvec_world, cv::Vec3f tvec_world, float marker_length, int thickness = 2) const;
+    void draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color) const;
     // void proj_to_screen(img_t const& img, vector<cv::Vec3f> model_pt, )
 };
 } // namespace billiards
