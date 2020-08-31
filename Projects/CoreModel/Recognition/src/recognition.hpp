@@ -68,6 +68,7 @@ public: /* exposed properties */
         float aruco_size_per_meter = 50;
         int aruco_dictionary = cv::aruco::DICT_4X4_50;
         cv::Point2f aruco_offset_from_corner = {0.035f, 0.035f};
+        float aruco_marker_size = 0.0375f;
         int aruco_index_map[4] = {0, 1, 2, 3};
         std::array<cv::Vec3f, 4> aruco_horizontal_points{{
           {-(0.96f * 0.5f + 0.029f), 0, (0.51f * 0.5f + 0.029f)},

@@ -497,11 +497,22 @@ void recognizer_impl_t::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::V
 cv::Vec3f recognizer_impl_t::rotate_local(cv::Vec3f target, cv::Vec3f rvec)
 {
     using namespace cv;
+    Matx33f axes = Matx33f::eye();
     Matx33f rotator;
     Rodrigues(target, rotator);
-    rvec = rotator * rvec;
-    Rodrigues(rvec, rotator);
-    return rotator * target;
+    axes = rotator * axes;
+
+    auto roll = rvec[2] * axes.col(2);
+    auto pitch = rvec[0] * axes.col(0);
+    auto yaw = rvec[1] * axes.col(1);
+
+    Rodrigues(roll, rotator), axes = rotator * axes;
+    Rodrigues(pitch, rotator), axes = rotator * axes;
+    Rodrigues(yaw, rotator), axes = rotator * axes;
+
+    Vec3f result;
+    Rodrigues(axes, result);
+    return result;
 }
 
 void recognizer_impl_t::draw_axes(img_t const& img, cv::Mat& dest, cv::Vec3f rvec, cv::Vec3f tvec, float marker_length, int thickness) const
@@ -891,44 +902,67 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
             aruco::drawDetectedMarkers(rgb, all_corner, all_marker, {0, 0, 255});
 
+            auto board = makePtr<aruco::Board>();
+            board->dictionary = aruco_dict;
+            board->ids.assign(std::begin(m.table.aruco_index_map), std::end(m.table.aruco_index_map));
+
+            for (auto& pt : m.table.aruco_horizontal_points) {
+                Point3f center(pt[0], pt[1], pt[2]);
+                auto& corners = board->objPoints.emplace_back();
+
+                // 마커의 각 코너 위치를 계산합니다.
+                pair<float, float> mult[4] = {
+                  {-1.0f, 1.0f},
+                  {-1.0f, -1.0f},
+                  {1.0f, -1.0f},
+                  {1.0f, 1.0f},
+                };
+                for (int i = 0; i < 4; ++i) {
+                    float half_add = m.table.aruco_marker_size * 0.5f;
+                    Point3f adder = {mult[i].first * half_add, 0.0f, mult[i].second * half_add};
+                    corners.push_back(center + adder);
+                }
+            }
+
             // 가장 가까운 마커를 선택합니다.
             if (marker_distances.empty() == false) {
-                auto idx = marker_distances.end() - 1 - min_element(marker_distances.begin(), marker_distances.end());
-                all_corner = {all_corner[idx]};
-                int marker_index = all_marker[idx];
-                vector<Vec3d> rvecs, tvecs;
+                // auto idx = marker_distances.end() - 1 - min_element/(marker_distances.begin (), /marker_distances.end());
+                // all_corner = {all_corner[idx]};
+                // int marker_index = all_marker[idx];
+                // vector<Vec3d> rvecs, tvecs;
+                //
+                // aruco::estimatePoseSingleMarkers(all_corner, 0.0375f, mat_cam, mat_disto, rvecs, tvecs);
+                Vec3d rvecd = table_rot_flt, tvecd = table_pos_flt;
+                aruco::estimatePoseBoard(all_corner, all_marker, board, mat_cam, mat_disto, rvecd, tvecd, false);
 
-                aruco::estimatePoseSingleMarkers(all_corner, 0.0375f, mat_cam, mat_disto, rvecs, tvecs);
-
-                Vec3f rvec = rvecs.front();
-                // rvec = rotate_local(rvec, {-(float)CV_PI / 2, 0, 0});
-                Vec3f tvec = tvecs.front();
+                Vec3f rvec = rvecd, tvec = tvecd;
+                rvec = rotate_local(rvec, {-(float)CV_PI / 2, 0, 0});
                 camera_to_world(img, rvec, tvec);
 
                 // table_rot_flt = rvec;
                 draw_axes(img, rgb, rvec, tvec, 0.05, 8);
-                draw_axes(img, rgb, table_rot_flt, table_pos_flt, 0.05, 8);
 
                 // 해당 마커가 어느 위치의 마커인지 확인하고, 테이블 위치를 계산해냅니다.
 
                 // 마커 번호에서 인덱스 획득
-                int position_index = -1;
-                if (auto it = find(std::begin(m.table.aruco_index_map), std::end(m.table.aruco_index_map), marker_index);
-                    it != std::end(m.table.aruco_index_map)) {
-                    position_index = it - std::begin(m.table.aruco_index_map);
-                }
+                //int position_index = -1;
+                //if (auto it = find(std::begin(m.table.aruco_index_map), std::end(m.table.aruco_index_map), marker_index);
+                //    it != std::end(m.table.aruco_index_map)) {
+                //    position_index = it - std::begin(m.table.aruco_index_map);
+                //}
 
-                if (position_index != -1) {
-                    // 테이블 중점에서 마커의 위치만큼을 빼 줍니다.
-                    auto pt = m.table.aruco_horizontal_points[position_index];
-                    Matx33f world_rot;
-                    Rodrigues(rvec, world_rot);
-                    auto world_offset = world_rot * pt;
+                //if (position_index != -1) {
+                //    // 테이블 중점에서 마커의 위치만큼을 빼 줍니다.
+                //    auto pt = m.table.aruco_horizontal_points[position_index];
+                //    Matx33f world_rot;
+                //    Rodrigues(rvec, world_rot);
+                //    auto table_pos_estimate = tvec - world_rot * pt;
+                //    draw_circle(img, rgb, 25, table_pos_estimate, {0, 255, 255});
 
-                    // table_rot_flt = rvec;
-                    // table_pos_flt = tvec - world_offset;
-                    // desc.table.confidence = 0.7f;
-                }
+                //    table_rot_flt = rvec;
+                //    table_pos_flt = table_pos_estimate;
+                //    desc.table.confidence = 0.7f;
+                //}
             }
         }
 
