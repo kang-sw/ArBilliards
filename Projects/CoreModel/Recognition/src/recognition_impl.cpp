@@ -565,6 +565,165 @@ void billiards::recognizer_impl_t::project_model(img_t const& img, vector<cv::Po
     }
 }
 
+void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& desc, cv::Mat rgb, cv::Rect ROI, cv::Mat3b roi_rgb, vector<cv::Point> table_contour_partial)
+{
+    cv::Mat mat_cam, mat_disto;
+    get_camera_matx(img, mat_cam, mat_disto);
+    auto aruco_dict = cv::aruco::getPredefinedDictionary(m.table.aruco_dictionary);
+    auto aruco_param = cv::aruco::DetectorParameters::create();
+
+    vector<int> all_marker;
+    vector<vector<cv::Point2f>> all_corner;
+    vector<float> marker_distances;
+
+    struct contour_desc_t
+    {
+        cv::Point screen_point, offset_point;
+        float distance;
+    };
+
+    vector<contour_desc_t> cached_location_contours;
+    {
+        vector<cv::Vec3f> obj_pts;
+        get_table_model(obj_pts);
+
+        // 정점을 하나씩 투사합니다.
+        // frustum culling을 배제하기 위함입니다.
+        vector<cv::Vec2f> points;
+        project_model(img, points, table_pos_flt, table_rot_flt, obj_pts, false);
+
+        { // debug rendering
+            vector<vector<cv::Point>> draw_point(1);
+            for (auto& pt : points) { draw_point.front().emplace_back(pt[0], pt[1]); }
+
+            drawContours(rgb, draw_point, -1, {255, 255, 0}, 2);
+        }
+
+        // 오프셋을 계산합니다.
+        vector<cv::Vec3f> marker_pts;
+        vector<cv::Vec2f> marker_proj_pts;
+        get_table_model(marker_pts);
+        {
+            auto [x, z] = m.table.aruco_offset_from_corner;
+            marker_pts[0] += cv::Vec3f(-x, 0, z);
+            marker_pts[1] += cv::Vec3f(-x, 0, -z);
+            marker_pts[2] += cv::Vec3f(x, 0, -z);
+            marker_pts[3] += cv::Vec3f(x, 0, z);
+        }
+        project_model(img, marker_proj_pts, table_pos_flt, table_rot_flt, marker_pts, false);
+
+        for (int i = 0; i < obj_pts.size(); ++i) {
+            auto& c = cached_location_contours.emplace_back();
+            c.distance = norm(obj_pts[i]);
+            c.screen_point = cv::Point(points[i][0], points[i][1]);
+            c.offset_point = cv::Point(marker_proj_pts[i][0], marker_proj_pts[i][1]) - c.screen_point;
+            c.screen_point -= ROI.tl();
+        }
+    }
+
+    for (auto& pt : table_contour_partial) {
+        circle(roi_rgb, pt, 5, {255, 64, 0}, -1);
+
+        // 당구대 모서리의 예측 지점과의 화면상 거리를 계산합니다.
+        float dist_scr_min = numeric_limits<float>::max();
+        contour_desc_t* arg = {};
+        for (auto& s : cached_location_contours) {
+            float dist = norm(s.screen_point - pt);
+            if (dist < dist_scr_min) {
+                dist_scr_min = dist;
+                arg = &s;
+            }
+        }
+
+        if (dist_scr_min > m.table.pixel_distance_threshold_per_meter / arg->distance) {
+            continue;
+        }
+
+        // 테이블 에지 주변을 ROI로 지정하고, ArUco 디텍션 수행
+        // 거리 획득
+        auto center = pt + arg->offset_point;
+        int size = m.table.aruco_size_per_meter / arg->distance;
+
+        cv::Rect ROI_small(center - cv::Point(size, size), center + cv::Point(size, size));
+        rectangle(roi_rgb, ROI_small, {255, 0, 255}, 2);
+
+        cv::Mat small_roi;
+        if (auto roi = get_safe_ROI(img.rgb(ROI), ROI_small)) {
+            cvtColor(*roi, small_roi, cv::COLOR_RGBA2RGB);
+        }
+        else {
+            continue;
+        }
+
+        // 전처리
+        subtract(255, small_roi, small_roi);
+
+        vector<int> marker_ids;
+        vector<vector<cv::Point2f>> marker_corners, rejected_cands;
+        detectMarkers(small_roi, aruco_dict, marker_corners, marker_ids, aruco_param, rejected_cands);
+
+        for (auto& shapes : marker_corners) {
+            for (auto& corner : shapes) {
+                corner += cv::Point2f(ROI_small.tl()) + cv::Point2f(ROI.tl());
+            }
+        }
+
+        all_marker.insert(all_marker.end(), marker_ids.begin(), marker_ids.end());
+        all_corner.insert(all_corner.end(), marker_corners.begin(), marker_corners.end());
+
+        for (int i = 0; i < marker_corners.size(); ++i) { marker_distances.push_back(arg->distance); }
+    }
+
+    cv::aruco::drawDetectedMarkers(rgb, all_corner, all_marker, {0, 0, 255});
+
+    if (marker_distances.empty() == false) {
+        vector<cv::Vec3d> rvecs, tvecs;
+        cv::aruco::estimatePoseSingleMarkers(all_corner, m.table.aruco_marker_size, mat_cam, mat_disto, rvecs, tvecs);
+
+        // 모든 마커에 대해 ...
+        for (int index = 0; index < rvecs.size(); ++index) {
+            cv::Vec3f rvec = rvecs[index], tvec = tvecs[index];
+            int marker_index = all_marker[index];
+            rvec = rotate_local(rvec, {-(float)CV_PI / 2, 0, 0});
+            camera_to_world(img, rvec, tvec);
+            draw_axes(img, rgb, rvec, tvec, 0.1, 3);
+
+            // 마커 번호에서 인덱스 획득
+            int position_index = -1;
+            if (auto it = find(std::begin(m.table.aruco_index_map), std::end(m.table.aruco_index_map), marker_index);
+                it != std::end(m.table.aruco_index_map)) {
+                position_index = it - std::begin(m.table.aruco_index_map);
+            }
+
+            if (position_index != -1) {
+                // 테이블 중점에서 마커의 위치만큼을 빼 줍니다.
+                auto pt = m.table.aruco_horizontal_points[position_index];
+                cv::Vec3f min_error_candidate = {};
+
+                // 테이블의 방향은 보장되어있지 않으므로, 테이블의 회전에 대해 오차가 가장 적은 후보를 선택합니다.
+
+                for (int i = 0; i < 2; ++i) {
+                    cv::Matx33f world_rot;
+                    cv::Vec3f table_rotation = rotate_local(table_rot_flt, {0, (float)CV_PI * i, 0});
+
+                    Rodrigues((cv::Vec3f)table_rotation, world_rot);
+                    auto table_pos_estimate = tvec - world_rot * pt;
+                    auto err_my = norm(table_pos_estimate - (cv::Vec3f)table_pos_flt);
+                    auto err_min = norm(min_error_candidate - (cv::Vec3f)table_pos_flt);
+
+                    if (err_my < err_min) {
+                        min_error_candidate = table_pos_estimate;
+                    }
+                }
+
+                desc.table.orientation = (cv::Vec4f&)table_rot_flt;
+                desc.table.position = set_filtered_pos(min_error_candidate, 0.33f);
+                desc.table.confidence = 0.7f;
+            }
+        }
+    }
+}
+
 recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 {
     using namespace cv;
@@ -706,13 +865,9 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             // 당구대 영역으로 마스킹 수행
             roi_edge = roi_edge.mul(roi_mask);
 
-            // 에지 검출 이전에, 팽창-침식 연산을 통해 에지를 단순화하고, 파편을 줄입니다.
-            //auto iterations = m.ball.roi_smoothing_iteration_count;
-            //dilate(roi_edge, roi_edge, {}, {-1, -1}, iterations);
-            //erode(roi_edge, roi_edge, {}, {-1, -1}, iterations);
+            // 에지 검출 이전에, 팽창-침식 연산을 통해 에지를 단순화하고, 파편을 줄입니다. 
             GaussianBlur(roi_edge, roi_edge, {3, 3}, 15);
-            threshold(roi_edge, roi_edge, 128, 255, THRESH_BINARY);
-            // show("roi_mask", roi_edge);
+            threshold(roi_edge, roi_edge, 128, 255, THRESH_BINARY); 
 
             // 내부에 닫힌 도형을 만들수 있게끔, 경계선을 깎아냅니다.
             roi_edge.row(0).setTo(0);
@@ -725,24 +880,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             show("edge_new", roi_edge);
         }
 
-        // 당구공 찾기 ... findContours 활용
-        // TODO: ball_contours 찾기는 추후 각각의 공에 대해 필터링 수행해 개선 .. 현재 공의 영역이 겹치면 두 개가 하나로 인식되는 문제 있음 !
-        vector<Point> table_contour_partial;
-        vector<vector<Point>> ball_contours;
+        vector<Point> table_contour_partial; 
         {
             vector<vector<Point>> candidates;
             vector<Vec4i> hierarchy;
             findContours(roi_edge, candidates, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
 
-            // 부모 있는 컨투어만 남깁니다.
             int max_size_index = -1;
             for (int idx = 0, max_area = -1; idx < hierarchy.size(); ++idx) {
-                auto [prev, next, child_first, parent] = hierarchy[idx].val;
-
-                if (child_first == -1) {
-                    ball_contours.emplace_back(move(candidates[idx]));
-                }
-
                 if (candidates[idx].size() > 3) {
                     auto area = contourArea(candidates[idx]);
                     if (area > max_area) {
@@ -755,183 +900,15 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             // 테이블 컨투어를 찾습니다.
             if (candidates.empty() == false && max_size_index >= 0) {
                 table_contour_partial = candidates[max_size_index];
-            }
-
-            for (auto& ctr : ball_contours) {
-                auto moment = moments(ctr);
-                if (abs(moment.m00) < 1e-6) { continue; }
-
-                auto cx = moment.m10 / moment.m00;
-                auto cy = moment.m01 / moment.m00;
-                auto dist_far = sqrt(moment.m00 / CV_PI);
-
-                circle(roi_rgb, {(int)cx, (int)cy}, 3, {0, 0, 255}, -1);
-                circle(roi_rgb, {(int)cx, (int)cy}, dist_far, {255, 255, 255}, 1);
-            }
+            } 
         }
 
         if (table_not_detect && table_contour_partial.empty() == false) {
             approxPolyDP(table_contour_partial, table_contour_partial, 60, true);
 
-            Mat mat_cam, mat_disto;
-            get_camera_matx(img, mat_cam, mat_disto);
-            auto aruco_dict = aruco::getPredefinedDictionary(m.table.aruco_dictionary);
-            auto aruco_param = aruco::DetectorParameters::create();
-
-            vector<int> all_marker;
-            vector<vector<Point2f>> all_corner;
-            vector<float> marker_distances;
-
-            struct contour_desc_t
-            {
-                Point screen_point, offset_point;
-                float distance;
-            };
-
-            vector<contour_desc_t> cached_location_contours;
-            {
-                vector<Vec3f> obj_pts;
-                get_table_model(obj_pts);
-
-                // 정점을 하나씩 투사합니다.
-                // frustum culling을 배제하기 위함입니다.
-                vector<Vec2f> points;
-                project_model(img, points, table_pos_flt, table_rot_flt, obj_pts, false);
-
-                { // debug rendering
-                    vector<vector<Point>> draw_point(1);
-                    for (auto& pt : points) { draw_point.front().emplace_back(pt[0], pt[1]); }
-
-                    drawContours(rgb, draw_point, -1, {255, 255, 0}, 2);
-                }
-
-                // 오프셋을 계산합니다.
-                vector<Vec3f> marker_pts;
-                vector<Vec2f> marker_proj_pts;
-                get_table_model(marker_pts);
-                {
-                    auto [x, z] = m.table.aruco_offset_from_corner;
-                    marker_pts[0] += Vec3f(-x, 0, z);
-                    marker_pts[1] += Vec3f(-x, 0, -z);
-                    marker_pts[2] += Vec3f(x, 0, -z);
-                    marker_pts[3] += Vec3f(x, 0, z);
-                }
-                project_model(img, marker_proj_pts, table_pos_flt, table_rot_flt, marker_pts, false);
-
-                for (int i = 0; i < obj_pts.size(); ++i) {
-                    auto& c = cached_location_contours.emplace_back();
-                    c.distance = norm(obj_pts[i]);
-                    c.screen_point = Point(points[i][0], points[i][1]);
-                    c.offset_point = Point(marker_proj_pts[i][0], marker_proj_pts[i][1]) - c.screen_point;
-                    c.screen_point -= ROI.tl();
-                }
-            }
-
-            for (auto& pt : table_contour_partial) {
-                circle(roi_rgb, pt, 5, {255, 64, 0}, -1);
-
-                // 당구대 모서리의 예측 지점과의 화면상 거리를 계산합니다.
-                float dist_scr_min = numeric_limits<float>::max();
-                contour_desc_t* arg = {};
-                for (auto& s : cached_location_contours) {
-                    float dist = norm(s.screen_point - pt);
-                    if (dist < dist_scr_min) {
-                        dist_scr_min = dist;
-                        arg = &s;
-                    }
-                }
-
-                if (dist_scr_min > m.table.pixel_distance_threshold_per_meter / arg->distance) {
-                    continue;
-                }
-
-                // 테이블 에지 주변을 ROI로 지정하고, ArUco 디텍션 수행
-                // 거리 획득
-                auto center = pt + arg->offset_point;
-                int size = m.table.aruco_size_per_meter / arg->distance;
-
-                Rect ROI_small(center - Point(size, size), center + Point(size, size));
-                rectangle(roi_rgb, ROI_small, {255, 0, 255}, 2);
-
-                Mat small_roi;
-                if (auto roi = get_safe_ROI(img.rgb(ROI), ROI_small)) {
-                    cvtColor(*roi, small_roi, COLOR_RGBA2RGB);
-                }
-                else {
-                    continue;
-                }
-
-                // 전처리
-                subtract(255, small_roi, small_roi);
-
-                vector<int> marker_ids;
-                vector<vector<Point2f>> marker_corners, rejected_cands;
-                aruco::detectMarkers(small_roi, aruco_dict, marker_corners, marker_ids, aruco_param, rejected_cands);
-
-                for (auto& shapes : marker_corners) {
-                    for (auto& corner : shapes) {
-                        corner += Point2f(ROI_small.tl()) + Point2f(ROI.tl());
-                    }
-                }
-
-                all_marker.insert(all_marker.end(), marker_ids.begin(), marker_ids.end());
-                all_corner.insert(all_corner.end(), marker_corners.begin(), marker_corners.end());
-
-                for (int i = 0; i < marker_corners.size(); ++i) { marker_distances.push_back(arg->distance); }
-            }
-
-            aruco::drawDetectedMarkers(rgb, all_corner, all_marker, {0, 0, 255});
-
-            if (marker_distances.empty() == false) {
-                vector<Vec3d> rvecs, tvecs;
-                aruco::estimatePoseSingleMarkers(all_corner, m.table.aruco_marker_size, mat_cam, mat_disto, rvecs, tvecs);
-
-                // 모든 마커에 대해 ...
-                for (int index = 0; index < rvecs.size(); ++index) {
-                    Vec3f rvec = rvecs[index], tvec = tvecs[index];
-                    int marker_index = all_marker[index];
-                    rvec = rotate_local(rvec, {-(float)CV_PI / 2, 0, 0});
-                    camera_to_world(img, rvec, tvec);
-                    draw_axes(img, rgb, rvec, tvec, 0.1, 3);
-
-                    // 마커 번호에서 인덱스 획득
-                    int position_index = -1;
-                    if (auto it = find(std::begin(m.table.aruco_index_map), std::end(m.table.aruco_index_map), marker_index);
-                        it != std::end(m.table.aruco_index_map)) {
-                        position_index = it - std::begin(m.table.aruco_index_map);
-                    }
-
-                    if (position_index != -1) {
-                        // 테이블 중점에서 마커의 위치만큼을 빼 줍니다.
-                        auto pt = m.table.aruco_horizontal_points[position_index];
-                        Vec3f min_error_candidate = {};
-
-                        // 테이블의 방향은 보장되어있지 않으므로, 테이블의 회전에 대해 오차가 가장 적은 후보를 선택합니다.
-
-                        for (int i = 0; i < 2; ++i) {
-                            Matx33f world_rot;
-                            Vec3f table_rotation = rotate_local(table_rot_flt, {0, (float)CV_PI * i, 0});
-
-                            Rodrigues((Vec3f)table_rotation, world_rot);
-                            auto table_pos_estimate = tvec - world_rot * pt;
-                            auto err_my = norm(table_pos_estimate - (Vec3f)table_pos_flt);
-                            auto err_min = norm(min_error_candidate - (Vec3f)table_pos_flt);
-
-                            if (err_my < err_min) {
-                                min_error_candidate = table_pos_estimate;
-                            }
-                        }
-
-                        desc.table.orientation = (Vec4f&)table_rot_flt;
-                        desc.table.position = set_filtered_pos(min_error_candidate, 0.33f);
-                        desc.table.confidence = 0.7f;
-                    }
-                }
-            }
+            correct_table_pos(img, desc, rgb, ROI, roi_rgb, table_contour_partial);
         }
 
-        subtract(Scalar{255}, roi_mask, roi_mask);
-        bitwise_xor(roi_rgb, roi_rgb, roi_rgb, roi_mask);
         show("roi", roi_rgb);
     }
 

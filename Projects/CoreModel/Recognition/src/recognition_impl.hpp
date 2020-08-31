@@ -109,6 +109,7 @@ public:
 
     recognition_desc proc_img(img_t const& img);
     void find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours);
+    void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& desc, cv::Mat rgb, cv::Rect ROI, cv::Mat3b roi_rgb, vector<cv::Point> table_contour_partial);
 
     cv::Vec3f set_filtered_pos(cv::Vec3f new_pos, float confidence = 1.0f);
     cv::Vec3f set_filtered_rot(cv::Vec3f new_rot, float confidence = 1.0f);
