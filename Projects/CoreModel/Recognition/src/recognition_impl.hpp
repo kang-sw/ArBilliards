@@ -7,7 +7,7 @@
 #include <map>
 #include <vector>
 #include <opencv2/calib3d.hpp>
-#include <opencv2/core/base.hpp> 
+#include <opencv2/core/base.hpp>
 
 using namespace std;
 
@@ -113,7 +113,9 @@ public:
     void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform) const;
     static void get_camera_matx(img_t const& img, cv::Mat& mat_cam, cv::Mat& mat_disto);
 
-    void get_table_model(std::vector<cv::Vec3f>& vertexes);
+    void get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size);
+
+    static void get_safe_ROI_rect(cv::Mat const& mat, cv::Rect& roi);
     static std::optional<cv::Mat> get_safe_ROI(cv::Mat const&, cv::Rect);
 
     /**

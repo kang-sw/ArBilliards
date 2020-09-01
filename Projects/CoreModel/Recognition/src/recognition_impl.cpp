@@ -3,7 +3,17 @@
 #include <iostream>
 #include <vector>
 #include <vector>
+#include <vector>
+#include <vector>
+#include <vector>
+#include <vector>
 #include <opencv2/highgui.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
 #include <opencv2/core/base.hpp>
 
 namespace billiards
@@ -46,8 +56,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         Mat rvec;
 
         {
-            float half_x = m.table.size.val[0] / 2;
-            float half_z = m.table.size.val[1] / 2;
+            float half_x = m.table.recognition_size.val[0] / 2;
+            float half_z = m.table.recognition_size.val[1] / 2;
 
             // ref: OpenCV coordinate system
             // 참고: findContour로 찾아진 외각 컨투어 세트는 항상 반시계방향으로 정렬됩니다.
@@ -93,7 +103,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             // 만약 정규 값보다 10% 이상 오차가 발생하면, 드랍합니다.
             {
                 auto const& t = table_points_3d;
-                auto sz_desired = m.table.size[0] * m.table.size[1];
+                auto sz_desired = m.table.recognition_size[0] * m.table.recognition_size[1];
 
                 auto sz1 = 0.5 * norm((t[2] - t[1]).cross(t[0] - t[1]));
                 auto sz2 = 0.5 * norm((t[0] - t[3]).cross(t[2] - t[3]));
@@ -118,7 +128,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             assert(table_contours.size() == table_points_3d.size());
 
             // 오차를 감안해 공간에서 변의 길이가 table size의 mean보다 작은 값을 선정합니다.
-            auto thres = sum(m.table.size)[0] * 0.5;
+            auto thres = sum(m.table.recognition_size)[0] * 0.5;
             for (int idx = 0; idx < table_contours.size() - 1; idx++) {
                 auto& t = table_points_3d;
                 auto& c = table_contours;
@@ -210,7 +220,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                     // debug draw
                     vector<Vec3f> table_pos;
                     vector<vector<Point>> table_pts;
-                    get_table_model(table_pos);
+                    get_table_model(table_pos, m.table.recognition_size);
 
                     project_model(img, table_pts.emplace_back(), translation, rotation, table_pos, true);
 
@@ -393,10 +403,10 @@ void recognizer_impl_t::get_camera_matx(img_t const& img, cv::Mat& mat_cam, cv::
     mat_disto = cv::Mat(4, 1, CV_64FC1, disto).clone();
 }
 
-void recognizer_impl_t::get_table_model(std::vector<cv::Vec3f>& vertexes)
+void recognizer_impl_t::get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size)
 {
     vertexes.clear();
-    auto [half_x, half_z] = (m.table.size * 0.5f).val;
+    auto [half_x, half_z] = (model_size * 0.5f).val;
     vertexes.assign(
       {
         {-half_x, 0, half_z},
@@ -406,14 +416,19 @@ void recognizer_impl_t::get_table_model(std::vector<cv::Vec3f>& vertexes)
       });
 }
 
-std::optional<cv::Mat> recognizer_impl_t::get_safe_ROI(cv::Mat const& mat, cv::Rect roi)
+void recognizer_impl_t::get_safe_ROI_rect(cv::Mat const& mat, cv::Rect& roi)
 {
-    using namespace cv;
-
     roi.x = max(0, roi.x);
     roi.y = max(0, roi.y);
     roi.width = max(0, min(mat.cols - roi.x, roi.width));
     roi.height = max(0, min(mat.rows - roi.y, roi.height));
+}
+
+std::optional<cv::Mat> recognizer_impl_t::get_safe_ROI(cv::Mat const& mat, cv::Rect roi)
+{
+    using namespace cv;
+
+    get_safe_ROI_rect(mat, roi);
 
     if (roi.area() > 0) {
         return mat(roi);
@@ -586,7 +601,7 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
     vector<contour_desc_t> cached_location_contours;
     {
         vector<cv::Vec3f> obj_pts;
-        get_table_model(obj_pts);
+        get_table_model(obj_pts, );
 
         // 정점을 하나씩 투사합니다.
         // frustum culling을 배제하기 위함입니다.
@@ -603,7 +618,7 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
         // 오프셋을 계산합니다.
         vector<cv::Vec3f> marker_pts;
         vector<cv::Vec2f> marker_proj_pts;
-        get_table_model(marker_pts);
+        get_table_model(marker_pts, m.table.recognition_size);
         {
             auto [x, z] = m.table.aruco_offset_from_corner;
             marker_pts[0] += cv::Vec3f(-x, 0, z);
@@ -643,7 +658,7 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
         // 테이블 에지 주변을 ROI로 지정하고, ArUco 디텍션 수행
         // 거리 획득
         auto center = pt + arg->offset_point;
-        int size = m.table.aruco_size_per_meter / arg->distance;
+        int size = m.table.aruco_detection_rect_radius_per_meter / arg->distance;
 
         cv::Rect ROI_small(center - cv::Point(size, size), center + cv::Point(size, size));
         rectangle(roi_rgb, ROI_small, {255, 0, 255}, 2);
@@ -737,7 +752,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     Mat rgb = img.rgb.clone();
     resize(img.depth, (Mat&)img.depth, {rgb.cols, rgb.rows});
 
-    UMat mask, filtered;
+    UMat table_blue_mask, filtered;
     {
         UMat ucolor;
         UMat b;
@@ -753,29 +768,29 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         // 색역 필터링 및 에지 검출
         if (m.table.hue_filter_max < m.table.hue_filter_min) {
             UMat hi, lo;
-            inRange(ucolor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
+            inRange(ucolor, m.table.sv_filter_min, m.table.sv_filter_max, table_blue_mask);
             inRange(ucolor, Scalar(m.table.hue_filter_min, 0, 0), Scalar(255, 255, 255), hi);
             inRange(ucolor, Scalar(0, 0, 0), Scalar(m.table.hue_filter_max, 255, 255), lo);
 
             bitwise_or(hi, lo, filtered);
-            bitwise_and(mask, filtered, mask);
+            bitwise_and(table_blue_mask, filtered, table_blue_mask);
 
             // show("mask", mask);
         }
         else {
-            inRange(ucolor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
+            inRange(ucolor, m.table.sv_filter_min, m.table.sv_filter_max, table_blue_mask);
         }
     }
 
     {
         UMat umat_temp;
-        mask.copyTo(umat_temp);
+        table_blue_mask.copyTo(umat_temp);
 
         GaussianBlur(umat_temp, umat_temp, {3, 3}, 5);
-        threshold(umat_temp, mask, 128, 255, THRESH_BINARY);
+        threshold(umat_temp, table_blue_mask, 128, 255, THRESH_BINARY);
 
-        erode(mask, umat_temp, {}, {-1, -1}, 1);
-        bitwise_xor(mask, umat_temp, filtered);
+        erode(table_blue_mask, umat_temp, {}, {-1, -1}, 1);
+        bitwise_xor(table_blue_mask, umat_temp, filtered);
     }
     show("filtered", filtered);
 
@@ -799,15 +814,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         Vec3f rot = table_rot_flt;
 
         vector<cv::Vec3f> obj_pts;
-        {
-            float half_x = m.table.outer_size[0] / 2;
-            float half_z = m.table.outer_size[1] / 2;
-
-            obj_pts.push_back({-half_x, 0, half_z});
-            obj_pts.push_back({-half_x, 0, -half_z});
-            obj_pts.push_back({half_x, 0, -half_z});
-            obj_pts.push_back({half_x, 0, half_z});
-        }
+        get_table_model(obj_pts, m.table.outer_masking_size);
 
         project_model(img, table_contours, pos, rot, obj_pts);
 
@@ -848,7 +855,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         Mat3b roi_rgb;
         cvtColor(img.rgb(ROI), roi_rgb, COLOR_RGBA2RGB);
         UMat roi_edge;
-        mask(ROI).copyTo(roi_edge);
+        table_blue_mask(ROI).copyTo(roi_edge);
         Mat roi_mask(ROI.size(), roi_edge.type());
         roi_mask.setTo(0);
 
@@ -916,14 +923,27 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
         show("partial-view", roi_rgb);
 
+        {
+            // 테이블 컨투어를 재조정합니다.
+            vector<Vec3f> obj_pts;
+            get_table_model(obj_pts, m.table.inner_size);
+            project_model(img, table_contour_partial, table_pos_flt, table_rot_flt, obj_pts, true);
+        }
+
         // 당구공을 찾기 위해 ROI를 더 알맞게 재조정합니다.
         if (!table_contour_partial.empty()) {
-            for (auto& pt : table_contour_partial) { pt += ROI.tl(); }
-            auto ROI_fit = boundingRect(table_contour_partial);
-            for (auto& pt : table_contour_partial) { pt -= ROI_fit.tl(); }
+            Rect ROI_fit;
+            {
+                ROI_fit = boundingRect(table_contour_partial);
+                get_safe_ROI_rect(img.rgb, ROI_fit);
+                for (auto& pt : table_contour_partial) { pt -= ROI_fit.tl(); }
 
-            roi_mask = Mat(ROI_fit.size(), CV_8U).setTo(0);
-            drawContours(roi_mask, vector<vector<Point>>{table_contour_partial}, -1, {255}, -1);
+                roi_mask = Mat(ROI_fit.size(), CV_8U).setTo(0);
+                drawContours(roi_mask, vector<vector<Point>>{table_contour_partial}, -1, {255}, -1);
+            }
+
+            // 테이블 마스크를 곱해서 빼줍니다. ball만 추출해내기 위함입니다.
+            subtract(roi_mask, table_blue_mask(ROI_fit), roi_mask);
 
             {
                 Mat temp;
@@ -932,20 +952,8 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 temp.copyTo(roi_rgb, roi_mask);
             }
 
-            // HSV 색공간에서 캐니 에지 디텍션 수행
-            UMat roi_hsv;
-            cvtColor(roi_rgb, roi_hsv, COLOR_RGB2HSV);
 
-            subtract(roi_hsv, Scalar{0, 0, 255}, roi_hsv);
-            add(roi_hsv, Scalar{0, 0, 128}, roi_hsv);
-
-            vector<UMat> channels;
-            split(roi_hsv, channels);
-
-            roi_edge = channels[0]; //.mul(channels[1], 1.0 / 255);
-
-            show("fit_mask", roi_hsv);
-            show("fit_edge", roi_edge);
+            show("fit_mask", roi_rgb);
         }
     }
 

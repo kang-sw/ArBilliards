@@ -33,7 +33,7 @@ public: /* exposed properties */
     // 당구공 인식 관련 프로퍼티 목록
     struct ball_param_type
     {
-        float radius = 0.042f;
+        float radius = 0.014 / CV_2PI;
         cv::Vec3f red1_rgb;
         cv::Vec3f red2_rgb;
         cv::Vec3f white_rgb;
@@ -47,11 +47,14 @@ public: /* exposed properties */
     /* 테이블 관련 프로퍼티 */
     struct table_param_type
     {
-        cv::Vec2f size = {0.96f, 0.51f};
-        cv::Vec2f outer_size = {1.31f, 0.76f};
+        cv::Vec2f recognition_size = {0.96f, 0.51f};
+        cv::Vec2f outer_masking_size = {1.31f, 0.76f};
+        cv::Vec2f inner_size = {0.895f, 0.447f};
+
         int color_cvt_type_rgb_to = cv::COLOR_RGB2HSV;
         cv::Scalar sv_filter_min = {0, 150, 30};
         cv::Scalar sv_filter_max = {255, 255, 255};
+        float cushion_height = 0.025;
         int hue_filter_min = 165;
         int hue_filter_max = 5;
 
@@ -65,7 +68,7 @@ public: /* exposed properties */
         // 1미터 거리당 픽셀 개수입니다.
         float pixel_distance_threshold_per_meter = 50;
 
-        float aruco_size_per_meter = 50;
+        float aruco_detection_rect_radius_per_meter = 40;
         int aruco_dictionary = cv::aruco::DICT_4X4_50;
         cv::Point2f aruco_offset_from_corner = {0.035f, 0.035f};
         float aruco_marker_size = 0.0375f;
