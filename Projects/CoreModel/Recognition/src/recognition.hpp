@@ -59,7 +59,7 @@ public: /* exposed properties */
         int hue_filter_max = 5;
 
         // SolvePnP의 적용 이후, 추정된 회전과 위치값을 이용해 테이블 정점을 다시 화면에 투사하여, 검출된 정점과 택시캡 거리를 비교합니다. 이 때 오차가 가장 큰 점을 저장하여 아래 값과 비교합니다.
-        int solvePnP_max_distance_error_threshold = 30;
+        int solvePnP_max_distance_error_threshold = 5;
 
         double polydp_approx_epsilon = 8;
         double min_pxl_area_threshold = 3e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.

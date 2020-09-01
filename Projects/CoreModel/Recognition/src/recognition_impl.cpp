@@ -93,36 +93,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 pt[0] = z_metric * ((u - c.cx) / c.fx);
                 pt[1] = z_metric * ((v - c.cy) / c.fy);
             }
-
-            // tvec은 평균치를 사용합니다.
-            {
-                cv::Vec3d tvec_init = {};
-                for (auto& pt : table_points_3d) {
-                    tvec_init += pt;
-                }
-                tvec_init /= static_cast<float>(table_points_3d.size());
-                tvec = cv::Mat(tvec_init);
-                //  rvec = tvec;
-            }
-
-            // 테이블 포인트의 면적을 계산합니다.
-            // 만약 정규 값보다 10% 이상 오차가 발생하면, 드랍합니다.
-            {
-                auto const& t = table_points_3d;
-                auto sz_desired = m.table.recognition_size[0] * m.table.recognition_size[1];
-
-                auto sz1 = 0.5 * norm((t[2] - t[1]).cross(t[0] - t[1]));
-                auto sz2 = 0.5 * norm((t[0] - t[3]).cross(t[2] - t[3]));
-                auto size = sz1 + sz2;
-
-                auto err = abs(sz_desired - size);
-
-                if (err > sz_desired * 0.3) {
-                    estimation_valid = false;
-                }
-            }
         }
-
         bool solve_successful = false;
         /*
         solve_successful = estimation_valid;
@@ -182,69 +153,13 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 set_filtered_pos(tvec_world);
                 desc.table.confidence = 0.9f;
                 draw_axes(img, (Mat&)rgb, rvec_world, tvec_world, 0.08f, 3);
+                drawContours(rgb, contours, -1, {0, 255, 0}, 3);
             }
-
-            {
-                drawContours(rgb, contours, -1, {0, 0, 0}, 6);
-            }
-        }
-
-        if (false) {
-            {
-                cv::Vec2f sum = {};
-                for (auto v : table_contours) { sum += v; }
-                cv::Point draw_at = {int(sum.val[0] / 4), int(sum.val[1] / 4)};
-
-                auto translation = tvec;
-                double dist = sqrt(translation.dot(translation));
-                int thickness = max<int>(1, 2.0 / dist);
-
-                putText(rgb, (stringstream() << dist).str(), draw_at, cv::FONT_HERSHEY_PLAIN, 2.0 / dist, {0, 0, 255}, thickness);
-            }
-
-            // tvec은 카메라 기준의 상대 좌표를 담고 있습니다.
-            // img 구조체 인스턴스에는 카메라의 월드 트랜스폼이 담겨 있습니다.
-            // tvec을 카메라의 orientation만큼 회전시키고, 여기에 카메라의 translation을 적용하면 물체의 월드 좌표를 알 수 있습니다.
-            // rvec에는 카메라의 orientation을 곱해줍니다.
-            {
-                cv::Vec4f pos = (Vec4d&)tvec;
-                pos[1] = -pos[1], pos[3] = 1.0;
-                pos = img.camera_transform * pos;
-
-                set_filtered_pos((Vec3f&)pos);
-            }
-
-            // 테이블의 각 점에 월드 트랜스폼을 적용합니다.
-            for (auto& pt : table_points_3d) {
-                cv::Vec4d pos = (cv::Vec4d&)pt;
-                pos[3] = 1.0, pos[1] *= -1.0;
-
-                pos = Vec4d(img.camera_transform * (cv::Vec4f)pos);
-                pt = (cv::Vec3d&)pos;
-            }
-
-            {
-                Vec3f rotation = rvec, translation = tvec;
-
-                camera_to_world(img, rotation, translation);
-
-                // 월드 yaw 축이 170도 이상 바뀌면, 180도 반전시킵니다.
-
-                set_filtered_rot(rotation);
-
-                {
-                    // debug draw
-                    vector<Vec3f> table_pos;
-                    vector<vector<Point>> table_pts;
-                    get_table_model(table_pos, m.table.recognition_size);
-
-                    project_model(img, table_pts.emplace_back(), translation, rotation, table_pos, true);
-
-                    drawContours(rgb, table_pts, -1, {0, 0, 0}, 9);
-                    draw_axes(img, const_cast<cv::Mat&>(rgb), rotation, translation, 0.1, 3);
-                }
+            else {
+                drawContours(rgb, contours, -1, {0, 0, 0}, 1);
             }
         }
+
         desc.table.position = table_pos_flt;
         desc.table.orientation = (Vec4f&)table_rot_flt;
     }
