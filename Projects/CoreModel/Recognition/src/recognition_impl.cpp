@@ -28,7 +28,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             // drawContours(rgb, candidates, idx, {0, 0, 255});
 
             if (table_found) {
-                // drawContours(rgb, candidates, idx, {255, 255, 255}, 2);
+                drawContours(rgb, candidates, idx, {255, 255, 255}, 7);
 
                 // marshal
                 for (auto& pt : contour) {
@@ -200,7 +200,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
                 // 월드 yaw 축이 170도 이상 바뀌면, 180도 반전시킵니다.
                 if (abs(table_rot_flt[1] - rotation[1]) > (170.0f) * CV_PI / 180.0f) {
-                    rotation[1] += CV_PI;
+                    // rotation[1] += CV_PI;
+                    rotation = rotate_local(rotation, {0, (float)CV_PI, 0});
                 }
 
                 set_filtered_rot(rotation);
@@ -681,7 +682,7 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
         cv::aruco::estimatePoseSingleMarkers(all_corner, m.table.aruco_marker_size, mat_cam, mat_disto, rvecs, tvecs);
 
         // 모든 마커에 대해 ...
-        for (int index = 0; index < rvecs.size(); ++index) {
+        for (int index = 0; index < 1; ++index) {
             cv::Vec3f rvec = rvecs[index], tvec = tvecs[index];
             int marker_index = all_marker[index];
             rvec = rotate_local(rvec, {-(float)CV_PI / 2, 0, 0});
@@ -717,7 +718,7 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
                 }
 
                 desc.table.orientation = (cv::Vec4f&)table_rot_flt;
-                desc.table.position = set_filtered_pos(min_error_candidate, 0.33f);
+                desc.table.position = set_filtered_pos(min_error_candidate, 0.25f / marker_distances[index]);
                 desc.table.confidence = 0.7f;
             }
         }
@@ -738,22 +739,23 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
     UMat mask, filtered;
     {
-        UMat uclor;
-        rgb.copyTo(uclor);
+        UMat ucolor;
+        UMat b;
+        rgb.copyTo(ucolor);
 
         // 색공간 변환
-        cvtColor(uclor, uclor, COLOR_RGBA2RGB);
-        uclor.copyTo(rgb);
-        cvtColor(uclor, uclor, COLOR_RGB2HSV);
-        uclor.copyTo(hsv);
+        cvtColor(ucolor, b, COLOR_RGBA2RGB);
+        b.copyTo(rgb);
+        cvtColor(b, ucolor, COLOR_RGB2HSV);
+        ucolor.copyTo(hsv);
         // show("hsv", uclor);
 
         // 색역 필터링 및 에지 검출
         if (m.table.hue_filter_max < m.table.hue_filter_min) {
             UMat hi, lo;
-            inRange(uclor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
-            inRange(uclor, Scalar(m.table.hue_filter_min, 0, 0), Scalar(255, 255, 255), hi);
-            inRange(uclor, Scalar(0, 0, 0), Scalar(m.table.hue_filter_max, 255, 255), lo);
+            inRange(ucolor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
+            inRange(ucolor, Scalar(m.table.hue_filter_min, 0, 0), Scalar(255, 255, 255), hi);
+            inRange(ucolor, Scalar(0, 0, 0), Scalar(m.table.hue_filter_max, 255, 255), lo);
 
             bitwise_or(hi, lo, filtered);
             bitwise_and(mask, filtered, mask);
@@ -761,15 +763,18 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             // show("mask", mask);
         }
         else {
-            inRange(uclor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
+            inRange(ucolor, m.table.sv_filter_min, m.table.sv_filter_max, mask);
         }
     }
 
     {
         UMat umat_temp;
-        // dilate(mask, umat_temp, {}, {-1, -1}, 4);
-        // erode(umat_temp, mask, {}, {-1, -1}, 4);
-        dilate(mask, umat_temp, {}, {-1, -1}, 1);
+        mask.copyTo(umat_temp);
+
+        GaussianBlur(umat_temp, umat_temp, {3, 3}, 5);
+        threshold(umat_temp, mask, 128, 255, THRESH_BINARY);
+
+        erode(mask, umat_temp, {}, {-1, -1}, 1);
         bitwise_xor(mask, umat_temp, filtered);
     }
     show("filtered", filtered);
@@ -855,7 +860,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             for (auto& pt : table_contours) { contour.emplace_back((int)pt[0] - ROI.x, (int)pt[1] - ROI.y); }
 
             // 컨투어 영역만큼의 마스크를 그립니다.
-            drawContours(roi_mask, contours_, 0, {255}, FILLED);
+            // drawContours(roi_mask, contours_, 0, {255}, FILLED);
         }
 
         // ROI 내에서, 당구대 영역을 재지정합니다.
@@ -863,11 +868,11 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             UMat sub;
 
             // 당구대 영역으로 마스킹 수행
-            roi_edge = roi_edge.mul(roi_mask);
+            // roi_edge = roi_edge.mul(roi_mask);
 
-            // 에지 검출 이전에, 팽창-침식 연산을 통해 에지를 단순화하고, 파편을 줄입니다. 
+            // 에지 검출 이전에, 팽창-침식 연산을 통해 에지를 단순화하고, 파편을 줄입니다.
             GaussianBlur(roi_edge, roi_edge, {3, 3}, 15);
-            threshold(roi_edge, roi_edge, 128, 255, THRESH_BINARY); 
+            threshold(roi_edge, roi_edge, 128, 255, THRESH_BINARY);
 
             // 내부에 닫힌 도형을 만들수 있게끔, 경계선을 깎아냅니다.
             roi_edge.row(0).setTo(0);
@@ -880,7 +885,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             show("edge_new", roi_edge);
         }
 
-        vector<Point> table_contour_partial; 
+        vector<Point> table_contour_partial;
         {
             vector<vector<Point>> candidates;
             vector<Vec4i> hierarchy;
@@ -900,16 +905,48 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             // 테이블 컨투어를 찾습니다.
             if (candidates.empty() == false && max_size_index >= 0) {
                 table_contour_partial = candidates[max_size_index];
-            } 
+            }
         }
 
         if (table_not_detect && table_contour_partial.empty() == false) {
-            approxPolyDP(table_contour_partial, table_contour_partial, 60, true);
+            approxPolyDP(table_contour_partial, table_contour_partial, 25, true);
 
             correct_table_pos(img, desc, rgb, ROI, roi_rgb, table_contour_partial);
         }
 
-        show("roi", roi_rgb);
+        show("partial-view", roi_rgb);
+
+        // 당구공을 찾기 위해 ROI를 더 알맞게 재조정합니다.
+        if (!table_contour_partial.empty()) {
+            for (auto& pt : table_contour_partial) { pt += ROI.tl(); }
+            auto ROI_fit = boundingRect(table_contour_partial);
+            for (auto& pt : table_contour_partial) { pt -= ROI_fit.tl(); }
+
+            roi_mask = Mat(ROI_fit.size(), CV_8U).setTo(0);
+            drawContours(roi_mask, vector<vector<Point>>{table_contour_partial}, -1, {255}, -1);
+
+            {
+                Mat temp;
+                cvtColor(img.rgb(ROI_fit), temp, COLOR_RGBA2RGB);
+                roi_rgb.release();
+                temp.copyTo(roi_rgb, roi_mask);
+            }
+
+            // HSV 색공간에서 캐니 에지 디텍션 수행
+            UMat roi_hsv;
+            cvtColor(roi_rgb, roi_hsv, COLOR_RGB2HSV);
+
+            subtract(roi_hsv, Scalar{0, 0, 255}, roi_hsv);
+            add(roi_hsv, Scalar{0, 0, 128}, roi_hsv);
+
+            vector<UMat> channels;
+            split(roi_hsv, channels);
+
+            roi_edge = channels[0]; //.mul(channels[1], 1.0 / 255);
+
+            show("fit_mask", roi_hsv);
+            show("fit_edge", roi_edge);
+        }
     }
 
     // 결과물 출력

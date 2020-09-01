@@ -7,15 +7,7 @@
 #include <map>
 #include <vector>
 #include <opencv2/calib3d.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp> 
 
 using namespace std;
 
