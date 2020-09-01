@@ -31,12 +31,13 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         // 사각형 컨투어 찾기
         for (int idx = 0; idx < candidates.size(); ++idx) {
             auto& contour = candidates[idx];
+
+            approxPolyDP(vector(contour), contour, m.table.polydp_approx_epsilon, true);
             auto area_size = contourArea(contour);
             if (area_size < m.table.min_pxl_area_threshold) {
                 continue;
             }
 
-            approxPolyDP(vector(contour), contour, m.table.polydp_approx_epsilon, true);
             convexHull(vector<Point>(contour), contour, true);
             drawContours(rgb, candidates, -1, {128, 128, 0}, 2);
 
@@ -57,8 +58,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
     if (table_contours.size() == 4) {
         vector<Vec3f> obj_pts;
-        Mat tvec;
-        Mat rvec;
+        Vec3d tvec;
+        Vec3d rvec;
 
         {
             float half_x = m.table.recognition_size.val[0] / 2;
@@ -123,13 +124,12 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         }
 
         bool solve_successful = false;
-        bool use_pnp_data = false;
         /*
         solve_successful = estimation_valid;
         /*/
         // 3D 테이블 포인트를 바탕으로 2D 포인트를 정렬합니다.
         // 모델 공간에서 테이블의 인덱스는 짧은 쿠션에서 시작해 긴 쿠션으로 반시계 방향 정렬된 상태입니다. 이미지에서 검출된 컨투어는 테이블의 반시계 방향 정렬만을 보장하므로, 모델 공간에서의 정점과 같은 순서가 되도록 contour를 재정렬합니다.
-        if (estimation_valid) {
+        {
             assert(table_contours.size() == table_points_3d.size());
 
             // 오차를 감안해 공간에서 변의 길이가 table size의 mean보다 작은 값을 선정합니다.
@@ -156,27 +156,46 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
             auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
 
-            auto tvec_estimate = tvec.clone();
             solve_successful = solvePnP(obj_pts, table_contours, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_ITERATIVE);
 
-            auto error_estimate = norm(tvec_estimate - tvec);
-
-            if (error_estimate > 0.2) {
-                solve_successful = false;
-            }
-            else {
-                use_pnp_data = true;
-            }
+            //            auto error_estimate = norm(tvec_estimate - tvec);
         }
         //*/
 
         if (solve_successful) {
+            Vec3f tvec_world = tvec, rvec_world = rvec;
+            camera_to_world(img, rvec_world, tvec_world);
+
+            vector<vector<Point>> contours;
+            project_model(img, contours.emplace_back(), tvec_world, rvec_world, obj_pts, false);
+
+            // 각 점을 비교하여 에러를 계산합니다.
+            auto& proj = contours.front();
+            int max_error = -1;
+            for (size_t index = 0; index < 4; index++) {
+                Vec2f projpt = (Vec2i)proj[index];
+                max_error = max<int>(norm(projpt - table_contours[index], NORM_L1), max_error);
+            }
+
+            if (max_error < m.table.solvePnP_max_distance_error_threshold) {
+                set_filtered_rot(rvec_world);
+                set_filtered_pos(tvec_world);
+                desc.table.confidence = 0.9f;
+                draw_axes(img, (Mat&)rgb, rvec_world, tvec_world, 0.08f, 3);
+            }
+
+            {
+                drawContours(rgb, contours, -1, {0, 0, 0}, 6);
+            }
+        }
+
+        if (false) {
             {
                 cv::Vec2f sum = {};
                 for (auto v : table_contours) { sum += v; }
                 cv::Point draw_at = {int(sum.val[0] / 4), int(sum.val[1] / 4)};
 
-                auto translation = cv::Vec3d(tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2));
+                auto translation = tvec;
                 double dist = sqrt(translation.dot(translation));
                 int thickness = max<int>(1, 2.0 / dist);
 
@@ -188,13 +207,11 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             // tvec을 카메라의 orientation만큼 회전시키고, 여기에 카메라의 translation을 적용하면 물체의 월드 좌표를 알 수 있습니다.
             // rvec에는 카메라의 orientation을 곱해줍니다.
             {
-                cv::Vec4f pos = cv::Vec4d(tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2), 0);
+                cv::Vec4f pos = (Vec4d&)tvec;
                 pos[1] = -pos[1], pos[3] = 1.0;
                 pos = img.camera_transform * pos;
 
                 set_filtered_pos((Vec3f&)pos);
-
-                desc.table.position = table_pos_flt;
             }
 
             // 테이블의 각 점에 월드 트랜스폼을 적용합니다.
@@ -207,17 +224,11 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             }
 
             {
-                Vec3f rotation, translation;
-                rvec.convertTo(rotation, CV_32FC3);
-                tvec.convertTo(translation, CV_32FC3);
+                Vec3f rotation = rvec, translation = tvec;
 
                 camera_to_world(img, rotation, translation);
 
                 // 월드 yaw 축이 170도 이상 바뀌면, 180도 반전시킵니다.
-                if (norm(table_rot_flt - rotation) > (170.0f) * CV_PI / 180.0f) {
-                    // rotation[1] += CV_PI;
-                    rotation = rotate_local(rotation, {0, (float)CV_PI, 0});
-                }
 
                 set_filtered_rot(rotation);
 
@@ -233,10 +244,9 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                     draw_axes(img, const_cast<cv::Mat&>(rgb), rotation, translation, 0.1, 3);
                 }
             }
-
-            desc.table.orientation = (Vec4f&)table_rot_flt;
-            desc.table.confidence = 0.9f;
         }
+        desc.table.position = table_pos_flt;
+        desc.table.orientation = (Vec4f&)table_rot_flt;
     }
 }
 
@@ -248,6 +258,11 @@ cv::Vec3f recognizer_impl_t::set_filtered_pos(cv::Vec3f new_pos, float confidenc
 
 cv::Vec3f recognizer_impl_t::set_filtered_rot(cv::Vec3f new_rot, float confidence)
 {
+    if (norm(table_rot_flt - new_rot) > (170.0f) * CV_PI / 180.0f) {
+        // rotation[1] += CV_PI;
+        new_rot = rotate_local(new_rot, {0, (float)CV_PI, 0});
+    }
+
     float alpha = m.table.LPF_alpha_rot * confidence;
     return table_rot_flt = (1 - alpha) * table_rot_flt + alpha * new_rot;
 }
