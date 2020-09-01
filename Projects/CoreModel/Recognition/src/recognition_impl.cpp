@@ -26,16 +26,21 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         vector<vector<Point>> candidates;
         vector<Vec4i> hierarchy;
         findContours(filtered, candidates, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_NONE);
+        drawContours(rgb, candidates, -1, {0, 0, 255}, 1);
 
         // 사각형 컨투어 찾기
         for (int idx = 0; idx < candidates.size(); ++idx) {
             auto& contour = candidates[idx];
-            approxPolyDP(vector(contour), contour, m.table.polydp_approx_epsilon, true);
-
             auto area_size = contourArea(contour);
-            bool const table_found = area_size > m.table.min_pxl_area_threshold && contour.size() == 4;
+            if (area_size < m.table.min_pxl_area_threshold) {
+                continue;
+            }
 
-            // drawContours(rgb, candidates, idx, {0, 0, 255});
+            approxPolyDP(vector(contour), contour, m.table.polydp_approx_epsilon, true);
+            convexHull(vector<Point>(contour), contour, true);
+            drawContours(rgb, candidates, -1, {128, 128, 0}, 2);
+
+            bool const table_found = contour.size() == 4;
 
             if (table_found) {
                 drawContours(rgb, candidates, idx, {255, 255, 255}, 7);
@@ -209,7 +214,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 camera_to_world(img, rotation, translation);
 
                 // 월드 yaw 축이 170도 이상 바뀌면, 180도 반전시킵니다.
-                if (abs(table_rot_flt[1] - rotation[1]) > (170.0f) * CV_PI / 180.0f) {
+                if (norm(table_rot_flt - rotation) > (170.0f) * CV_PI / 180.0f) {
                     // rotation[1] += CV_PI;
                     rotation = rotate_local(rotation, {0, (float)CV_PI, 0});
                 }
@@ -601,7 +606,7 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
     vector<contour_desc_t> cached_location_contours;
     {
         vector<cv::Vec3f> obj_pts;
-        get_table_model(obj_pts, );
+        get_table_model(obj_pts, m.table.recognition_size);
 
         // 정점을 하나씩 투사합니다.
         // frustum culling을 배제하기 위함입니다.
@@ -923,18 +928,18 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
         show("partial-view", roi_rgb);
 
+        Rect ROI_fit = {};
         {
             // 테이블 컨투어를 재조정합니다.
             vector<Vec3f> obj_pts;
             get_table_model(obj_pts, m.table.inner_size);
             project_model(img, table_contour_partial, table_pos_flt, table_rot_flt, obj_pts, true);
+            ROI_fit = boundingRect(table_contour_partial);
         }
 
         // 당구공을 찾기 위해 ROI를 더 알맞게 재조정합니다.
-        if (!table_contour_partial.empty()) {
-            Rect ROI_fit;
+        if (ROI_fit.area() > 0) {
             {
-                ROI_fit = boundingRect(table_contour_partial);
                 get_safe_ROI_rect(img.rgb, ROI_fit);
                 for (auto& pt : table_contour_partial) { pt -= ROI_fit.tl(); }
 
@@ -942,7 +947,8 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 drawContours(roi_mask, vector<vector<Point>>{table_contour_partial}, -1, {255}, -1);
             }
 
-            // 테이블 마스크를 곱해서 빼줍니다. ball만 추출해내기 위함입니다.
+            // 테이블 마스크를 빼줍니다. 테이블 외의 부분만 추출해내기 위함입니다.
+            Mat roi_area_mask = roi_mask.clone();
             subtract(roi_mask, table_blue_mask(ROI_fit), roi_mask);
 
             {
@@ -952,8 +958,25 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 temp.copyTo(roi_rgb, roi_mask);
             }
 
+            // 마스크로부터 에지를 구합니다.
+            Mat edge;
+            filtered(ROI_fit).copyTo(edge);
+            edge.setTo(0, 255 - roi_area_mask);
 
+            // 컨투어 리스트 획득, 각각에 대해 반복합니다.
+            vector<vector<Point>> contours;
+            findContours(edge, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+            Mat roi_cls(roi_rgb.rows, roi_rgb.cols, CV_8UC3);
+            cvtColor(roi_rgb.getUMat(ACCESS_READ), roi_cls.getUMat(ACCESS_WRITE), COLOR_RGB2HSV);
+
+            drawContours(roi_rgb, contours, -1, {255, 255, 255});
+
+            for (auto& ct : contours) {
+                auto moment = moments(ct);
+            }
             show("fit_mask", roi_rgb);
+            show("fit_edge", edge);
         }
     }
 
