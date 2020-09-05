@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <functional>
+#include <map>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/aruco.hpp>
@@ -33,7 +34,7 @@ public: /* exposed properties */
     // 당구공 인식 관련 프로퍼티 목록
     struct ball_param_type
     {
-        float radius = 0.014 / CV_2PI;
+        float radius = 0.14 / CV_2PI;
         cv::Vec3f red1_rgb;
         cv::Vec3f red2_rgb;
         cv::Vec3f white_rgb;
@@ -64,7 +65,7 @@ public: /* exposed properties */
         double polydp_approx_epsilon = 8;
         double min_pxl_area_threshold = 3e4; // 픽셀 넓이가 이보다 커야 당구대 영역으로 인식합니다.
 
-        double LPF_alpha_pos = 0.66;
+        double LPF_alpha_pos = 0.1666;
         double LPF_alpha_rot = 0.33;
 
         // 이미지 내에서 '가깝다'고 판단하는 거리의 한계치입니다.
@@ -122,7 +123,7 @@ public:
      * 메인 스레드 루프입니다.
      * GUI를 띄우거나, 
      */
-    void poll();
+    void poll(std::map<std::string, cv::Mat>& shows);
 
     /**
      * 내부에 캐시된 이미지 인식 정보를 반환합니다.

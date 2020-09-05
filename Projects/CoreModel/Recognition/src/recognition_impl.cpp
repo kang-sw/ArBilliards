@@ -2,18 +2,7 @@
 
 #include <iostream>
 #include <vector>
-#include <vector>
-#include <vector>
-#include <vector>
-#include <vector>
-#include <vector>
 #include <opencv2/highgui.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
 #include <opencv2/core/base.hpp>
 
 namespace billiards
@@ -38,7 +27,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 continue;
             }
 
-            convexHull(vector<Point>(contour), contour, true);
+            convexHull(vector(contour), contour, true);
             drawContours(rgb, candidates, -1, {128, 128, 0}, 2);
 
             bool const table_found = contour.size() == 4;
@@ -865,12 +854,12 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             get_table_model(obj_pts, m.table.inner_size);
             project_model(img, table_contour_partial, table_pos_flt, table_rot_flt, obj_pts, true);
             ROI_fit = boundingRect(table_contour_partial);
+            get_safe_ROI_rect(img.rgb, ROI_fit);
         }
 
         // 당구공을 찾기 위해 ROI를 더 알맞게 재조정합니다.
         if (ROI_fit.area() > 0) {
             {
-                get_safe_ROI_rect(img.rgb, ROI_fit);
                 for (auto& pt : table_contour_partial) { pt -= ROI_fit.tl(); }
 
                 roi_mask = Mat(ROI_fit.size(), CV_8U).setTo(0);
@@ -903,7 +892,11 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             drawContours(roi_rgb, contours, -1, {255, 255, 255});
 
             for (auto& ct : contours) {
-                auto moment = moments(ct);
+                auto m = moments(ct);
+                auto size = m.m00;
+
+                // 당구공의 거리에 대한 최소 크기를 추정합니다.
+                // 이는 카메라에서 당구공의 추정 중점 위치로 광선을 투사,
             }
             show("fit_mask", roi_rgb);
             show("fit_edge", edge);
@@ -943,18 +936,15 @@ void recognizer_t::refresh_image(parameter_type image, recognizer_t::process_fin
     m.worker_event_wait.notify_all();
 }
 
-void recognizer_t::poll()
+void recognizer_t::poll(std::map<std::string, cv::Mat>& shows)
 {
+    // 비동기적으로 수집된 이미지 목록을 획득합니다.
     auto& m = *impl_;
-    decltype(m.img_show) shows;
 
     if (read_lock lock(m.img_show_mtx, try_to_lock); lock) {
-        shows = move(m.img_show);
-        m.img_show = {};
-    }
-
-    for (auto& pair : shows) {
-        imshow(pair.first, pair.second);
+        for (auto& pair : m.img_show) {
+            shows[pair.first] = pair.second;
+        }
     }
 }
 } // namespace billiards

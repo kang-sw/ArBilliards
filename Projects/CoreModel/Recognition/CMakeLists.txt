@@ -50,6 +50,7 @@ target_include_directories(
 	PRIVATE
 		"third/nlohmann/include/" 
 		"third/cpp-base64/" 
+		"third/cvui"
 		${OpenCV_INCLUDE_DIRS} 
 		${ZED_INCLUDE_DIRS}
 		${Boost_INCLUDE_DIRS}

@@ -7,6 +7,9 @@
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
+
+#define CVUI_IMPLEMENTATION
+#include "cvui.h"
 #include "tcp_server.hpp"
 #include "recognition.hpp"
 
@@ -164,7 +167,8 @@ public:
                         json_raw.clear();
                     }
                 }
-            } else {
+            }
+            else {
                 json_raw.push_back(ch);
             }
         }
@@ -296,6 +300,8 @@ static void on_image_request(tcp_connection_desc const& conn, json const& parsed
     }
 }
 
+void recognition_draw_ui(cv::Mat& frame);
+
 // ================================================================================================
 int main(void)
 {
@@ -332,8 +338,16 @@ int main(void)
 
     cout << "info: initializing recognizer ... \n";
 
+    // UI Initialize
+    auto const UI_NAME = "recognition";
+    cv::Mat ui_frame(900, 1600, CV_8UC3);
+
+    cvui::init(UI_NAME);
+
     while ((cv::waitKey(16) & 0xff) != 'q') {
-        g_recognizer.poll();
+        cvui::context(UI_NAME);
+        recognition_draw_ui(ui_frame);
+        cvui::imshow(UI_NAME, ui_frame);
     }
 
     g_app.abort();
