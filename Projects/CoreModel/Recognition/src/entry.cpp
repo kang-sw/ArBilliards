@@ -344,10 +344,20 @@ int main(void)
 
     cvui::init(UI_NAME);
 
-    while ((cv::waitKey(33) & 0xff) != 'q') {
+    while (true) {
+        cv::TickMeter tm;
+        tm.start();
+
         cvui::context(UI_NAME);
         recognition_draw_ui(ui_frame);
         cvui::imshow(UI_NAME, ui_frame);
+
+        tm.stop();
+        int to_wait = max<int>(1, 16 - tm.getAvgTimeMilli());
+
+        if ((cv::waitKey(to_wait) & 0xff) == 'q') {
+            break;
+        }
     }
 
     g_app.abort();
