@@ -5,6 +5,7 @@
 #include <optional>
 #include <condition_variable>
 #include <map>
+#include <unordered_map>
 #include <vector>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/base.hpp>
@@ -36,7 +37,8 @@ public:
     shared_mutex img_cue_mtx;
     img_cb_t img_cue_cb;
 
-    map<string, cv::Mat> img_show;
+    unordered_map<string, cv::Mat> img_show;
+    unordered_map<string, cv::Mat> img_show_queue;
     shared_mutex img_show_mtx;
 
     recognition_desc prev_desc;
@@ -70,8 +72,7 @@ public:
 
     void show(string wnd_name, cv::Mat img)
     {
-        write_lock lock(img_show_mtx);
-        img_show[move(wnd_name)] = move(img);
+        img_show_queue[move(wnd_name)] = move(img);
     }
 
     void async_worker_thread()
@@ -92,7 +93,12 @@ public:
             }
 
             if (img.has_value()) {
+                img_show_queue.clear();
                 auto desc = proc_img(*img);
+                {
+                    write_lock lock(img_show_mtx);
+                    img_show = img_show_queue;
+                }
                 if (on_finish) { on_finish(*img, desc); }
                 prev_desc = desc;
             }
@@ -117,6 +123,8 @@ public:
 
     static void get_safe_ROI_rect(cv::Mat const& mat, cv::Rect& roi);
     static std::optional<cv::Mat> get_safe_ROI(cv::Mat const&, cv::Rect);
+
+    static void get_point_coord_3d(img_t const& img, float& io_x, float& io_y, float z);
 
     /**
      * @param rvec oepncv 좌표계, 카메라 좌표계 기준 회전값입니다. 월드 회전으로 반환

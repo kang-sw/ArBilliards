@@ -11,7 +11,7 @@ using namespace cvui;
 static struct
 {
     cv::Size wnd_sz = {640, 480};
-    map<string, cv::Mat> shows;
+    unordered_map<string, cv::Mat> shows;
     set<string> active_img;
     set<string> pending_destroy;
 
@@ -203,11 +203,10 @@ void recognition_draw_ui(cv::Mat& frame)
             }
         }
 
+        auto& g = g_recognizer;
+        int wnd_w = m.wnd_sz.width * 0.8;
         COLUMN_TITLE(false, "Parameter - Table")
         {
-            auto& g = g_recognizer;
-            int wnd_w = m.wnd_sz.width * 0.8;
-
             add_trackbar("LPF pos alpha: ", &g.table.LPF_alpha_pos, 1, 0.0, 1.0, wnd_w, "%.3Lf");
             add_trackbar("LPF rot alpha: ", &g.table.LPF_alpha_rot, 1, 0.0, 1.0, wnd_w, "%.3Lf");
             add_trackbar("ArUco marker detection square", &g.table.aruco_detection_rect_radius_per_meter, 1, 0.0f, 1000.0f, wnd_w);
@@ -219,6 +218,7 @@ void recognition_draw_ui(cv::Mat& frame)
 
         COLUMN_TITLE(false, "Parameter - Balls")
         {
+            add_trackbar("Ball pixel size minmax", &g.ball.pixel_count_per_meter_min, 2, 0.f, 10000.f, wnd_w / 2);
         }
     }
     endColumn();

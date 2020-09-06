@@ -172,10 +172,24 @@ cv::Vec3f recognizer_impl_t::set_filtered_rot(cv::Vec3f new_rot, float confidenc
 }
 
 // 평면을 나타내는 타입입니다.
-struct plane_type
+struct plane_t
 {
     cv::Vec3f N;
     float d;
+
+    static plane_t from_NP(cv::Vec3f N, cv::Vec3f P)
+    {
+        N = cv::normalize(N);
+
+        plane_t plane;
+        plane.N = N;
+        plane.d = 0.f;
+
+        auto u = plane.calc_u(P, P + N).value();
+
+        plane.d = -u;
+        return plane;
+    }
 
     float calc(cv::Vec3f const& pt) const
     {
@@ -188,7 +202,7 @@ struct plane_type
         return calc(P1) * calc(P2) < 0.f;
     }
 
-    optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
+    optional<float> calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const
     {
         auto P3 = N * d;
 
@@ -198,11 +212,21 @@ struct plane_type
         if (abs(lower) > 1e-6f) {
             auto u = upper / lower;
 
-            if (u >= 0.f && u <= 1.f) {
-                return P1 + u * (P2 - P1);
-            }
+            return u;
         }
 
+        return {};
+    }
+
+    optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
+    {
+        if (auto uo = calc_u(P1, P2)) {
+            auto u = *uo;
+
+            if (u <= 1.f && u >= 0.f) {
+                return P1 + (P2 - P1) * u;
+            }
+        }
         return {};
     }
 };
@@ -212,7 +236,7 @@ void recognizer_impl_t::cull_frustum(float hfov_rad, float vfov_rad, vector<cv::
     using namespace cv;
     // 시야 사각뿔의 4개 평면은 반드시 원점을 지납니다.
     // 평면은 N.dot(P-P1)=0 꼴인데, 평면 상의 임의의 점 P1은 원점으로 설정해 노멀만으로 평면을 나타냅니다.
-    vector<plane_type> planes;
+    vector<plane_t> planes;
     {
         // horizontal 평면 = zx 평면
         // vertical 평면 = yz 평면
@@ -359,6 +383,16 @@ std::optional<cv::Mat> recognizer_impl_t::get_safe_ROI(cv::Mat const& mat, cv::R
     }
 
     return {};
+}
+
+void recognizer_impl_t::get_point_coord_3d(img_t const& img, float& io_x, float& io_y, float z_metric)
+{
+    auto& c = img.camera;
+    auto u = io_x;
+    auto v = io_y;
+
+    io_x = z_metric * ((u - c.cx) / c.fx);
+    io_y = z_metric * ((v - c.cy) / c.fy);
 }
 
 void recognizer_impl_t::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec) const
@@ -664,7 +698,7 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
     }
 }
 
-recognition_desc recognizer_impl_t::proc_img(img_t const& img)
+recognition_desc recognizer_impl_t::    proc_img(img_t const& img)
 {
     using namespace cv;
 
@@ -894,12 +928,59 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
             drawContours(roi_rgb, contours, -1, {255, 255, 255});
 
-            for (auto& ct : contours) {
-                auto m = moments(ct);
-                auto size = m.m00;
+            // 월드 당구대 평면을 획득합니다.
+            plane_t table_plane;
+            {
+                auto P = table_pos_flt;
+                Matx33f rotator;
+                Rodrigues(table_rot_flt, rotator);
+                auto N = rotator * Vec3f{0, 1, 0};
+                table_plane = plane_t::from_NP(N, P);
 
-                // 당구공의 거리에 대한 최소 크기를 추정합니다.
-                // 이는 카메라에서 당구공의 추정 중점 위치로 광선을 투사,
+                // N, P 그리기
+                {
+                    vector<vector<Point>> mapped;
+                    vector<Vec3f> pts = {P, P + N * table_plane.d};
+                    project_model(img, mapped.emplace_back(), {}, {}, pts, true);
+                    if (mapped.front().empty() == false) {
+                        drawContours(rgb, mapped, -1, {255, 255, 255}, 3);
+                    }
+                }
+            }
+
+            for (auto& ct : contours) {
+                auto mm = moments(ct);
+                auto size = mm.m00;
+                int cent_x = ROI_fit.x + mm.m10 / mm.m00;
+                int cent_y = ROI_fit.y + mm.m01 / mm.m00;
+
+                // 카메라와 당구공 사이의 거리를 구합니다.
+                float dist_between_cam = 10000000.f;
+                {
+                    // 카메라 좌표와 당구공 좌표
+                    Vec3f P1 = {};
+                    Vec3f P2(cent_x, cent_y, 5.f);
+                    get_point_coord_3d(img, P2[0], P2[1], P2[2]);
+
+                    // 둘을 월드 좌표로 변환
+                    Vec3f placeholder_{};
+                    camera_to_world(img, placeholder_ = {}, P1);
+                    camera_to_world(img, placeholder_ = {}, P2);
+
+                    // 카메라-당구공 광선을 당구대 평면에 투사
+                    auto ball_pos = table_plane.find_contact(P1, P2);
+
+                    if (ball_pos) {
+                        dist_between_cam = norm(*ball_pos - P1);
+                    }
+                }
+
+                float eval = mm.m00 * dist_between_cam * dist_between_cam;
+                if (eval < m.ball.pixel_count_per_meter_min || eval > m.ball.pixel_count_per_meter_max) {
+                    continue;
+                }
+
+                circle(rgb, {cent_x, cent_y}, 10 / dist_between_cam, {255, 255, 255});
             }
             show("fit_mask", roi_rgb);
             show("fit_edge", edge);
@@ -939,7 +1020,7 @@ void recognizer_t::refresh_image(parameter_type image, recognizer_t::process_fin
     m.worker_event_wait.notify_all();
 }
 
-void recognizer_t::poll(std::map<std::string, cv::Mat>& shows)
+void recognizer_t::poll(std::unordered_map<std::string, cv::Mat>& shows)
 {
     // 비동기적으로 수집된 이미지 목록을 획득합니다.
     auto& m = *impl_;

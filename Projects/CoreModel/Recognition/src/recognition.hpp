@@ -35,14 +35,20 @@ public: /* exposed properties */
     struct ball_param_type
     {
         float radius = 0.14 / CV_2PI;
-        cv::Vec3f red1_rgb;
-        cv::Vec3f red2_rgb;
-        cv::Vec3f white_rgb;
-        cv::Vec3f orange_rgb;
 
-        // 당구대 ROI의 마스크를 스무싱하는 데 사용하는 파라미터입니다.
-        // 팽창-침식 연산을 통해 파편을 제거하며, 이 값은 이터레이션 횟수를 정의합니다.
-        int roi_smoothing_iteration_count = 4;
+        // 공의 Contour 목록을 파악한 후, 각각의 contour 다각형 면적이 최소 얼마 이상이 되어야 공으로 인식되는지 결정하는 값입니다.
+        // 컨투어의 area_size(moment.m00)를 distance의 제곱으로 나눈 값을 아래 값과 비교합니다.
+        float pixel_count_per_meter_min = 500;
+        float pixel_count_per_meter_max = 1500;
+
+        struct
+        {
+            cv::Vec3f red[2];
+            cv::Vec3f orange[2];
+            cv::Vec3f white[2];
+        } color;
+
+        //
     } ball;
 
     /* 테이블 관련 프로퍼티 */
@@ -121,7 +127,7 @@ public:
      * 메인 스레드 루프입니다.
      * GUI를 띄우거나, 
      */
-    void poll(std::map<std::string, cv::Mat>& shows);
+    void poll(std::unordered_map<std::string, cv::Mat>& shows);
 
     /**
      * 내부에 캐시된 이미지 인식 정보를 반환합니다.
