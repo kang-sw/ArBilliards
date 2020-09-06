@@ -690,11 +690,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         // show("hsv", uclor);
 
         // 색역 필터링 및 에지 검출
-        if (m.table.hue_filter_max < m.table.hue_filter_min) {
+        if (m.table.hsv_filter_max[0] < m.table.hsv_filter_min[0]) {
             UMat hi, lo;
-            inRange(ucolor, m.table.sv_filter_min, m.table.sv_filter_max, table_blue_mask);
-            inRange(ucolor, Scalar(m.table.hue_filter_min, 0, 0), Scalar(255, 255, 255), hi);
-            inRange(ucolor, Scalar(0, 0, 0), Scalar(m.table.hue_filter_max, 255, 255), lo);
+            auto filt_min = m.table.hsv_filter_min, filt_max = m.table.hsv_filter_max;
+            filt_min[0] = 0, filt_max[0] = 255;
+
+            inRange(ucolor, filt_min, filt_max, table_blue_mask);
+            inRange(ucolor, Scalar(m.table.hsv_filter_min[0], 0, 0), Scalar(255, 255, 255), hi);
+            inRange(ucolor, Scalar(0, 0, 0), Scalar(m.table.hsv_filter_max[0], 255, 255), lo);
 
             bitwise_or(hi, lo, filtered);
             bitwise_and(table_blue_mask, filtered, table_blue_mask);
@@ -702,7 +705,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             // show("mask", mask);
         }
         else {
-            inRange(ucolor, m.table.sv_filter_min, m.table.sv_filter_max, table_blue_mask);
+            inRange(ucolor, m.table.hsv_filter_min, m.table.hsv_filter_max, table_blue_mask);
         }
     }
 

@@ -340,11 +340,11 @@ int main(void)
 
     // UI Initialize
     auto const UI_NAME = "recognition";
-    cv::Mat ui_frame(900, 1600, CV_8UC3);
+    cv::Mat ui_frame(300, 200, CV_8UC3);
 
     cvui::init(UI_NAME);
 
-    while ((cv::waitKey(16) & 0xff) != 'q') {
+    while ((cv::waitKey(33) & 0xff) != 'q') {
         cvui::context(UI_NAME);
         recognition_draw_ui(ui_frame);
         cvui::imshow(UI_NAME, ui_frame);

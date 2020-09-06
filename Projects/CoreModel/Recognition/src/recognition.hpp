@@ -53,11 +53,9 @@ public: /* exposed properties */
         cv::Vec2f inner_size = {0.895f, 0.447f};
 
         int color_cvt_type_rgb_to = cv::COLOR_RGB2HSV;
-        cv::Scalar sv_filter_min = {0, 150, 30};
-        cv::Scalar sv_filter_max = {255, 255, 255};
+        cv::Scalar hsv_filter_min = {165, 150, 30};
+        cv::Scalar hsv_filter_max = {5, 255, 255};
         float cushion_height = 0.025;
-        int hue_filter_min = 165;
-        int hue_filter_max = 5;
 
         // SolvePnP의 적용 이후, 추정된 회전과 위치값을 이용해 테이블 정점을 다시 화면에 투사하여, 검출된 정점과 택시캡 거리를 비교합니다. 이 때 오차가 가장 큰 점을 저장하여 아래 값과 비교합니다.
         int solvePnP_max_distance_error_threshold = 5;
