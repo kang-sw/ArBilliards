@@ -41,11 +41,13 @@ public: /* exposed properties */
         float pixel_count_per_meter_min = 500;
         float pixel_count_per_meter_max = 1500;
 
+        double edge_canny_thresholds[2] = {100, 50};
+
         struct
         {
-            cv::Vec3f red[2];
-            cv::Vec3f orange[2];
-            cv::Vec3f white[2];
+            cv::Vec3f red[2] = {{40, 20, 80}, {99, 60, 220}};
+            cv::Vec3f orange[2] = {{20, 120, 180}, {60, 230, 255}};
+            cv::Vec3f white[2] = {{0, 0, 230}, {45, 55, 255}};
         } color;
 
         //

@@ -10,7 +10,7 @@ using namespace cvui;
 
 static struct
 {
-    cv::Size wnd_sz = {640, 480};
+    cv::Size wnd_sz = {640, 960};
     unordered_map<string, cv::Mat> shows;
     set<string> active_img;
     set<string> pending_destroy;
@@ -142,41 +142,6 @@ void recognition_draw_ui(cv::Mat& frame)
             space(15);
         }
 
-        COLUMN_TITLE(true, "Focusing Image")
-        {
-            // 고정폭 버튼을 각 행에 배치
-
-            auto it = m.shows.begin();
-            auto const end = m.shows.end();
-
-            int const ENTITY_WIDTH = 120;
-            int num_btn_per_row = m.wnd_sz.width / ENTITY_WIDTH;
-            int actual_entity_width = m.wnd_sz.width / num_btn_per_row;
-
-            while (it != end) {
-                ROW("")
-                for (int i = 0; i < m.wnd_sz.width / ENTITY_WIDTH; ++i) {
-                    if (it == end) {
-                        break;
-                    }
-
-                    auto& pair = *it++;
-                    auto found_it = m.active_img.find(pair.first);
-                    bool const is_active_image = found_it != m.active_img.end();
-
-                    if (button(actual_entity_width, 30, pair.first, DEFAULT_FONT_SCALE, is_active_image ? 0x22dd22 : DEFAULT_BUTTON_COLOR)) {
-                        if (is_active_image) {
-                            m.pending_destroy.emplace(pair.first);
-                            m.active_img.erase(found_it);
-                        }
-                        else {
-                            m.active_img.emplace(pair.first);
-                        }
-                    }
-                }
-            }
-        }
-
         COLUMN_TITLE(true, "Paramter Operations")
         ROW("")
         {
@@ -218,7 +183,43 @@ void recognition_draw_ui(cv::Mat& frame)
 
         COLUMN_TITLE(false, "Parameter - Balls")
         {
-            add_trackbar("Ball pixel size minmax", &g.ball.pixel_count_per_meter_min, 2, 0.f, 10000.f, wnd_w / 2);
+            add_trackbar("Pixel size minmax", &g.ball.pixel_count_per_meter_min, 2, 0.f, 10000.f, wnd_w / 2);
+            add_trackbar("Edge canny thresholds 1, 2", g.ball.edge_canny_thresholds, 2, 0.0, 300.0, wnd_w / 2);
+        }
+
+        COLUMN_TITLE(true, "Focusing Image")
+        {
+            // 고정폭 버튼을 각 행에 배치
+
+            auto it = m.shows.begin();
+            auto const end = m.shows.end();
+
+            int const ENTITY_WIDTH = 120;
+            int num_btn_per_row = m.wnd_sz.width / ENTITY_WIDTH;
+            int actual_entity_width = m.wnd_sz.width / num_btn_per_row;
+
+            while (it != end) {
+                ROW("")
+                for (int i = 0; i < m.wnd_sz.width / ENTITY_WIDTH; ++i) {
+                    if (it == end) {
+                        break;
+                    }
+
+                    auto& pair = *it++;
+                    auto found_it = m.active_img.find(pair.first);
+                    bool const is_active_image = found_it != m.active_img.end();
+
+                    if (button(actual_entity_width, 30, pair.first, DEFAULT_FONT_SCALE, is_active_image ? 0x22dd22 : DEFAULT_BUTTON_COLOR)) {
+                        if (is_active_image) {
+                            m.pending_destroy.emplace(pair.first);
+                            m.active_img.erase(found_it);
+                        }
+                        else {
+                            m.active_img.emplace(pair.first);
+                        }
+                    }
+                }
+            }
         }
     }
     endColumn();

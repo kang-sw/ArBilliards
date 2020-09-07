@@ -395,6 +395,26 @@ void recognizer_impl_t::get_point_coord_3d(img_t const& img, float& io_x, float&
     io_y = z_metric * ((v - c.cy) / c.fy);
 }
 
+void recognizer_impl_t::filter_hsv(cv::InputArray input, cv::OutputArray output, cv::Vec3f min_hsv, cv::Vec3f max_hsv)
+{
+    using namespace cv;
+    if (max_hsv[0] < min_hsv[0]) {
+        UMat mask, hi, lo, temp;
+        auto filt_min = min_hsv, filt_max = max_hsv;
+        filt_min[0] = 0, filt_max[0] = 255;
+
+        inRange(input, filt_min, filt_max, mask);
+        inRange(input, Scalar(min_hsv[0], 0, 0), Scalar(255, 255, 255), hi);
+        inRange(input, Scalar(0, 0, 0), Scalar(max_hsv[0], 255, 255), lo);
+
+        bitwise_or(hi, lo, temp);
+        bitwise_and(temp, mask, output);
+    }
+    else {
+        inRange(input, min_hsv, max_hsv, output);
+    }
+}
+
 void recognizer_impl_t::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec) const
 {
     using namespace cv;
@@ -698,7 +718,7 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
     }
 }
 
-recognition_desc recognizer_impl_t::    proc_img(img_t const& img)
+recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 {
     using namespace cv;
 
@@ -710,7 +730,7 @@ recognition_desc recognizer_impl_t::    proc_img(img_t const& img)
     Mat rgb = img.rgb.clone();
     resize(img.depth, (Mat&)img.depth, {rgb.cols, rgb.rows});
 
-    UMat table_blue_mask, filtered;
+    UMat table_blue_mask, table_blue_edges;
     {
         UMat ucolor;
         UMat b;
@@ -733,8 +753,8 @@ recognition_desc recognizer_impl_t::    proc_img(img_t const& img)
             inRange(ucolor, Scalar(m.table.hsv_filter_min[0], 0, 0), Scalar(255, 255, 255), hi);
             inRange(ucolor, Scalar(0, 0, 0), Scalar(m.table.hsv_filter_max[0], 255, 255), lo);
 
-            bitwise_or(hi, lo, filtered);
-            bitwise_and(table_blue_mask, filtered, table_blue_mask);
+            bitwise_or(hi, lo, table_blue_edges);
+            bitwise_and(table_blue_mask, table_blue_edges, table_blue_mask);
 
             // show("mask", mask);
         }
@@ -751,13 +771,13 @@ recognition_desc recognizer_impl_t::    proc_img(img_t const& img)
         threshold(umat_temp, table_blue_mask, 128, 255, THRESH_BINARY);
 
         erode(table_blue_mask, umat_temp, {}, {-1, -1}, 1);
-        bitwise_xor(table_blue_mask, umat_temp, filtered);
+        bitwise_xor(table_blue_mask, umat_temp, table_blue_edges);
     }
-    show("filtered", filtered);
+    show("filtered", table_blue_edges);
 
     // 테이블 위치 탐색
     vector<Vec2f> table_contours; // 2D 컨투어도 반환받습니다.
-    find_table(img, desc, rgb, filtered, table_contours);
+    find_table(img, desc, rgb, table_blue_edges, table_contours);
     auto mm = Mat(img.camera_transform);
 
     /* 당구공 위치 찾기 */
@@ -916,17 +936,29 @@ recognition_desc recognizer_impl_t::    proc_img(img_t const& img)
 
             // 마스크로부터 에지를 구합니다.
             Mat edge;
-            filtered(ROI_fit).copyTo(edge);
+            table_blue_edges(ROI_fit).copyTo(edge);
             edge.setTo(0, 255 - roi_area_mask);
+
+            // 모든 ball 색상에 대해 필터링 수행
+            Mat ball_edge(ROI_fit.size(), CV_8UC1);
+            ball_edge.setTo(0);
+            {
+                UMat color, filtered;
+                cvtColor(img.rgb(ROI_fit), color, COLOR_RGBA2RGB);
+                cvtColor(color, color, COLOR_RGB2HSV);
+
+                Vec3f* filters[3] = {m.ball.color.red, m.ball.color.orange, m.ball.color.white};
+                for (auto filter : filters) {
+                    filter_hsv(color, filtered, filter[0], filter[1]);
+                    bitwise_or(filtered, ball_edge, ball_edge);
+                }
+                ball_edge *= 255;
+                show("all ball edges", ball_edge);
+            }
 
             // 컨투어 리스트 획득, 각각에 대해 반복합니다.
             vector<vector<Point>> contours;
             findContours(edge, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-
-            Mat roi_cls(roi_rgb.rows, roi_rgb.cols, CV_8UC3);
-            cvtColor(roi_rgb.getUMat(ACCESS_READ), roi_cls.getUMat(ACCESS_WRITE), COLOR_RGB2HSV);
-
-            drawContours(roi_rgb, contours, -1, {255, 255, 255});
 
             // 월드 당구대 평면을 획득합니다.
             plane_t table_plane;
@@ -948,11 +980,12 @@ recognition_desc recognizer_impl_t::    proc_img(img_t const& img)
                 }
             }
 
+            int ball_index = 0;
             for (auto& ct : contours) {
                 auto mm = moments(ct);
                 auto size = mm.m00;
-                int cent_x = ROI_fit.x + mm.m10 / mm.m00;
-                int cent_y = ROI_fit.y + mm.m01 / mm.m00;
+                int cent_x = ROI_fit.x + mm.m10 / size;
+                int cent_y = ROI_fit.y + mm.m01 / size;
 
                 // 카메라와 당구공 사이의 거리를 구합니다.
                 float dist_between_cam = 10000000.f;
@@ -975,12 +1008,27 @@ recognition_desc recognizer_impl_t::    proc_img(img_t const& img)
                     }
                 }
 
-                float eval = mm.m00 * dist_between_cam * dist_between_cam;
+                float eval = size * dist_between_cam * dist_between_cam;
                 if (eval < m.ball.pixel_count_per_meter_min || eval > m.ball.pixel_count_per_meter_max) {
                     continue;
                 }
 
                 circle(rgb, {cent_x, cent_y}, 10 / dist_between_cam, {255, 255, 255});
+
+                // 당구공 영역의 ROI 추출합니다.
+                auto ROI_ball = boundingRect(ct);
+
+                Mat ball_img = img.rgb(ROI_ball + ROI_fit.tl()).clone();
+                cvtColor(ball_img, ball_img, COLOR_RGBA2RGB);
+                cvtColor(ball_img, ball_img, COLOR_RGB2HSV);
+
+                Mat ball_colors[3];
+                split(ball_img, ball_colors);
+                ball_colors[0] += (ball_colors[0] < 10) * 180;
+
+                Canny(ball_colors[0], ball_colors[0], m.ball.edge_canny_thresholds[0], m.ball.edge_canny_thresholds[1]);
+                show("ball "s + to_string(ball_index), ball_colors[0]);
+                ++ball_index;
             }
             show("fit_mask", roi_rgb);
             show("fit_edge", edge);

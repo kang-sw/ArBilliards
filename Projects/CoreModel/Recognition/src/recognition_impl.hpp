@@ -9,6 +9,10 @@
 #include <vector>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
 
 using namespace std;
 
@@ -126,6 +130,10 @@ public:
 
     static void get_point_coord_3d(img_t const& img, float& io_x, float& io_y, float z);
 
+    /**
+     * Hue의 circular한 특성을 고려하여 HSV 필터링을 수행합니다.
+     */
+    static void filter_hsv(cv::InputArray input, cv::OutputArray output, cv::Vec3f , cv::Vec3f );
     /**
      * @param rvec oepncv 좌표계, 카메라 좌표계 기준 회전값입니다. 월드 회전으로 반환
      * @param tvec opencv 좌표계, 카메라 좌표계 기준 위치값입니다. 월드 이동으로 반환
