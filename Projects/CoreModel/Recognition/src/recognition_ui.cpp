@@ -25,10 +25,12 @@ static struct
 } m;
 
 template <typename Ty>
-void add_trackbar(const char* name, Ty* val, int array_size, Ty min, Ty max, int width, const char* fmt = "%.1Lf")
+void add_trackbar(const char* name, Ty* val, int array_size, Ty min, Ty max, int width, const char* fmt = "%.1Lf", bool has_separator = true)
 {
     beginColumn();
-    rect(m.wnd_sz.width, 2, 0x888888);
+    if (has_separator) {
+        rect(m.wnd_sz.width, 2, 0x888888);
+    }
     space();
     text(name);
     space(7);
@@ -181,10 +183,24 @@ void recognition_draw_ui(cv::Mat& frame)
             add_trackbar("Table contour approxPolyDP epsilon", &g.table.polydp_approx_epsilon, 1, 0.0, 100.0, wnd_w);
         }
 
-        COLUMN_TITLE(false, "Parameter - Balls")
+        COLUMN_TITLE(false, "Parameter - Ball Color")
         {
             add_trackbar("Pixel size minmax", &g.ball.pixel_count_per_meter_min, 2, 0.f, 10000.f, wnd_w / 2);
             add_trackbar("Edge canny thresholds 1, 2", g.ball.edge_canny_thresholds, 2, 0.0, 300.0, wnd_w / 2);
+            add_trackbar("Ball RED", (float*)g.ball.color.red, 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf");
+            add_trackbar("", (float*)(g.ball.color.red + 1), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf", false);
+            add_trackbar("Ball Orange", (float*)(g.ball.color.orange + 0), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf");
+            add_trackbar("", (float*)(g.ball.color.orange + 1), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf", false);
+            add_trackbar("Ball White", (float*)(g.ball.color.white + 0), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf");
+            add_trackbar("", (float*)(g.ball.color.white + 1), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf", false);
+        }
+
+        COLUMN_TITLE(false, "Parameter - Ball Hough")
+        {
+            add_trackbar("Hough DP", &g.ball.hough.dp, 1, 0.001, 100.0, wnd_w);
+            add_trackbar("Hough min dist", &g.ball.hough.min_dist, 1, 0.001, 10.0, wnd_w);
+            add_trackbar("Hough radius minMax", &g.ball.hough.rad_min, 2, 0.001, 10.0, wnd_w/2);
+            add_trackbar("Hough canny thr 1 2", g.ball.hough.canny_parms, 2, 0.001, 200.0, wnd_w/2);
         }
 
         COLUMN_TITLE(true, "Focusing Image")

@@ -908,7 +908,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         {
             // 테이블 컨투어를 재조정합니다.
             vector<Vec3f> obj_pts;
-            get_table_model(obj_pts, m.table.inner_size);
+            get_table_model(obj_pts, m.table.recognition_size);
             project_model(img, table_contour_partial, table_pos_flt, table_rot_flt, obj_pts, true);
             ROI_fit = boundingRect(table_contour_partial);
             get_safe_ROI_rect(img.rgb, ROI_fit);
@@ -925,6 +925,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
             // 테이블 마스크를 빼줍니다. 테이블 외의 부분만 추출해내기 위함입니다.
             Mat roi_area_mask = roi_mask.clone();
+            Mat roi_table_excluded_rgb;
             subtract(roi_mask, table_blue_mask(ROI_fit), roi_mask);
 
             {
@@ -932,6 +933,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 cvtColor(img.rgb(ROI_fit), temp, COLOR_RGBA2RGB);
                 roi_rgb.release();
                 temp.copyTo(roi_rgb, roi_mask);
+                roi_rgb.copyTo(roi_table_excluded_rgb);
             }
 
             // 마스크로부터 에지를 구합니다.
@@ -939,26 +941,10 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             table_blue_edges(ROI_fit).copyTo(edge);
             edge.setTo(0, 255 - roi_area_mask);
 
-            // 모든 ball 색상에 대해 필터링 수행
-            Mat ball_edge(ROI_fit.size(), CV_8UC1);
-            ball_edge.setTo(0);
-            {
-                UMat color, filtered;
-                cvtColor(img.rgb(ROI_fit), color, COLOR_RGBA2RGB);
-                cvtColor(color, color, COLOR_RGB2HSV);
-
-                Vec3f* filters[3] = {m.ball.color.red, m.ball.color.orange, m.ball.color.white};
-                for (auto filter : filters) {
-                    filter_hsv(color, filtered, filter[0], filter[1]);
-                    bitwise_or(filtered, ball_edge, ball_edge);
-                }
-                ball_edge *= 255;
-                show("all ball edges", ball_edge);
-            }
-
             // 컨투어 리스트 획득, 각각에 대해 반복합니다.
             vector<vector<Point>> contours;
             findContours(edge, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+            drawContours(roi_rgb, contours, -1, {0, 255, 0}, 1);
 
             // 월드 당구대 평면을 획득합니다.
             plane_t table_plane;
@@ -1016,18 +1002,57 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 circle(rgb, {cent_x, cent_y}, 10 / dist_between_cam, {255, 255, 255});
 
                 // 당구공 영역의 ROI 추출합니다.
-                auto ROI_ball = boundingRect(ct);
+                auto ROI_ball = boundingRect(ct) + ROI_fit.tl();
 
-                Mat ball_img = img.rgb(ROI_ball + ROI_fit.tl()).clone();
+                Mat ball_img = img.rgb(ROI_ball).clone();
                 cvtColor(ball_img, ball_img, COLOR_RGBA2RGB);
                 cvtColor(ball_img, ball_img, COLOR_RGB2HSV);
 
-                Mat ball_colors[3];
-                split(ball_img, ball_colors);
-                ball_colors[0] += (ball_colors[0] < 10) * 180;
+                // 모든 ball 색상에 대해 필터링 수행
+                Mat ball_edge(ROI_ball.size(), CV_8UC1);
+                ball_edge.setTo(0);
+                {
+                    Mat color, filtered, edge;
+                    cvtColor(img.rgb(ROI_ball), color, COLOR_RGBA2RGB);
+                    cvtColor(color, color, COLOR_RGB2HSV);
 
-                Canny(ball_colors[0], ball_colors[0], m.ball.edge_canny_thresholds[0], m.ball.edge_canny_thresholds[1]);
-                show("ball "s + to_string(ball_index), ball_colors[0]);
+                    // 각각의 색상에 대한 에지를 구하고, 합성합니다.
+                    Vec3f* filters[3] = {m.ball.color.red, m.ball.color.orange, m.ball.color.white};
+                    for (int index = 0; index < 3; ++index) {
+                        auto filter = filters[index];
+
+                        // 색상으로 필터링
+                        filter_hsv(color, filtered, filter[0], filter[1]);
+
+                        // 가우시안 필터링을 통해 노이즈를 제거하고, 침식을 통해 에지 검출
+                        GaussianBlur(filtered, filtered, {3, 3}, 100.0);
+                        threshold(filtered, filtered, 128, 255, THRESH_BINARY);
+                        erode(filtered, edge, {}, {-1, -1}, 2);
+                        bitwise_xor(filtered, edge, edge);
+
+                        // houghCircles 함수를 적용하기 전, dilate(팽창) 연산을 적용합니다.
+                        // 에지의 모양이 정확한 원형이 아닐 때 허프 변환을 성공시키기 위해서입니다.
+                        // dilate(edge, edge, {}, {-1, -1}, 2);
+                        bitwise_or(edge, ball_edge, ball_edge);
+
+                        vector<Vec4f> circles;
+                        HoughCircles(edge, circles, HOUGH_GRADIENT, m.ball.hough.dp, m.ball.hough.min_dist, m.ball.hough.canny_parms[0], m.ball.hough.canny_parms[1], m.ball.hough.rad_min, m.ball.hough.rad_max);
+
+                        // 디버깅용 그리기
+                        {
+                            // 원의 좌표 원점을 조그마한 뷰포트로 변경합니다.
+                            for (auto& ccl : circles) {
+                                auto& pt = reinterpret_cast<Point2f&>(ccl);
+                                pt = pt + (Point2f)(ROI_ball - ROI_fit.tl()).tl();
+
+                                circle(roi_rgb, pt, ccl[2], {255, 255, 255}, 2);
+                            }
+                        }
+                    }
+                    // ball_edge *= 255;
+                }
+
+                show("ball "s + to_string(ball_index), ball_edge);
                 ++ball_index;
             }
             show("fit_mask", roi_rgb);

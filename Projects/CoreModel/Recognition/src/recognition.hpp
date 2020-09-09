@@ -45,12 +45,20 @@ public: /* exposed properties */
 
         struct
         {
-            cv::Vec3f red[2] = {{40, 20, 80}, {99, 60, 220}};
-            cv::Vec3f orange[2] = {{20, 120, 180}, {60, 230, 255}};
-            cv::Vec3f white[2] = {{0, 0, 230}, {45, 55, 255}};
+            cv::Vec3f red[2] = {{115, 84, 81}, {152, 255, 255}};
+            cv::Vec3f orange[2] = {{75, 118, 77}, {106, 255, 255}};
+            cv::Vec3f white[2] = {{0, 0, 135}, {77, 90, 255}};
         } color;
 
-        //
+        // 공의 경계 검출 이후, 허프 서클 변환에서 사용할 DP 계수입니다.
+        struct {
+            double dp = 1.0;
+            double min_dist = 3.0;
+            double canny_parms[2] = { 100, 100};
+            double rad_min = 0.0;
+            double rad_max = 0.0;
+        }hough;
+
     } ball;
 
     /* 테이블 관련 프로퍼티 */
