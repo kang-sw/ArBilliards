@@ -50,15 +50,6 @@ public: /* exposed properties */
             cv::Vec3f white[2] = {{0, 0, 135}, {77, 90, 255}};
         } color;
 
-        // 공의 경계 검출 이후, 허프 서클 변환에서 사용할 DP 계수입니다.
-        struct {
-            double dp = 1.0;
-            double min_dist = 3.0;
-            double canny_parms[2] = { 100, 100};
-            double rad_min = 0.0;
-            double rad_max = 0.0;
-        }hough;
-
     } ball;
 
     /* 테이블 관련 프로퍼티 */

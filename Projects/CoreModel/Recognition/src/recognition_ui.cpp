@@ -193,15 +193,7 @@ void recognition_draw_ui(cv::Mat& frame)
             add_trackbar("", (float*)(g.ball.color.orange + 1), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf", false);
             add_trackbar("Ball White", (float*)(g.ball.color.white + 0), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf");
             add_trackbar("", (float*)(g.ball.color.white + 1), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf", false);
-        }
-
-        COLUMN_TITLE(false, "Parameter - Ball Hough")
-        {
-            add_trackbar("Hough DP", &g.ball.hough.dp, 1, 0.001, 100.0, wnd_w);
-            add_trackbar("Hough min dist", &g.ball.hough.min_dist, 1, 0.001, 10.0, wnd_w);
-            add_trackbar("Hough radius minMax", &g.ball.hough.rad_min, 2, 0.001, 10.0, wnd_w/2);
-            add_trackbar("Hough canny thr 1 2", g.ball.hough.canny_parms, 2, 0.001, 200.0, wnd_w/2);
-        }
+        } 
 
         COLUMN_TITLE(true, "Focusing Image")
         {

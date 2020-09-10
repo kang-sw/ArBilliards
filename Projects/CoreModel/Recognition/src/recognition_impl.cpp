@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include <vector>
-#include <opencv2/highgui.hpp>
+#include <opencv2/highgui.hpp> 
 #include <opencv2/core/base.hpp>
 
 namespace billiards
@@ -138,8 +138,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             }
 
             if (max_error < m.table.solvePnP_max_distance_error_threshold) {
-                set_filtered_rot(rvec_world);
-                set_filtered_pos(tvec_world);
+                set_filtered_table_rot(rvec_world);
+                set_filtered_table_pos(tvec_world);
                 desc.table.confidence = 0.9f;
                 draw_axes(img, (Mat&)rgb, rvec_world, tvec_world, 0.08f, 3);
                 drawContours(rgb, contours, -1, {0, 255, 0}, 3);
@@ -154,13 +154,13 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
     }
 }
 
-cv::Vec3f recognizer_impl_t::set_filtered_pos(cv::Vec3f new_pos, float confidence)
+cv::Vec3f recognizer_impl_t::set_filtered_table_pos(cv::Vec3f new_pos, float confidence)
 {
     float alpha = m.table.LPF_alpha_pos * confidence;
     return table_pos_flt = (1 - alpha) * table_pos_flt + alpha * new_pos;
 }
 
-cv::Vec3f recognizer_impl_t::set_filtered_rot(cv::Vec3f new_rot, float confidence)
+cv::Vec3f recognizer_impl_t::set_filtered_table_rot(cv::Vec3f new_rot, float confidence)
 {
     if (norm(table_rot_flt - new_rot) > (170.0f) * CV_PI / 180.0f) {
         // rotation[1] += CV_PI;
@@ -170,66 +170,6 @@ cv::Vec3f recognizer_impl_t::set_filtered_rot(cv::Vec3f new_rot, float confidenc
     float alpha = m.table.LPF_alpha_rot * confidence;
     return table_rot_flt = (1 - alpha) * table_rot_flt + alpha * new_rot;
 }
-
-// 평면을 나타내는 타입입니다.
-struct plane_t
-{
-    cv::Vec3f N;
-    float d;
-
-    static plane_t from_NP(cv::Vec3f N, cv::Vec3f P)
-    {
-        N = cv::normalize(N);
-
-        plane_t plane;
-        plane.N = N;
-        plane.d = 0.f;
-
-        auto u = plane.calc_u(P, P + N).value();
-
-        plane.d = -u;
-        return plane;
-    }
-
-    float calc(cv::Vec3f const& pt) const
-    {
-        auto res = cv::sum(N.mul(pt))[0] + d;
-        return abs(res) < 1e-6f ? 0 : res;
-    }
-
-    bool has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
-    {
-        return calc(P1) * calc(P2) < 0.f;
-    }
-
-    optional<float> calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const
-    {
-        auto P3 = N * d;
-
-        auto upper = N.dot(P3 - P1);
-        auto lower = N.dot(P2 - P1);
-
-        if (abs(lower) > 1e-6f) {
-            auto u = upper / lower;
-
-            return u;
-        }
-
-        return {};
-    }
-
-    optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
-    {
-        if (auto uo = calc_u(P1, P2)) {
-            auto u = *uo;
-
-            if (u <= 1.f && u >= 0.f) {
-                return P1 + (P2 - P1) * u;
-            }
-        }
-        return {};
-    }
-};
 
 void recognizer_impl_t::cull_frustum(float hfov_rad, float vfov_rad, vector<cv::Vec3f>& obj_pts)
 {
@@ -327,7 +267,7 @@ void recognizer_impl_t::cull_frustum(float hfov_rad, float vfov_rad, vector<cv::
     }
 }
 
-void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform) const
+void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform)
 {
     world_transform = cv::Mat(4, 4, CV_32FC1);
     world_transform.setTo(0);
@@ -364,21 +304,45 @@ void recognizer_impl_t::get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Ve
       });
 }
 
-void recognizer_impl_t::get_safe_ROI_rect(cv::Mat const& mat, cv::Rect& roi)
+bool recognizer_impl_t::get_safe_ROI_rect(cv::Mat const& mat, cv::Rect& roi)
 {
-    roi.x = max(0, roi.x);
-    roi.y = max(0, roi.y);
-    roi.width = max(0, min(mat.cols - roi.x, roi.width));
-    roi.height = max(0, min(mat.rows - roi.y, roi.height));
+    if (roi.x >= mat.cols || roi.y >= mat.rows) {
+        goto RETURN_FALSE;
+    }
+
+    if (roi.x < 0) {
+        roi.width += roi.x;
+        roi.x = 0;
+    }
+    if (roi.y < 0) {
+        roi.height += roi.y;
+        roi.y = 0;
+    }
+
+    if (roi.x + roi.width >= mat.cols) {
+        roi.width -= (roi.x + roi.width + 1) - mat.cols;
+    }
+
+    if (roi.y + roi.height >= mat.rows) {
+        roi.height -= (roi.y + roi.height + 1) - mat.rows;
+    }
+
+    if (roi.width <= 0 || roi.height <= 0) {
+        goto RETURN_FALSE;
+    }
+
+    return true;
+
+RETURN_FALSE:;
+    roi.width = roi.height = 0;
+    return false;
 }
 
 std::optional<cv::Mat> recognizer_impl_t::get_safe_ROI(cv::Mat const& mat, cv::Rect roi)
 {
     using namespace cv;
 
-    get_safe_ROI_rect(mat, roi);
-
-    if (roi.area() > 0) {
+    if (get_safe_ROI_rect(mat, roi)) {
         return mat(roi);
     }
 
@@ -511,7 +475,7 @@ void recognizer_impl_t::draw_circle(img_t const& img, cv::Mat& dest, float base_
     circle(dest, Point(pt[0][0], pt[0][1]), size, color, -1);
 }
 
-void recognizer_impl_t::transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes) const
+void recognizer_impl_t::transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes)
 {
     cv::Mat world_transform;
     get_world_transform_matx(world_pos, world_rot, world_transform);
@@ -529,7 +493,7 @@ void recognizer_impl_t::transform_to_camera(img_t const& img, cv::Vec3f world_po
     }
 }
 
-void recognizer_impl_t::project_model(img_t const& img, vector<cv::Vec2f>& mapped_contours, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull) const
+void recognizer_impl_t::project_model(img_t const& img, vector<cv::Vec2f>& mapped_contours, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull)
 {
     transform_to_camera(img, world_pos, world_rot, model_vertexes);
 
@@ -548,7 +512,7 @@ void recognizer_impl_t::project_model(img_t const& img, vector<cv::Vec2f>& mappe
     }
 }
 
-void billiards::recognizer_impl_t::project_model(img_t const& img, vector<cv::Point>& mapped, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull) const
+void billiards::recognizer_impl_t::project_model(img_t const& img, vector<cv::Point>& mapped, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull)
 {
     vector<cv::Vec2f> mapped_vec;
     project_model(img, mapped_vec, obj_pos, obj_rot, model_vertexes, do_cull);
@@ -711,9 +675,43 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
                 }
 
                 desc.table.orientation = (cv::Vec4f&)table_rot_flt;
-                desc.table.position = set_filtered_pos(min_error_candidate, 0.25f / marker_distances[index]);
+                desc.table.position = set_filtered_table_pos(min_error_candidate, 0.25f / marker_distances[index]);
                 desc.table.confidence = 0.7f;
             }
+        }
+    }
+}
+
+void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> const& contours, billiards::ball_find_parameter_t const& p, billiards::ball_find_result_t& r)
+{
+}
+
+void recognizer_impl_t::async_worker_thread()
+{
+    while (worker_is_alive) {
+        {
+            unique_lock<mutex> lck(worker_event_wait_mtx);
+            worker_event_wait.wait(lck);
+        }
+
+        opt_img_t img;
+        img_cb_t on_finish;
+        if (read_lock lck(img_cue_mtx); img_cue.has_value()) {
+            img = move(*img_cue);
+            on_finish = move(img_cue_cb);
+            img_cue = {};
+            img_cue_cb = {};
+        }
+
+        if (img.has_value()) {
+            img_show_queue.clear();
+            auto desc = proc_img(*img);
+            {
+                write_lock lock(img_show_mtx);
+                img_show = img_show_queue;
+            }
+            if (on_finish) { on_finish(*img, desc); }
+            prev_desc = desc;
         }
     }
 }
@@ -1027,32 +1025,16 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                         // 가우시안 필터링을 통해 노이즈를 제거하고, 침식을 통해 에지 검출
                         GaussianBlur(filtered, filtered, {3, 3}, 100.0);
                         threshold(filtered, filtered, 128, 255, THRESH_BINARY);
-                        erode(filtered, edge, {}, {-1, -1}, 2);
+                        erode(filtered, edge, {}, {-1, -1}, 1);
                         bitwise_xor(filtered, edge, edge);
 
-                        // houghCircles 함수를 적용하기 전, dilate(팽창) 연산을 적용합니다.
-                        // 에지의 모양이 정확한 원형이 아닐 때 허프 변환을 성공시키기 위해서입니다.
-                        // dilate(edge, edge, {}, {-1, -1}, 2);
-                        bitwise_or(edge, ball_edge, ball_edge);
+                        // 이렇게 계산된 에지로부터 컨투어를 추출하고, 
 
-                        vector<Vec4f> circles;
-                        HoughCircles(edge, circles, HOUGH_GRADIENT, m.ball.hough.dp, m.ball.hough.min_dist, m.ball.hough.canny_parms[0], m.ball.hough.canny_parms[1], m.ball.hough.rad_min, m.ball.hough.rad_max);
-
-                        // 디버깅용 그리기
-                        {
-                            // 원의 좌표 원점을 조그마한 뷰포트로 변경합니다.
-                            for (auto& ccl : circles) {
-                                auto& pt = reinterpret_cast<Point2f&>(ccl);
-                                pt = pt + (Point2f)(ROI_ball - ROI_fit.tl()).tl();
-
-                                circle(roi_rgb, pt, ccl[2], {255, 255, 255}, 2);
-                            }
-                        }
                     }
                     // ball_edge *= 255;
                 }
 
-                show("ball "s + to_string(ball_index), ball_edge);
+                // show("ball "s + to_string(ball_index), ball_edge);
                 ++ball_index;
             }
             show("fit_mask", roi_rgb);
