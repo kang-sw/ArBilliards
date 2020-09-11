@@ -4,14 +4,9 @@
 #include <atomic>
 #include <optional>
 #include <condition_variable>
-#include <map>
 #include <unordered_map>
 #include <vector>
 #include <opencv2/calib3d.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
 #include <opencv2/core/base.hpp>
 
 using namespace std;
@@ -119,7 +114,7 @@ public:
       vector<cv::Point> table_contour_partial);
 
     /**
-     * 공의 위치를 찾습니다.
+     * 공의 이미지 상 중심을 찾습니다.
      */
     void find_ball_center(
       img_t const& img,
@@ -205,6 +200,11 @@ public:
     static void get_point_coord_3d(img_t const& img, float& io_x, float& io_y, float z);
 
     /**
+     * 카메라 좌표계 기준 3d 좌표에서 u, v를 계산합니다.
+     */
+    static array<float, 2> get_uv_from_3d(img_t const& img, cv::Point3f const& coord_3d);
+
+    /**
      * Hue의 circular한 특성을 고려하여 HSV 필터링을 수행합니다.
      */
     static void filter_hsv(cv::InputArray input, cv::OutputArray output, cv::Vec3f, cv::Vec3f);
@@ -231,7 +231,16 @@ public:
      * 3D 위치의 원을 화면에 투영합니다. 거리에 따라 화면 상에 나타나는 반경이 달라집니다.
      */
     void draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color) const;
-    // void proj_to_screen(img_t const& img, vector<cv::Vec3f> model_pt, )
+
+    /**
+     * 테이블 평면을 카메라 좌표계로 변환합니다.
+     */
+    static void recognizer_impl_t::plane_to_camera(img_t const& img, plane_t const& table_plane, plane_t& table_plane_camera);
+
+    /**
+     * metric 길이에 대한 해당 거리에서의 픽셀 크기를 반환합니다.
+     */
+    static float get_pixel_length(img_t const& img, float len_metric, float Z_metric);
 };
 
 // 평면을 나타내는 타입입니다.
@@ -240,58 +249,12 @@ struct plane_t
     cv::Vec3f N;
     float d;
 
-    static plane_t from_NP(cv::Vec3f N, cv::Vec3f P)
-    {
-        N = cv::normalize(N);
-
-        plane_t plane;
-        plane.N = N;
-        plane.d = 0.f;
-
-        auto u = plane.calc_u(P, P + N).value();
-
-        plane.d = -u;
-        return plane;
-    }
-
-    float calc(cv::Vec3f const& pt) const
-    {
-        auto res = cv::sum(N.mul(pt))[0] + d;
-        return abs(res) < 1e-6f ? 0 : res;
-    }
-
-    bool has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
-    {
-        return calc(P1) * calc(P2) < 0.f;
-    }
-
-    optional<float> calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const
-    {
-        auto P3 = N * d;
-
-        auto upper = N.dot(P3 - P1);
-        auto lower = N.dot(P2 - P1);
-
-        if (abs(lower) > 1e-6f) {
-            auto u = upper / lower;
-
-            return u;
-        }
-
-        return {};
-    }
-
-    optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
-    {
-        if (auto uo = calc_u(P1, P2)) {
-            auto u = *uo;
-
-            if (u <= 1.f && u >= 0.f) {
-                return P1 + (P2 - P1) * u;
-            }
-        }
-        return {};
-    }
+    static plane_t from_NP(cv::Vec3f N, cv::Vec3f P);
+    plane_t& transform(cv::Vec3f tvec, cv::Vec3f rvec);
+    float calc(cv::Vec3f const& pt) const;
+    bool has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
+    optional<float> calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
+    optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
 };
 
 } // namespace billiards

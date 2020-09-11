@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include <vector>
-#include <opencv2/highgui.hpp> 
+#include <opencv2/highgui.hpp>
 #include <opencv2/core/base.hpp>
 
 namespace billiards
@@ -28,7 +28,9 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             }
 
             convexHull(vector(contour), contour, true);
-            drawContours(rgb, candidates, -1, {128, 128, 0}, 2);
+            approxPolyDP(vector(contour), contour, m.table.polydp_approx_epsilon, true);
+            drawContours(rgb, candidates, -1, {255, 128, 0}, 3);
+            putText(rgb, (stringstream() << "[" << contour.size() << ", " << area_size << "]").str(), contour[0], FONT_HERSHEY_PLAIN, 1.0, {0, 255, 0});
 
             bool const table_found = contour.size() == 4;
 
@@ -39,8 +41,6 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 for (auto& pt : contour) {
                     table_contours.push_back(Vec2f(pt.x, pt.y));
                 }
-
-                putText(rgb, (stringstream() << "[" << contour.size() << ", " << area_size << "]").str(), contour[0], FONT_HERSHEY_PLAIN, 1.0, {0, 255, 0});
             }
         }
     }
@@ -359,6 +359,19 @@ void recognizer_impl_t::get_point_coord_3d(img_t const& img, float& io_x, float&
     io_y = z_metric * ((v - c.cy) / c.fy);
 }
 
+array<float, 2> recognizer_impl_t::get_uv_from_3d(img_t const& img, cv::Point3f const& coord_3d)
+{
+    array<float, 2> result;
+    auto& [u, v] = result;
+    auto& [x, y, z] = coord_3d;
+    auto c = img.camera;
+
+    u = (c.fx * x) / z + c.cx;
+    v = (c.fy * y) / z + c.cy;
+
+    return result;
+}
+
 void recognizer_impl_t::filter_hsv(cv::InputArray input, cv::OutputArray output, cv::Vec3f min_hsv, cv::Vec3f max_hsv)
 {
     using namespace cv;
@@ -473,6 +486,73 @@ void recognizer_impl_t::draw_circle(img_t const& img, cv::Mat& dest, float base_
 
     float size = base_size / norm(pos);
     circle(dest, Point(pt[0][0], pt[0][1]), size, color, -1);
+}
+
+plane_t plane_t::from_NP(cv::Vec3f N, cv::Vec3f P)
+{
+    N = cv::normalize(N);
+
+    plane_t plane;
+    plane.N = N;
+    plane.d = 0.f;
+
+    auto u = plane.calc_u(P, P + N).value();
+
+    plane.d = -u;
+    return plane;
+}
+
+plane_t& plane_t::transform(cv::Vec3f tvec, cv::Vec3f rvec)
+{
+    using namespace cv;
+
+    auto P = N * d;
+    Matx33f rotator;
+    Rodrigues(rvec, rotator);
+
+    N = rotator * N;
+    P = rotator * P + tvec;
+
+    return *this = from_NP(N, P);
+}
+
+float plane_t::calc(cv::Vec3f const& pt) const
+{
+    auto res = cv::sum(N.mul(pt))[0] + d;
+    return abs(res) < 1e-6f ? 0 : res;
+}
+
+bool plane_t::has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
+{
+    return calc(P1) * calc(P2) < 0.f;
+}
+
+optional<float> plane_t::calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const
+{
+    auto P3 = N * d;
+
+    auto upper = N.dot(P3 - P1);
+    auto lower = N.dot(P2 - P1);
+
+    if (abs(lower) > 1e-6f) {
+        auto u = upper / lower;
+
+        return u;
+    }
+
+    return {};
+}
+
+optional<cv::Vec3f> plane_t::find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
+{
+    if (auto uo = calc_u(P1, P2)) {
+        auto u = *uo;
+
+        if (u <= 1.f && u >= 0.f) {
+            return P1 + (P2 - P1) * u;
+        }
+    }
+    return {};
 }
 
 void recognizer_impl_t::transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes)
@@ -684,6 +764,21 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
 
 void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> const& contours, billiards::ball_find_parameter_t const& p, billiards::ball_find_result_t& r)
 {
+    /*
+    필요: 평면 카메라 좌표계 기준으로 축 변환하기(N, P 각각 카메라 트랜스폼으로 역변환)
+    
+    과정
+        1. 컨투어 무게중심 측정
+        2. 임의의 중점 후보 2D 좌표 선택
+            해당 2D좌표를 깊은 Z값에 대한 임의의 카메라 좌표로 바꾸고, 카메라 기준 당구대 평면에 대해 투영하여 실제 컨택트 획득, Z 값으로부터 당구공의 픽셀 반경 계산.
+        3. 적합성 검사 수행
+            0. 임의 개수의 컨투어를 선정합니다(최적화).
+            1. 픽셀 중점과 반경을 활용해 각 컨투어와 원의 경계선 사이의 유사도를 계산하고, 가까울수록 높은 가중치를 부여합니다. 컨투어는 불완전한 반원 형태로부터 추출되므로 이상치를 벗어난 점들은 큰 의미가 없기 때문에 RMSE는 사용하지 않습니다.
+            |  같은 맥락에서, 에러가 가장 적어지는 점이 아닌 가중치가 가장 큰 점을 선택하게 됩니다.
+        4. 2에서 선택한 중점 후보 중 가장 가중치가 높은 점을 선택하고, 반경을 반으로 줄여 다시 중점 후보를 선택합니다.
+        5. 2~4의 과정을 정해진 횟수만큼 반복합니다.
+            
+    */
 }
 
 void recognizer_impl_t::async_worker_thread()
@@ -714,6 +809,32 @@ void recognizer_impl_t::async_worker_thread()
             prev_desc = desc;
         }
     }
+}
+
+void recognizer_impl_t::plane_to_camera(img_t const& img, plane_t const& table_plane, plane_t& table_plane_camera)
+{
+    cv::Vec4f N = (cv::Vec4f&)table_plane.N;
+    cv::Vec4f P = table_plane.d * N;
+    N[3] = 0.f, P[3] = 1.f;
+
+    cv::Matx44f camera_inv = img.camera_transform.inv();
+    N = camera_inv * N;
+    P = camera_inv * P;
+
+    // CV 좌표계로 변환
+    N[1] *= -1.f, P[1] *= -1.f;
+
+    table_plane_camera = plane_t::from_NP((cv::Vec3f&)N, (cv::Vec3f&)P);
+}
+
+float recognizer_impl_t::get_pixel_length(img_t const& img, float len_metric, float Z_metric)
+{
+    using namespace cv;
+
+    auto [u1, v1] = get_uv_from_3d(img, Vec3f(0, 0, Z_metric));
+    auto [u2, v2] = get_uv_from_3d(img, Vec3f(len_metric, 0, Z_metric));
+
+    return u2 - u1;
 }
 
 recognition_desc recognizer_impl_t::proc_img(img_t const& img)
@@ -945,24 +1066,17 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             drawContours(roi_rgb, contours, -1, {0, 255, 0}, 1);
 
             // 월드 당구대 평면을 획득합니다.
-            plane_t table_plane;
+            plane_t table_plane, table_plane_camera;
             {
                 auto P = table_pos_flt;
                 Matx33f rotator;
                 Rodrigues(table_rot_flt, rotator);
                 auto N = rotator * Vec3f{0, 1, 0};
                 table_plane = plane_t::from_NP(N, P);
-
-                // N, P 그리기
-                {
-                    vector<vector<Point>> mapped;
-                    vector<Vec3f> pts = {P, P + N * table_plane.d};
-                    project_model(img, mapped.emplace_back(), {}, {}, pts, true);
-                    if (mapped.front().empty() == false) {
-                        drawContours(rgb, mapped, -1, {255, 255, 255}, 3);
-                    }
-                }
             }
+
+            // 카메라 기준으로 변환
+            plane_to_camera(img, table_plane, table_plane_camera);
 
             int ball_index = 0;
             for (auto& ct : contours) {
@@ -974,21 +1088,12 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 // 카메라와 당구공 사이의 거리를 구합니다.
                 float dist_between_cam = 10000000.f;
                 {
-                    // 카메라 좌표와 당구공 좌표
                     Vec3f P1 = {};
                     Vec3f P2(cent_x, cent_y, 5.f);
                     get_point_coord_3d(img, P2[0], P2[1], P2[2]);
 
-                    // 둘을 월드 좌표로 변환
-                    Vec3f placeholder_{};
-                    camera_to_world(img, placeholder_ = {}, P1);
-                    camera_to_world(img, placeholder_ = {}, P2);
-
-                    // 카메라-당구공 광선을 당구대 평면에 투사
-                    auto ball_pos = table_plane.find_contact(P1, P2);
-
-                    if (ball_pos) {
-                        dist_between_cam = norm(*ball_pos - P1);
+                    if (auto ball_pos = table_plane_camera.find_contact(P1, P2)) {
+                        dist_between_cam = ball_pos->val[2]; // Z 값
                     }
                 }
 
@@ -997,7 +1102,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                     continue;
                 }
 
-                circle(rgb, {cent_x, cent_y}, 10 / dist_between_cam, {255, 255, 255});
+                circle(rgb, {cent_x, cent_y}, get_pixel_length(img, m.ball.radius, dist_between_cam), {0, 255, 0}, -1, LINE_8);
 
                 // 당구공 영역의 ROI 추출합니다.
                 auto ROI_ball = boundingRect(ct) + ROI_fit.tl();
@@ -1028,8 +1133,9 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                         erode(filtered, edge, {}, {-1, -1}, 1);
                         bitwise_xor(filtered, edge, edge);
 
-                        // 이렇게 계산된 에지로부터 컨투어를 추출하고, 
-
+                        // 이렇게 계산된 에지로부터 컨투어를 추출합니다.
+                        vector<vector<Point>> contours;
+                        // findContours(ball_edge, )
                     }
                     // ball_edge *= 255;
                 }
