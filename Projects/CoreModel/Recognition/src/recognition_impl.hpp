@@ -113,30 +113,29 @@ public:
       cv::Mat3b roi_rgb,
       vector<cv::Point> table_contour_partial);
 
+    struct ball_find_result_t
+    {
+        cv::Point img_center;
+        float weight;
+        float pixel_radius;
+    };
+
+    struct ball_find_parameter_t
+    {
+        /** 광선을 투사할 테이블 평면입니다. 반드시 카메라 좌표계 */
+        struct plane_t const* table_plane;
+        cv::Mat rgb_debug;
+        cv::Point image_offset = {};
+    };
+
     /**
      * 공의 이미지 상 중심을 찾습니다.
      */
     void find_ball_center(
       img_t const& img,
-      vector<cv::Point> const& contours,
+      vector<cv::Point> const& contours_src,
       struct ball_find_parameter_t const& params,
       struct ball_find_result_t& result);
-
-    struct ball_find_result_t
-    {
-        cv::Point img_center;
-        cv::Vec3f coord_center;
-        float confidence;
-    };
-
-    struct ball_find_parameter_t
-    {
-        /** 카메라 원점의 좌표입니다. */
-        cv::Vec3f camera_position;
-
-        /** 광선을 투사할 테이블 평면입니다. */
-        struct plane_t const& table_plane;
-    };
     /** @} */
 
     /**

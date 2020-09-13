@@ -43,12 +43,34 @@ public: /* exposed properties */
 
         double edge_canny_thresholds[2] = {100, 50};
 
+        // 에지 필터링에 사용할 각 색상 값
         struct
         {
             cv::Vec3f red[2] = {{115, 84, 81}, {152, 255, 255}};
             cv::Vec3f orange[2] = {{75, 118, 77}, {106, 255, 255}};
             cv::Vec3f white[2] = {{0, 0, 135}, {77, 90, 255}};
         } color;
+
+        struct
+        {
+            // 전체 프로세스 반복 회수
+            int iterations = 5;
+
+            // 한 번의 이터레이션에서 선택할 중점 후보의 개수
+            int num_candidates = 16;
+
+            // 중점 후보 선택시 반지름 증폭율
+            float candidate_radius_amp = 2.0f;
+
+            // 한 번에 비교할 최대 컨투어 개수
+            int num_max_contours = 32;
+
+            // 가중치를 계산하는데 사용하는 지수함수의 밑
+            float weight_function_base = 1.03f;
+
+            // 디버그 라인 그리기
+            bool render_debug = true;
+        } search;
 
     } ball;
 

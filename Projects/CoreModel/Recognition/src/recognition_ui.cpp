@@ -193,7 +193,17 @@ void recognition_draw_ui(cv::Mat& frame)
             add_trackbar("", (float*)(g.ball.color.orange + 1), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf", false);
             add_trackbar("Ball White", (float*)(g.ball.color.white + 0), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf");
             add_trackbar("", (float*)(g.ball.color.white + 1), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf", false);
-        } 
+        }
+
+        COLUMN_TITLE(false, "Parameter - Ball Search")
+        {
+            auto& s = g.ball.search;
+            add_trackbar("Outer Iteration", &s.iterations, 1, 1, 20, wnd_w, "%.0Lf");
+            add_trackbar("Candidates", &s.num_candidates, 1, 8, 180, wnd_w, "%.0Lf");
+            add_trackbar("Contours", &s.num_max_contours, 1, 16, 256, wnd_w, "%.0Lf");
+            add_trackbar("Base", &s.weight_function_base, 1, 1.0f, 1.5f, wnd_w, "%.3Lf");
+            // add_trackbar("Contours", &s., 1, 16, 256, wnd_w, "%.0Lf");
+        }
 
         COLUMN_TITLE(true, "Focusing Image")
         {
