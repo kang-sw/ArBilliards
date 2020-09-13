@@ -7,6 +7,7 @@
 #include <opencv2/core/base.hpp>
 #include <random>
 #include <algorithm>
+#include <omp.h>
 
 namespace billiards
 {
@@ -817,7 +818,80 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
         contours = contours_src;
     }
 
-    if (search.render_debug) {
+    // Lazy convolution을 수행합니다.
+    unordered_map<uint64_t, float> color_weight_table__;
+    Mat color_weight_kernel__;
+    {
+        int kernel_size = (2 * int(search_radius / search.candidate_radius_amp)) | 1; // 홀수로 만듭니다.
+        int radius = (kernel_size - 1) / 2;
+        color_weight_kernel__ = Mat(kernel_size, kernel_size, CV_32FC3, {0, 0, 0});
+        //  circle(color_weight_kernel__, {radius, radius}, radius, p.hsv_avg_filter_value, -1);
+        color_weight_kernel__.setTo(p.hsv_avg_filter_value / 255.0);
+    }
+
+    // 색상 적합도 계산을 위한 컨볼루션의 lazy evaluation을 수행하는 펑터입니다.
+    // 메모이제이션 기법을 활용해, L2거리 일정 이내의 점에 대한 재계산을 생략합니다.
+    auto color_weight = [&kernel = color_weight_kernel__,
+                         &table = color_weight_table__,
+                         &search,
+                         &p](Point at) {
+        // 포인트를 잘라내 해상도를 낮춥니다.
+        // 낮아진 해상도는 반올림해 매핑됩니다.
+        if (int opt = search.memoization_distance; opt > 1) {
+            int adder = opt / 2;
+            at.x = at.x + adder - at.x % opt;
+            at.y = at.y + adder - at.y % opt;
+        }
+        uint64_t hash = ((0ull + at.x) << 32) + at.y;
+
+        auto found_it = table.find(hash);
+        if (found_it == table.end()) {
+            // 색상 적합도 계산을 위해 해당 포인트를 중점으로 둔 ROI를 구합니다.
+            Rect window_rect;
+            window_rect.x = at.x - kernel.cols / 2;
+            window_rect.y = at.y - kernel.rows / 2;
+            window_rect.width = kernel.cols;
+            window_rect.height = kernel.rows;
+            window_rect += p.ROI.tl(); // 원본 이미지에 윈도우 생성
+
+            if (!get_safe_ROI_rect(p.hsv, window_rect)) {
+                return 0.0f;
+            }
+
+            Mat board = p.hsv(window_rect).clone();
+            board.convertTo(board, CV_32FC3, 1.0 / 255);
+            Mat kernel_partial = kernel({Point(), window_rect.size()});
+
+            board -= kernel_partial;
+            board = board.mul(board);
+
+            // Lightness의 차이는 적게, Hue의 차이를 높게 가중치를 두어 distance를 머지합니다.
+            transform(board, board, Matx13f{1, 1, 0.2});
+
+            if (!board.isContinuous()) { board = board.clone(); }
+
+            float weight_sum = 0.f;
+            {
+                int size = board.rows * board.cols;
+                float base = search.kernel_weight_base;
+                float* values = &board.at<float>(0);
+                // #pragma omp parallel for reduction(+ \
+                                   : summary) private(values, base)
+                for (int i = 0; i < size; ++i) {
+                    weight_sum += powf(base, -sqrtf(values[i]) * search.color_dist_amplitude);
+                }
+            }
+
+            // 가중치에서, 테이블의 파란 영역과 겹치는 만큼 가중치에 패널티를 줍니다.
+            float penalty = sum(p.blue_mask(window_rect))[0] / 255;
+
+            found_it = table.try_emplace(hash, weight_sum - penalty).first;
+        }
+
+        return found_it->second * search.color_weight;
+    };
+
+    if (false && search.render_debug) {
         auto render_contour = contours;
         for (auto& pt : render_contour) { pt += p.ROI.tl(); }
         theRNG().state = p.color_seed;
@@ -883,7 +957,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
                 Vec2f ptf(pt.x, pt.y);
                 weight += ::pow(base, -abs(cand.radius - norm(ptf - cand.uv, NORM_L2)));
             }
-            cand.weight = weight;
+            cand.weight = weight + color_weight((Point2f)cand.uv);
 
             candidates.emplace_back(cand);
         }
@@ -1223,8 +1297,17 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             plane_to_camera(img, table_plane, table_plane_camera);
 
             int ball_index = 0;
-            for (auto& ct : non_table_contours) {
-                auto mm = moments(ct);
+            Mat table_blue_mask_cpu = table_blue_mask.getMat(ACCESS_FAST).clone();
+
+            ball_find_parameter_t param;
+            param.table_plane = &table_plane_camera;
+            param.rgb_debug = rgb_all_debug;
+            param.color_seed = 0;
+            param.hsv = hsv_all;
+            param.blue_mask = table_blue_mask_cpu;
+
+            for (auto& ball_chunk_contours : non_table_contours) {
+                auto mm = moments(ball_chunk_contours);
                 auto size = mm.m00;
                 int cent_x = ROI_fit.x + mm.m10 / size;
                 int cent_y = ROI_fit.y + mm.m01 / size;
@@ -1245,17 +1328,21 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                     continue;
                 }
 
-                // circle(rgb_source, {cent_x, cent_y}, get_pixel_length(img, m.ball.radius, dist_between_cam), {0, 255, 0}, 2, LINE_8);
+                Point2f center;
+                float radius;
+                minEnclosingCircle(ball_chunk_contours, center, radius);
+                circle(rgb_all_debug, {cent_x, cent_y}, get_pixel_length(img, m.ball.radius, dist_between_cam), {0, 255, 0}, 2, LINE_8);
 
                 // 당구공 영역의 ROI 추출합니다.
-                auto ROI_ball = boundingRect(ct) + ROI_fit.tl();
+                auto ROI_ball = boundingRect(ball_chunk_contours) + ROI_fit.tl();
 
                 // 모든 ball 색상에 대해 필터링 수행
                 Mat color = hsv_all(ROI_ball), filtered, edge;
+                for (auto& pt : ball_chunk_contours) { pt -= ROI_ball.tl() - ROI_fit.tl(); }
 
                 // 각각의 색상에 대한 에지를 구하고, 합성합니다.
                 Vec3f* filters[3] = {m.ball.color.red, m.ball.color.orange, m.ball.color.white};
-                for (int index = 0; index < 3; ++index) {
+                for (int index = 0; false && index < 3; ++index) {
                     auto filter = filters[index];
 
                     // 색상으로 필터링
@@ -1272,12 +1359,12 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                     findContours(edge, shapes, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
 
                     ball_find_result_t res;
-                    ball_find_parameter_t param;
-                    param.table_plane = &table_plane_camera;
-                    param.rgb_debug = rgb_all_debug;
                     param.ROI = ROI_ball;
-                    param.color_seed = 0;
+                    param.hsv_avg_filter_value = (filter[0] + filter[1]) * 0.5f;
 
+                    // 각 컨투어 후보를 반복하여 공의 중심을 찾습니다.
+                    // TODO: 각 색상별 공 개수 및 컨투어 영역 크기를 활용해 invalid한 candidate 걸러내기
+                    // TODO: 빨간색의 경우, 검출 후 검출 영역을 잘라낸 영역 재검토, 공 두 개 겹친 경우 걸러내기 위함. (영역 안에 없는 컨투어만 모아서 배열 만들기)
                     for (auto& ball_candidate_contours : shapes) {
                         find_ball_center(img, ball_candidate_contours, param, res);
                         param.color_seed++;
