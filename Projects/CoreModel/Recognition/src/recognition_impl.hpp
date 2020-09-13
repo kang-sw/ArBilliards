@@ -122,10 +122,12 @@ public:
 
     struct ball_find_parameter_t
     {
-        /** 광선을 투사할 테이블 평면입니다. 반드시 카메라 좌표계 */
-        struct plane_t const* table_plane;
+        struct plane_t const* table_plane; // 광선을 투사할 테이블 평면입니다. 반드시 카메라 좌표계
+        cv::Mat hsv;                       // 전체 영역 이미지
+        cv::Rect ROI = {};
         cv::Mat rgb_debug;
-        cv::Point image_offset = {};
+        int64_t color_seed;
+        cv::Vec3f hsv_avg_filter; // 커널 계산에 사용할 색상 필터의 중간값
     };
 
     /**

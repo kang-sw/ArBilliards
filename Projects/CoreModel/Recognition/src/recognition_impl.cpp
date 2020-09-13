@@ -819,9 +819,11 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
 
     if (search.render_debug) {
         auto render_contour = contours;
-        for (auto& pt : render_contour) { pt += p.image_offset; }
-
-        drawContours(p.rgb_debug, vector{{render_contour}}, -1, {0, 0, 255}, -1);
+        for (auto& pt : render_contour) { pt += p.ROI.tl(); }
+        theRNG().state = p.color_seed;
+        Vec3b color;
+        randu(color, 0, 255);
+        drawContours(p.rgb_debug, vector{{render_contour}}, -1, color, -1);
     }
 
     vector<candidate_t> candidates;
@@ -844,11 +846,11 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
             }
             else {
                 auto seed = candidate_index + search.num_candidates * (iteration + 1);
-                // mt19937 rd_gen(seed);
-                // float angle = distr_angle(rd_gen);
-                // float radius = distr_radius(rd_gen);
-                float angle = candidate_index * ((float)CV_2PI) / search.num_candidates;
-                float radius = search_radius;
+                mt19937 rd_gen(seed);
+                float angle = distr_angle(rd_gen);
+                float radius = distr_radius(rd_gen);
+                // float angle = candidate_index * ((float)CV_2PI) / search.num_candidates;
+                // float radius = search_radius;
 
                 Point2f ofst;
                 ofst.x = radius * cosf(angle);
@@ -859,8 +861,8 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
 
             // 해당 UV 좌표를 당구대 평면으로 투사, 실제 픽셀 반경 계산
             Vec3f contact(cand.uv[0], cand.uv[1], 10.0f); // 10.0meter는 충분히 길음
-            contact[0] += p.image_offset.x;
-            contact[1] += p.image_offset.y;
+            contact[0] += p.ROI.x;
+            contact[1] += p.ROI.y;
             get_point_coord_3d(img, contact[0], contact[1], contact[2]);
             if (auto contact_opt = p.table_plane->find_contact({}, contact)) {
                 contact = *contact_opt;
@@ -894,7 +896,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
         auto& closest = *max_element(candidates.begin(), candidates.end(), [](candidate_t const& a, candidate_t const& b) { return a.weight < b.weight; });
 
         // Debug line 그리기
-        Point2f ofst = p.image_offset;
+        Point2f ofst = p.ROI.tl();
         if (false && search.render_debug) {
             for (auto& cand : candidates) {
                 line(p.rgb_debug, ofst + search_center, ofst + (Point2f)cand.uv, {0, 128, 0});
@@ -916,7 +918,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
         }
 
         // 탐색 반경을 조금 줄입니다.
-        search_radius *= 0.5;
+        // search_radius *= 0.5;
     }
 
     r.weight = max_weight;
@@ -987,21 +989,21 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
     TickMeter tick_tot;
     tick_tot.start();
-    Mat hsv;
-    Mat rgb_source = img.rgb.clone();
-    resize(img.depth, (Mat&)img.depth, {rgb_source.cols, rgb_source.rows});
+    Mat hsv_all;
+    Mat rgb_all_debug = img.rgb.clone();
+    resize(img.depth, (Mat&)img.depth, {rgb_all_debug.cols, rgb_all_debug.rows});
 
     UMat table_blue_mask, table_blue_edges;
     {
         UMat ucolor;
         UMat b;
-        rgb_source.copyTo(ucolor);
+        rgb_all_debug.copyTo(ucolor);
 
         // 색공간 변환
         cvtColor(ucolor, b, COLOR_RGBA2RGB);
-        b.copyTo(rgb_source);
+        b.copyTo(rgb_all_debug);
         cvtColor(b, ucolor, COLOR_RGB2HSV);
-        ucolor.copyTo(hsv);
+        ucolor.copyTo(hsv_all);
         // show("hsv", uclor);
 
         // 색역 필터링 및 에지 검출
@@ -1038,7 +1040,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
     // 테이블 위치 탐색
     vector<Vec2f> table_contours; // 2D 컨투어도 반환받습니다.
-    find_table(img, desc, rgb_source, table_blue_edges, table_contours);
+    find_table(img, desc, rgb_all_debug, table_blue_edges, table_contours);
     auto mm = Mat(img.camera_transform);
 
     /* 당구공 위치 찾기 */
@@ -1065,7 +1067,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             vector<vector<Point>> contour_draw;
             auto& tbl = contour_draw.emplace_back();
             for (auto& pt : table_contours) { tbl.push_back({(int)pt[0], (int)pt[1]}); }
-            drawContours(rgb_source, contour_draw, -1, {0, 0, 255}, 8);
+            drawContours(rgb_all_debug, contour_draw, -1, {0, 0, 255}, 8);
         }
     }
 
@@ -1085,8 +1087,8 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
         xbeg = max(0, xbeg);
         ybeg = max(0, ybeg);
-        xend = max(min(rgb_source.cols - 1, xend), xbeg);
-        yend = max(min(rgb_source.rows - 1, yend), ybeg);
+        xend = max(min(rgb_all_debug.cols - 1, xend), xbeg);
+        yend = max(min(rgb_all_debug.rows - 1, yend), ybeg);
         ROI = Rect(xbeg, ybeg, xend - xbeg, yend - ybeg);
     }
 
@@ -1160,7 +1162,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         if (table_not_detect && table_contour_partial.empty() == false) {
             approxPolyDP(table_contour_partial, table_contour_partial, 25, true);
 
-            correct_table_pos(img, desc, rgb_source, ROI, roi_rgb, table_contour_partial);
+            correct_table_pos(img, desc, rgb_all_debug, ROI, roi_rgb, table_contour_partial);
         }
 
         show("partial-view", roi_rgb);
@@ -1249,9 +1251,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 auto ROI_ball = boundingRect(ct) + ROI_fit.tl();
 
                 // 모든 ball 색상에 대해 필터링 수행
-                Mat color, filtered, edge, ball_rgb;
-                cvtColor(img.rgb(ROI_ball), ball_rgb, COLOR_RGBA2RGB);
-                cvtColor(ball_rgb, color, COLOR_RGB2HSV);
+                Mat color = hsv_all(ROI_ball), filtered, edge;
 
                 // 각각의 색상에 대한 에지를 구하고, 합성합니다.
                 Vec3f* filters[3] = {m.ball.color.red, m.ball.color.orange, m.ball.color.white};
@@ -1274,21 +1274,20 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                     ball_find_result_t res;
                     ball_find_parameter_t param;
                     param.table_plane = &table_plane_camera;
-                    param.rgb_debug = rgb_source;
-                    param.image_offset = ROI_ball.tl();
-
-                    if (m.ball.search.render_debug) {
-                        //   rgb_source(ROI_ball).setTo(Scalar{255, 255, 255}, filtered);
-                    }
+                    param.rgb_debug = rgb_all_debug;
+                    param.ROI = ROI_ball;
+                    param.color_seed = 0;
 
                     for (auto& ball_candidate_contours : shapes) {
                         find_ball_center(img, ball_candidate_contours, param, res);
+                        param.color_seed++;
+
                         if (res.weight < 2.f) {
                             continue;
                         }
 
                         auto center = res.img_center + ROI_ball.tl();
-                        circle(rgb_source, center, res.pixel_radius, {0, 255, 0});
+                        circle(rgb_all_debug, center, res.pixel_radius, {0, 255, 0});
                     }
                 }
                 ++ball_index;
@@ -1301,8 +1300,8 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     // 결과물 출력
     tick_tot.stop();
     float elapsed = tick_tot.getTimeMilli();
-    putText(rgb_source, (stringstream() << "Elapsed: " << elapsed << " ms").str(), {0, rgb_source.rows - 5}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
-    show("source", rgb_source);
+    putText(rgb_all_debug, (stringstream() << "Elapsed: " << elapsed << " ms").str(), {0, rgb_all_debug.rows - 5}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
+    show("source", rgb_all_debug);
     return desc;
 }
 
