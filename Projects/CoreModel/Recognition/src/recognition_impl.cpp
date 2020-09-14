@@ -19,7 +19,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         vector<vector<Point>> candidates;
         vector<Vec4i> hierarchy;
         findContours(filtered, candidates, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_NONE);
-        drawContours(rgb, candidates, -1, {0, 0, 255}, 1);
+        // drawContours(rgb, candidates, -1, {0, 0, 255}, 1);
 
         // 사각형 컨투어 찾기
         for (int idx = 0; idx < candidates.size(); ++idx) {
@@ -33,7 +33,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
             convexHull(vector(contour), contour, true);
             approxPolyDP(vector(contour), contour, m.table.polydp_approx_epsilon, true);
-            drawContours(rgb, candidates, -1, {255, 128, 0}, 3);
+            // drawContours(rgb, candidates, -1, {255, 128, 0}, 3);
             putText(rgb, (stringstream() << "[" << contour.size() << ", " << area_size << "]").str(), contour[0], FONT_HERSHEY_PLAIN, 1.0, {0, 255, 0});
 
             bool const table_found = contour.size() == 4;
@@ -822,7 +822,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
     unordered_map<uint64_t, float> color_weight_table__;
     Mat color_weight_kernel__;
     {
-        int kernel_size = (2 * int(search_radius / search.candidate_radius_amp)) | 1; // 홀수로 만듭니다.
+        int kernel_size = int(1.5f * search_radius / search.candidate_radius_amp) | 1; // 홀수로 만듭니다.
         int radius = (kernel_size - 1) / 2;
         color_weight_kernel__ = Mat(kernel_size, kernel_size, CV_32FC3, {0, 0, 0});
         //  circle(color_weight_kernel__, {radius, radius}, radius, p.hsv_avg_filter_value, -1);
@@ -837,7 +837,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
                          &p](Point at) {
         // 포인트를 잘라내 해상도를 낮춥니다.
         // 낮아진 해상도는 반올림해 매핑됩니다.
-        if (int opt = search.memoization_distance; opt > 1) {
+        if (int opt = p.memoization_steps; opt > 1) {
             int adder = opt / 2;
             at.x = at.x + adder - at.x % opt;
             at.y = at.y + adder - at.y % opt;
@@ -858,15 +858,15 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
                 return 0.0f;
             }
 
-            Mat board = p.hsv(window_rect).clone();
-            board.convertTo(board, CV_32FC3, 1.0 / 255);
+            Mat board;
+            p.hsv(window_rect).convertTo(board, CV_32FC3, 1.0 / 255);
             Mat kernel_partial = kernel({Point(), window_rect.size()});
 
             board -= kernel_partial;
             board = board.mul(board);
 
             // Lightness의 차이는 적게, Hue의 차이를 높게 가중치를 두어 distance를 머지합니다.
-            transform(board, board, Matx13f{1, 1, 0.2});
+            transform(board, board, Matx13f{2, 1, 0});
 
             if (!board.isContinuous()) { board = board.clone(); }
 
@@ -875,8 +875,9 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
                 int size = board.rows * board.cols;
                 float base = search.kernel_weight_base;
                 float* values = &board.at<float>(0);
-                // #pragma omp parallel for reduction(+ \
-                                   : summary) private(values, base)
+                // clang-format off
+#pragma omp parallel for reduction(+: summary) private(values, base)
+                // clang-format on
                 for (int i = 0; i < size; ++i) {
                     weight_sum += powf(base, -sqrtf(values[i]) * search.color_dist_amplitude);
                 }
@@ -957,7 +958,12 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
                 Vec2f ptf(pt.x, pt.y);
                 weight += ::pow(base, -abs(cand.radius - norm(ptf - cand.uv, NORM_L2)));
             }
+
+            //*
             cand.weight = weight + color_weight((Point2f)cand.uv);
+            /*/
+            cand.weight = weight;
+            //*/
 
             candidates.emplace_back(cand);
         }
@@ -1067,7 +1073,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     Mat rgb_all_debug = img.rgb.clone();
     resize(img.depth, (Mat&)img.depth, {rgb_all_debug.cols, rgb_all_debug.rows});
 
-    UMat table_blue_mask, table_blue_edges;
+    UMat table_blue_mask_gpu, table_blue_edges;
     {
         UMat ucolor;
         UMat b;
@@ -1086,29 +1092,29 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             auto filt_min = m.table.hsv_filter_min, filt_max = m.table.hsv_filter_max;
             filt_min[0] = 0, filt_max[0] = 255;
 
-            inRange(ucolor, filt_min, filt_max, table_blue_mask);
+            inRange(ucolor, filt_min, filt_max, table_blue_mask_gpu);
             inRange(ucolor, Scalar(m.table.hsv_filter_min[0], 0, 0), Scalar(255, 255, 255), hi);
             inRange(ucolor, Scalar(0, 0, 0), Scalar(m.table.hsv_filter_max[0], 255, 255), lo);
 
             bitwise_or(hi, lo, table_blue_edges);
-            bitwise_and(table_blue_mask, table_blue_edges, table_blue_mask);
+            bitwise_and(table_blue_mask_gpu, table_blue_edges, table_blue_mask_gpu);
 
             // show("mask", mask);
         }
         else {
-            inRange(ucolor, m.table.hsv_filter_min, m.table.hsv_filter_max, table_blue_mask);
+            inRange(ucolor, m.table.hsv_filter_min, m.table.hsv_filter_max, table_blue_mask_gpu);
         }
     }
 
     {
         UMat umat_temp;
-        table_blue_mask.copyTo(umat_temp);
+        table_blue_mask_gpu.copyTo(umat_temp);
 
         GaussianBlur(umat_temp, umat_temp, {3, 3}, 5);
-        threshold(umat_temp, table_blue_mask, 128, 255, THRESH_BINARY);
+        threshold(umat_temp, table_blue_mask_gpu, 128, 255, THRESH_BINARY);
 
-        erode(table_blue_mask, umat_temp, {}, {-1, -1}, 1);
-        bitwise_xor(table_blue_mask, umat_temp, table_blue_edges);
+        erode(table_blue_mask_gpu, umat_temp, {}, {-1, -1}, 1);
+        bitwise_xor(table_blue_mask_gpu, umat_temp, table_blue_edges);
     }
     show("filtered", table_blue_edges);
 
@@ -1172,9 +1178,9 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     if (roi_valid) {
         Mat3b roi_rgb;
         cvtColor(img.rgb(ROI), roi_rgb, COLOR_RGBA2RGB);
-        UMat roi_edge;
-        table_blue_mask(ROI).copyTo(roi_edge);
-        Mat roi_mask(ROI.size(), roi_edge.type());
+        UMat roi_edge_gpu;
+        table_blue_mask_gpu(ROI).copyTo(roi_edge_gpu);
+        Mat roi_mask(ROI.size(), roi_edge_gpu.type());
         roi_mask.setTo(0);
 
         // 현재 당구대 추정 위치 영역으로 마스크를 설정합니다.
@@ -1196,25 +1202,25 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             // roi_edge = roi_edge.mul(roi_mask);
 
             // 에지 검출 이전에, 팽창-침식 연산을 통해 에지를 단순화하고, 파편을 줄입니다.
-            GaussianBlur(roi_edge, roi_edge, {3, 3}, 15);
-            threshold(roi_edge, roi_edge, 128, 255, THRESH_BINARY);
+            GaussianBlur(roi_edge_gpu, roi_edge_gpu, {3, 3}, 15);
+            threshold(roi_edge_gpu, roi_edge_gpu, 128, 255, THRESH_BINARY);
 
             // 내부에 닫힌 도형을 만들수 있게끔, 경계선을 깎아냅니다.
-            roi_edge.row(0).setTo(0);
-            roi_edge.row(roi_edge.rows - 1).setTo(0);
-            roi_edge.col(0).setTo(0);
-            roi_edge.col(roi_edge.cols - 1).setTo(0);
+            roi_edge_gpu.row(0).setTo(0);
+            roi_edge_gpu.row(roi_edge_gpu.rows - 1).setTo(0);
+            roi_edge_gpu.col(0).setTo(0);
+            roi_edge_gpu.col(roi_edge_gpu.cols - 1).setTo(0);
 
-            erode(roi_edge, sub, {});
-            bitwise_xor(roi_edge, sub, roi_edge);
-            show("edge_new", roi_edge);
+            erode(roi_edge_gpu, sub, {});
+            bitwise_xor(roi_edge_gpu, sub, roi_edge_gpu);
+            show("edge_new", roi_edge_gpu);
         }
 
         vector<Point> table_contour_partial;
         {
             vector<vector<Point>> candidates;
             vector<Vec4i> hierarchy;
-            findContours(roi_edge, candidates, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
+            findContours(roi_edge_gpu, candidates, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
 
             int max_size_index = -1;
             for (int idx = 0, max_area = -1; idx < hierarchy.size(); ++idx) {
@@ -1262,8 +1268,9 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
             // 테이블 마스크를 빼줍니다. 테이블 외의 부분만 추출해내기 위함입니다.
             Mat roi_area_mask = roi_mask.clone();
+            Mat roi_area_mask_invert = 255 - roi_area_mask;
             Mat roi_table_excluded_rgb;
-            subtract(roi_mask, table_blue_mask(ROI_fit), roi_mask);
+            subtract(roi_mask, table_blue_mask_gpu(ROI_fit), roi_mask);
 
             {
                 Mat temp;
@@ -1276,7 +1283,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             // 마스크로부터 에지를 구합니다.
             Mat edge;
             table_blue_edges(ROI_fit).copyTo(edge);
-            edge.setTo(0, 255 - roi_area_mask);
+            edge.setTo(0, roi_area_mask_invert);
 
             // 컨투어 리스트 획득, 각각에 대해 반복합니다.
             vector<vector<Point>> non_table_contours;
@@ -1297,14 +1304,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             plane_to_camera(img, table_plane, table_plane_camera);
 
             int ball_index = 0;
-            Mat table_blue_mask_cpu = table_blue_mask.getMat(ACCESS_FAST).clone();
+            Mat table_blue_mask = table_blue_mask_gpu.getMat(ACCESS_FAST).clone();
 
             ball_find_parameter_t param;
             param.table_plane = &table_plane_camera;
             param.rgb_debug = rgb_all_debug;
             param.color_seed = 0;
             param.hsv = hsv_all;
-            param.blue_mask = table_blue_mask_cpu;
+            param.blue_mask = table_blue_mask;
 
             for (auto& ball_chunk_contours : non_table_contours) {
                 auto mm = moments(ball_chunk_contours);
@@ -1328,13 +1335,23 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                     continue;
                 }
 
-                Point2f center;
-                float radius;
-                minEnclosingCircle(ball_chunk_contours, center, radius);
-                circle(rgb_all_debug, {cent_x, cent_y}, get_pixel_length(img, m.ball.radius, dist_between_cam), {0, 255, 0}, 2, LINE_8);
+                Point2f contour_center;
+                float contour_radius;
+                float pixel_radius = get_pixel_length(img, m.ball.radius, dist_between_cam);
+                // minEnclosingCircle(ball_chunk_contours, contour_center, contour_radius);
+                // circle(rgb_all_debug, {cent_x, cent_y}, pixel_radius, {0, 255, 0}, 2, LINE_8);
 
                 // 당구공 영역의 ROI 추출합니다.
                 auto ROI_ball = boundingRect(ball_chunk_contours) + ROI_fit.tl();
+                Mat ball_individual;
+                if (false) {
+                    auto ball_area_mask = table_blue_mask(ROI_ball);
+                    ball_area_mask = 255 - ball_area_mask;
+
+                    erode(ball_area_mask, ball_individual, {}, {}, pixel_radius * 0.6f);
+
+                    show("ball_individual "s + to_string(ball_index), ball_individual);
+                }
 
                 // 모든 ball 색상에 대해 필터링 수행
                 Mat color = hsv_all(ROI_ball), filtered, edge;
@@ -1342,21 +1359,33 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
                 // 각각의 색상에 대한 에지를 구하고, 합성합니다.
                 Vec3f* filters[3] = {m.ball.color.red, m.ball.color.orange, m.ball.color.white};
-                for (int index = 0; false && index < 3; ++index) {
+                for (int index = 0; index < 3; ++index) {
                     auto filter = filters[index];
 
                     // 색상으로 필터링
                     filter_hsv(color, filtered, filter[0], filter[1]);
+                    filtered.setTo(0, roi_area_mask_invert(ROI_ball - ROI_fit.tl()));
 
                     // 가우시안 필터링을 통해 노이즈를 제거하고, 침식을 통해 에지 검출
-                    GaussianBlur(filtered, filtered, {3, 3}, 100.0);
+                    GaussianBlur(filtered, filtered, {5, 5}, 150.0);
                     threshold(filtered, filtered, 128, 255, THRESH_BINARY);
                     erode(filtered, edge, {}, {-1, -1}, 1);
+                    filtered.row(0).setTo(0);
+                    filtered.row(filtered.rows - 1).setTo(0);
+                    filtered.col(0).setTo(0);
+                    filtered.col(filtered.cols - 1).setTo(0);
                     bitwise_xor(filtered, edge, edge);
 
                     // 이렇게 계산된 에지로부터 컨투어를 추출합니다.
                     vector<vector<Point>> shapes;
                     findContours(edge, shapes, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+                    if (m.ball.search.render_debug) {
+                        drawContours(rgb_all_debug(ROI_ball), shapes, -1, {0, 0, 0}, -1);
+                        drawContours(rgb_all_debug(ROI_ball), shapes, -1, {64, 128, 63}, 1);
+                        if (index == 0)
+                            show((stringstream() << "ball " << ball_index << " filter " << index).str(), edge);
+                    }
 
                     ball_find_result_t res;
                     param.ROI = ROI_ball;
@@ -1366,15 +1395,27 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                     // TODO: 각 색상별 공 개수 및 컨투어 영역 크기를 활용해 invalid한 candidate 걸러내기
                     // TODO: 빨간색의 경우, 검출 후 검출 영역을 잘라낸 영역 재검토, 공 두 개 겹친 경우 걸러내기 위함. (영역 안에 없는 컨투어만 모아서 배열 만들기)
                     for (auto& ball_candidate_contours : shapes) {
-                        find_ball_center(img, ball_candidate_contours, param, res);
-                        param.color_seed++;
+                        // TODO: Area size가 공 하나의 크기보다 크면, 같은 색상의 공이 두 개 이상 겹쳐 있을 가능성 고려
+                        if (contourArea(ball_candidate_contours) < pixel_radius * pixel_radius) {
+                            continue;
+                        }
 
+                        // 거리에 따라 해상도를 동적으로 조절합니다.
+                        param.memoization_steps = pixel_radius * m.ball.search.memoization_distance_rate;
+
+                        // 각 색상 별 탐색 결과를 모두 수집한 뒤, 웨이트가 가장 높고 이전 결과와 연관성이 높은 후보를 공으로 선정합니다.
+                        find_ball_center(img, ball_candidate_contours, param, res);
+    
                         if (res.weight < 2.f) {
                             continue;
                         }
 
                         auto center = res.img_center + ROI_ball.tl();
-                        circle(rgb_all_debug, center, res.pixel_radius, {0, 255, 0});
+                        Mat3b ball_color_rgb(1, 1);
+                        ball_color_rgb.setTo((Scalar)param.hsv_avg_filter_value);
+                        cvtColor(ball_color_rgb, ball_color_rgb, COLOR_HSV2RGB);
+                        circle(rgb_all_debug, center, res.pixel_radius, ball_color_rgb(0), 1);
+                        putText(rgb_all_debug, to_string(res.weight), center, FONT_HERSHEY_PLAIN, 1, {255, 2555, 255});
                     }
                 }
                 ++ball_index;

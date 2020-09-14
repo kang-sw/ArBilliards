@@ -39,30 +39,30 @@ public: /* exposed properties */
         // 공의 Contour 목록을 파악한 후, 각각의 contour 다각형 면적이 최소 얼마 이상이 되어야 공으로 인식되는지 결정하는 값입니다.
         // 컨투어의 area_size(moment.m00)를 distance의 제곱으로 나눈 값을 아래 값과 비교합니다.
         float pixel_count_per_meter_min = 500;
-        float pixel_count_per_meter_max = 1500;
+        float pixel_count_per_meter_max = 3500;
 
         double edge_canny_thresholds[2] = {100, 50};
 
         // 에지 필터링에 사용할 각 색상 값
         struct
         {
-            cv::Vec3f red[2] = {{115, 84, 81}, {152, 255, 255}};
-            cv::Vec3f orange[2] = {{75, 118, 77}, {106, 255, 255}};
-            cv::Vec3f white[2] = {{0, 0, 135}, {77, 90, 255}};
+            cv::Vec3f red[2] = {{115, 84, 0}, {152, 255, 255}};
+            cv::Vec3f orange[2] = {{75, 118, 0}, {106, 255, 255}};
+            cv::Vec3f white[2] = {{0, 0, 0}, {81, 108, 255}};
         } color;
 
         struct
         {
-            int iterations = 5;                  // 전체 프로세스 반복 회수
-            int num_candidates = 16;             // 한 번의 이터레이션에서 선택할 중점 후보의 개수
-            float candidate_radius_amp = 2.0f;   // 중점 후보 선택시 반지름 증폭율
-            int num_max_contours = 32;           // 한 번에 비교할 최대 컨투어 개수
-            float weight_function_base = 1.03f;  // 가중치를 계산하는데 사용하는 지수함수의 밑
-            float kernel_weight_base = 1.03f;    // 커널에서 가중치를 계산하는데 사용하는 지수함수의 밑
-            bool render_debug = true;            // 디버그 라인 그리기
-            int memoization_distance = 8;        // 메모이제이션 최적화 거리. 높을수록 낮은 해상도.
-            float color_weight = 0.33f;           // 위치 대 색상 중 위치의 가중치
-            float color_dist_amplitude = 64.0f; // 가중치 계산 시, 정규화 구간의 색상을 증폭
+            int iterations = 7;                     // 전체 프로세스 반복 회수
+            int num_candidates = 16;                // 한 번의 이터레이션에서 선택할 중점 후보의 개수
+            float candidate_radius_amp = 2.0f;      // 중점 후보 선택시 반지름 증폭율
+            int num_max_contours = 96;              // 한 번에 비교할 최대 컨투어 개수
+            float weight_function_base = 1.03f;     // 가중치를 계산하는데 사용하는 지수함수의 밑
+            float kernel_weight_base = 1.03f;       // 커널에서 가중치를 계산하는데 사용하는 지수함수의 밑
+            bool render_debug = true;               // 디버그 라인 그리기
+            float memoization_distance_rate = 0.5f; // 메모이제이션 최적화 거리. 반지름에 대한 비
+            float color_weight = 0.33f;             // 위치 대 색상 중 위치의 가중치
+            float color_dist_amplitude = 64.0f;     // 가중치 계산 시, 정규화 구간의 색상을 증폭
         } search;
 
     } ball;

@@ -66,12 +66,12 @@ public:
 
     void show(string wnd_name, cv::UMat img)
     {
-        show(move(wnd_name), img.getMat(cv::ACCESS_FAST).clone());
+        show(move(wnd_name), img.getMat(cv::ACCESS_FAST));
     }
 
     void show(string wnd_name, cv::Mat img)
     {
-        img_show_queue[move(wnd_name)] = move(img);
+        img_show_queue[move(wnd_name)] = img.clone();
     }
 
     /**
@@ -129,6 +129,7 @@ public:
         cv::Mat rgb_debug;
         int64_t color_seed;
         cv::Vec3f hsv_avg_filter_value; // 커널 계산에 사용할 색상 필터의 중간값
+        int memoization_steps;
     };
 
     /**

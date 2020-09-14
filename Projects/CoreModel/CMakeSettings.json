@@ -64,7 +64,7 @@
       ]
     },
     {
-      "name": "x64-Release",
+      "name": "x64-Release-2",
       "generator": "Ninja",
       "configurationType": "Release",
       "buildRoot": "${projectDir}\\out\\build\\${name}",
