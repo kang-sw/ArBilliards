@@ -117,6 +117,7 @@ public:
     {
         cv::Point img_center;
         float geometric_weight;
+        float color_weight;
         float pixel_radius;
     };
 
@@ -126,8 +127,7 @@ public:
         cv::Mat hsv;                       // 전체 영역 이미지
         cv::Mat blue_mask;                 // 파란색 테이블 마스크
         cv::Rect ROI = {};
-        cv::Mat rgb_debug;
-        int64_t color_seed;
+        cv::Mat rgb_debug; 
         cv::Vec3f hsv_avg_filter_value; // 커널 계산에 사용할 색상 필터의 중간값
         int memoization_steps;
     };

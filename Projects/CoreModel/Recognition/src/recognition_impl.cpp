@@ -835,7 +835,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
     auto color_weight = [&kernel = color_weight_kernel__,
                          &table = color_weight_table__,
                          &search,
-                         &p](Point at) {
+                         &p](Point at, float dist) {
         // 포인트를 잘라내 해상도를 낮춥니다.
         // 낮아진 해상도는 반올림해 매핑됩니다.
         if (int opt = p.memoization_steps; opt > 1) {
@@ -890,17 +890,8 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
             found_it = table.try_emplace(hash, weight_sum - penalty).first;
         }
 
-        return found_it->second;
+        return found_it->second * dist * dist;
     };
-
-    if (false && search.render_debug) {
-        auto render_contour = contours;
-        for (auto& pt : render_contour) { pt += p.ROI.tl(); }
-        theRNG().state = p.color_seed;
-        Vec3b color;
-        randu(color, 0, 255);
-        drawContours(p.rgb_debug, vector{{render_contour}}, -1, color, -1);
-    }
 
     vector<candidate_t> candidates;
     candidate_t search_cand = {};
@@ -961,7 +952,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
             }
 
             cand.geometric_weight = weight;
-            cand.color_weight = color_weight((Point2f)cand.uv);
+            cand.color_weight = color_weight((Point2f)cand.uv, contact[2]);
 
             candidates.emplace_back(cand);
         }
@@ -990,8 +981,8 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
             // 결과가 개선됐을 때만 해당 지점으로 이동합니다.
             search_center = closest.uv;
             r.pixel_radius = closest.radius;
-            max_weight = closest.geometric_weight;
-
+            r.geometric_weight = closest.geometric_weight;
+            r.color_weight = closest.color_weight;
             search_cand = closest;
         }
 
@@ -999,7 +990,6 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
         // search_radius *= 0.5;
     }
 
-    r.geometric_weight = max_weight;
     r.img_center = search_center;
 }
 
@@ -1307,7 +1297,6 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             ball_find_parameter_t param;
             param.table_plane = &table_plane_camera;
             param.rgb_debug = rgb_all_debug;
-            param.color_seed = 0;
             param.hsv = hsv_all;
             param.blue_mask = table_blue_mask;
 
@@ -1413,7 +1402,8 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                         ball_color_rgb.setTo((Scalar)param.hsv_avg_filter_value);
                         cvtColor(ball_color_rgb, ball_color_rgb, COLOR_HSV2RGB);
                         circle(rgb_all_debug, center, res.pixel_radius, ball_color_rgb(0), 1);
-                        putText(rgb_all_debug, to_string(res.geometric_weight), center, FONT_HERSHEY_PLAIN, 1, {255, 2555, 255});
+                        putText(rgb_all_debug, to_string(res.geometric_weight), center + Point(0, -7), FONT_HERSHEY_PLAIN, 1, {0, 255, 0});
+                        putText(rgb_all_debug, to_string(res.color_weight), center + Point(0, 7), FONT_HERSHEY_PLAIN, 1, {0, 255, 255});
                     }
                 }
                 ++ball_index;
