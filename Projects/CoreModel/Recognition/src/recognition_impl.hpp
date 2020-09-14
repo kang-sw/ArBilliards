@@ -116,7 +116,7 @@ public:
     struct ball_find_result_t
     {
         cv::Point img_center;
-        float weight;
+        float geometric_weight;
         float pixel_radius;
     };
 

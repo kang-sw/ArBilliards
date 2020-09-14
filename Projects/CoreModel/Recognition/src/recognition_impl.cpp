@@ -788,7 +788,8 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
     {
         Vec2f uv = {};
         float radius = 0;
-        float weight = 0;
+        float geometric_weight = 0;
+        float color_weight = 0;
     };
 
     auto const& search = m.ball.search;
@@ -889,7 +890,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
             found_it = table.try_emplace(hash, weight_sum - penalty).first;
         }
 
-        return found_it->second * search.color_weight;
+        return found_it->second;
     };
 
     if (false && search.render_debug) {
@@ -959,11 +960,8 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
                 weight += ::pow(base, -abs(cand.radius - norm(ptf - cand.uv, NORM_L2)));
             }
 
-            //*
-            cand.weight = weight + color_weight((Point2f)cand.uv);
-            /*/
-            cand.weight = weight;
-            //*/
+            cand.geometric_weight = weight;
+            cand.color_weight = color_weight((Point2f)cand.uv);
 
             candidates.emplace_back(cand);
         }
@@ -973,7 +971,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
             break;
         }
 
-        auto& closest = *max_element(candidates.begin(), candidates.end(), [](candidate_t const& a, candidate_t const& b) { return a.weight < b.weight; });
+        auto& closest = *max_element(candidates.begin(), candidates.end(), [&search](candidate_t const& a, candidate_t const& b) { return (a.geometric_weight - b.geometric_weight) + (a.color_weight - b.color_weight) * search.color_weight < 0; });
 
         // Debug line 그리기
         Point2f ofst = p.ROI.tl();
@@ -983,7 +981,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
             }
         }
 
-        if (closest.weight > search_cand.weight) {
+        if (closest.geometric_weight > search_cand.geometric_weight) {
             if (search.render_debug) {
                 line(p.rgb_debug, ofst + search_center, ofst + Point2f(closest.uv), {255, 255, 255}, 2);
                 circle(p.rgb_debug, ofst + Point2f(closest.uv), closest.radius, Scalar{0, 0, 128}, 1);
@@ -992,7 +990,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
             // 결과가 개선됐을 때만 해당 지점으로 이동합니다.
             search_center = closest.uv;
             r.pixel_radius = closest.radius;
-            max_weight = closest.weight;
+            max_weight = closest.geometric_weight;
 
             search_cand = closest;
         }
@@ -1001,7 +999,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
         // search_radius *= 0.5;
     }
 
-    r.weight = max_weight;
+    r.geometric_weight = max_weight;
     r.img_center = search_center;
 }
 
@@ -1405,8 +1403,8 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
                         // 각 색상 별 탐색 결과를 모두 수집한 뒤, 웨이트가 가장 높고 이전 결과와 연관성이 높은 후보를 공으로 선정합니다.
                         find_ball_center(img, ball_candidate_contours, param, res);
-    
-                        if (res.weight < 2.f) {
+
+                        if (res.geometric_weight < 2.f) {
                             continue;
                         }
 
@@ -1415,7 +1413,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                         ball_color_rgb.setTo((Scalar)param.hsv_avg_filter_value);
                         cvtColor(ball_color_rgb, ball_color_rgb, COLOR_HSV2RGB);
                         circle(rgb_all_debug, center, res.pixel_radius, ball_color_rgb(0), 1);
-                        putText(rgb_all_debug, to_string(res.weight), center, FONT_HERSHEY_PLAIN, 1, {255, 2555, 255});
+                        putText(rgb_all_debug, to_string(res.geometric_weight), center, FONT_HERSHEY_PLAIN, 1, {255, 2555, 255});
                     }
                 }
                 ++ball_index;
