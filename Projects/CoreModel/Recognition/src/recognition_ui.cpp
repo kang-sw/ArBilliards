@@ -202,7 +202,7 @@ void recognition_draw_ui(cv::Mat& frame)
             add_trackbar("Candidates", &s.num_candidates, 1, 8, 180, wnd_w, "%.0Lf");
             add_trackbar("Contours", &s.num_max_contours, 1, 16, 256, wnd_w, "%.0Lf");
             add_trackbar("Base", &s.weight_function_base, 1, 1.0f, 1.5f, wnd_w, "%.3Lf");
-            // add_trackbar("Contours", &s., 1, 16, 256, wnd_w, "%.0Lf");
+            add_trackbar("Optimize Color", &s.memoization_distance_rate, 1, 0.1f, 10.0f, wnd_w, "%.3Lf");
         }
 
         COLUMN_TITLE(true, "Focusing Image")

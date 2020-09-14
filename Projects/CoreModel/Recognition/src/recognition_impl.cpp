@@ -790,6 +790,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
         float radius = 0;
         float geometric_weight = 0;
         float color_weight = 0;
+        float z = 0;
     };
 
     auto const& search = m.ball.search;
@@ -953,6 +954,7 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
 
             cand.geometric_weight = weight;
             cand.color_weight = color_weight((Point2f)cand.uv, contact[2]);
+            cand.z = contact[2];
 
             candidates.emplace_back(cand);
         }
@@ -979,18 +981,18 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
             }
 
             // 결과가 개선됐을 때만 해당 지점으로 이동합니다.
-            search_center = closest.uv;
+            r.img_center = search_center = closest.uv;
             r.pixel_radius = closest.radius;
             r.geometric_weight = closest.geometric_weight;
             r.color_weight = closest.color_weight;
+
+            (Vec2f&)r.ball_position = closest.uv;
+            r.ball_position.z = closest.z;
+            get_point_coord_3d(img, r.ball_position.x, r.ball_position.y, r.ball_position.z);
+
             search_cand = closest;
         }
-
-        // 탐색 반경을 조금 줄입니다.
-        // search_radius *= 0.5;
     }
-
-    r.img_center = search_center;
 }
 
 void recognizer_impl_t::async_worker_thread()
@@ -1300,6 +1302,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             param.hsv = hsv_all;
             param.blue_mask = table_blue_mask;
 
+            vector<ball_find_result_t> ball_results[3];
             for (auto& ball_chunk_contours : non_table_contours) {
                 auto mm = moments(ball_chunk_contours);
                 auto size = mm.m00;
@@ -1330,15 +1333,10 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
                 // 당구공 영역의 ROI 추출합니다.
                 auto ROI_ball = boundingRect(ball_chunk_contours) + ROI_fit.tl();
-                Mat ball_individual;
-                if (false) {
-                    auto ball_area_mask = table_blue_mask(ROI_ball);
-                    ball_area_mask = 255 - ball_area_mask;
 
-                    erode(ball_area_mask, ball_individual, {}, {}, pixel_radius * 0.6f);
-
-                    show("ball_individual "s + to_string(ball_index), ball_individual);
-                }
+                // 거리에 따라 해상도를 동적으로 조절합니다.
+                param.ROI = ROI_ball;
+                param.memoization_steps = pixel_radius * m.ball.search.memoization_distance_rate;
 
                 // 모든 ball 색상에 대해 필터링 수행
                 Mat color = hsv_all(ROI_ball), filtered, edge;
@@ -1374,10 +1372,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                             show((stringstream() << "ball " << ball_index << " filter " << index).str(), edge);
                     }
 
-                    ball_find_result_t res;
-                    param.ROI = ROI_ball;
                     param.hsv_avg_filter_value = (filter[0] + filter[1]) * 0.5f;
-
                     // 각 컨투어 후보를 반복하여 공의 중심을 찾습니다.
                     // TODO: 각 색상별 공 개수 및 컨투어 영역 크기를 활용해 invalid한 candidate 걸러내기
                     // TODO: 빨간색의 경우, 검출 후 검출 영역을 잘라낸 영역 재검토, 공 두 개 겹친 경우 걸러내기 위함. (영역 안에 없는 컨투어만 모아서 배열 만들기)
@@ -1387,10 +1382,8 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                             continue;
                         }
 
-                        // 거리에 따라 해상도를 동적으로 조절합니다.
-                        param.memoization_steps = pixel_radius * m.ball.search.memoization_distance_rate;
-
                         // 각 색상 별 탐색 결과를 모두 수집한 뒤, 웨이트가 가장 높고 이전 결과와 연관성이 높은 후보를 공으로 선정합니다.
+                        auto& res = ball_results[index].emplace_back();
                         find_ball_center(img, ball_candidate_contours, param, res);
 
                         if (res.geometric_weight < 2.f) {
@@ -1406,6 +1399,39 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                         putText(rgb_all_debug, to_string(res.color_weight), center + Point(0, 7), FONT_HERSHEY_PLAIN, 1, {0, 255, 255});
                     }
                 }
+
+                {
+                    auto predicate = [&m = this->m](ball_find_result_t const& a, ball_find_result_t const& b) { return a.geometric_weight - b.geometric_weight + (a.color_weight - b.color_weight) * m.ball.search.color_weight > 0; };
+
+                    for (auto& results : ball_results) {
+                        // 엘리먼트를 내림차순 정렬합니다.
+                        sort(results.begin(), results.end(), predicate);
+                    }
+
+                    auto pivot = m.ball.search.confidence_pivot_weight;
+                    recognition_desc::ball_recognition_result* order[] = {&desc.ball.red1, &desc.ball.red2, &desc.ball.orange, &desc.ball.white};
+                    int table_indexes[] = {0, 0, 1, 2};
+                    int elem_indexes[] = {0, 1, 0, 0};
+
+                    for (int index = 0; index < 4; ++index) {
+                        auto& table = ball_results[table_indexes[index]];
+                        auto& dest = *order[index];
+                        int elem_idx = elem_indexes[index];
+
+                        if (table.size() > elem_idx + 1) {
+                            auto& elem = table[elem_idx];
+                            dest.confidence = (elem.color_weight + elem.geometric_weight) / pivot;
+                            Vec3f position = elem.ball_position;
+                            Vec3f placeholder_ = {};
+                            camera_to_world(img, placeholder_, position);
+                            memcpy(dest.position, position.val, sizeof dest.position);
+                        }
+                        else {
+                            dest.confidence = 0.f;
+                        }
+                    }
+                }
+
                 ++ball_index;
             }
             show("fit_mask", roi_rgb);

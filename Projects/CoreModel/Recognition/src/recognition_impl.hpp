@@ -116,6 +116,7 @@ public:
     struct ball_find_result_t
     {
         cv::Point img_center;
+        cv::Point3f ball_position;
         float geometric_weight;
         float color_weight;
         float pixel_radius;
@@ -127,7 +128,7 @@ public:
         cv::Mat hsv;                       // 전체 영역 이미지
         cv::Mat blue_mask;                 // 파란색 테이블 마스크
         cv::Rect ROI = {};
-        cv::Mat rgb_debug; 
+        cv::Mat rgb_debug;
         cv::Vec3f hsv_avg_filter_value; // 커널 계산에 사용할 색상 필터의 중간값
         int memoization_steps;
     };
@@ -260,4 +261,10 @@ struct plane_t
     optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
 };
 
+enum BALL_INDEX
+{
+    BALL_RED,
+    BALL_ORANGE,
+    BALL_WHITE
+};
 } // namespace billiards

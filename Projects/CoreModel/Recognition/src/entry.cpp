@@ -109,12 +109,29 @@ private:
             auto improc_callback = [sock = odesc->connection](billiards::recognizer_t::parameter_type const& image, billiards::recognition_desc const& result) {
                 if (auto conn = sock.lock()) {
                     json to_send;
-                    auto& table = to_send["Table"];
 
-                    table["Translation"] = *(array<float, 3>*)&result.table.position;
-                    table["Orientation"] = *(array<float, 4>*)&result.table.orientation;
-                    table["Confidence"] = result.table.confidence;
+                    // 보낼 JSON 정리
+                    {
+                        auto& table = to_send["Table"];
 
+                        table["Translation"] = *(array<float, 3>*)&result.table.position;
+                        table["Orientation"] = *(array<float, 4>*)&result.table.orientation;
+                        table["Confidence"] = result.table.confidence;
+                    }
+                    {
+                        const char* names[] = {"Red1", "Red2", "Orange", "White"};
+                        auto& s = result.ball;
+                        auto balls_il = {&s.red1, &s.red2, &s.orange, &s.white};
+                        auto balls = balls_il.begin();
+
+                        for (int i = 0; i < 4; ++i) {
+                            auto& ball_json = to_send[names[i]];
+                            auto& ball = *balls[i];
+
+                            ball_json["Confidence"] = ball.confidence;
+                            ball_json["Position"] = (array<float, 3>&)*ball.position;
+                        }
+                    }
                     auto p_str = make_shared<string>();
                     *p_str = to_send.dump();
                     p_str->push_back('\n');

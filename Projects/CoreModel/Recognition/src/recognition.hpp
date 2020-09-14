@@ -63,6 +63,7 @@ public: /* exposed properties */
             float memoization_distance_rate = 0.5f; // 메모이제이션 최적화 거리. 반지름에 대한 비
             float color_weight = 0.33f;             // 위치 대 색상 중 위치의 가중치
             float color_dist_amplitude = 64.0f;     // 가중치 계산 시, 정규화 구간의 색상을 증폭
+            float confidence_pivot_weight = 350.f;  // 컨피던스 1.0 기준 웨이트 합
         } search;
 
     } ball;
