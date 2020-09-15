@@ -125,7 +125,7 @@ public:
     struct ball_find_parameter_t
     {
         struct plane_t const* table_plane; // 광선을 투사할 테이블 평면입니다. 반드시 카메라 좌표계
-        cv::Mat hsv;                       // 전체 영역 이미지
+        cv::Mat precomputed_color_weights; // 미리 계산된 컬러 가중치 매트릭스.
         cv::Mat blue_mask;                 // 파란색 테이블 마스크
         cv::Rect ROI = {};
         cv::Mat rgb_debug;

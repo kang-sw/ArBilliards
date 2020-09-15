@@ -4,9 +4,9 @@ import numpy as np
 from math import *
 
 x = np.arange(0.0, 1000.0, 1)
-y1 = np.power(1.0001, -np.square(x))
-y2 = np.power(1.0002, -np.square(x))
-y3 = np.power(1.0003, -np.square(x))
+y1 = np.power(np.square(x), 1)
+y2 = np.power(np.square(x), 1)
+y3 = np.power(np.square(x), 1)
 
 plt.plot(x, y1)
 plt.plot(x, y2)

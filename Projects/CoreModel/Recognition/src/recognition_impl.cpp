@@ -39,7 +39,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             bool const table_found = contour.size() == 4;
 
             if (table_found) {
-                drawContours(rgb, candidates, idx, {255, 255, 255}, 7);
+                drawContours(filtered, candidates, idx, {255}, 1);
 
                 // marshal
                 for (auto& pt : contour) {
@@ -856,34 +856,11 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
             window_rect.height = kernel.rows;
             window_rect += p.ROI.tl(); // 원본 이미지에 윈도우 생성
 
-            if (!get_safe_ROI_rect(p.hsv, window_rect)) {
+            if (!get_safe_ROI_rect(p.precomputed_color_weights, window_rect)) {
                 return 0.0f;
             }
 
-            Mat board;
-            p.hsv(window_rect).convertTo(board, CV_32FC3, 1.0 / 255);
-            Mat kernel_partial = kernel({Point(), window_rect.size()});
-
-            board -= kernel_partial;
-            board = board.mul(board);
-
-            // Lightness의 차이는 적게, Hue의 차이를 높게 가중치를 두어 distance를 머지합니다.
-            transform(board, board, Matx13f{2, 1, 0});
-
-            if (!board.isContinuous()) { board = board.clone(); }
-
-            float weight_sum = 0.f;
-            {
-                int size = board.rows * board.cols;
-                float base = search.kernel_weight_base;
-                float* values = &board.at<float>(0);
-                // clang-format off
-#pragma omp parallel for reduction(+: summary) private(values, base)
-                // clang-format on
-                for (int i = 0; i < size; ++i) {
-                    weight_sum += powf(base, -sqrtf(values[i]) * search.color_dist_amplitude);
-                }
-            }
+            float weight_sum = sum(p.precomputed_color_weights(window_rect))[0];
 
             // 가중치에서, 테이블의 파란 영역과 겹치는 만큼 가중치에 패널티를 줍니다.
             float penalty = sum(p.blue_mask(window_rect))[0] / 255;
@@ -1106,11 +1083,12 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         erode(table_blue_mask_gpu, umat_temp, {}, {-1, -1}, 1);
         bitwise_xor(table_blue_mask_gpu, umat_temp, table_blue_edges);
     }
-    show("filtered", table_blue_edges);
 
     // 테이블 위치 탐색
     vector<Vec2f> table_contours; // 2D 컨투어도 반환받습니다.
     find_table(img, desc, rgb_all_debug, table_blue_edges, table_contours);
+    show("filtered", table_blue_edges);
+
     auto mm = Mat(img.camera_transform);
 
     /* 당구공 위치 찾기 */
@@ -1296,11 +1274,41 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             int ball_index = 0;
             Mat table_blue_mask = table_blue_mask_gpu.getMat(ACCESS_FAST).clone();
 
-            ball_find_parameter_t param;
-            param.table_plane = &table_plane_camera;
-            param.rgb_debug = rgb_all_debug;
-            param.hsv = hsv_all;
-            param.blue_mask = table_blue_mask;
+            ball_find_parameter_t ball_param;
+            Vec3f* ball_color_filters[3] = {m.ball.color.red, m.ball.color.orange, m.ball.color.white};
+            Mat ball_param_precomputed_mat[3];
+            {
+                // 파라미터를 셋업
+                ball_param.table_plane = &table_plane_camera;
+                ball_param.rgb_debug = rgb_all_debug;
+                ball_param.blue_mask = table_blue_mask;
+
+                Scalar base = log(m.ball.search.color_kernel_weight_base);
+                UMat A, B, uhsv;
+                hsv_all.copyTo(B);
+                B.convertTo(uhsv, CV_32FC3, 1.0 / 255);
+
+                // TODO: uhsv 로 바꾸기,
+                for (int index = 0; index < 3; ++index) {
+                    auto filt = ball_color_filters[index];
+                    auto color = (filt[0] + filt[1]) * (0.5f * (1.0f / 255));
+                    Mat mat;
+
+                    subtract(uhsv, (Scalar)color, B);
+                    multiply(B, B, A);
+                    multiply(A, Scalar(2.0, 1.0, 0.0), B);
+                    cv::reduce(B.reshape(1, B.rows * B.cols), A, 1, REDUCE_SUM);
+                    B = A.reshape(1, B.rows);
+
+                    // Element-wise pow 계산 a^b = e^bln(a)
+                    sqrt(B, A);
+                    multiply(A, -base * m.ball.search.color_dist_amplitude, B);
+                    exp(B, A);
+
+                    A.copyTo(mat);
+                    ball_param_precomputed_mat[index] = mat;
+                }
+            }
 
             vector<ball_find_result_t> ball_results[3];
             for (auto& ball_chunk_contours : non_table_contours) {
@@ -1335,31 +1343,32 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 auto ROI_ball = boundingRect(ball_chunk_contours) + ROI_fit.tl();
 
                 // 거리에 따라 해상도를 동적으로 조절합니다.
-                param.ROI = ROI_ball;
-                param.memoization_steps = pixel_radius * m.ball.search.memoization_distance_rate;
+                ball_param.ROI = ROI_ball;
+                ball_param.memoization_steps = pixel_radius * m.ball.search.memoization_distance_rate;
 
                 // 모든 ball 색상에 대해 필터링 수행
                 Mat color = hsv_all(ROI_ball), filtered, edge;
                 for (auto& pt : ball_chunk_contours) { pt -= ROI_ball.tl() - ROI_fit.tl(); }
 
                 // 각각의 색상에 대한 에지를 구하고, 합성합니다.
-                Vec3f* filters[3] = {m.ball.color.red, m.ball.color.orange, m.ball.color.white};
                 for (int index = 0; index < 3; ++index) {
-                    auto filter = filters[index];
+                    auto filter = ball_color_filters[index];
 
-                    // 색상으로 필터링
-                    filter_hsv(color, filtered, filter[0], filter[1]);
-                    filtered.setTo(0, roi_area_mask_invert(ROI_ball - ROI_fit.tl()));
+                    // 색상으로 필터링 및 에지 검출
+                    {
+                        filter_hsv(color, filtered, filter[0], filter[1]);
+                        filtered.setTo(0, roi_area_mask_invert(ROI_ball - ROI_fit.tl()));
 
-                    // 가우시안 필터링을 통해 노이즈를 제거하고, 침식을 통해 에지 검출
-                    GaussianBlur(filtered, filtered, {5, 5}, 150.0);
-                    threshold(filtered, filtered, 128, 255, THRESH_BINARY);
-                    erode(filtered, edge, {}, {-1, -1}, 1);
-                    filtered.row(0).setTo(0);
-                    filtered.row(filtered.rows - 1).setTo(0);
-                    filtered.col(0).setTo(0);
-                    filtered.col(filtered.cols - 1).setTo(0);
-                    bitwise_xor(filtered, edge, edge);
+                        // 가우시안 필터링을 통해 노이즈를 제거하고, 침식을 통해 에지 검출
+                        GaussianBlur(filtered, filtered, {5, 5}, 150.0);
+                        threshold(filtered, filtered, 128, 255, THRESH_BINARY);
+                        erode(filtered, edge, {}, {-1, -1}, 1);
+                        filtered.row(0).setTo(0);
+                        filtered.row(filtered.rows - 1).setTo(0);
+                        filtered.col(0).setTo(0);
+                        filtered.col(filtered.cols - 1).setTo(0);
+                        bitwise_xor(filtered, edge, edge);
+                    }
 
                     // 이렇게 계산된 에지로부터 컨투어를 추출합니다.
                     vector<vector<Point>> shapes;
@@ -1371,8 +1380,9 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                         if (index == 0)
                             show((stringstream() << "ball " << ball_index << " filter " << index).str(), edge);
                     }
+                    ball_param.hsv_avg_filter_value = (filter[0] + filter[1]) * 0.5f;
+                    ball_param.precomputed_color_weights = ball_param_precomputed_mat[index];
 
-                    param.hsv_avg_filter_value = (filter[0] + filter[1]) * 0.5f;
                     // 각 컨투어 후보를 반복하여 공의 중심을 찾습니다.
                     // TODO: 각 색상별 공 개수 및 컨투어 영역 크기를 활용해 invalid한 candidate 걸러내기
                     // TODO: 빨간색의 경우, 검출 후 검출 영역을 잘라낸 영역 재검토, 공 두 개 겹친 경우 걸러내기 위함. (영역 안에 없는 컨투어만 모아서 배열 만들기)
@@ -1384,22 +1394,26 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
                         // 각 색상 별 탐색 결과를 모두 수집한 뒤, 웨이트가 가장 높고 이전 결과와 연관성이 높은 후보를 공으로 선정합니다.
                         auto& res = ball_results[index].emplace_back();
-                        find_ball_center(img, ball_candidate_contours, param, res);
+                        find_ball_center(img, ball_candidate_contours, ball_param, res);
 
                         if (res.geometric_weight < 2.f) {
                             continue;
                         }
 
-                        auto center = res.img_center + ROI_ball.tl();
-                        Mat3b ball_color_rgb(1, 1);
-                        ball_color_rgb.setTo((Scalar)param.hsv_avg_filter_value);
-                        cvtColor(ball_color_rgb, ball_color_rgb, COLOR_HSV2RGB);
-                        circle(rgb_all_debug, center, res.pixel_radius, ball_color_rgb(0), 1);
-                        putText(rgb_all_debug, to_string(res.geometric_weight), center + Point(0, -7), FONT_HERSHEY_PLAIN, 1, {0, 255, 0});
-                        putText(rgb_all_debug, to_string(res.color_weight), center + Point(0, 7), FONT_HERSHEY_PLAIN, 1, {0, 255, 255});
+                        // 디버그 그리기
+                        {
+                            auto center = res.img_center + ROI_ball.tl();
+                            Mat3b ball_color_rgb(1, 1);
+                            ball_color_rgb.setTo((Scalar)ball_param.hsv_avg_filter_value);
+                            cvtColor(ball_color_rgb, ball_color_rgb, COLOR_HSV2RGB);
+                            circle(rgb_all_debug, center, res.pixel_radius, ball_color_rgb(0), 1);
+                            putText(rgb_all_debug, to_string(res.geometric_weight), center + Point(0, -7), FONT_HERSHEY_PLAIN, 1, {0, 255, 0});
+                            putText(rgb_all_debug, to_string(res.color_weight), center + Point(0, 7), FONT_HERSHEY_PLAIN, 1, {0, 255, 255});
+                        }
                     }
                 }
 
+                // 공 검출 결과를 선별해 유니티로 보냅니다.
                 {
                     auto predicate = [&m = this->m](ball_find_result_t const& a, ball_find_result_t const& b) { return a.geometric_weight - b.geometric_weight + (a.color_weight - b.color_weight) * m.ball.search.color_weight > 0; };
 

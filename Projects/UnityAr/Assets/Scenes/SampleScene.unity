@@ -775,7 +775,6 @@ MonoBehaviour:
   TrackingTransform: {fileID: 1776626643}
   UpdatePeriod: 0.066
   Zed: {fileID: 1359819196}
-  TableTransform: {fileID: 846406724}
   Handler: {fileID: 1148930599}
   Pixels: {fileID: 0}
   Depths: {fileID: 0}
@@ -915,6 +914,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5ea470ed8a8ae74792d2e049343ddc4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  tableTransform: {fileID: 846406724}
 --- !u!4 &1148930600
 Transform:
   m_ObjectHideFlags: 0
