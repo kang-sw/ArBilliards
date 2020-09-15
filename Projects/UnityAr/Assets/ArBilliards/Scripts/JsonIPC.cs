@@ -14,15 +14,14 @@ using UnityEngine.Rendering;
 
 public class JsonIPC : MonoBehaviour
 {
-	public UInt16 CmdPort;
-	public UInt16 BinPort;
+	public ushort CmdPort;
+	public ushort BinPort;
 	public string IpAddr = "localhost";
 	public Transform TrackingTransform;
 	public float UpdatePeriod = 1.0f;
 	public ZEDManager Zed;
-
-	public Transform TableTransform;
-
+	 
+	public RecognitionHandler Handler;
 	float PeriodTimer = 0;
 
 	public class Conn
@@ -126,19 +125,6 @@ public class JsonIPC : MonoBehaviour
 
 	JsonCameraParams? CameraParamCache;
 
-	[Serializable]
-	struct JsonRecognitionReturnArg
-	{
-		[Serializable]
-		public struct TableRecognitionArg
-		{
-			public float[] Translation;
-			public float[] Orientation;
-			public float Confidence;
-		}
-
-		public TableRecognitionArg Table;
-	}
 
 	// Start is called before the first frame update
 	void Start()
@@ -161,32 +147,8 @@ public class JsonIPC : MonoBehaviour
 			var JsonStr = JsonRecognitionResult;
 			JsonRecognitionResult = null;
 
-			var Result = JsonUtility.FromJson<JsonRecognitionReturnArg>(JsonStr);
-
-			if (TableTransform)
-			{
-				if (Result.Table.Confidence > 0.5f)
-				{
-					var vec = new Vector3();
-					vec.x = Result.Table.Translation[0];
-					vec.y = Result.Table.Translation[1];
-					vec.z = Result.Table.Translation[2];
-					TableTransform.localPosition = vec;
-
-					// Orientation은 Rodrigues 표현식을 사용하므로, 축 및 회전으로 표현합니다.
-					vec.x = Result.Table.Orientation[0];
-					vec.y = Result.Table.Orientation[1];
-					vec.z = Result.Table.Orientation[2];
-
-					var rot = Quaternion.AngleAxis(vec.magnitude * 180.0f / (float)Math.PI, vec.normalized);
-
-					// 만들어진 rotation으로부터, yaw 회전을 제외한 나머지 회전을 suppress합니다.
-					// var euler = rot.eulerAngles;
-					// euler.z = euler.x = 0;
-					// rot.eulerAngles = euler;
-					TableTransform.localRotation = rot;
-				}
-			}
+			var Result = JsonUtility.FromJson<RecognitionHandler.RecognitionResult>(JsonStr);
+			Handler.UpdateRecognition(Result);
 		}
 
 		if ((PeriodTimer += Time.deltaTime) < UpdatePeriod)
