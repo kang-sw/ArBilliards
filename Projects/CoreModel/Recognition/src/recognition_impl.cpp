@@ -39,7 +39,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             bool const table_found = contour.size() == 4;
 
             if (table_found) {
-                drawContours(filtered, candidates, idx, {255}, 1);
+                // drawContours(filtered, candidates, idx, {255}, 1);
 
                 // marshal
                 for (auto& pt : contour) {
@@ -959,11 +959,12 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
 
             // 결과가 개선됐을 때만 해당 지점으로 이동합니다.
             r.img_center = search_center = closest.uv;
+            r.img_center += p.ROI.tl();
             r.pixel_radius = closest.radius;
             r.geometric_weight = closest.geometric_weight;
             r.color_weight = closest.color_weight;
 
-            (Vec2f&)r.ball_position = closest.uv;
+            (Vec2f&)r.ball_position = (Point2f)closest.uv + (Point2f)p.ROI.tl();
             r.ball_position.z = closest.z;
             get_point_coord_3d(img, r.ball_position.x, r.ball_position.y, r.ball_position.z);
 
@@ -1207,7 +1208,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             }
         }
 
-        if (table_not_detect && table_contour_partial.empty() == false) {
+        if (false && table_not_detect && table_contour_partial.empty() == false) {
             approxPolyDP(table_contour_partial, table_contour_partial, 25, true);
 
             correct_table_pos(img, desc, rgb_all_debug, ROI, roi_rgb, table_contour_partial);
@@ -1219,10 +1220,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         {
             // 테이블 컨투어를 재조정합니다.
             vector<Vec3f> obj_pts;
-            get_table_model(obj_pts, m.table.recognition_size);
+            get_table_model(obj_pts, m.table.inner_size);
             project_model(img, table_contour_partial, table_pos_flt, table_rot_flt, obj_pts, true);
             ROI_fit = boundingRect(table_contour_partial);
             get_safe_ROI_rect(img.rgb, ROI_fit);
+
+            if (table_contour_partial.empty() == false) {
+                drawContours(rgb_all_debug, vector({table_contour_partial}), -1, {255, 255, 255}, 2);
+            }
         }
 
         // 당구공을 찾기 위해 ROI를 더 알맞게 재조정합니다.
@@ -1312,10 +1317,18 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
             vector<ball_find_result_t> ball_results[3];
             for (auto& ball_chunk_contours : non_table_contours) {
-                auto mm = moments(ball_chunk_contours);
-                auto size = mm.m00;
-                int cent_x = ROI_fit.x + mm.m10 / size;
-                int cent_y = ROI_fit.y + mm.m01 / size;
+                // auto mm = moments(ball_chunk_contours);
+                // auto size = mm.m00;
+                // int cent_x = ROI_fit.x + mm.m10 / size;
+                // int cent_y = ROI_fit.y + mm.m01 / size;
+                Point2f contour_circle_center;
+                float contour_circle_radius;
+                minEnclosingCircle(ball_chunk_contours, contour_circle_center, contour_circle_radius);
+                auto [cent_x, cent_y] = contour_circle_center + (Point2f)ROI_fit.tl();
+                auto size = contour_circle_radius;
+                size = size * size * CV_PI;
+
+                circle(rgb_all_debug, (Point)contour_circle_center + ROI_fit.tl(), contour_circle_radius, {0, 0, 255});
 
                 // 카메라와 당구공 사이의 거리를 구합니다.
                 float dist_between_cam = 10000000.f;
@@ -1333,10 +1346,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                     continue;
                 }
 
-                Point2f contour_center;
-                float contour_radius;
                 float pixel_radius = get_pixel_length(img, m.ball.radius, dist_between_cam);
-                // minEnclosingCircle(ball_chunk_contours, contour_center, contour_radius);
                 // circle(rgb_all_debug, {cent_x, cent_y}, pixel_radius, {0, 255, 0}, 2, LINE_8);
 
                 // 당구공 영역의 ROI 추출합니다.
@@ -1375,10 +1385,10 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                     findContours(edge, shapes, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
 
                     if (m.ball.search.render_debug) {
-                        drawContours(rgb_all_debug(ROI_ball), shapes, -1, {0, 0, 0}, -1);
+                        // drawContours(rgb_all_debug(ROI_ball), shapes, -1, {0, 0, 0}, -1);
                         drawContours(rgb_all_debug(ROI_ball), shapes, -1, {64, 128, 63}, 1);
-                        if (index == 0)
-                            show((stringstream() << "ball " << ball_index << " filter " << index).str(), edge);
+                        //   if (index == 0)
+                        //       show((stringstream() << "ball " << ball_index << " filter " << index).str(), edge);
                     }
                     ball_param.hsv_avg_filter_value = (filter[0] + filter[1]) * 0.5f;
                     ball_param.precomputed_color_weights = ball_param_precomputed_mat[index];
@@ -1386,23 +1396,26 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                     // 각 컨투어 후보를 반복하여 공의 중심을 찾습니다.
                     // TODO: 각 색상별 공 개수 및 컨투어 영역 크기를 활용해 invalid한 candidate 걸러내기
                     // TODO: 빨간색의 경우, 검출 후 검출 영역을 잘라낸 영역 재검토, 공 두 개 겹친 경우 걸러내기 위함. (영역 안에 없는 컨투어만 모아서 배열 만들기)
-                    for (auto& ball_candidate_contours : shapes) {
+                    for (auto& contours : shapes) {
+                        // 지금까지 찾아낸 모든 원 후보를 반복합니다.
+
                         // TODO: Area size가 공 하나의 크기보다 크면, 같은 색상의 공이 두 개 이상 겹쳐 있을 가능성 고려
-                        if (contourArea(ball_candidate_contours) < pixel_radius * pixel_radius) {
+                        if (contourArea(contours) < pixel_radius * pixel_radius) {
                             continue;
                         }
 
                         // 각 색상 별 탐색 결과를 모두 수집한 뒤, 웨이트가 가장 높고 이전 결과와 연관성이 높은 후보를 공으로 선정합니다.
                         auto& res = ball_results[index].emplace_back();
-                        find_ball_center(img, ball_candidate_contours, ball_param, res);
+                        find_ball_center(img, contours, ball_param, res);
 
                         if (res.geometric_weight < 2.f) {
+                            ball_results[index].pop_back();
                             continue;
                         }
 
                         // 디버그 그리기
                         {
-                            auto center = res.img_center + ROI_ball.tl();
+                            auto center = res.img_center;
                             Mat3b ball_color_rgb(1, 1);
                             ball_color_rgb.setTo((Scalar)ball_param.hsv_avg_filter_value);
                             cvtColor(ball_color_rgb, ball_color_rgb, COLOR_HSV2RGB);
@@ -1432,7 +1445,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                         auto& dest = *order[index];
                         int elem_idx = elem_indexes[index];
 
-                        if (table.size() > elem_idx + 1) {
+                        if (table.size() >= elem_idx + 1) {
                             auto& elem = table[elem_idx];
                             dest.confidence = (elem.color_weight + elem.geometric_weight) / pivot;
                             Vec3f position = elem.ball_position;

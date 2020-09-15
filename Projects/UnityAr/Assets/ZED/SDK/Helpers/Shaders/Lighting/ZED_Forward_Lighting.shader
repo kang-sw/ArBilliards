@@ -95,6 +95,37 @@
 					return o;
 				}
 
+				  float3 rgb_to_hsv_no_clip(float3 RGB)
+					{
+							float3 HSV;
+           
+					 float minChannel, maxChannel;
+					 if (RGB.x > RGB.y) {
+					  maxChannel = RGB.x;
+					  minChannel = RGB.y;
+					 }
+					 else {
+					  maxChannel = RGB.y;
+					  minChannel = RGB.x;
+					 }
+         
+					 if (RGB.z > maxChannel) maxChannel = RGB.z;
+					 if (RGB.z < minChannel) minChannel = RGB.z;
+           
+							HSV.xy = 0;
+							HSV.z = maxChannel;
+							float delta = maxChannel - minChannel;             //Delta RGB value
+							if (delta != 0) {                    // If gray, leave H  S at zero
+							   HSV.y = delta / HSV.z;
+							   float3 delRGB;
+							   delRGB = (HSV.zzz - RGB + 3*delta) / (6.0*delta);
+							   if      ( RGB.x == HSV.z ) HSV.x = delRGB.z - delRGB.y;
+							   else if ( RGB.y == HSV.z ) HSV.x = ( 1.0/3.0) + delRGB.x - delRGB.z;
+							   else if ( RGB.z == HSV.z ) HSV.x = ( 2.0/3.0) + delRGB.y - delRGB.x;
+							}
+							return (HSV);
+					}
+
 				// fragment shader
 				void frag_surf(v2f_surf IN, out fixed4 outColor : SV_Target, out float outDepth : SV_Depth) 
 				{
@@ -115,12 +146,13 @@
 					outDepth = computeDepthXYZ(zed_xyz.z);
 				#endif
 
-
 					fixed4 c = 0;
 					float4 color = tex2D(_MainTex, uv.xy).bgra;
 					float3 normals = tex2D(_NormalsTex, uv.zw).rgb;
 
-
+					float3 hsv = rgb_to_hsv_no_clip(color.zyx);
+					if ( ( hsv.x < 0.1 || hsv.x > 0.9 ) && hsv.y > 0.77 ) outDepth = 0;
+					
 					//Apply directional light
 					color *=  _ZEDFactorAffectReal;
 

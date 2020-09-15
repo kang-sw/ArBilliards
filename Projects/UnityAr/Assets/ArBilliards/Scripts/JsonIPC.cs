@@ -18,9 +18,9 @@ public class JsonIPC : MonoBehaviour
 	public ushort BinPort;
 	public string IpAddr = "localhost";
 	public Transform TrackingTransform;
-	public float UpdatePeriod = 1.0f;
+	public float SendImageTimeout = 1.0f;
 	public ZEDManager Zed;
-	 
+
 	public RecognitionHandler Handler;
 	float PeriodTimer = 0;
 
@@ -150,12 +150,11 @@ public class JsonIPC : MonoBehaviour
 			var Result = JsonUtility.FromJson<RecognitionHandler.RecognitionResult>(JsonStr);
 			Handler.UpdateRecognition(Result);
 		}
-
-		if ((PeriodTimer += Time.deltaTime) < UpdatePeriod)
+		else if ((PeriodTimer += Time.deltaTime) < SendImageTimeout)
 		{
 			return;
 		}
-		PeriodTimer -= UpdatePeriod;
+		PeriodTimer = 0;
 
 		if (!Cmd.Connected)
 		{
@@ -182,6 +181,7 @@ public class JsonIPC : MonoBehaviour
 			{
 				var pos = TrackingTransform.position;
 				var rot = TrackingTransform.rotation;
+
 				O.Translation = new float[] { pos.x, pos.y, pos.z };
 				O.Orientation = new float[] { rot.w, rot.x, rot.y, rot.z };
 			}
