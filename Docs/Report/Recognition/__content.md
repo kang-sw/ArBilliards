@@ -1060,6 +1060,10 @@ $$\bar{Q}_n(t)=\bar{P}_n+\int_0^t{\bar{V}_n(T)}dT$$
 
 즉,
 
+<script type="text/javascript" async
+  src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML">
+</script>
+
 $$
 \begin{aligned}
 \lVert \bar{Q}_2(t) - \bar{Q}_1(t) \rVert &= r_2 + r_1 \text{ (단, } r_2, r_1 \text{ 은 각각 두 구체의 반지름)} \\
@@ -1089,9 +1093,12 @@ au^2-2bu&+c=0\\
 \\
 u=e^{-\alpha t}&=\frac{-b\plusmn\sqrt{b^2-ac}}{a}
 \end{aligned}
-
 $$
+
+
 이며 $b^2-ac$가 0보다 크거나 같을 때 $u$를 계산할 수 있으며, 이로부터 양수이면서 가장 작은 $t$를 구합니다.
+
+$t$를 알게 되면 정확한 충돌 지점과 충돌 시점의 속도를 획득할 수 있습니다. 모든 시뮬레이션 객체를 반복해 가장 먼저 일어나는 충돌 이벤트의 시간 $t_0$을 찾고, 모든 시뮬레이션을 $t_0$만큼 진행시킨 뒤 물리량 연산을 수행합니다.
 
 계산 과정에서 실수가 없었다면, 잘 동작할 것입니다.
 
