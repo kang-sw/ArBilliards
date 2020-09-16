@@ -21,6 +21,7 @@ public class RecognitionHandler : MonoBehaviour
 	public float nearbyThreshold = 0.01f;
 	public float maxSpeed = 2.0f;
 	public float errorCorrectionRate = 0.1f;
+	public float speedDampingOnInvisibleState = 2.0f;
 	#endregion
 
 	#region Internal Fields
@@ -72,7 +73,7 @@ public class RecognitionHandler : MonoBehaviour
 		{
 			if (!_latestUpdates[index].HasValue)
 			{
-				_velocities[index] -= _velocities[index] * 0.9f * Time.deltaTime;
+				_velocities[index] -= _velocities[index] * speedDampingOnInvisibleState * Time.deltaTime;
 			}
 			{
 				var ballTr = ballTrs[index];
