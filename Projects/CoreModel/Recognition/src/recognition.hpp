@@ -39,7 +39,7 @@ public: /* exposed properties */
         // 공의 Contour 목록을 파악한 후, 각각의 contour 다각형 면적이 최소 얼마 이상이 되어야 공으로 인식되는지 결정하는 값입니다.
         // 컨투어의 area_size(moment.m00)를 distance의 제곱으로 나눈 값을 아래 값과 비교합니다.
         float pixel_count_per_meter_min = 500;
-        float pixel_count_per_meter_max = 3500;
+        float pixel_count_per_meter_max = 10000;
 
         double edge_canny_thresholds[2] = {100, 50};
 
