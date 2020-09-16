@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System;
 using System.CodeDom.Compiler;
 using System.Globalization;
+using System.Threading;
 using UnityEngine;
 
 public class RecognitionHandler : MonoBehaviour
@@ -21,6 +22,7 @@ public class RecognitionHandler : MonoBehaviour
 
 	private DateTime?[] _latestUpdates = new DateTime?[4];
 	private Vector3[] _velocities = new Vector3[4];
+	private Vector3?[] _prevPositions = new Vector3?[4];
 
 	#endregion
 
@@ -130,17 +132,19 @@ public class RecognitionHandler : MonoBehaviour
 				Vector3 ballPos = toVector3(ballResult);
 
 				if (ballResult.Confidence > 0.5f)
-				{
-					var prev = ballTr.position;
-					ballTr.position = Vector3.Lerp(ballTr.position, ballPos, 0.5f);
-					var deltaPosition = ballTr.position - prev;
+				{ 
+					ballTr.position = Vector3.Lerp(ballTr.position, ballPos, 0.5f); 
 
 					var now = DateTime.Now;
-					if (_latestUpdates[index].HasValue)
+					if (_prevPositions[index].HasValue)
 					{
+						var prevPosition = _prevPositions[index].Value;
+						var deltaPosition = ballPos - prevPosition;
+
 						var deltaTimeSpan = now - _latestUpdates[index];
 						var deltaTime = deltaTimeSpan.Value.Milliseconds / 1000.0f;
 						var velocity = deltaPosition / deltaTime;
+
 						_velocities[velocityTargetIdx[index]] = velocity;
 					}
 
@@ -149,6 +153,7 @@ public class RecognitionHandler : MonoBehaviour
 				else
 				{
 					_latestUpdates[index] = null;
+					_prevPositions[index] = null;
 				}
 			}
 		}
