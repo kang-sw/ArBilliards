@@ -34,7 +34,7 @@ public class RecognitionHandler : MonoBehaviour
 	private Vector3[] _velocities = new Vector3[4];
 	private Vector3?[] _prevPositions = new Vector3?[4];
 
-	private Billiards.Simulation.Simulator _simulation;
+	private ArBilliards.Phys.Simulator _simulation;
 
 	#endregion
 
@@ -67,7 +67,7 @@ public class RecognitionHandler : MonoBehaviour
 	// Start is called before the first frame update
 	private void Start()
 	{
-		_simulation = new Billiards.Simulation.Simulator();
+		_simulation = new ArBilliards.Phys.Simulator();
 	}
 
 	// Update is called once per frame
@@ -130,7 +130,7 @@ public class RecognitionHandler : MonoBehaviour
 
 		if (bSimulationAvailable)
 		{
-			var recog = new Billiards.Simulation.Recognitions();
+			var recog = new ArBilliards.Phys.Recognitions();
 			recog.Red1 = toVector3(result.Red1);
 			recog.Red2 = toVector3(result.Red2);
 			recog.Orange = toVector3(result.Orange);

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.CodeDom.Compiler;
 using System.Collections;
 using System.Collections.Generic;
 using Boo.Lang.Runtime;
@@ -6,8 +7,9 @@ using JetBrains.Annotations;
 using UnityEditor.Compilation;
 using UnityEditor.UIElements;
 using UnityEngine;
+using Object = System.Object;
 
-namespace Billiards.Simulation
+namespace ArBilliards.Phys
 {
 	public struct Recognitions
 	{
@@ -20,7 +22,7 @@ namespace Billiards.Simulation
 	// TODO: 구 - 구 충돌, 구 - 정적 평면 ==> 직선 - 정적 평면 충돌
 	// TODO: 반발 계수 공식 
 	// TODO: 정해진 time step에 대해 모든 충돌체 iterate하여 가장 
-	public class Simulator : PhysContext
+	public class Simulator
 	{
 		#region Simulation Properties
 
@@ -29,6 +31,8 @@ namespace Billiards.Simulation
 		public float RestitutionCoeff = 0.87f;
 
 		#endregion
+
+		private PhysContext _context;
 
 		public enum BallIndex
 		{
@@ -42,8 +46,6 @@ namespace Billiards.Simulation
 		{
 			private bool bHasPoint = false;
 			public List<(BallIndex Ball, List<Vector3> Paths)> Visits = new List<(BallIndex Ball, List<Vector3> Paths)>();
-			public Vector3 InitialImpactPoint = Vector3.zero; // 충격이 시작되는 점입니다.
-			public Vector3 InitialImpactDirection = Vector3.zero; // 충격량 + 방향 벡터입니다.
 		}
 
 		public List<SimulationResult> SolveSimulation(Recognitions result)
@@ -51,20 +53,11 @@ namespace Billiards.Simulation
 			return null;
 		}
 
-		public class SimulationTriggerParam : ICloneable
+		public class SimulationTriggerParam
 		{
 			public (Vector3 Start, Vector3 End) ImpactPath = (Vector3.zero, Vector3.zero);
 			public float Mass = 1.0f;
 			public float SimDuration = 1.0f;
-
-			public object Clone()
-			{
-				var ret = new SimulationTriggerParam();
-				ret.ImpactPath = ImpactPath;
-				ret.Mass = Mass;
-				ret.SimDuration = SimDuration;
-				return ret;
-			}
 		}
 
 		public SimulationResult Simulate(Recognitions result, SimulationTriggerParam triggerParam)
@@ -75,9 +68,113 @@ namespace Billiards.Simulation
 
 	}
 
-	public class PhysContext
+	class PhysContext
 	{
+		private List<PhysObject> _objects = new List<PhysObject>();
+		public int Count => _objects.Count;
+		public PhysObject this[int i] => _objects[i];
+		public IEnumerable<PhysObject> Enumerable => _objects;
+		public void Clear() => _objects.Clear();
+		private HashSet<int> _availableIndexes;
 
+		public int Spawn(PhysObject obj)
+		{
+			obj = (PhysObject)obj.Clone();
+			int index;
+
+			if (_availableIndexes.Count > 0)
+			{
+				index = _availableIndexes.GetEnumerator().Current;
+				_objects[index] = obj;
+			}
+			else
+			{
+				index = Count;
+				_objects.Add(obj);
+			}
+
+			return index;
+		}
+
+		public void Destroy(int index)
+		{
+			_objects[index] = null;
+			_availableIndexes.Add(index);
+		}
+
+		public struct ContactInfo
+		{
+			public float Time;
+			public (int Idx, Vector3 Pos, Vector3 Vel) A, B;
+			public Vector3 At;
+		}
+
+		/// <summary>
+		///  시뮬레이션을 수행, 내부 오브젝트의 상태를 업데이트합니다.
+		/// </summary>
+		/// <param name="deltaTime"></param>
+		/// <returns>발생한 충돌이 시간 순서대로 수집됩니다.</returns>
+		public List<ContactInfo> StepSimulation(float deltaTime)
+		{
+			var result = new List<ContactInfo>();
+			float totalTime = 0.0f;
+
+			// 남은 시간이 0이 될 때까지 반복합니다.
+			while (deltaTime > 0)
+			{
+				float minContactTime = deltaTime;
+				(int A, int B)? minContactIdx = null;
+				PhysObject.Contact? minContact = null;
+
+				// 가장 먼저 접촉하는 페어를 찾습니다.
+				for (int idxA = 0; idxA < Count; idxA++)
+				{
+					var A = this[idxA];
+					for (int idxB = idxA + 1; idxB < Count; idxB++)
+					{
+						var B = this[idxB];
+						var contact = A.CalcMinContactTime(B);
+
+						if (contact.HasValue && contact.Value.Time < minContactTime)
+						{
+							minContactIdx = (idxA, idxB);
+							minContactTime = contact.Value.Time;
+							minContact = contact;
+						}
+					}
+				}
+
+				// 최소 델타 시간만큼 모든 오브젝트를 전진시킵니다.
+				foreach (var elem in Enumerable)
+				{
+					elem.AdvanceMovement(minContactTime);
+				}
+
+				totalTime += minContactTime;
+
+				if (minContactIdx.HasValue)
+				{
+					// 충돌을 기록합니다.
+					var idx = minContactIdx.Value;
+					var (A, B) = (this[idx.A], this[idx.B]);
+
+					ContactInfo contact;
+					contact.A = (idx.A, A.Position, A.Velocity);
+					contact.B = (idx.B, B.Position, B.Velocity);
+					contact.Time = totalTime;
+					contact.At = minContact.Value.At;
+
+					result.Add(contact);
+
+					// 충돌을 계산합니다.
+					A.ApplyCollision(B);
+				}
+
+				deltaTime -= minContactTime;
+			}
+
+			return result;
+		}
 	}
 
 	enum PhysType
@@ -86,7 +183,7 @@ namespace Billiards.Simulation
 		StaticPlane
 	}
 
-	internal abstract class PhysObject
+	internal abstract class PhysObject : ICloneable
 	{
 		public abstract PhysType Type { get; }
 		public float Mass = 0;
@@ -127,6 +224,12 @@ namespace Billiards.Simulation
 		{
 			public (Vector3 Pos, Vector3 Vel) A, B;
 			public float Time;
+			public Vector3 At; // 충돌 자체가 일어난 지점
+		}
+
+		public object Clone()
+		{
+			return MemberwiseClone();
 		}
 	}
 
@@ -219,6 +322,7 @@ namespace Billiards.Simulation
 				contact.B.Pos = P2 + V2 * alpha_inv * (1.0f - u);
 				contact.B.Vel = V2 * u;
 				contact.Time = t.Value;
+				contact.At = Vector3.Lerp(contact.A.Pos, contact.B.Pos, r1 / (r1 + r2));
 				return contact;
 			}
 
