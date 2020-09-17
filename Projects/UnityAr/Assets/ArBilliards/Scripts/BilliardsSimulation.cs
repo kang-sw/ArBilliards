@@ -75,7 +75,7 @@ namespace ArBilliards.Phys
 		public PhysObject this[int i] => _objects[i];
 		public IEnumerable<PhysObject> Enumerable => _objects;
 		public void Clear() => _objects.Clear();
-		private HashSet<int> _availableIndexes;
+		private HashSet<int> _availableIndexes = new HashSet<int>();
 
 		public int Spawn(PhysObject obj)
 		{
@@ -254,7 +254,9 @@ namespace ArBilliards.Phys
 
 		public override void ApplyCollision(PhysObject other)
 		{
-			throw new NotImplementedException();
+			// 단순 콜리전 반응으로, 속도를 반으로 줄이고 반대편으로 튕겨냅니다.
+			Velocity *= -0.5f;
+			other.Velocity *= -0.5f;
 		}
 
 		Contact? CalcContact(PhysSphere o)
@@ -266,43 +268,41 @@ namespace ArBilliards.Phys
 				throw new AssertionFailedException("Damping coefficient must be larger than 0.");
 			}
 
-			if (Math.Abs(DampingCoeff - DampingCoeff) < SMALL_NUMBER)
+			if (Math.Abs(DampingCoeff - DampingCoeff) > SMALL_NUMBER)
 			{
 				throw new AssertionFailedException("Damping coefficient between spheres must be equal");
 			}
 
-			Vector3 P1 = Position, P2 = o.Position, V1 = Velocity, V2 = o.Velocity;
+			Vec3d P1 = Position, P2 = o.Position, V1 = Velocity, V2 = o.Velocity;
 			float r1 = Radius, r2 = o.Radius;
-			float alpha_inv = 1 / DampingCoeff;
-			Vector3 A, B;
+			double alpha_inv = 1 / DampingCoeff;
+			Vec3d A, B;
 
-			B = V2 - V1;
-			A = P2 - P1 + alpha_inv * B;
+			B = alpha_inv * (V2 - V1);
+			A = P2 - P1 + B;
 
-			float a = Vector3.Dot(B, B);
-			float b = Vector3.Dot(A, B);
-			float c = Vector3.Dot(A, A) - (r2 + r1) * (r2 + r1);
+			var a = Vec3d.Dot(B, B);
+			var b = Vec3d.Dot(A, B);
+			var c = Vec3d.Dot(A, A) - (r2 + r1) * (r2 + r1);
 
-			float discr = b * b - a * c;
+			var discr = b * b - a * c;
 
 			if (discr < SMALL_NUMBER)
 			{
 				return null;
 			}
 
-			discr = Mathf.Sqrt(discr);
-			float umin = (b - discr) / a;
-			float umax = (b + discr) / a;
+			var discrSqrt = Math.Sqrt(discr);
+			var umin = (b + discrSqrt) / a;
+			var umax = (b - discrSqrt) / a;
 
-
-			float? returnAlphaNonZero(float u)
+			double? returnAlphaNonZero(double uu)
 			{
-
-				return u > 0.0f && u <= 1.0f ? -alpha_inv * Mathf.Log(u) : new float?();
+				return uu > 0.0f && uu <= 1.0f ? -alpha_inv * Math.Log(uu) : new double?();
 			}
 
-			float? t;
-			float u;
+			double? t;
+			double u;
 			if (umin <= 0)
 			{
 				u = umax;
@@ -317,11 +317,11 @@ namespace ArBilliards.Phys
 			if (t.HasValue)
 			{
 				Contact contact;
-				contact.A.Pos = P1 + V1 * alpha_inv * (1.0f - u);
+				contact.A.Pos = P1 + V1 * alpha_inv * (1.0 - u);
 				contact.A.Vel = V1 * u;
-				contact.B.Pos = P2 + V2 * alpha_inv * (1.0f - u);
+				contact.B.Pos = P2 + V2 * alpha_inv * (1.0 - u);
 				contact.B.Vel = V2 * u;
-				contact.Time = t.Value;
+				contact.Time = (float)t.Value;
 				contact.At = Vector3.Lerp(contact.A.Pos, contact.B.Pos, r1 / (r1 + r2));
 				return contact;
 			}
@@ -360,6 +360,67 @@ namespace ArBilliards.Phys
 		public override void ApplyCollision(PhysObject other)
 		{
 			throw new NotImplementedException();
+		}
+	}
+
+	public struct Vec3d
+	{
+		double x, y, z;
+
+		public Vec3d(double x = 0.0, double y = 0.0, double z = 0.0)
+		{
+			(this.x, this.y, this.z) = (x, y, z);
+		}
+
+		public static implicit operator Vector3(Vec3d i)
+		{
+			return new Vector3((float)i.x, (float)i.y, (float)i.z);
+		}
+
+		public static implicit operator Vec3d(Vector3 i)
+		{
+			Vec3d o;
+			(o.x, o.y, o.z) = (i.x, i.y, i.z);
+			return o;
+		}
+
+		public static Vec3d operator +(Vec3d l, Vec3d r)
+		{
+			Vec3d o;
+			(o.x, o.y, o.z) = (l.x + r.x, l.y + r.y, l.z + r.z);
+			return o;
+		}
+
+		public static Vec3d operator -(Vec3d l, Vec3d r)
+		{
+			return l + (-r);
+		}
+
+		public static Vec3d operator -(Vec3d l)
+		{
+			Vec3d o;
+			(o.x, o.y, o.z) = (-l.x, -l.y, -l.z);
+			return o;
+		}
+
+		public static Vec3d operator *(Vec3d a, double b)
+		{
+			return new Vec3d(a.x * b, a.y * b, a.z * b);
+		}
+
+		public static Vec3d operator *(double b, Vec3d a)
+		{
+			return a * b;
+		}
+
+		public static double operator |(Vec3d l, Vec3d r)
+		{
+			return l.x * r.x + l.y * r.y + l.z * r.z;
+		}
+
+		public static double Dot(Vec3d l, Vec3d r)
+		{
+			return l | r;
 		}
 	}
 
