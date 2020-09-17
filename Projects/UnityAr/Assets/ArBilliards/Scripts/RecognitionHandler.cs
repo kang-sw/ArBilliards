@@ -5,6 +5,7 @@ using System.CodeDom.Compiler;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
+using TMPro.EditorUtilities;
 using UnityEngine;
 
 public class RecognitionHandler : MonoBehaviour
@@ -142,7 +143,6 @@ public class RecognitionHandler : MonoBehaviour
 	{
 		var balls = new[] { red1, red2, orange, white };
 		var actualIndex = new[] { 0, 1, 2, 3 };
-		var ballResults = new[] { result.Red1, result.Red2, result.Orange, result.White };
 		bool bRedSwap = false;
 
 		// 더 가까운 것을 가져갑니다. 
@@ -179,16 +179,17 @@ public class RecognitionHandler : MonoBehaviour
 
 		if (bRedSwap)
 		{
-			var temp = result.Red1;
+			var tmp = result.Red1;
 			result.Red1 = result.Red2;
-			result.Red2 = temp;
+			result.Red2 = tmp;
 		}
 
+		var ballResults = new[] { result.Red1, result.Red2, result.Orange, result.White };
 		for (int index = 0; index < 4; index++)
 		{
 			var aidx = actualIndex[index];
 			var ballTr = balls[index];
-			var ballResult = ballResults[aidx];
+			var ballResult = ballResults[index];
 			Vector3 ballPos = toVector3(ballResult);
 
 			if (ballResult.Confidence > 0.5f)
@@ -203,14 +204,14 @@ public class RecognitionHandler : MonoBehaviour
 
 					var deltaTimeSpan = now - _latestUpdates[index];
 					var deltaTime = deltaTimeSpan.Value.Milliseconds / 1000.0f;
-					var velocity = (deltaPosition + errorCorrection) / deltaTime;
+					var velocity = ((deltaPosition * (1 - errorCorrectionRate)) + errorCorrection) / deltaTime;
 
 					if (velocity.magnitude > maxSpeed)
 					{
 						velocity = velocity.normalized * maxSpeed;
 					}
 
-					_velocities[index] = velocity; // velocity.magnitude > maxSpeed ? Vector3.zero : velocity;
+					_velocities[index] = velocity;
 				}
 				else
 				{
