@@ -34,7 +34,7 @@ public class RecognitionHandler : MonoBehaviour
 	private Vector3[] _velocities = new Vector3[4];
 	private Vector3?[] _prevPositions = new Vector3?[4];
 
-	private Billiards.Simulation.Context _simulation;
+	private Billiards.Simulation.Simulator _simulation;
 
 	#endregion
 
@@ -67,7 +67,7 @@ public class RecognitionHandler : MonoBehaviour
 	// Start is called before the first frame update
 	private void Start()
 	{
-		_simulation = new Billiards.Simulation.Context();
+		_simulation = new Billiards.Simulation.Simulator();
 	}
 
 	// Update is called once per frame
@@ -135,7 +135,9 @@ public class RecognitionHandler : MonoBehaviour
 			recog.Red2 = toVector3(result.Red2);
 			recog.Orange = toVector3(result.Orange);
 			recog.White = toVector3(result.White);
-			var simResult = _simulation.SolveSimulation(tableTransform.worldToLocalMatrix, recog);
+
+			// 테이블 벡터에 대해 2D 좌표로 만들고, 시뮬레이션을 트리거합니다.
+			// var simResult = _simulation.SolveSimulation(tableTransform.worldToLocalMatrix, recog);
 		}
 	}
 
