@@ -262,28 +262,45 @@ namespace ArBilliards.Phys
 			const float SMALL_NUMBER = 1e-7f;
 			var A = this;
 
-			// 반발 계수는 반드시 같아야 합니다.
-			if (Mathf.Abs(A.RestitutionCoeff - B.RestitutionCoeff) > SMALL_NUMBER)
-			{
-				throw new AssertionFailedException("Restitution coefficient must be equal between objects.");
-			}
-
-			var center = (B.Position - A.Position).normalized;
-
+			var (e, m1, m2) = (0.5f * (A.RestitutionCoeff + B.RestitutionCoeff), A.Mass, B.Mass);
 			var (V1, V2) = (A.Velocity, B.Velocity);
 
-			var V1p = Vector3.Project(V1, center);
-			var V2p = Vector3.Project(V2, -center);
+			switch (B.Type)
+			{
+			case PhysType.Sphere:
+			{
+				var center = (B.Position - A.Position).normalized;
 
-			var (e, m1, m2) = (A.RestitutionCoeff, A.Mass, B.Mass);
-			var nV1p = ((m1 - e * m2) * V1p + (1 + e) * m2 * V2p) / (m1 + m2);
-			var nV2p = ((m2 - e * m1) * V2p + (1 + e) * m1 * V1p) / (m1 + m2);
 
-			var nV1 = V1 + (nV1p - V1p);
-			var nV2 = V2 + (nV2p - V2p);
+				var V1p = Vector3.Project(V1, center);
+				var V2p = Vector3.Project(V2, -center);
 
-			A.Velocity = nV1;
-			B.Velocity = nV2;
+				var nV1p = ((m1 - e * m2) * V1p + (1 + e) * m2 * V2p) / (m1 + m2);
+				var nV2p = ((m2 - e * m1) * V2p + (1 + e) * m1 * V1p) / (m1 + m2);
+
+				var nV1 = V1 + (nV1p - V1p);
+				var nV2 = V2 + (nV2p - V2p);
+
+				A.Velocity = nV1;
+				B.Velocity = nV2;
+
+				break;
+			}
+			case PhysType.StaticPlane:
+			{
+				// Plane의 
+				var PL = (PhysStaticPlane)B;
+				var N = PL.Normal;
+
+				var V1p = Vector3.Project(V1, N);
+				var nV1p = -e * V1p;
+
+				var nV1 = V1 + (nV1p - V1p);
+				A.Velocity = nV1;
+
+				break;
+			}
+			}
 		}
 
 		Contact? CalcContact(PhysSphere o)
@@ -365,6 +382,7 @@ namespace ArBilliards.Phys
 	internal class PhysStaticPlane : PhysObject
 	{
 		public override PhysType Type => PhysType.StaticPlane;
+		public Vector3 Normal = Vector3.forward;
 
 		public override Contact? CalcMinContactTime(PhysObject other)
 		{
@@ -381,12 +399,16 @@ namespace ArBilliards.Phys
 
 		public override void AdvanceMovement(float delta)
 		{
-			throw new NotImplementedException();
+			// DO NOTHING
 		}
 
 		public override void ApplyCollision(PhysObject other)
 		{
-			throw new NotImplementedException();
+			// Only if target is sphere ...
+			if (other.Type == PhysType.Sphere)
+			{
+				((PhysSphere)other).ApplyCollision(this);
+			}
 		}
 	}
 
