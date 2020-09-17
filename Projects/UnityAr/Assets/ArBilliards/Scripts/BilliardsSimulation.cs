@@ -130,9 +130,13 @@ namespace ArBilliards.Phys
 				for (int idxA = 0; idxA < Count; idxA++)
 				{
 					var A = this[idxA];
+					if(A == null) continue;
+
 					for (int idxB = idxA + 1; idxB < Count; idxB++)
 					{
 						var B = this[idxB];
+						if(B==null) continue;
+
 						var contact = A.CalcMinContactTime(B);
 
 						if (contact.HasValue && contact.Value.Time < minContactTime)
