@@ -186,7 +186,7 @@ namespace ArBilliards.Phys
 	internal abstract class PhysObject : ICloneable
 	{
 		public abstract PhysType Type { get; }
-		public float Mass = 0;
+		public float Mass = 1.0f;
 		public Vector3 Position = new Vector3();
 		public Vector3 Velocity = new Vector3();
 		public float DampingCoeff = 0.001f;
@@ -207,9 +207,12 @@ namespace ArBilliards.Phys
 		/// <returns></returns>
 		public virtual void AdvanceMovement(float delta)
 		{
-			var eat = Mathf.Exp(-DampingCoeff * delta);
-			Position += Velocity * (1.0f / DampingCoeff) * (1.0f - eat);
-			Velocity *= eat;
+			var eat = Math.Exp(-DampingCoeff * delta);
+			Vec3d V = Velocity;
+			Vec3d P = Position;
+
+			Velocity = V * eat;
+			Position = P + V * (1.0 / DampingCoeff) * (1.0f - eat);
 		}
 
 		/// <summary>
@@ -252,11 +255,35 @@ namespace ArBilliards.Phys
 			}
 		}
 
-		public override void ApplyCollision(PhysObject other)
+		public override void ApplyCollision(PhysObject B)
 		{
-			// 단순 콜리전 반응으로, 속도를 반으로 줄이고 반대편으로 튕겨냅니다.
-			Velocity *= -0.5f;
-			other.Velocity *= -0.5f;
+			// 충돌 각도를 계산하기 위해, 먼저 두 구의 중심선에 대한 벡터 투영을 구합니다.
+			// ref: https://sites.google.com/site/3dgameprogram/home/physics-modeling-for-game-programming/-gibongaenyeomdajigi---mulli/-jiljeom-ui-chungdol
+			const float SMALL_NUMBER = 1e-7f;
+			var A = this;
+
+			// 반발 계수는 반드시 같아야 합니다.
+			if (Mathf.Abs(A.RestitutionCoeff - B.RestitutionCoeff) > SMALL_NUMBER)
+			{
+				throw new AssertionFailedException("Restitution coefficient must be equal between objects.");
+			}
+
+			var center = (B.Position - A.Position).normalized;
+
+			var (V1, V2) = (A.Velocity, B.Velocity);
+
+			var V1p = Vector3.Project(V1, center);
+			var V2p = Vector3.Project(V2, -center);
+
+			var (e, m1, m2) = (A.RestitutionCoeff, A.Mass, B.Mass);
+			var nV1p = ((m1 - e * m2) * V1p + (1 + e) * m2 * V2p) / (m1 + m2);
+			var nV2p = ((m2 - e * m1) * V2p + (1 + e) * m1 * V1p) / (m1 + m2);
+
+			var nV1 = V1 + (nV1p - V1p);
+			var nV2 = V2 + (nV2p - V2p);
+
+			A.Velocity = nV1;
+			B.Velocity = nV2;
 		}
 
 		Contact? CalcContact(PhysSphere o)
