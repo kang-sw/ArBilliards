@@ -330,12 +330,14 @@ public class AsyncSimAgent
 		else
 			(iter, maxIter) = (0, _p.NumCandidates);
 
+		SimResult.Candidate cand = null;
+
 		for (; iter < maxIter; ++iter)
 		{
 			resetBallState();
 
 			// -- 시뮬레이션 셋업
-			var cand = new SimResult.Candidate();
+			cand = cand ?? new SimResult.Candidate(); // candidate를 찾는 데 실패한 경우 메모리를 재활용하기 위함입니다.
 			var balls = cand.Balls;
 
 			// -- 초기 속력 및 방향 지정
@@ -419,10 +421,18 @@ public class AsyncSimAgent
 			bool bGotScore = true;
 			// TODO
 
-			// 득점시에만 candidate를 추가합니다.
+			// 득점시에만 candidate를 추가합니다.]
+			// 득점에 실패한 경우 candidate 메모리를 재활용합니다.(else)
 			if (bGotScore)
 			{
 				res.Candidates.Add(cand);
+				cand = null; // 소유권 이전합니다.
+			}
+			else
+			{
+				cand.Votes = 0.0f;
+				foreach (var candBall in cand.Balls)
+					candBall.Nodes.Clear();
 			}
 		}
 
