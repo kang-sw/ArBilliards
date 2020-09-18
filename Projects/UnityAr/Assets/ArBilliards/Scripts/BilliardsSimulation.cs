@@ -195,7 +195,7 @@ namespace ArBilliards.Phys
 		public float Mass = 1.0f;
 		public Vector3 Position = new Vector3();
 		public Vector3 Velocity = new Vector3();
-		public float DampingCoeff = 0.001f;
+		public double DampingCoeff = 0.001;
 		public float RestitutionCoeff = 1.0f;
 
 		/// <summary>
@@ -328,6 +328,18 @@ namespace ArBilliards.Phys
 			double alpha_inv = 1 / DampingCoeff;
 			Vec3d A, B;
 
+			// 오버랩 계산
+			var dist0 = ((Vector3)(P1 - P2)).magnitude;
+			if (false && (r1 + r2) - dist0 > SMALL_NUMBER)
+			{
+				Contact ct;
+				ct.A = (P1, V1);
+				ct.B = (P2, V2);
+				ct.At = Vector3.Lerp(P1, P2, r1 / (r1 + r2));
+				ct.Time = 0;
+				return ct;
+			}
+
 			B = alpha_inv * (V2 - V1);
 			A = P2 - P1 + B;
 
@@ -391,29 +403,45 @@ namespace ArBilliards.Phys
 			(Vec3d Pp, Vec3d n, Vec3d P0, Vec3d V0) = (o.Position, o.Normal, this.Position, this.Velocity);
 			(double alpha, double alpha_inv, double r) = (DampingCoeff, 1.0 / DampingCoeff, Radius);
 
-			// 노멀이 항상 구의 중심을 향하도록 합니다.
-			if (Vec3d.Dot(n, Pp - P0) > 0)
+			// 공이 이미 평면과 겹쳐 있는 경우를 처리합니다.
+			var Proj = Vector3.Project(Pp - P0, n);
+			var contactDist = Proj.magnitude;
+			if (false && r - contactDist > SMALL_NUMBER)
+			{
+				Contact contact;
+				contact.A = (P0, V0);
+				contact.B = (Pp, Vector3.zero);
+				contact.Time = 0;
+				contact.At = P0 - n * contactDist;
+				return contact;
+			}
+
+			// 속도와 노멀이 항상 마주봐야 합니다.
+			if (Vec3d.Dot(n, V0) > 0)
 			{
 				n = -n;
 			}
 
 			var aiV0 = alpha_inv * V0;
-			var upper = Vec3d.Dot(n, (P0 + aiV0 - Pp));
+			var upper = Vec3d.Dot(n, (P0 + aiV0 - Pp)) - r;
 			var lower = Vec3d.Dot(n, aiV0);
 
 			if (Math.Abs(lower) > SMALL_NUMBER)
 			{
-				var u = alpha * (upper / lower - r);
+				var u = upper / lower;
 				var t = -alpha_inv * Math.Log(u);
 
-				var Psph = P0 + aiV0 * (1 - u);
-				Contact contact;
-				contact.A = (Psph, V0 * u);
-				contact.B = (Pp, Vector3.zero);
-				contact.At = Psph - r * n;
-				contact.Time = (float)t;
+				if (t > 0)
+				{
+					var Psph = P0 + aiV0 * (1 - u);
+					Contact contact;
+					contact.A = (Psph, V0 * u);
+					contact.B = (Pp, Vector3.zero);
+					contact.At = Psph - r * n;
+					contact.Time = (float)t;
 
-				return contact;
+					return contact;
+				}
 			}
 
 			return null;
@@ -423,7 +451,13 @@ namespace ArBilliards.Phys
 	internal class PhysStaticPlane : PhysObject
 	{
 		public override PhysType Type => PhysType.StaticPlane;
-		public Vector3 Normal = Vector3.forward;
+		public Vector3 Normal
+		{
+			get => _normal;
+			set => _normal = value.normalized;
+		}
+
+		Vector3 _normal = Vector3.forward;
 
 		public override Contact? CalcMinContactTime(PhysObject other)
 		{
@@ -456,6 +490,11 @@ namespace ArBilliards.Phys
 	public struct Vec3d
 	{
 		double x, y, z;
+
+		public override string ToString()
+		{
+			return ((Vector3)this).ToString();
+		}
 
 		public Vec3d(double x = 0.0, double y = 0.0, double z = 0.0)
 		{

@@ -6,6 +6,7 @@ using UnityEngine;
 public class BilliardsSimulationTest : MonoBehaviour
 {
 	public GameObject SphereTemplate;
+	public GameObject PlaneTemplate;
 	public Transform Anchor;
 	public float SimulationStep = 0.5f;
 
@@ -16,32 +17,56 @@ public class BilliardsSimulationTest : MonoBehaviour
 	// Start is called before the first frame update
 	void Start()
 	{
-		var obj = new PhysSphere();
-		obj.DampingCoeff = 0.14f;
-		obj.RestitutionCoeff = 0.8f;
-		obj.Radius = 0.05f;
-		obj.Velocity = new Vector3(0.2f, 0.0f, 0.0f);
-		_sim.Spawn(obj);
+		{
+			var sph = new PhysSphere();
+			sph.Mass = 10f;
+			sph.DampingCoeff = 0.44;
+			sph.RestitutionCoeff = 0.61f;
+			  
+			sph.Radius = 0.25f;
+			sph.Velocity = new Vector3(1.4f, 0.0f);
+			_sim.Spawn(sph);
+			 
+			sph.Position = new Vector3(0.8f, 0.0f);
+			sph.Velocity = Vector3.zero;
+			_sim.Spawn(sph);
+			
+			sph.Position = new Vector3(-0.3f, 0.1f);
+			sph.Velocity = new Vector3(0.12f, -0.02f);
+			_sim.Spawn(sph);
+		}
+		{
+			var pln = new PhysStaticPlane();
+			pln.RestitutionCoeff = 0.71f;
+			var norms = new[] { (-1, 0) , (1, 0), (0, -0.6f), (0, 0.6f) };
 
-		obj.Radius = 0.6f;
-		obj.Mass = 2;
-		obj.Position = new Vector3(0.8f, 0.0f, 0.0f);
-		obj.Velocity = Vector3.zero;
-		_sim.Spawn(obj);
+			foreach (var normal in norms)
+			{
+				var vec = new Vector3(normal.Item1, normal.Item2);
 
-		obj.Mass = 1f;
-		obj.Radius = 0.06f;
-		obj.Position = new Vector3(-0.3f, 0.1f, 0.0f);
-		obj.Velocity = new Vector3(0.12f, -0.02f, 0.0f);
-		_sim.Spawn(obj);
+				pln.Position = -vec;
+				pln.Normal = vec;
+				_sim.Spawn(pln);
+			}
+		}
 
 		foreach (var elem in _sim.Enumerable)
 		{
-			// elem.DampingCoeff = 0.1f;
-			var spawned = Instantiate(SphereTemplate, Anchor);
-			spawned.transform.localPosition = elem.Position;
-			spawned.transform.localScale = Vector3.one * ((PhysSphere)elem).Radius * 2.0f;
-			_mapping[elem] = spawned;
+			if (elem is PhysSphere)
+			{
+				var spawned = Instantiate(SphereTemplate, Anchor);
+				spawned.transform.localPosition = elem.Position;
+				spawned.transform.localScale = Vector3.one * ((PhysSphere)elem).Radius * 2.0f;
+				_mapping[elem] = spawned;
+			}
+			else if (elem is PhysStaticPlane)
+			{
+				var spawned = Instantiate(PlaneTemplate, Anchor);
+				var tr = spawned.transform;
+				tr.localPosition = elem.Position;
+				tr.localRotation = Quaternion.LookRotation(((PhysStaticPlane)elem).Normal);
+				_mapping[elem] = spawned;
+			}
 		}
 	}
 
