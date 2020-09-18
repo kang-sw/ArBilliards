@@ -445,7 +445,7 @@ public class AsyncSimAgent
 			cand.Direction = dir;
 
 			var initVelocity = _p.InitSpeed * dir;
-			_ballRefs[(int)_p.PlayerBall].Velocity = initVelocity;
+			_ballRefs[(int)_p.PlayerBall].CurrentVelocity = initVelocity;
 
 			// -- 공 초기 위치 노드 셋업
 			for (int i = 0; i < 4; ++i)
@@ -589,7 +589,7 @@ public class AsyncSimAgent
 		foreach (var pos in _wallPositions)
 		{
 			// 위치, 노멀 설정은 아래에서 ...
-			spn.Position = new Vector3(pos.x, 0, pos.y);
+			spn.CurrentPosition = new Vector3(pos.x, 0, pos.y);
 			spn.Normal = new Vector3(-pos.x, 0, -pos.y);
 			_sim.Spawn(spn);
 		}
@@ -633,8 +633,8 @@ public class AsyncSimAgent
 		for (int index = 0; index < 4; index++)
 		{
 			var ballRef = _ballRefs[index];
-			ballRef.Position = _ballPositions[index];
-			ballRef.Velocity = Vector3.zero;
+			ballRef.CurrentPosition = _ballPositions[index];
+			ballRef.CurrentVelocity = Vector3.zero;
 		}
 	}
 }

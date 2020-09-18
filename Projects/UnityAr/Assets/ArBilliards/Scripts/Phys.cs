@@ -172,7 +172,7 @@ namespace ArBilliards.Phys
 					result.Add(contact);
 
 					// 충돌을 계산합니다.
-					A.ApplyCollisionImpl(B);
+					A.ApplyCollision(B);
 				}
 
 				deltaTime -= minContactTime;
@@ -190,12 +190,30 @@ namespace ArBilliards.Phys
 	{
 		public abstract PhysType Type { get; }
 		public float Mass = 1.0f;
-		public Vector3 Position = new Vector3();
-		public Vector3 Velocity = new Vector3();
 		public double DampingCoeff = 0.001;
 		public float RestitutionCoeff = 1.0f;
 
-		private float _deltaAcc = 0.0f;
+		public Vector3 Position
+		{
+			get => P0 + V0 * (float)((1 - Math.Exp(-_alpha * _Tc)) / _alpha);
+			set
+			{
+				var accVel = Position - P0;
+				P0 = value - accVel;
+			}
+		}
+
+		public Vector3 Velocity
+		{
+			get => V0 * (float)Math.Exp(-_alpha * _Tc);
+			set { V0 = value; _Tc = 0f; }
+		}
+
+
+		private double _alpha => DampingCoeff;
+		private double _Tc = 0.0f;
+		public Vector3 P0 { get; private set; };
+		public Vector3 V0 { get; private set; }
 
 		/// <summary>
 		/// 현재 위치와 속도를 바탕으로 대상 오브젝트와 충돌하는 최소 시간을 구합니다.
@@ -212,13 +230,7 @@ namespace ArBilliards.Phys
 		/// <returns></returns>
 		public virtual void AdvanceMovement(float delta)
 		{
-			_deltaAcc += delta;
-			var eat = Math.Exp(-DampingCoeff * _deltaAcc);
-			Vec3d V = Velocity;
-			Vec3d P = Position;
-
-			Velocity = V * eat;
-			Position = P + V * (1.0 / DampingCoeff) * (1.0f - eat);
+			_Tc += delta;
 		}
 
 		/// <summary>
@@ -227,13 +239,7 @@ namespace ArBilliards.Phys
 		/// </summary>
 		/// <param name="other">연산을 적용할 대상 오브젝트입니다.</param>
 		/// <returns></returns>
-		public void ApplyCollision(PhysObject other)
-		{
-			_deltaAcc = 0.0f;
-			ApplyCollisionImpl(other);
-		}
-
-		public abstract void ApplyCollisionImpl(PhysObject other);
+		public abstract void ApplyCollision(PhysObject other);
 
 		public struct Contact
 		{
@@ -268,7 +274,7 @@ namespace ArBilliards.Phys
 			}
 		}
 
-		public override void ApplyCollisionImpl(PhysObject B)
+		public override void ApplyCollision(PhysObject B)
 		{
 			// 충돌 각도를 계산하기 위해, 먼저 두 구의 중심선에 대한 벡터 투영을 구합니다.
 			// ref: https://sites.google.com/site/3dgameprogram/home/physics-modeling-for-game-programming/-gibongaenyeomdajigi---mulli/-jiljeom-ui-chungdol
@@ -334,7 +340,7 @@ namespace ArBilliards.Phys
 				throw new AssertionFailedException("Damping coefficient between spheres must be equal");
 			}
 
-			Vec3d P1 = Position, P2 = o.Position, V1 = Velocity, V2 = o.Velocity;
+			Vec3d P1 = P0, P2 = o.P0, V1 = V0, V2 = o.V0;
 			float r1 = Radius, r2 = o.Radius;
 			double alpha_inv = 1 / DampingCoeff;
 			Vec3d A, B;
@@ -503,12 +509,12 @@ namespace ArBilliards.Phys
 			// DO NOTHING
 		}
 
-		public override void ApplyCollisionImpl(PhysObject other)
+		public override void ApplyCollision(PhysObject other)
 		{
 			// Only if target is sphere ...
 			if (other.Type == PhysType.Sphere)
 			{
-				((PhysSphere)other).ApplyCollisionImpl(this);
+				((PhysSphere)other).ApplyCollision(this);
 			}
 		}
 	}
