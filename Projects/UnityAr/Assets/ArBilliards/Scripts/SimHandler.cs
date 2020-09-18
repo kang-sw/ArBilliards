@@ -39,6 +39,7 @@ public class SimHandler : MonoBehaviour
 	public float BallRestitution = 0.71f;
 	public float BallDamping = 0.33f;
 	public float TableRestitution = 0.53f;
+	public float TableFriction = 0.22f;
 
 	[Header("Optimizations")]
 	public int NumRotationDivider = 360;
@@ -93,7 +94,7 @@ public class SimHandler : MonoBehaviour
 
 			p.InitSpeed = SpeedValues[0];
 
-			_sim.InitSync(p);
+			_sim.InitAsync(p);
 			_intervalTimer = 0f;
 		}
 
@@ -118,8 +119,6 @@ public class SimHandler : MonoBehaviour
 			{
 				RenderBallPath(ColorRenderers[index], nearlest.Balls[index]);
 			}
-
-			_bLineDirty = false;
 		}
 	}
 
@@ -165,7 +164,7 @@ public class SimHandler : MonoBehaviour
 		p.SimDuration = SimDuration;
 		p.Ball = (BallRestitution, BallDamping, BallRadius);
 		p.PlayerBall = PlayerBall;
-		p.Table = (TableRestitution, TableWidth, TableHeight);
+		p.Table = (TableRestitution, TableWidth, TableHeight, TableFriction);
 		p.NumCandidates = NumRotationDivider;
 	}
 }
@@ -181,7 +180,7 @@ public class AsyncSimAgent
 	{
 		// DATA
 		public Vector3 Red1, Red2, Orange, White; // 테이블 원점 0, 0에 대한 당구공 4개의 좌표
-		public (float Restitution, float Width, float Height) Table; // 테이블 속성
+		public (float Restitution, float Width, float Height, float Friction) Table; // 테이블 속성
 		public (float Restitution, float Damping, float Radius) Ball; // 공 속성
 
 		// RULES 
@@ -195,6 +194,7 @@ public class AsyncSimAgent
 
 		// OPTIMIZATION
 		public int NumCandidates; // 360도 범위에서 몇 개의 후보를 선택할지 결정합니다. 후보는 uniform하게 선정됩니다.
+		public (int Begin, int End)? PartialRange; // 다수의 Agent 인스턴스를 생성해 
 		public float SimDuration; // 총 시뮬레이션 길이입니다.
 
 		public static void Rule3Balls(ref InitParams p)
@@ -274,7 +274,7 @@ public class AsyncSimAgent
 	/// 
 	/// </summary>
 	/// <param name="param"></param>
-	public async void InitAsync(InitParams param)
+	public async Task<SimResult> InitAsync(InitParams param)
 	{
 		if (IsRunning)
 		{
@@ -283,21 +283,21 @@ public class AsyncSimAgent
 
 		IsRunning = true;
 		_p = param;
-		await new Task(internalAsyncJob);
+		var task = new Task<SimResult>(internalExec);
+
+		task.Start();
+
+		var result = await task;
 		IsRunning = false;
+
+		return result;
 	}
 
-	public void InitSync(InitParams param)
+	public SimResult InitSync(InitParams param)
 	{
-		if (IsRunning)
-		{
-			return;
-		}
-
-		IsRunning = true;
-		_p = param;
-		internalAsyncJob();
-		IsRunning = false;
+		var task = InitAsync(param);
+		task.RunSynchronously();
+		return task.Result;
 	}
 
 	#region Internal props to handle async process
@@ -314,7 +314,7 @@ public class AsyncSimAgent
 	#endregion
 
 
-	void internalAsyncJob()
+	SimResult internalExec()
 	{
 		// 초기 오브젝트를 스폰합니다.
 		// 8개의 격벽(Inner, Outer), 4개의 공 
@@ -324,14 +324,19 @@ public class AsyncSimAgent
 		var res = _simRes = new SimResult();
 		res.Options = _p;
 
-		for (int iter = 0, maxIter = _p.NumCandidates; iter < maxIter; ++iter)
+		int iter, maxIter;
+		if (_p.PartialRange.HasValue)
+			(iter, maxIter) = _p.PartialRange.Value;
+		else
+			(iter, maxIter) = (0, _p.NumCandidates);
+
+		for (; iter < maxIter; ++iter)
 		{
 			resetBallState();
 
 			// -- 시뮬레이션 셋업
 			var cand = new SimResult.Candidate();
 			var balls = cand.Balls;
-			res.Candidates.Add(cand);
 
 			// -- 초기 속력 및 방향 지정
 			float angle = (360f / maxIter) * iter;
@@ -411,17 +416,25 @@ public class AsyncSimAgent
 			}
 
 			// -- 플레이어 공 분석하여 득점 여부 계산
-			// TODO:
+			bool bGotScore = true;
+			// TODO
+
+			// 득점시에만 candidate를 추가합니다.
+			if (bGotScore)
+			{
+				res.Candidates.Add(cand);
+			}
 		}
 
 		// 끝
+		return res;
 	}
 
 	private void initSim()
 	{
 		_sim = new PhysContext();
 
-		var (rst, w, h) = (_p.Table.Restitution, _p.Table.Width * 0.5f, _p.Table.Height * 0.5f);
+		var (rst, w, h, f) = (_p.Table.Restitution, _p.Table.Width * 0.5f, _p.Table.Height * 0.5f, _p.Table.Friction);
 		_wallPositions = new[]
 		{
 			(w, 0f), (-w, 0f), (w * 1.05f, 0f), (-w * 1.05f, 0f),
@@ -430,6 +443,7 @@ public class AsyncSimAgent
 
 		var spn = new PhysStaticPlane();
 		spn.RestitutionCoeff = rst;
+		spn.DampingCoeff = f;
 
 		foreach (var pos in _wallPositions)
 		{

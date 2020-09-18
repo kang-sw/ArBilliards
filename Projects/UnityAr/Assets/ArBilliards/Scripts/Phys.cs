@@ -295,7 +295,10 @@ namespace ArBilliards.Phys
 				var V1p = Vector3.Project(V1, N);
 				var nV1p = -e * V1p;
 
-				var nV1 = V1 + (nV1p - V1p);
+				var V1f = V1 - V1p;
+				V1f = (float)Math.Exp(-DampingCoeff) * V1 + V1p;
+
+				var nV1 = V1f + (nV1p - V1p);
 				A.Velocity = nV1;
 
 				break;
