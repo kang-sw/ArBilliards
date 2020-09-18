@@ -26,24 +26,53 @@ public class SimHandler : MonoBehaviour
 {
 	#region Public Properties
 
-	public Transform Anchor; // 테이블의 원점이 될 루트입니다.
+	[Header("General")]
+	public Transform RenderingAnchor; // 테이블의 원점이 될 루트입니다.
+
+	[Header("Dimensions")]
+	public float BallRadius = 0.07f / Mathf.PI;
+	public float TableWidth = 0.96f;
+	public float TableHeight = 0.51f;
+
+	[Header("Coefficients")]
+	public float BallRestitution = 0.71f;
+	public float BallDamping = 0.33f;
+	public float TableRestitution = 0.53f;
+
+	[Header("Optimizations")]
+	public int NumRotationDivider = 360;
+	public float[] Velocities = new[] { 0.4f };
+	public float SimDuration = 10.0f;
+
+	[Header("GameState")]
+	public BilliardsBall PlayerBall;
 
 	#endregion
+
+	private AsyncSimAgent _sim = new AsyncSimAgent();
+	private AsyncSimAgent.InitParams _param;
 
 	// Start is called before the first frame update
 	void Start()
 	{
-
+		AsyncSimAgent.InitParams.Rule4Balls(ref _param);
 	}
 
 	// Update is called once per frame
 	void Update()
 	{
-
 	}
 
-	// 시뮬레이션을 트리거합니다.
-	// 
+
+
+	void UpdateParam(ref AsyncSimAgent.InitParams p)
+	{
+		p.SimDuration = SimDuration;
+		p.Ball = (BallRestitution, BallDamping, BallRadius);
+		p.PlayerBall = PlayerBall;
+		p.Table = (TableRestitution, TableWidth, TableHeight);
+		p.NumCandidates = NumRotationDivider;
+	}
 }
 
 /// <summary>
