@@ -22,22 +22,22 @@ public class BilliardsSimulationTest : MonoBehaviour
 			sph.Mass = 10f;
 			sph.DampingCoeff = 0.44;
 			sph.RestitutionCoeff = 0.61f;
-			  
-			sph.Radius = 0.25f;
-			// sph.Velocity = new Vector3(1.4f, 0.0f);
+
+			sph.Radius = 0.22f;
+			sph.Velocity = new Vector3(1.4f, 0.0f);
 			_sim.Spawn(sph);
-			 
+
 			sph.Position = new Vector3(0.8f, 0.0f);
 			sph.Velocity = Vector3.zero;
 			_sim.Spawn(sph);
-			
+
 			sph.Position = new Vector3(-0.3f, 0.1f);
 			_sim.Spawn(sph);
 		}
 		{
 			var pln = new PhysStaticPlane();
 			pln.RestitutionCoeff = 0.71f;
-			var norms = new[] { (-1, 0) , (1, 0), (0, -0.6f), (0, 0.6f) };
+			var norms = new[] { (-1f, 0), (1f, 0), (0f, -0.6f), (0, 0.6f), (-1.2f, 0), (1.2f, 0), (0, -0.8f), (0, 0.8f) };
 
 			foreach (var normal in norms)
 			{

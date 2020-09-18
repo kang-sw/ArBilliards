@@ -76,6 +76,7 @@ namespace ArBilliards.Phys
 	class PhysContext
 	{
 		public float OverlapPushVelocity = 1f;
+		public float OverlapSteps = 0.01f; // Overlap된 물체가 하나라도 있을 경우 resolve될 때까지 스탭을 아래의 값으로 고정합니다.
 
 		public int Count => _objects.Count;
 		public PhysObject this[int i] => _objects[i];
@@ -119,6 +120,14 @@ namespace ArBilliards.Phys
 			_overlaps[index].Clear();
 		}
 
+		public void ResetOverlapStates()
+		{
+			foreach (var overlap in _overlaps)
+			{
+				overlap.Clear();
+			}
+		}
+
 		public struct ContactInfo
 		{
 			public float Time;
@@ -135,7 +144,6 @@ namespace ArBilliards.Phys
 		{
 			float totalTime = 0.0f;
 			const float SMALL_NUMBER = Constants.KINDA_SMALL_NUMBER;
-			var pushForces = new Dictionary<int, Vector3>();
 
 			// 남은 시간이 0이 될 때까지 반복합니다.
 			while (deltaTime > 0)
@@ -169,52 +177,19 @@ namespace ArBilliards.Phys
 
 						var ct = contact.Value;
 
-						if (ct.Time == 0)
+						// 만약 오버랩이 검출되었고, 이미 오버랩 처리중이라면 돌아갑니다.
+						if (ct.Time == 0 && overlaps.Add(B) == false)
 						{
-							if (overlaps.Add(B))
-							{
-								// 오버래핑 상태로 반환된 특수한 상황입니다.
-								// 두 물체가 정지된 상태라면 그냥 무시합니다.
-								// 두 물체 중 하나라도 움직이고 있다면 오버랩 처리 후, 오버랩 상태를 벗어날 때까지 아무것도 안 합니다.
-								if (ct.A.Vel.sqrMagnitude + ct.B.Vel.sqrMagnitude < Constants.KINDA_SMALL_NUMBER)
-								{
-									// 둘 다 정지 중이라면 최초 겹침 상태에서 멀어지는 방향으로 힘을 가합니다.
-									var dirFar = (ct.A.Pos - ct.At).normalized;
-									var push = dirFar * ct.OverlapDepth * OverlapPushVelocity;
-
-									if (!pushForces.ContainsKey(idxB))
-									{
-										pushForces.Add(idxB, Vector3.zero);
-									}
-
-									if (!pushForces.ContainsKey(idxA))
-									{
-										pushForces.Add(idxA, Vector3.zero);
-									}
-
-									pushForces[idxA] += push;
-									pushForces[idxB] -= push;
-								}
-								else
-								{
-									A.ApplyCollision((PhysObject)B.Clone());
-								}
-							}
-
+							continue;
 						}
-						else if (ct.Time < minContactTime)
+
+						if (ct.Time < minContactTime)
 						{
 							minContactIdx = (idxA, idxB);
 							minContactTime = contact.Value.Time;
 							minContact = contact;
 						}
 					}
-				}
-
-				// 오버랩 물체에 대한 척력을 작용합니다.
-				foreach (var force in pushForces)
-				{
-					_objects[force.Key].Velocity += force.Value;
 				}
 
 				// 최소 델타 시간만큼 모든 오브젝트를 전진시킵니다.
