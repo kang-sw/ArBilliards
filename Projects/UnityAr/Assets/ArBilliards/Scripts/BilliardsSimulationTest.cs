@@ -24,7 +24,7 @@ public class BilliardsSimulationTest : MonoBehaviour
 			sph.RestitutionCoeff = 0.61f;
 			  
 			sph.Radius = 0.25f;
-			sph.Velocity = new Vector3(1.4f, 0.0f);
+			// sph.Velocity = new Vector3(1.4f, 0.0f);
 			_sim.Spawn(sph);
 			 
 			sph.Position = new Vector3(0.8f, 0.0f);
@@ -32,7 +32,6 @@ public class BilliardsSimulationTest : MonoBehaviour
 			_sim.Spawn(sph);
 			
 			sph.Position = new Vector3(-0.3f, 0.1f);
-			sph.Velocity = new Vector3(0.12f, -0.02f);
 			_sim.Spawn(sph);
 		}
 		{

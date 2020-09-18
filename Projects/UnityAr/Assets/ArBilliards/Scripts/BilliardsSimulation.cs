@@ -19,6 +19,11 @@ namespace ArBilliards.Phys
 		public Vector3 White;
 	}
 
+	public static class Constants
+	{
+		public const float KINDA_SMALL_NUMBER = 1e-6f;
+	}
+
 	// TODO: 구 - 구 충돌, 구 - 정적 평면 ==> 직선 - 정적 평면 충돌
 	// TODO: 반발 계수 공식 
 	// TODO: 정해진 time step에 대해 모든 충돌체 iterate하여 가장 
@@ -70,15 +75,18 @@ namespace ArBilliards.Phys
 
 	class PhysContext
 	{
-		private List<PhysObject> _objects = new List<PhysObject>();
-		private List<HashSet<PhysObject>> _overlaps = new List<HashSet<PhysObject>>();
+		public float OverlapPushVelocity = 1f;
+
 		public int Count => _objects.Count;
 		public PhysObject this[int i] => _objects[i];
 		public IEnumerable<PhysObject> Enumerable => _objects;
+
+		private List<PhysObject> _objects = new List<PhysObject>();
+		private List<HashSet<PhysObject>> _overlaps = new List<HashSet<PhysObject>>();
 		private HashSet<int> _availableIndexes = new HashSet<int>();
 
 		public void Clear()
-		{ 
+		{
 			_availableIndexes.Clear();
 			_overlaps.Clear();
 			_objects.Clear();
@@ -122,10 +130,12 @@ namespace ArBilliards.Phys
 		///  시뮬레이션을 수행, 내부 오브젝트의 상태를 업데이트합니다.
 		/// </summary>
 		/// <param name="deltaTime"></param>
-		/// <returns>발생한 충돌이 시간 순서대로 수집됩니다.</returns>
+		/// <param name="result">결과가 저장됩니다.</param>
 		public void StepSimulation(float deltaTime, List<ContactInfo> result)
-		{ 
+		{
 			float totalTime = 0.0f;
+			const float SMALL_NUMBER = Constants.KINDA_SMALL_NUMBER;
+			var pushForces = new Dictionary<int, Vector3>();
 
 			// 남은 시간이 0이 될 때까지 반복합니다.
 			while (deltaTime > 0)
@@ -138,6 +148,8 @@ namespace ArBilliards.Phys
 				for (int idxA = 0; idxA < Count; idxA++)
 				{
 					var A = this[idxA];
+					var overlaps = _overlaps[idxA];
+
 					if (A == null)
 						continue;
 
@@ -149,13 +161,60 @@ namespace ArBilliards.Phys
 
 						var contact = A.CalcMinContactTime(B);
 
-						if (contact.HasValue && contact.Value.Time < minContactTime)
+						if (!contact.HasValue)
+						{
+							overlaps.Remove(B);
+							continue;
+						}
+
+						var ct = contact.Value;
+
+						if (ct.Time == 0)
+						{
+							if (overlaps.Add(B))
+							{
+								// 오버래핑 상태로 반환된 특수한 상황입니다.
+								// 두 물체가 정지된 상태라면 그냥 무시합니다.
+								// 두 물체 중 하나라도 움직이고 있다면 오버랩 처리 후, 오버랩 상태를 벗어날 때까지 아무것도 안 합니다.
+								if (ct.A.Vel.sqrMagnitude + ct.B.Vel.sqrMagnitude < Constants.KINDA_SMALL_NUMBER)
+								{
+									// 둘 다 정지 중이라면 최초 겹침 상태에서 멀어지는 방향으로 힘을 가합니다.
+									var dirFar = (ct.A.Pos - ct.At).normalized;
+									var push = dirFar * ct.OverlapDepth * OverlapPushVelocity;
+
+									if (!pushForces.ContainsKey(idxB))
+									{
+										pushForces.Add(idxB, Vector3.zero);
+									}
+
+									if (!pushForces.ContainsKey(idxA))
+									{
+										pushForces.Add(idxA, Vector3.zero);
+									}
+
+									pushForces[idxA] += push;
+									pushForces[idxB] -= push;
+								}
+								else
+								{
+									A.ApplyCollision((PhysObject)B.Clone());
+								}
+							}
+
+						}
+						else if (ct.Time < minContactTime)
 						{
 							minContactIdx = (idxA, idxB);
 							minContactTime = contact.Value.Time;
 							minContact = contact;
 						}
 					}
+				}
+
+				// 오버랩 물체에 대한 척력을 작용합니다.
+				foreach (var force in pushForces)
+				{
+					_objects[force.Key].Velocity += force.Value;
 				}
 
 				// 최소 델타 시간만큼 모든 오브젝트를 전진시킵니다.
@@ -185,7 +244,7 @@ namespace ArBilliards.Phys
 				}
 
 				deltaTime -= minContactTime;
-			} 
+			}
 		}
 	}
 
@@ -240,6 +299,7 @@ namespace ArBilliards.Phys
 			public (Vector3 Pos, Vector3 Vel) A, B;
 			public float Time;
 			public Vector3 At; // 충돌 자체가 일어난 지점
+			public float OverlapDepth;
 		}
 
 		public object Clone()
@@ -271,7 +331,7 @@ namespace ArBilliards.Phys
 		{
 			// 충돌 각도를 계산하기 위해, 먼저 두 구의 중심선에 대한 벡터 투영을 구합니다.
 			// ref: https://sites.google.com/site/3dgameprogram/home/physics-modeling-for-game-programming/-gibongaenyeomdajigi---mulli/-jiljeom-ui-chungdol
-			const float SMALL_NUMBER = 1e-7f;
+			const float SMALL_NUMBER = Constants.KINDA_SMALL_NUMBER;
 			var A = this;
 
 			var (e, m1, m2) = (0.5f * (A.RestitutionCoeff + B.RestitutionCoeff), A.Mass, B.Mass);
@@ -317,7 +377,7 @@ namespace ArBilliards.Phys
 
 		Contact? CalcContact(PhysSphere o)
 		{
-			const float SMALL_NUMBER = 1e-7f;
+			const float SMALL_NUMBER = Constants.KINDA_SMALL_NUMBER;
 
 			if (DampingCoeff < SMALL_NUMBER)
 			{
@@ -343,6 +403,7 @@ namespace ArBilliards.Phys
 				ct.B = (P2, V2);
 				ct.At = Vector3.Lerp(P1, P2, r1 / (r1 + r2));
 				ct.Time = 0;
+				ct.OverlapDepth = (r1 + r2) - dist0;
 				return ct;
 			}
 
@@ -391,6 +452,7 @@ namespace ArBilliards.Phys
 				contact.B.Vel = V2 * u;
 				contact.Time = (float)t.Value;
 				contact.At = Vector3.Lerp(contact.A.Pos, contact.B.Pos, r1 / (r1 + r2));
+				contact.OverlapDepth = 0;
 				return contact;
 			}
 
@@ -419,6 +481,7 @@ namespace ArBilliards.Phys
 				contact.B = (Pp, Vector3.zero);
 				contact.Time = 0;
 				contact.At = P0 - n * contactDist;
+				contact.OverlapDepth = (float)(r - contactDist);
 				return contact;
 			}
 
@@ -445,6 +508,7 @@ namespace ArBilliards.Phys
 					contact.B = (Pp, Vector3.zero);
 					contact.At = Psph - r * n;
 					contact.Time = (float)t;
+					contact.OverlapDepth = 0;
 
 					return contact;
 				}
@@ -470,7 +534,17 @@ namespace ArBilliards.Phys
 			switch (other.Type)
 			{
 			case PhysType.Sphere:
-				return other.CalcMinContactTime(this);
+				var ctopt = other.CalcMinContactTime(this);
+				if (ctopt.HasValue)
+				{
+					var ct = ctopt.Value;
+					var tmp = ct.B;
+					ct.B = ct.A;
+					ct.A = tmp;
+					ctopt = ct;
+				}
+
+				return ctopt;
 			case PhysType.StaticPlane:
 				return null;
 			default:
