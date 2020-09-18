@@ -16,7 +16,7 @@ namespace ArBilliards.Phys
 		public const float KINDA_SMALL_NUMBER = 1e-6f;
 	}
 
-	class PhysContext
+	public class PhysContext
 	{
 		public float OverlapPushVelocity = 1f;
 		public float OverlapSteps = 0.01f; // Overlap된 물체가 하나라도 있을 경우 resolve될 때까지 스탭을 아래의 값으로 고정합니다.
@@ -123,9 +123,16 @@ namespace ArBilliards.Phys
 						var ct = contact.Value;
 
 						// 만약 오버랩이 검출되었고, 이미 오버랩 처리중이라면 돌아갑니다.
-						if (ct.Time == 0 && overlaps.Add(B) == false)
+						if (ct.Time == 0)
 						{
-							continue;
+							if (ct.A.Vel.sqrMagnitude + ct.B.Vel.sqrMagnitude == 0 || overlaps.Contains(B))
+							{
+								continue;
+							}
+							else
+							{
+								overlaps.Add(B);
+							}
 						}
 
 						if (ct.Time < minContactTime)
@@ -168,13 +175,13 @@ namespace ArBilliards.Phys
 		}
 	}
 
-	enum PhysType
+	public enum PhysType
 	{
 		Sphere,
 		StaticPlane
 	}
 
-	internal abstract class PhysObject : ICloneable
+	public abstract class PhysObject : ICloneable
 	{
 		public abstract PhysType Type { get; }
 		public float Mass = 1.0f;
@@ -263,7 +270,6 @@ namespace ArBilliards.Phys
 			{
 				var center = (B.Position - A.Position).normalized;
 
-
 				var V1p = Vector3.Project(V1, center);
 				var V2p = Vector3.Project(V2, -center);
 
@@ -316,7 +322,7 @@ namespace ArBilliards.Phys
 
 			// 오버랩 계산
 			var dist0 = ((Vector3)(P1 - P2)).magnitude;
-			if ((r1 + r2) - dist0 > SMALL_NUMBER)
+			if ((r1 + r2) - dist0 > 0 && Vec3d.Dot(V1, V2) < 0)
 			{
 				Contact ct;
 				ct.A = (P1, V1);
@@ -391,10 +397,17 @@ namespace ArBilliards.Phys
 			(Vec3d Pp, Vec3d n, Vec3d P0, Vec3d V0) = (o.Position, o.Normal, this.Position, this.Velocity);
 			(double alpha, double alpha_inv, double r) = (DampingCoeff, 1.0 / DampingCoeff, Radius);
 
+			// 속도와 노멀이 항상 마주봐야 합니다.
+			if (Vec3d.Dot(n, V0) > 0)
+			{
+				n = -n;
+			}
+
 			// 공이 이미 평면과 겹쳐 있는 경우를 처리합니다.
+			// 또한, 평면으로 다가가는 경우만 오버랩 처리합니다.
 			var Proj = Vector3.Project(Pp - P0, n);
 			var contactDist = Proj.magnitude;
-			if (r - contactDist > SMALL_NUMBER)
+			if (r - contactDist > 0 && Vector3.Dot(Proj, V0) > 0)
 			{
 				Contact contact;
 				contact.A = (P0, V0);
@@ -403,12 +416,6 @@ namespace ArBilliards.Phys
 				contact.At = P0 - n * contactDist;
 				contact.OverlapDepth = (float)(r - contactDist);
 				return contact;
-			}
-
-			// 속도와 노멀이 항상 마주봐야 합니다.
-			if (Vec3d.Dot(n, V0) > 0)
-			{
-				n = -n;
 			}
 
 			var aiV0 = alpha_inv * V0;

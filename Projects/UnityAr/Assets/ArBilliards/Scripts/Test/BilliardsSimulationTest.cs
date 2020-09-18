@@ -11,12 +11,32 @@ public class BilliardsSimulationTest : MonoBehaviour
 	public float SimulationStep = 0.5f;
 
 	private PhysContext _sim = new PhysContext();
-	private Dictionary<PhysObject, GameObject> _mapping = new Dictionary<PhysObject, GameObject>();
+	private Dictionary<PhysObject, GameObject> _mapping;
 	private bool _manualSimMode = true;
+	private float _counter = 0.0f;
+
+	private Dictionary<PhysObject, List<Vector3>> _trails;
 
 	// Start is called before the first frame update
 	void Start()
 	{
+		Reset();
+	}
+
+	private void Reset()
+	{
+		if (_mapping != null)
+		{
+			foreach (var pair in _mapping)
+			{
+				Destroy(pair.Value);
+			}
+		}
+
+		_mapping = new Dictionary<PhysObject, GameObject>();
+		_trails = new Dictionary<PhysObject, List<Vector3>>();
+		_sim.Clear();
+
 		{
 			var pln = new PhysStaticPlane();
 			pln.RestitutionCoeff = 0.71f;
@@ -37,11 +57,11 @@ public class BilliardsSimulationTest : MonoBehaviour
 			sph.DampingCoeff = 0.44;
 			sph.RestitutionCoeff = 0.61f;
 
-			sph.Radius = 0.14f;
+			sph.Radius = 0.24f;
 			sph.Velocity = new Vector3(2.4f, 0.7f);
 			_sim.Spawn(sph);
 
-			sph.Position = new Vector3(0.2f, 0.0f);
+			sph.Position = new Vector3(1.0f, 0.0f);
 			sph.Velocity = Vector3.zero;
 			_sim.Spawn(sph);
 
@@ -72,23 +92,49 @@ public class BilliardsSimulationTest : MonoBehaviour
 	// Update is called once per frame
 	void Update()
 	{
+
+		if (Input.GetKeyDown(KeyCode.Q))
+		{
+			Reset();
+		}
+
 		if (Input.GetKeyDown(KeyCode.Tab))
 		{
 			_manualSimMode = !_manualSimMode;
 		}
 
-		bool bSimulate = !_manualSimMode || Input.GetKeyDown(KeyCode.Space);
-		float simStep = _manualSimMode ? SimulationStep : Time.deltaTime;
+		_counter += Time.deltaTime;
+		bool bSimulate = (!_manualSimMode && _counter > SimulationStep) || Input.GetKeyDown(KeyCode.Space);
 
 		if (bSimulate)
 		{
-			var results = new List<PhysContext.ContactInfo>();
-			_sim.StepSimulation(simStep, results);
+			_counter = 0f;
+
+			_trails.Clear();
+
+			foreach (var obj in _sim.Enumerable)
+			{
+				_trails[obj] = new List<Vector3>();
+				_trails[obj].Add(obj.Position);
+			}
+
+			var contact = new List<PhysContext.ContactInfo>();
+			_sim.StepSimulation(SimulationStep, contact);
 
 			foreach (var elem in _sim.Enumerable)
 			{
 				_mapping[elem].transform.localPosition = elem.Position;
 			}
+
+			foreach (var elem in contact)
+			{
+				foreach (var A in new[] { elem.A, elem.B })
+				{
+					var obj = _sim[A.Idx];
+
+				}
+			}
 		}
+
 	}
 }

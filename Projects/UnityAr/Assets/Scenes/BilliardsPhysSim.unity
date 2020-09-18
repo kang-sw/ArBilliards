@@ -293,7 +293,7 @@ MonoBehaviour:
   PlaneTemplate: {fileID: 6685924564243921826, guid: 91e0fbe8e0c2635478f6d3e8c47421f4,
     type: 3}
   Anchor: {fileID: 501118548}
-  SimulationStep: 1
+  SimulationStep: 10
 --- !u!1 &1276358908
 GameObject:
   m_ObjectHideFlags: 0

@@ -379,9 +379,17 @@ public class AsyncSimAgent
 						balls[ballIndex].Nodes.Add(n);
 					}
 
-					var tmp = ct.A;
-					ct.A = ct.B;
-					ct.B = ct.A;
+					{
+						var tmp = ct.A;
+						ct.A = ct.B;
+						ct.B = ct.A;
+					}
+					{
+						var tmp = A;
+						A = B;
+						B = A;
+					}
+
 				}
 			}
 
