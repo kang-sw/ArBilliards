@@ -57,15 +57,15 @@ public class BilliardsSimulationTest : MonoBehaviour
 			sph.DampingCoeff = 0.44;
 			sph.RestitutionCoeff = 0.61f;
 
-			sph.Radius = 0.24f;
-			sph.Velocity = new Vector3(2.4f, 0.7f);
+			sph.Radius = 0.11f;
+			sph.Velocity = new Vector3(2.4f, 0.3f);
 			_sim.Spawn(sph);
 
-			sph.Position = new Vector3(1.0f, 0.0f);
+			sph.Position = new Vector3(0.96f, 0.0f);
 			sph.Velocity = Vector3.zero;
 			_sim.Spawn(sph);
 
-			sph.Position = new Vector3(-0.3f, 0.1f);
+			sph.Position = new Vector3(0.04f, 0.0f);
 			_sim.Spawn(sph);
 		}
 
@@ -110,12 +110,13 @@ public class BilliardsSimulationTest : MonoBehaviour
 		{
 			_counter = 0f;
 
-			_trails.Clear();
-
 			foreach (var obj in _sim.Enumerable)
 			{
-				_trails[obj] = new List<Vector3>();
-				_trails[obj].Add(obj.Position);
+				if (!_trails.ContainsKey(obj))
+				{
+					_trails[obj] = new List<Vector3>();
+					_trails[obj].Add(obj.Position);
+				}
 			}
 
 			var contact = new List<PhysContext.ContactInfo>();
@@ -131,10 +132,26 @@ public class BilliardsSimulationTest : MonoBehaviour
 				foreach (var A in new[] { elem.A, elem.B })
 				{
 					var obj = _sim[A.Idx];
-
+					_trails[obj].Add(A.Pos);
 				}
+			}
+
+			foreach (var obj in _sim.Enumerable)
+			{
+				_trails[obj].Add(obj.Position);
 			}
 		}
 
+		foreach (var pair in _trails)
+		{
+			var joints = pair.Value;
+			for (int i = 0; i < joints.Count - 1; i++)
+			{
+				var beg = joints[i] + Anchor.transform.position;
+				var end = joints[i + 1] + Anchor.transform.position;
+
+				Debug.DrawLine(beg, end, Color.red);
+			}
+		}
 	}
 }

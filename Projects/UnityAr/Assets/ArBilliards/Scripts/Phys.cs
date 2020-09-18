@@ -13,7 +13,7 @@ namespace ArBilliards.Phys
 {
 	public static class Constants
 	{
-		public const float KINDA_SMALL_NUMBER = 1e-6f;
+		public const float KINDA_SMALL_NUMBER = 1e-7f;
 	}
 
 	public class PhysContext
@@ -96,6 +96,7 @@ namespace ArBilliards.Phys
 				float minContactTime = deltaTime;
 				(int A, int B)? minContactIdx = null;
 				PhysObject.Contact? minContact = null;
+				bool bOverlapOccured = false;
 
 				// 가장 먼저 접촉하는 페어를 찾습니다.
 				for (int idxA = 0; idxA < Count; idxA++)
@@ -125,14 +126,15 @@ namespace ArBilliards.Phys
 						// 만약 오버랩이 검출되었고, 이미 오버랩 처리중이라면 돌아갑니다.
 						if (ct.Time == 0)
 						{
-							if (ct.A.Vel.sqrMagnitude + ct.B.Vel.sqrMagnitude == 0 || overlaps.Contains(B))
-							{
+							// 한 틱에 한 번의 오버랩만 처리됩니다.
+							if (bOverlapOccured)
 								continue;
-							}
-							else
-							{
-								overlaps.Add(B);
-							}
+
+							if (ct.A.Vel.sqrMagnitude + ct.B.Vel.sqrMagnitude == 0 || overlaps.Contains(B))
+								continue;
+
+							bOverlapOccured = true;
+							overlaps.Add(B);
 						}
 
 						if (ct.Time < minContactTime)
