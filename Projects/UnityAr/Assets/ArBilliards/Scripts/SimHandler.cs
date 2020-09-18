@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using ArBilliards.Phys;
 using Boo.Lang.Runtime;
@@ -138,9 +139,9 @@ public class AsyncSimAgent
 	/// <summary>
 	/// 시뮬레이션 결과가 준비된 경우 true 반환합니다.
 	/// </summary>
-	public bool IsReady { get; private set; }
+	public bool IsRunning { get; private set; }
 
-	public SimResult SimulationResult => IsReady ? _simRes : null;
+	public SimResult SimulationResult => IsRunning ? _simRes : null;
 
 	#endregion
 
@@ -151,17 +152,28 @@ public class AsyncSimAgent
 	/// <param name="param"></param>
 	public async void InitAsync(InitParams param)
 	{
-		if (!IsReady)
+		if (IsRunning)
 		{
 			throw new AssertionFailedException("Async process still running!");
 		}
 
-		IsReady = false;
-
+		IsRunning = true;
 		_p = param;
 		await new Task(internalAsyncJob);
+		IsRunning = false;
+	}
 
-		IsReady = true;
+	public void InitSync(InitParams param)
+	{
+		if (IsRunning)
+		{
+			return;
+		}
+
+		IsRunning = true;
+		_p = param;
+		internalAsyncJob();
+		IsRunning = false;
 	}
 
 	#region Internal props to handle async process
@@ -188,28 +200,74 @@ public class AsyncSimAgent
 		var res = _simRes = new SimResult();
 		res.Options = _p;
 
-		for (int iter = 0, max_iter = _p.NumCandidates; iter < max_iter; ++iter)
+		for (int iter = 0, maxIter = _p.NumCandidates; iter < maxIter; ++iter)
 		{
 			resetBallState();
 
-			// 이번 시뮬레이션
+			// -- 시뮬레이션 셋업
 			var cand = new SimResult.Candidate();
+			var balls = cand.Balls;
 			res.Candidates.Add(cand);
 
-			// 초기 속력 및 방향 지정
-			float angle = (2f * Mathf.PI / max_iter) * iter;
+			// -- 초기 속력 및 방향 지정
+			float angle = (2f * Mathf.PI / maxIter) * iter;
 			var dir = Quaternion.Euler(0, angle, 0) * Vector3.forward;
 			cand.Direction = dir;
 
 			var initVelocity = _p.InitSpeed * dir;
 			_ballRefs[(int)_p.PlayerBall].Velocity = initVelocity;
 
-			// 시뮬레이션 트리거 후 충돌 수집
+			// -- 공 초기 위치 노드 셋업
+			for (int i = 0; i < 4; ++i)
+			{
+				var r = _ballRefs[i];
+
+				BallPath.Node n;
+				n.Position = r.Position;
+				n.Velocity = r.Velocity;
+				n.Time = 0f;
+				n.Other = null;
+
+				balls[i].Nodes.Add(n);
+				balls[i].Index = (BilliardsBall)i;
+			}
+
+			// -- 시뮬레이션 트리거 후 충돌 수집
 			_sim.StepSimulation(_p.SimDuration, contacts);
 
+			// 충돌 위치 목록 순회하며 공 경로 분석
+			foreach (var contact in contacts)
+			{
+				var ct = contact;
+				var A = getBallId(ct.A.Idx);
+				var B = getBallId(ct.B.Idx);
 
+				for (int swap = 0; swap < 2; ++swap)
+				{
+					if (A.HasValue)
+					{
+						var ballIndex = (int)A.Value;
+
+						BallPath.Node n;
+						n.Other = B;
+						n.Position = ct.A.Pos;
+						n.Velocity = ct.A.Vel;
+						n.Time = ct.Time;
+
+						balls[ballIndex].Nodes.Add(n);
+					}
+
+					var tmp = ct.A;
+					ct.A = ct.B;
+					ct.B = ct.A;
+				}
+			}
+
+			// -- 플레이어 공 분석하여 득점 여부 계산
+			// TODO:
 		}
 
+		// 끝
 	}
 
 	private void initSim()
@@ -252,7 +310,7 @@ public class AsyncSimAgent
 		}
 	}
 
-	BilliardsBall getBallId(int ballIndex)
+	BilliardsBall? getBallId(int ballIndex)
 	{
 		for (int index = 0; index < 4; ++index)
 		{
@@ -262,7 +320,7 @@ public class AsyncSimAgent
 			}
 		}
 
-		throw new Exception("Given index is not a ball index!");
+		return null;
 	}
 
 	void resetBallState()
