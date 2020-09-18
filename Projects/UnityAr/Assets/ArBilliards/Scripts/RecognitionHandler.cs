@@ -26,6 +26,10 @@ public class RecognitionHandler : MonoBehaviour
 
 	// 공이 멈췄다고 판단하는 속도입니다.
 	public float stopSpeed = 0.01f;
+
+	// 시뮬레이터 레퍼런스
+	public SimHandler Simulator;
+
 	#endregion
 
 	#region Internal Fields
@@ -64,7 +68,7 @@ public class RecognitionHandler : MonoBehaviour
 
 	// Start is called before the first frame update
 	private void Start()
-	{ 
+	{
 	}
 
 	// Update is called once per frame
@@ -125,16 +129,26 @@ public class RecognitionHandler : MonoBehaviour
 			bSimulationAvailable = true;
 		} while (false);
 
-		if (bSimulationAvailable)
+		if (bSimulationAvailable && Simulator)
 		{
-			var recog = new ArBilliards.Phys.Recognitions();
-			recog.Red1 = toVector3(result.Red1);
-			recog.Red2 = toVector3(result.Red2);
-			recog.Orange = toVector3(result.Orange);
-			recog.White = toVector3(result.White);
+			var (red1, red2, orange, white) = (toVector3(result.Red1), toVector3(result.Red2), toVector3(result.Orange), toVector3(result.White));
+			var trs = tableTransform.worldToLocalMatrix;
+
+			void doTr(ref Vector3 vec)
+			{
+				var v = new Vector4(vec.x, vec.y, vec.z, 1.0f);
+				v = trs * v;
+				v.y = 0f;
+				vec = v;
+			}
 
 			// 테이블 벡터에 대해 2D 좌표로 만들고, 시뮬레이션을 트리거합니다.
-			// var simResult = _simulation.SolveSimulation(tableTransform.worldToLocalMatrix, recog);
+			doTr(ref red1);
+			doTr(ref red2);
+			doTr(ref orange);
+			doTr(ref white);
+
+			Simulator.PendingBallPositions = (red1, red2, orange, white);
 		}
 	}
 

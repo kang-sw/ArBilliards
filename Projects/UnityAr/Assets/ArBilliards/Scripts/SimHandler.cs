@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using ArBilliards.Phys;
+﻿using ArBilliards.Phys;
 using Boo.Lang.Runtime;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.Remoting.Messaging;
+using System.Threading.Tasks;
 using UnityEngine;
 
 public enum BilliardsBall
@@ -27,7 +26,9 @@ public class SimHandler : MonoBehaviour
 	#region Public Properties
 
 	[Header("General")]
-	public Transform RenderingAnchor; // 테이블의 원점이 될 루트입니다.
+	public Transform TableAnchor; // 렌더링 루트입니다.
+	public Transform LookTransform; // 전방 방향 트랜스폼
+	public float SimInterval = 0.5f; // 시뮬레이션 간격입니다.
 
 	[Header("Dimensions")]
 	public float BallRadius = 0.07f / Mathf.PI;
@@ -41,29 +42,121 @@ public class SimHandler : MonoBehaviour
 
 	[Header("Optimizations")]
 	public int NumRotationDivider = 360;
-	public float[] Velocities = new[] { 0.4f };
 	public float SimDuration = 10.0f;
+	public float[] SpeedValues = new[] { 0.4f };
 
 	[Header("GameState")]
-	public BilliardsBall PlayerBall;
+	public BilliardsBall PlayerBall = BilliardsBall.Orange;
+
+	[Header("Visualizer")]
+	public Color[] BallVisualizeColors = new Color[4];
+	public LineRenderer CandidateRenderer;
+	public LineRenderer[] ColorRenderers = new LineRenderer[4];
+
+	#endregion
+
+	#region Public States
+
+	public (Vector3 Red1, Vector3 Red2, Vector3 Orange, Vector3 White)? PendingBallPositions { get; set; }
 
 	#endregion
 
 	private AsyncSimAgent _sim = new AsyncSimAgent();
-	private AsyncSimAgent.InitParams _param;
+	private AsyncSimAgent.SimResult _latestResult = null;
+	private float _intervalTimer = 0f;
+	private bool _bLineDirty = false;
 
 	// Start is called before the first frame update
 	void Start()
 	{
-		AsyncSimAgent.InitParams.Rule4Balls(ref _param);
 	}
 
 	// Update is called once per frame
 	void Update()
 	{
+		if (_sim.SimulationResult != null)
+		{
+			_latestResult = _sim.SimulationResult;
+			_bLineDirty = true;
+		}
+
+		_intervalTimer += Time.deltaTime;
+		if (_intervalTimer > SimInterval && !_sim.IsRunning && PendingBallPositions.HasValue)
+		{
+			// 비동기 시뮬레이션 트리거
+			var p = new AsyncSimAgent.InitParams();
+			UpdateParam(ref p);
+			AsyncSimAgent.InitParams.Rule4Balls(ref p);
+
+			(p.Red1, p.Red2, p.Orange, p.White) = PendingBallPositions.Value;
+			PendingBallPositions = null;
+
+			p.InitSpeed = SpeedValues[0];
+
+			_sim.InitSync(p);
+			_intervalTimer = 0f;
+		}
+
+		if (_bLineDirty && LookTransform)
+		{
+			var fwd = LookTransform.forward;
+			var r = _latestResult;
+
+			// 현재 카메라 방향에 따라 가장 적합한 candidate를 찾습니다.
+			fwd = TableAnchor.worldToLocalMatrix.MultiplyVector(fwd);
+			AsyncSimAgent.SimResult.Candidate nearlest = r.Candidates[0];
+
+			foreach (var elem in r.Candidates)
+			{
+				if (Vector3.Angle(nearlest.Direction, fwd) > Vector3.Angle(elem.Direction, fwd))
+					nearlest = elem;
+			}
+
+			for (int index = 0; index < 4; ++index)
+			{
+				RenderBallPath(ColorRenderers[index], nearlest.Balls[index]);
+			}
+
+			_bLineDirty = false;
+		}
 	}
 
+	void RenderBallPath(LineRenderer target, AsyncSimAgent.BallPath path)
+	{
+		if (target == null)
+			return;
 
+		var nodes = path.Nodes;
+		target.positionCount = nodes.Count;
+		target.useWorldSpace = false;
+		target.alignment = LineAlignment.View;
+
+		target.material.color = target.startColor;
+
+		for (int index = 0; index < nodes.Count; index++)
+		{
+			target.SetPosition(index, nodes[index].Position);
+		}
+	}
+
+	void DebugRenderBallPath(AsyncSimAgent.SimResult.Candidate cand)
+	{
+		var mtrx = TableAnchor.localToWorldMatrix;
+
+		foreach (var ball in cand.Balls)
+		{
+			for (int index = 0; index < ball.Nodes.Count - 1; index++)
+			{
+				var cur = ball.Nodes[index];
+				var nxt = ball.Nodes[index + 1];
+
+				var beginPt = mtrx.MultiplyPoint(cur.Position);
+				var endPt = mtrx.MultiplyPoint(nxt.Position);
+
+				Debug.DrawLine(beginPt, endPt, BallVisualizeColors[(int)ball.Index]);
+			}
+		}
+	}
 
 	void UpdateParam(ref AsyncSimAgent.InitParams p)
 	{
@@ -170,7 +263,7 @@ public class AsyncSimAgent
 	/// </summary>
 	public bool IsRunning { get; private set; }
 
-	public SimResult SimulationResult => IsRunning ? _simRes : null;
+	public SimResult SimulationResult => !IsRunning ? _simRes : null;
 
 	#endregion
 
@@ -239,7 +332,7 @@ public class AsyncSimAgent
 			res.Candidates.Add(cand);
 
 			// -- 초기 속력 및 방향 지정
-			float angle = (2f * Mathf.PI / maxIter) * iter;
+			float angle = (360f / maxIter) * iter;
 			var dir = Quaternion.Euler(0, angle, 0) * Vector3.forward;
 			cand.Direction = dir;
 
@@ -292,6 +385,21 @@ public class AsyncSimAgent
 				}
 			}
 
+			// -- 공의 최종 위치 추가하기
+			for (int i = 0; i < 4; ++i)
+			{
+				var r = _ballRefs[i];
+
+				BallPath.Node n;
+				n.Position = r.Position;
+				n.Velocity = r.Velocity;
+				n.Time = _p.SimDuration;
+				n.Other = null;
+
+				balls[i].Nodes.Add(n);
+				balls[i].Index = (BilliardsBall)i;
+			}
+
 			// -- 플레이어 공 분석하여 득점 여부 계산
 			// TODO:
 		}
@@ -303,7 +411,7 @@ public class AsyncSimAgent
 	{
 		_sim = new PhysContext();
 
-		var (rst, w, h) = (_p.Table.Restitution, _p.Table.Width, _p.Table.Height);
+		var (rst, w, h) = (_p.Table.Restitution, _p.Table.Width * 0.5f, _p.Table.Height * 0.5f);
 		_wallPositions = new[]
 		{
 			(w, 0f), (-w, 0f), (w * 1.05f, 0f), (-w * 1.05f, 0f),

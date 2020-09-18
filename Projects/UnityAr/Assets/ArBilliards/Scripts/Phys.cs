@@ -11,14 +11,6 @@ using Object = System.Object;
 
 namespace ArBilliards.Phys
 {
-	public struct Recognitions
-	{
-		public Vector3 Red1;
-		public Vector3 Red2;
-		public Vector3 Orange;
-		public Vector3 White;
-	}
-
 	public static class Constants
 	{
 		public const float KINDA_SMALL_NUMBER = 1e-6f;
