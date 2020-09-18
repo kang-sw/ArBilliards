@@ -123,6 +123,9 @@ namespace ArBilliards.Phys
 
 						var ct = contact.Value;
 
+						if (ct.Time == 0)
+						{
+						}
 						// 만약 오버랩이 검출되었고, 이미 오버랩 처리중이라면 돌아갑니다.
 						if (ct.Time == 0)
 						{
@@ -169,7 +172,7 @@ namespace ArBilliards.Phys
 					result.Add(contact);
 
 					// 충돌을 계산합니다.
-					A.ApplyCollision(B);
+					A.ApplyCollisionImpl(B);
 				}
 
 				deltaTime -= minContactTime;
@@ -192,6 +195,8 @@ namespace ArBilliards.Phys
 		public double DampingCoeff = 0.001;
 		public float RestitutionCoeff = 1.0f;
 
+		private float _deltaAcc = 0.0f;
+
 		/// <summary>
 		/// 현재 위치와 속도를 바탕으로 대상 오브젝트와 충돌하는 최소 시간을 구합니다.
 		/// </summary>
@@ -207,7 +212,8 @@ namespace ArBilliards.Phys
 		/// <returns></returns>
 		public virtual void AdvanceMovement(float delta)
 		{
-			var eat = Math.Exp(-DampingCoeff * delta);
+			_deltaAcc += delta;
+			var eat = Math.Exp(-DampingCoeff * _deltaAcc);
 			Vec3d V = Velocity;
 			Vec3d P = Position;
 
@@ -221,7 +227,13 @@ namespace ArBilliards.Phys
 		/// </summary>
 		/// <param name="other">연산을 적용할 대상 오브젝트입니다.</param>
 		/// <returns></returns>
-		public abstract void ApplyCollision(PhysObject other);
+		public void ApplyCollision(PhysObject other)
+		{
+			_deltaAcc = 0.0f;
+			ApplyCollisionImpl(other);
+		}
+
+		public abstract void ApplyCollisionImpl(PhysObject other);
 
 		public struct Contact
 		{
@@ -256,7 +268,7 @@ namespace ArBilliards.Phys
 			}
 		}
 
-		public override void ApplyCollision(PhysObject B)
+		public override void ApplyCollisionImpl(PhysObject B)
 		{
 			// 충돌 각도를 계산하기 위해, 먼저 두 구의 중심선에 대한 벡터 투영을 구합니다.
 			// ref: https://sites.google.com/site/3dgameprogram/home/physics-modeling-for-game-programming/-gibongaenyeomdajigi---mulli/-jiljeom-ui-chungdol
@@ -491,12 +503,12 @@ namespace ArBilliards.Phys
 			// DO NOTHING
 		}
 
-		public override void ApplyCollision(PhysObject other)
+		public override void ApplyCollisionImpl(PhysObject other)
 		{
 			// Only if target is sphere ...
 			if (other.Type == PhysType.Sphere)
 			{
-				((PhysSphere)other).ApplyCollision(this);
+				((PhysSphere)other).ApplyCollisionImpl(this);
 			}
 		}
 	}
