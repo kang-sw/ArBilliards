@@ -24,55 +24,6 @@ namespace ArBilliards.Phys
 		public const float KINDA_SMALL_NUMBER = 1e-6f;
 	}
 
-	// TODO: 구 - 구 충돌, 구 - 정적 평면 ==> 직선 - 정적 평면 충돌
-	// TODO: 반발 계수 공식 
-	// TODO: 정해진 time step에 대해 모든 충돌체 iterate하여 가장 
-	public class Simulator
-	{
-		#region Simulation Properties
-
-		public (float Min, float Max) ImpactRange;
-		public float BallDampingCoeff = 0.02f;
-		public float RestitutionCoeff = 0.87f;
-
-		#endregion
-
-		private PhysContext _context;
-
-		public enum BallIndex
-		{
-			Red1,
-			Red2,
-			Orange,
-			White
-		};
-
-		public class SimulationResult
-		{
-			private bool bHasPoint = false;
-			public List<(BallIndex Ball, List<Vector3> Paths)> Visits = new List<(BallIndex Ball, List<Vector3> Paths)>();
-		}
-
-		public List<SimulationResult> SolveSimulation(Recognitions result)
-		{
-			return null;
-		}
-
-		public class SimulationTriggerParam
-		{
-			public (Vector3 Start, Vector3 End) ImpactPath = (Vector3.zero, Vector3.zero);
-			public float Mass = 1.0f;
-			public float SimDuration = 1.0f;
-		}
-
-		public SimulationResult Simulate(Recognitions result, SimulationTriggerParam triggerParam)
-		{
-
-			return null;
-		}
-
-	}
-
 	class PhysContext
 	{
 		public float OverlapPushVelocity = 1f;
@@ -142,6 +93,8 @@ namespace ArBilliards.Phys
 		/// <param name="result">결과가 저장됩니다.</param>
 		public void StepSimulation(float deltaTime, List<ContactInfo> result)
 		{
+			result.Clear();
+
 			float totalTime = 0.0f;
 			const float SMALL_NUMBER = Constants.KINDA_SMALL_NUMBER;
 

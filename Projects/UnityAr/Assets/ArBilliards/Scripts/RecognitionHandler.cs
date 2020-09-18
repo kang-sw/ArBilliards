@@ -34,8 +34,6 @@ public class RecognitionHandler : MonoBehaviour
 	private Vector3[] _velocities = new Vector3[4];
 	private Vector3?[] _prevPositions = new Vector3?[4];
 
-	private ArBilliards.Phys.Simulator _simulation;
-
 	#endregion
 
 	[Serializable]
@@ -66,8 +64,7 @@ public class RecognitionHandler : MonoBehaviour
 
 	// Start is called before the first frame update
 	private void Start()
-	{
-		_simulation = new ArBilliards.Phys.Simulator();
+	{ 
 	}
 
 	// Update is called once per frame
