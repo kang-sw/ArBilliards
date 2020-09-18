@@ -130,12 +130,14 @@ namespace ArBilliards.Phys
 				for (int idxA = 0; idxA < Count; idxA++)
 				{
 					var A = this[idxA];
-					if(A == null) continue;
+					if (A == null)
+						continue;
 
 					for (int idxB = idxA + 1; idxB < Count; idxB++)
 					{
 						var B = this[idxB];
-						if(B==null) continue;
+						if (B == null)
+							continue;
 
 						var contact = A.CalcMinContactTime(B);
 
@@ -377,8 +379,43 @@ namespace ArBilliards.Phys
 			return null;
 		}
 
-		Contact? CalcContact(PhysStaticPlane other)
+		Contact? CalcContact(PhysStaticPlane o)
 		{
+			const float SMALL_NUMBER = 1e-7f;
+
+			if (DampingCoeff < SMALL_NUMBER)
+			{
+				throw new AssertionFailedException("Damping coefficient must be larger than 0.");
+			}
+
+			(Vec3d Pp, Vec3d n, Vec3d P0, Vec3d V0) = (o.Position, o.Normal, this.Position, this.Velocity);
+			(double alpha, double alpha_inv, double r) = (DampingCoeff, 1.0 / DampingCoeff, Radius);
+
+			// 노멀이 항상 구의 중심을 향하도록 합니다.
+			if (Vec3d.Dot(n, Pp - P0) > 0)
+			{
+				n = -n;
+			}
+
+			var aiV0 = alpha_inv * V0;
+			var upper = Vec3d.Dot(n, (P0 + aiV0 - Pp));
+			var lower = Vec3d.Dot(n, aiV0);
+
+			if (Math.Abs(lower) > SMALL_NUMBER)
+			{
+				var u = alpha * (upper / lower - r);
+				var t = -alpha_inv * Math.Log(u);
+
+				var Psph = P0 + aiV0 * (1 - u);
+				Contact contact;
+				contact.A = (Psph, V0 * u);
+				contact.B = (Pp, Vector3.zero);
+				contact.At = Psph - r * n;
+				contact.Time = (float)t;
+
+				return contact;
+			}
+
 			return null;
 		}
 	}
