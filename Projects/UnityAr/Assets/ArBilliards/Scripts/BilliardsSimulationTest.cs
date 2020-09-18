@@ -83,7 +83,8 @@ public class BilliardsSimulationTest : MonoBehaviour
 
 		if (bSimulate)
 		{
-			var contacts = _sim.StepSimulation(simStep);
+			var results = new List<PhysContext.ContactInfo>();
+			_sim.StepSimulation(simStep, results);
 
 			foreach (var elem in _sim.Enumerable)
 			{

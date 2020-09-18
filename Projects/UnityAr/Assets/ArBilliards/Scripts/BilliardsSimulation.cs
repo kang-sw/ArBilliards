@@ -71,11 +71,18 @@ namespace ArBilliards.Phys
 	class PhysContext
 	{
 		private List<PhysObject> _objects = new List<PhysObject>();
+		private List<HashSet<PhysObject>> _overlaps = new List<HashSet<PhysObject>>();
 		public int Count => _objects.Count;
 		public PhysObject this[int i] => _objects[i];
 		public IEnumerable<PhysObject> Enumerable => _objects;
-		public void Clear() => _objects.Clear();
 		private HashSet<int> _availableIndexes = new HashSet<int>();
+
+		public void Clear()
+		{ 
+			_availableIndexes.Clear();
+			_overlaps.Clear();
+			_objects.Clear();
+		}
 
 		public int Spawn(PhysObject obj)
 		{
@@ -91,6 +98,7 @@ namespace ArBilliards.Phys
 			{
 				index = Count;
 				_objects.Add(obj);
+				_overlaps.Add(new HashSet<PhysObject>());
 			}
 
 			return index;
@@ -100,6 +108,7 @@ namespace ArBilliards.Phys
 		{
 			_objects[index] = null;
 			_availableIndexes.Add(index);
+			_overlaps[index].Clear();
 		}
 
 		public struct ContactInfo
@@ -114,9 +123,8 @@ namespace ArBilliards.Phys
 		/// </summary>
 		/// <param name="deltaTime"></param>
 		/// <returns>발생한 충돌이 시간 순서대로 수집됩니다.</returns>
-		public List<ContactInfo> StepSimulation(float deltaTime)
-		{
-			var result = new List<ContactInfo>();
+		public void StepSimulation(float deltaTime, List<ContactInfo> result)
+		{ 
 			float totalTime = 0.0f;
 
 			// 남은 시간이 0이 될 때까지 반복합니다.
@@ -177,9 +185,7 @@ namespace ArBilliards.Phys
 				}
 
 				deltaTime -= minContactTime;
-			}
-
-			return result;
+			} 
 		}
 	}
 
@@ -330,7 +336,7 @@ namespace ArBilliards.Phys
 
 			// 오버랩 계산
 			var dist0 = ((Vector3)(P1 - P2)).magnitude;
-			if (false && (r1 + r2) - dist0 > SMALL_NUMBER)
+			if ((r1 + r2) - dist0 > SMALL_NUMBER)
 			{
 				Contact ct;
 				ct.A = (P1, V1);
@@ -406,7 +412,7 @@ namespace ArBilliards.Phys
 			// 공이 이미 평면과 겹쳐 있는 경우를 처리합니다.
 			var Proj = Vector3.Project(Pp - P0, n);
 			var contactDist = Proj.magnitude;
-			if (false && r - contactDist > SMALL_NUMBER)
+			if (r - contactDist > SMALL_NUMBER)
 			{
 				Contact contact;
 				contact.A = (P0, V0);
