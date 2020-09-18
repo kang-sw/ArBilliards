@@ -108,6 +108,8 @@ public class SimHandler : MonoBehaviour
 
 			foreach (var elem in r.Candidates)
 			{
+				// DebugRenderBallPath(elem);
+
 				if (Vector3.Angle(nearlest.Direction, fwd) > Vector3.Angle(elem.Direction, fwd))
 					nearlest = elem;
 			}
@@ -451,6 +453,7 @@ public class AsyncSimAgent
 		{
 			var ballIndex = _sim.Spawn(ball);
 			var ballRef = _sim[ballIndex];
+			_ballIndexes[index] = ballIndex;
 			_ballRefs[index] = ballRef;
 		}
 	}
