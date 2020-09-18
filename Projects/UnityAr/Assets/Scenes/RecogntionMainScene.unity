@@ -2469,6 +2469,7 @@ MonoBehaviour:
   BallRestitution: 0.89
   BallDamping: 0.43
   TableRestitution: 0.67
+  TableFriction: 0.78
   NumRotationDivider: 826
   SimDuration: 10
   SpeedValues:
