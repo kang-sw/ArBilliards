@@ -297,6 +297,10 @@ namespace ArBilliards.Phys
 				var V1p = Vector3.Project(V1, N);
 				var nV1p = -e * V1p;
 
+				// 횡축의 속도를 조절하는 휴리스틱입니다.
+				// 속도가 높으면 영향을 미치지 않지만, 속도가 적을수록 횡축 속도를 감소시킵니다.
+				// TODO
+				var spd = V1.magnitude;
 				var V1f = V1 - V1p;
 				V1f = (float)Math.Exp(-frictionCoeff) * V1f + V1p;
 
