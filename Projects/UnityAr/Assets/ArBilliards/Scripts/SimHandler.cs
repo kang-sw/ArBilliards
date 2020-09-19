@@ -34,6 +34,7 @@ public class SimHandler : MonoBehaviour
 	public Transform TableAnchor; // 렌더링 루트입니다.
 	public Transform LookTransform; // 전방 방향 트랜스폼
 	public float SimInterval = 0.3f; // 시뮬레이션 간격입니다.
+	public float PathRedrawInterval = 0.3f; // 경로 다시그리기 간격
 
 	[Header("Dimensions")]
 	public float BallRadius = 0.07f / Mathf.PI;
@@ -94,13 +95,13 @@ public class SimHandler : MonoBehaviour
 		_instancedRoot.transform.parent = TableAnchor;
 
 		Start_AsyncSimulation();
+		Start_Rendering();
 	}
 
 	// Update is called once per frame
 	void Update()
 	{
 		Update_AsyncSimulation();
-
 		Update_Rendering();
 	}
 
@@ -203,19 +204,39 @@ public class SimHandler : MonoBehaviour
 
 	private float _periodCounter = 0;
 
-	private List<CollisionMarkerManipulator> _collisionMarkerPool = new List<CollisionMarkerManipulator>();
+	private List<MarkerManipulator> _collisionMarkerPool = new List<MarkerManipulator>();
 	private int _numActiveCollisionMarkers;
 	private int _cachedNumActiveCollisionMarkers;
 
+	private MarkerManipulator[] _pathFollowMarker = new MarkerManipulator[4];
+
 	private List<LineRenderer> _candidateMarkerPool = new List<LineRenderer>();
 	private int _numActiveCandidateMarkers;
+
+	private AsyncSimAgent.SimResult.Candidate _latestCandidate;
+
+	private void Start_Rendering()
+	{
+		for (int i = 0; i < 4; i++)
+		{
+			var obj = Instantiate(PathFollowMarkerTemplate, TableAnchor);
+			obj.transform.localScale = Vector3.one * BallRadius * 2f;
+			_pathFollowMarker[i] = obj.GetComponent<MarkerManipulator>();
+			_pathFollowMarker[i].MeshColor = BallVisualizeColors[i];
+			_pathFollowMarker[i].ParticleColor = BallVisualizeColors[i];
+
+			// 패스팔로우 파티클 비활성화 (너무 요란함)
+			var emission = _pathFollowMarker[i].ParticleSystem.emission;
+			emission.enabled = false;
+		}
+	}
 
 	private void Update_Rendering()
 	{
 		_periodCounter += AcceleratedDelta;
 
 		if (_bLineDirty
-			&& _periodCounter > SimInterval
+			&& _periodCounter > PathRedrawInterval
 			&& LookTransform // 카메라가 있는지?
 			&& _latestResult.Candidates.Count > 0
 			&& !InternalIsAnyBallMoving) // 계산된 결과가 존재하는지?
@@ -279,13 +300,17 @@ public class SimHandler : MonoBehaviour
 
 			// -- 강조된 경로의 공을 그립니다.
 			initMarkerPool();
+			bool bShouldRestartPathFollowing = _latestCandidate != nearlest;
 			for (int index = 0; index < 4; ++index)
-				renderBallPath(ColorRenderers[index], nearlest.Balls[index]);
+				renderBallPath(ColorRenderers[index], nearlest.Balls[index], bShouldRestartPathFollowing);
 			trimUnusedMarkers();
+
+			// -- 가장 최근의 candidate 캐시 ...
+			_latestCandidate = nearlest;
 		}
 	}
 
-	void renderBallPath(LineRenderer target, AsyncSimAgent.BallPath path)
+	void renderBallPath(LineRenderer target, AsyncSimAgent.BallPath path, bool shouldRestartPathFollow)
 	{
 		if (target == null)
 			return;
@@ -325,6 +350,9 @@ public class SimHandler : MonoBehaviour
 			}
 		}
 
+		// 패스 팔로우 활성화
+		if (shouldRestartPathFollow)
+			_pathFollowMarker[(int)path.Index].ActiveBallPath = path;
 	}
 
 	void initMarkerPool()
@@ -351,11 +379,11 @@ public class SimHandler : MonoBehaviour
 			var obj = Instantiate(CollisionMarkerTemplate, TableAnchor);
 			obj.SetActive(false);
 			obj.transform.localScale = Vector3.one * BallRadius * 2f;
-			_collisionMarkerPool.Add(obj.GetComponent<CollisionMarkerManipulator>());
+			_collisionMarkerPool.Add(obj.GetComponent<MarkerManipulator>());
 		}
 	}
 
-	CollisionMarkerManipulator spawnCollisionMarker()
+	MarkerManipulator spawnCollisionMarker()
 	{
 		var ret = _collisionMarkerPool[_cachedNumActiveCollisionMarkers];
 		if (!ret.Active)

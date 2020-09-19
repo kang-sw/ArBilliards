@@ -663,6 +663,12 @@ PrefabInstance:
       propertyPath: NumRotationDivider
       value: 1200
       objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: PathFollowMarkerTemplate
+      value: 
+      objectReference: {fileID: 451981723993225299, guid: 24b0c6c899d01f845ac262531dcfa836,
+        type: 3}
     - target: {fileID: 1999053810412700375, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: m_LocalPosition.x
