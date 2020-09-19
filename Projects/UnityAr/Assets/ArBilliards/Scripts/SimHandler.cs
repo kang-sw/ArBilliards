@@ -51,10 +51,15 @@ public class SimHandler : MonoBehaviour
 	[Header("GameState")]
 	public BilliardsBall PlayerBall = BilliardsBall.Orange;
 
-	[Header("Visualizer")]
+	[Header("Visualizer Instances")]
 	public Color[] BallVisualizeColors = new Color[4];
 	public LineRenderer CandidateRenderer;
 	public LineRenderer[] ColorRenderers = new LineRenderer[4];
+
+	[Header("Visualizer Templates")]
+	public GameObject PathFollowMarkerTemplate;
+	public GameObject CandidateRenderingTemplate;
+	public GameObject CollisionMarkerTemplate;
 
 	#endregion
 
@@ -63,6 +68,8 @@ public class SimHandler : MonoBehaviour
 	public (Vector3 Red1, Vector3 Red2, Vector3 Orange, Vector3 White)? PendingBallPositions { get; set; }
 
 	#endregion
+
+	#region Game Logics
 
 	private GameObject _instancedRoot;
 	private AsyncSimAgent _sim = new AsyncSimAgent();
@@ -113,9 +120,7 @@ public class SimHandler : MonoBehaviour
 			AsyncSimAgent.SimResult.Candidate nearlest = r.Candidates[0];
 
 			foreach (var elem in r.Candidates)
-			{
-				// DebugRenderBallPath(elem);
-
+			{ 
 				if (Vector3.Angle(nearlest.Direction, fwd) > Vector3.Angle(elem.Direction, fwd))
 					nearlest = elem;
 			}
@@ -172,6 +177,16 @@ public class SimHandler : MonoBehaviour
 		p.Table = (TableRestitution, TableWidth, TableHeight, TableFriction);
 		p.NumCandidates = NumRotationDivider;
 	}
+
+	#endregion
+
+	#region Collision Marker Management
+
+	private List<CollisionMarkerManipulator> _pool;
+
+	
+
+	#endregion
 }
 
 /// <summary>
