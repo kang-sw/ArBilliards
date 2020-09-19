@@ -229,7 +229,7 @@ public class SimHandler : MonoBehaviour
 		for (int i = 0; i < 4; i++)
 		{
 			var obj = Instantiate(PathFollowMarkerTemplate, TableAnchor);
-			obj.transform.localScale = Vector3.one * BallRadius * 2f;
+			obj.transform.localScale = Vector3.one * BallRadius * 1.9f;
 			_pathFollowMarker[i] = obj.GetComponent<MarkerManipulator>();
 			_pathFollowMarker[i].MeshColor = BallVisualizeColors[i];
 			_pathFollowMarker[i].ParticleColor = BallVisualizeColors[i];
@@ -359,8 +359,8 @@ public class SimHandler : MonoBehaviour
 
 			target.SetPosition(index, pos);
 
-			// 각 조인트마다 충돌 마커를 스폰합니다.
-			if (index < nodes.Count - 1)
+			// 공과 접촉하는 각 조인트마다 충돌 마커를 스폰합니다.
+			if ((index == 0 || nodes[index].Other.HasValue) && index < nodes.Count - 1)
 			{
 				var marker = spawnCollisionMarker();
 				marker.ParticleColor = color;
