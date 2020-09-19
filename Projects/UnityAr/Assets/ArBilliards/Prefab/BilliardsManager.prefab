@@ -2070,7 +2070,7 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1999053810412700377}
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
@@ -2145,8 +2145,9 @@ MonoBehaviour:
   - {fileID: 1999053810069175860}
   PathFollowMarkerTemplate: {fileID: 7511255258693191369, guid: 1b37b0dec2b13874288b9aae594dcdb2,
     type: 3}
-  CandidateRenderingTemplate: {fileID: 0}
-  CollisionMarkerTemplate: {fileID: 5393657805629682244, guid: 66f155073825e134a9011d71d264cc17,
+  CandidateRenderingTemplate: {fileID: 5393657805629682244, guid: 66f155073825e134a9011d71d264cc17,
+    type: 3}
+  CollisionMarkerTemplate: {fileID: 451981723993225299, guid: 4d1cd6d689c5ddd44969d4d6497e1fe5,
     type: 3}
 --- !u!1 &1999053810426703206
 GameObject:

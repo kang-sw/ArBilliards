@@ -9,36 +9,32 @@ public class CollisionMarkerManipulator : MonoBehaviour
 
 	public Color MeshColor
 	{
-		get => _mesh.material.color;
-		set => _mesh.material.color = value;
+		get => Mesh.material.color;
+		set => Mesh.material.color = value;
 	}
 
 	public Color ParticleColor
 	{
-		get => _particle.main.startColor.color;
-		set
-		{
-			var main = _particle.main;
+		get => ParticleSystem.main.startColor.color;
+		set {
+			var main = ParticleSystem.main;
 			main.startColor = value;
 		}
 	}
 
 	public bool Active
 	{
-		get => _bActive;
+		get => gameObject.activeSelf;
 		set => gameObject.SetActive(value);
 	}
-
-	private bool _bActive;
-	private MeshRenderer _mesh;
-	private ParticleSystem _particle;
+	 
+	public MeshRenderer Mesh => GetComponentInChildren<MeshRenderer>();
+	public ParticleSystem ParticleSystem => GetComponentInChildren<ParticleSystem>();
 
 
 	// Start is called before the first frame update
 	void Start()
 	{
-		_mesh = GetComponentInChildren<MeshRenderer>();
-		_particle = GetComponentInChildren<ParticleSystem>();
 	}
 
 	//// Update is called once per frame
@@ -46,15 +42,14 @@ public class CollisionMarkerManipulator : MonoBehaviour
 	//{
 
 	//}
-	 
+
 	// Update color change
 	void OnValidate()
 	{
 		var color = effectColorEditor;
-		_mesh = GetComponentInChildren<MeshRenderer>();
-		_particle = GetComponentInChildren<ParticleSystem>();
 
-		_mesh.sharedMaterial.color = color;
+
+		Mesh.sharedMaterial.color = color;
 		color.a = 1.0f;
 		ParticleColor = color;
 	}

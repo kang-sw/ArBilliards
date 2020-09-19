@@ -69,7 +69,7 @@ public class SimHandler : MonoBehaviour
 
 	#endregion
 
-	#region Game Logics
+	#region Main Loop
 
 	private GameObject _instancedRoot;
 	private AsyncSimAgent _sim = new AsyncSimAgent();
@@ -98,7 +98,7 @@ public class SimHandler : MonoBehaviour
 		{
 			// 비동기 시뮬레이션 트리거
 			var p = new AsyncSimAgent.InitParams();
-			UpdateParam(ref p);
+			updateParam(ref p);
 			AsyncSimAgent.InitParams.Rule4Balls(ref p);
 
 			(p.Red1, p.Red2, p.Orange, p.White) = PendingBallPositions.Value;
@@ -120,23 +120,46 @@ public class SimHandler : MonoBehaviour
 			AsyncSimAgent.SimResult.Candidate nearlest = r.Candidates[0];
 
 			foreach (var elem in r.Candidates)
-			{ 
+			{
 				if (Vector3.Angle(nearlest.Direction, fwd) > Vector3.Angle(elem.Direction, fwd))
 					nearlest = elem;
 			}
 
+
+			initMarkerPool();
 			for (int index = 0; index < 4; ++index)
 			{
-				RenderBallPath(ColorRenderers[index], nearlest.Balls[index]);
+				renderBallPath(ColorRenderers[index], nearlest.Balls[index]);
 			}
+			trimUnusedMarkers();
+
 		}
 	}
 
-	void RenderBallPath(LineRenderer target, AsyncSimAgent.BallPath path)
+	void updateParam(ref AsyncSimAgent.InitParams p)
+	{
+		p.SimDuration = SimDuration;
+		p.Ball = (BallRestitution, BallDamping, BallRadius);
+		p.PlayerBall = PlayerBall;
+		p.Table = (TableRestitution, TableWidth, TableHeight, TableFriction);
+		p.NumCandidates = NumRotationDivider;
+	}
+
+	#endregion
+
+	#region Visualizers
+
+	private List<CollisionMarkerManipulator> _pool = new List<CollisionMarkerManipulator>();
+	private int _numActiveCollisionMarkers;
+	private int _cachedNumActiveCollisionMarkers;
+
+	void renderBallPath(LineRenderer target, AsyncSimAgent.BallPath path)
 	{
 		if (target == null)
 			return;
 
+		// -- 셋업
+		// 라인 렌더러를 설정합니다.
 		var nodes = path.Nodes;
 		target.positionCount = nodes.Count;
 		target.useWorldSpace = false;
@@ -144,13 +167,71 @@ public class SimHandler : MonoBehaviour
 
 		target.material.color = target.startColor;
 
+		// 해당 볼 색상
+		var color = BallVisualizeColors[(int)path.Index];
+
+		// 콜리전 마커 예약
+		reserveCollisionMarkers(nodes.Count);
+
+		// -- 그리기 루프
 		for (int index = 0; index < nodes.Count; index++)
 		{
+			// 라인을 그립니다.
 			target.SetPosition(index, nodes[index].Position);
+
+			// 각 조인트마다 충돌 마커를 스폰합니다.
+			if (index < nodes.Count - 1)
+			{
+				var marker = spawnCollisionMarker();
+				marker.ParticleColor = color;
+				color.a = 0.256f;
+				marker.MeshColor = color;
+				marker.transform.localPosition = nodes[index].Position;
+			}
+		}
+
+	}
+
+	void initMarkerPool()
+	{
+		_cachedNumActiveCollisionMarkers = 0;
+	}
+
+	void trimUnusedMarkers()
+	{
+		// 초과분을 비활성화
+		for (int i = _cachedNumActiveCollisionMarkers; i < _numActiveCollisionMarkers; i++)
+		{
+			_pool[i].Active = false;
+		}
+
+		_numActiveCollisionMarkers = _cachedNumActiveCollisionMarkers;
+	}
+
+	void reserveCollisionMarkers(int size)
+	{
+		var desiredSize = size + _cachedNumActiveCollisionMarkers;
+		while (_pool.Count < desiredSize)
+		{
+			var obj = Instantiate(CollisionMarkerTemplate, TableAnchor);
+			obj.SetActive(false);
+			obj.transform.localScale = Vector3.one * BallRadius * 2f;
+			_pool.Add(obj.GetComponent<CollisionMarkerManipulator>());
 		}
 	}
 
-	void DebugRenderBallPath(AsyncSimAgent.SimResult.Candidate cand)
+	CollisionMarkerManipulator spawnCollisionMarker()
+	{
+		var ret = _pool[_cachedNumActiveCollisionMarkers];
+		if (!ret.Active)
+			ret.Active = true;
+
+		++_cachedNumActiveCollisionMarkers;
+		return ret;
+	}
+
+
+	void debugRenderBallPath(AsyncSimAgent.SimResult.Candidate cand)
 	{
 		var mtrx = TableAnchor.localToWorldMatrix;
 
@@ -169,22 +250,6 @@ public class SimHandler : MonoBehaviour
 		}
 	}
 
-	void UpdateParam(ref AsyncSimAgent.InitParams p)
-	{
-		p.SimDuration = SimDuration;
-		p.Ball = (BallRestitution, BallDamping, BallRadius);
-		p.PlayerBall = PlayerBall;
-		p.Table = (TableRestitution, TableWidth, TableHeight, TableFriction);
-		p.NumCandidates = NumRotationDivider;
-	}
-
-	#endregion
-
-	#region Collision Marker Management
-
-	private List<CollisionMarkerManipulator> _pool;
-
-	
 
 	#endregion
 }
