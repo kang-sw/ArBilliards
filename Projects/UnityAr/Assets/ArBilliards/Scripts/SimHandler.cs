@@ -1,7 +1,9 @@
-﻿using ArBilliards.Phys;
+﻿using System;
+using ArBilliards.Phys;
 using Boo.Lang.Runtime;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Runtime.Remoting.Messaging;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -62,6 +64,7 @@ public class SimHandler : MonoBehaviour
 
 	#endregion
 
+	private GameObject _instancedRoot;
 	private AsyncSimAgent _sim = new AsyncSimAgent();
 	private AsyncSimAgent.SimResult _latestResult = null;
 	private float _intervalTimer = 0f;
@@ -70,6 +73,8 @@ public class SimHandler : MonoBehaviour
 	// Start is called before the first frame update
 	void Start()
 	{
+		_instancedRoot = new GameObject("InstantiationRoot");
+		_instancedRoot.transform.parent = TableAnchor;
 	}
 
 	// Update is called once per frame
@@ -98,7 +103,7 @@ public class SimHandler : MonoBehaviour
 			_intervalTimer = 0f;
 		}
 
-		if (_bLineDirty && LookTransform)
+		if (_bLineDirty && LookTransform && _latestResult.Candidates.Count > 0)
 		{
 			var fwd = LookTransform.forward;
 			var r = _latestResult;
@@ -295,9 +300,18 @@ public class AsyncSimAgent
 
 	public SimResult InitSync(InitParams param)
 	{
-		var task = InitAsync(param);
-		task.RunSynchronously();
-		return task.Result;
+		if (IsRunning)
+		{
+			throw new AssertionFailedException("Async process still running!");
+		}
+
+		IsRunning = true;
+		_p = param;
+
+		var result = internalExec();
+		IsRunning = false;
+
+		return result;
 	}
 
 	#region Internal props to handle async process
@@ -391,12 +405,12 @@ public class AsyncSimAgent
 					{
 						var tmp = ct.A;
 						ct.A = ct.B;
-						ct.B = ct.A;
+						ct.B = tmp;
 					}
 					{
 						var tmp = A;
 						A = B;
-						B = A;
+						B = tmp;
 					}
 
 				}
@@ -418,10 +432,42 @@ public class AsyncSimAgent
 			}
 
 			// -- 플레이어 공 분석하여 득점 여부 계산
-			bool bGotScore = true;
-			// TODO
+			bool bGotScore = false;
+			var hits = new (int bHit, int numLastCushion)[4];
+			int numCushionHit = 0;
 
-			// 득점시에만 candidate를 추가합니다.]
+			foreach (var node in balls[(int)_p.PlayerBall].Nodes)
+			{
+				if (!node.Other.HasValue) // Other가 비었으면 벽입니다.
+				{
+					++numCushionHit;
+				}
+				else
+				{
+					var index = (int)node.Other.Value;
+					hits[index] = (1, numCushionHit);
+				}
+			}
+
+			// 득점 조건 검사
+			var otherPlayer = _p.PlayerBall == BilliardsBall.White ? BilliardsBall.Orange : BilliardsBall.White;
+			int maxCushions = Math.Max(hits[0].numLastCushion, hits[1].numLastCushion);
+			int hitBalls = hits[0].bHit + hits[1].bHit;
+
+			if (hits[(int)otherPlayer].bHit == 1)
+			{
+				hitBalls += _p.bOpponentBallAsScore ? 1 : _p.bAvoidPlayerBallHit ? -2 : 0;
+			}
+
+			if (_p.bOpponentBallAsScore)
+				maxCushions = Math.Max(maxCushions, hits[(int)otherPlayer].numLastCushion);
+
+			if (maxCushions >= _p.NumCushionHits && hitBalls >= 2)
+			{
+				bGotScore = true;
+			}
+
+			// -- 득점시에만 candidate를 반환목록에 추가합니다.
 			// 득점에 실패한 경우 candidate 메모리를 재활용합니다.(else)
 			if (bGotScore)
 			{
