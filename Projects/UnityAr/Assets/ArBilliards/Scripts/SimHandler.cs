@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Remoting.Messaging;
 using System.Threading.Tasks;
+using UnityEditorInternal;
 using UnityEngine;
 using Random = System.Random;
 
@@ -31,7 +32,7 @@ public class SimHandler : MonoBehaviour
 	[Header("General")]
 	public Transform TableAnchor; // 렌더링 루트입니다.
 	public Transform LookTransform; // 전방 방향 트랜스폼
-	public float SimInterval = 0.5f; // 시뮬레이션 간격입니다.
+	public float SimInterval = 0.3f; // 시뮬레이션 간격입니다.
 
 	[Header("Dimensions")]
 	public float BallRadius = 0.07f / Mathf.PI;
@@ -62,6 +63,10 @@ public class SimHandler : MonoBehaviour
 	public GameObject PathFollowMarkerTemplate;
 	public GameObject CandidateRenderingTemplate;
 	public GameObject CollisionMarkerTemplate;
+
+	[Header("Rules")]
+	public int NumMinCushions = 0;
+	public bool Is3BallRule = false;
 
 	#endregion
 
@@ -115,53 +120,91 @@ public class SimHandler : MonoBehaviour
 				renderBallPath(ColorRenderers[index], nearlest.Balls[index]);
 			}
 			trimUnusedMarkers();
-
 		}
 	}
 
 	void updateParam(ref AsyncSimAgent.InitParams p)
 	{
+		if (Is3BallRule)
+		{
+			AsyncSimAgent.InitParams.Rule3Balls(ref p);
+		}
+		else
+		{
+			AsyncSimAgent.InitParams.Rule4Balls(ref p);
+		}
+
 		p.SimDuration = SimDuration;
 		p.Ball = (BallRestitution, BallDamping, BallRadius);
 		p.PlayerBall = PlayerBall;
 		p.Table = (TableRestitution, TableWidth, TableHeight, TableFriction);
 		p.NumCandidates = NumRotationDivider;
+		p.InitSpeedRange = (SpeedMin, SpeedMax);
+		p.NumCushionHits = NumMinCushions;
 	}
 
 	#endregion
 
 	#region Simulations
 
-	private AsyncSimAgent _sim = new AsyncSimAgent();
 	private float _intervalTimer = 0f;
 	private bool _bParallelProcessRunning;
+	private AsyncSimAgent[] _parallel;
 
 	void Start_AsyncSimulation()
 	{
+		// 프로세서 수보다 하나 모자란 개수의 스레드를 만듭니다.
+		// 요즘 세상에 싱글 코어 CPU는 없기 때문에, 숫자 검증은 생략합니다.
+		_parallel = new AsyncSimAgent[SystemInfo.processorCount - 1];
 
+		for (var index = 0; index < _parallel.Length; index++)
+		{
+			_parallel[index] = new AsyncSimAgent();
+		}
 	}
 
 	void Update_AsyncSimulation()
 	{
-		if (_sim.SimulationResult != null)
+		if (_latestResult != null)
 		{
-			_latestResult = _sim.SimulationResult;
 			_bLineDirty = true;
 		}
 
 		_intervalTimer += Time.deltaTime;
-		if (_intervalTimer > SimInterval && !_sim.IsRunning && PendingBallPositions.HasValue)
+		if (_intervalTimer > SimInterval && !_bParallelProcessRunning && PendingBallPositions.HasValue)
 		{
-			// 비동기 시뮬레이션 트리거
-			var p = new AsyncSimAgent.InitParams();
-			updateParam(ref p);
-			AsyncSimAgent.InitParams.Rule4Balls(ref p);
+			Debug.Log("Triggering Simulation");
+			_bParallelProcessRunning = true;
+			var results = new AsyncSimAgent.SimResult();
 
-			(p.Red1, p.Red2, p.Orange, p.White) = PendingBallPositions.Value;
+			// 파라미터 셋업
+			var param = new AsyncSimAgent.InitParams();
+			updateParam(ref param);
+
+			(param.Red1, param.Red2, param.Orange, param.White) = PendingBallPositions.Value;
 			PendingBallPositions = null;
 
-			p.InitSpeedRange = (SpeedMin, SpeedMax);
-			_sim.InitAsync(p);
+			// 비동기 시뮬레이션 트리거
+			new Task(() =>
+			{
+				Parallel.For(0, _parallel.Length, (index) =>
+				{
+					var agent = _parallel[index];
+					var p = param;
+					p.Parallel = (_parallel.Length, (int)index);
+
+					var res = agent.InitSync(p);
+					lock (results)
+					{
+						results.Candidates.AddRange(res.Candidates);
+					}
+				});
+
+				_latestResult = results;
+				results = null;
+				_bParallelProcessRunning = false;
+			}).Start();
+			
 			_intervalTimer = 0f;
 		}
 	}
@@ -300,10 +343,11 @@ public class AsyncSimAgent
 
 		// OPTIONS
 		public (float Min, float Max) InitSpeedRange; // 최초 타구 시 속도입니다.
+		public int SpeedDivisions; // 최초 타구시 속도를 몇 개의 uniform한 구간으로 나눌지 결정
 
 		// OPTIMIZATION
 		public int NumCandidates; // 360도 범위에서 몇 개의 후보를 선택할지 결정합니다. 후보는 uniform하게 선정됩니다.
-		public (int Begin, int End)? PartialRange; // 다수의 Agent 인스턴스를 생성할 때 유용합니다.
+		public (int Modulator, int Offset)? Parallel;
 		public float SimDuration; // 총 시뮬레이션 길이입니다.
 
 		public static void Rule3Balls(ref InitParams p)
@@ -442,16 +486,17 @@ public class AsyncSimAgent
 		var res = _simRes = new SimResult();
 		res.Options = _p;
 
-		int iter, maxIter;
-		if (_p.PartialRange.HasValue)
-			(iter, maxIter) = _p.PartialRange.Value;
+		int candIndex, maxCands = _p.NumCandidates, step;
+
+		if (_p.Parallel.HasValue)
+			(candIndex, step) = (_p.Parallel.Value.Offset, _p.Parallel.Value.Modulator);
 		else
-			(iter, maxIter) = (0, _p.NumCandidates);
+			(candIndex, maxCands, step) = (0, _p.NumCandidates, 1);
 
 		SimResult.Candidate cand = null;
 		var rand = new Random();
 
-		for (; iter < maxIter; ++iter)
+		for (; candIndex < maxCands; candIndex += step)
 		{
 			resetBallState();
 
@@ -460,7 +505,7 @@ public class AsyncSimAgent
 			var balls = cand.Balls;
 
 			// -- 초기 속력 및 방향 지정
-			float angle = (360f / maxIter) * iter;
+			float angle = (360f / maxCands) * candIndex;
 			var dir = Quaternion.Euler(0, angle, 0) * Vector3.forward;
 
 			var (spdMin, spdMax) = _p.InitSpeedRange;
