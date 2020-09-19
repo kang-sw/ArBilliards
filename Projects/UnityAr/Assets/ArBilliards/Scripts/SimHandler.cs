@@ -125,6 +125,8 @@ public class SimHandler : MonoBehaviour
 					nearlest = elem;
 			}
 
+			// Render candidate markers
+
 
 			initMarkerPool();
 			for (int index = 0; index < 4; ++index)
@@ -149,9 +151,12 @@ public class SimHandler : MonoBehaviour
 
 	#region Visualizers
 
-	private List<CollisionMarkerManipulator> _pool = new List<CollisionMarkerManipulator>();
+	private List<CollisionMarkerManipulator> _collisionMarkerPool = new List<CollisionMarkerManipulator>();
 	private int _numActiveCollisionMarkers;
 	private int _cachedNumActiveCollisionMarkers;
+
+	private List<LineRenderer> _candidateMarkerPool = new List<LineRenderer>();
+	private int _numActiveCandidateMarkers;
 
 	void renderBallPath(LineRenderer target, AsyncSimAgent.BallPath path)
 	{
@@ -184,7 +189,7 @@ public class SimHandler : MonoBehaviour
 			{
 				var marker = spawnCollisionMarker();
 				marker.ParticleColor = color;
-				color.a = 0.256f;
+				color.a = 0.765f;
 				marker.MeshColor = color;
 				marker.transform.localPosition = nodes[index].Position;
 			}
@@ -202,7 +207,7 @@ public class SimHandler : MonoBehaviour
 		// 초과분을 비활성화
 		for (int i = _cachedNumActiveCollisionMarkers; i < _numActiveCollisionMarkers; i++)
 		{
-			_pool[i].Active = false;
+			_collisionMarkerPool[i].Active = false;
 		}
 
 		_numActiveCollisionMarkers = _cachedNumActiveCollisionMarkers;
@@ -211,18 +216,18 @@ public class SimHandler : MonoBehaviour
 	void reserveCollisionMarkers(int size)
 	{
 		var desiredSize = size + _cachedNumActiveCollisionMarkers;
-		while (_pool.Count < desiredSize)
+		while (_collisionMarkerPool.Count < desiredSize)
 		{
 			var obj = Instantiate(CollisionMarkerTemplate, TableAnchor);
 			obj.SetActive(false);
 			obj.transform.localScale = Vector3.one * BallRadius * 2f;
-			_pool.Add(obj.GetComponent<CollisionMarkerManipulator>());
+			_collisionMarkerPool.Add(obj.GetComponent<CollisionMarkerManipulator>());
 		}
 	}
 
 	CollisionMarkerManipulator spawnCollisionMarker()
 	{
-		var ret = _pool[_cachedNumActiveCollisionMarkers];
+		var ret = _collisionMarkerPool[_cachedNumActiveCollisionMarkers];
 		if (!ret.Active)
 			ret.Active = true;
 
