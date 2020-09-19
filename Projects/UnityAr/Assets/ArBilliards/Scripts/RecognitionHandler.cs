@@ -12,11 +12,11 @@ public class RecognitionHandler : MonoBehaviour
 {
 	#region Exposed Properties
 
-	public Transform tableTransform;
-	public Transform red1;
-	public Transform red2;
-	public Transform orange;
-	public Transform white;
+	public Transform TableTr;
+	public Transform Red1;
+	public Transform Red2;
+	public Transform Orange;
+	public Transform White;
 
 	// 두 공 사이의 거리가 가깝다고 판단하는 거리입니다.
 	public float nearbyThreshold = 0.01f;
@@ -75,7 +75,7 @@ public class RecognitionHandler : MonoBehaviour
 	private void Update()
 	{
 		// 최근에 제대로 갱신된 오브젝트에 대해서만 위치 추정을 수행합니다.
-		var ballTrs = new[] { red1, red2, orange, white };
+		var ballTrs = new[] { Red1, Red2, Orange, White };
 		for (int index = 0; index < 4; index++)
 		{
 			if (!_latestUpdates[index].HasValue)
@@ -106,7 +106,7 @@ public class RecognitionHandler : MonoBehaviour
 		{
 			var confidenceArray = new[]
 			{
-				result.Table.Confidence, result.Red1.Confidence, result.Red2.Confidence, result.Orange.Confidence,
+				result.Table.Confidence, (result.Red1.Confidence +  result.Red2.Confidence) * 0.5f, result.Orange.Confidence,
 				result.White.Confidence
 			};
 
@@ -126,13 +126,14 @@ public class RecognitionHandler : MonoBehaviour
 				}
 			}
 
-			bSimulationAvailable = true;
 		} while (false);
 
 		if (bSimulationAvailable && Simulator)
 		{
-			var (red1, red2, orange, white) = (toVector3(result.Red1), toVector3(result.Red2), toVector3(result.Orange), toVector3(result.White));
-			var trs = tableTransform.worldToLocalMatrix;
+			// var (red1, red2, orange, white) = (toVector3(result.Red1), toVector3(result.Red2), toVector3(result.Orange), toVector3(result.White));
+			var (red1, red2, orange, white) = (this.Red1.position, this.Red2.position, this.Orange.position,
+				this.White.position);
+			var trs = TableTr.worldToLocalMatrix;
 
 			void doTr(ref Vector3 vec)
 			{
@@ -154,7 +155,7 @@ public class RecognitionHandler : MonoBehaviour
 
 	private void UpdateBallTransforms(ref RecognitionResult result)
 	{
-		var balls = new[] { red1, red2, orange, white };
+		var balls = new[] { Red1, Red2, Orange, White };
 		var actualIndex = new[] { 0, 1, 2, 3 };
 		bool bRedSwap = false;
 
@@ -165,10 +166,10 @@ public class RecognitionHandler : MonoBehaviour
 			if (result.Red2.Confidence > 0.5f)
 			{
 				// 가장 오차가 작은 쌍을 찾습니다.
-				var aDist1 = (toVector3(result.Red1) - red1.position).magnitude;
-				var aDist2 = (toVector3(result.Red2) - red1.position).magnitude;
-				var bDist1 = (toVector3(result.Red1) - red2.position).magnitude;
-				var bDist2 = (toVector3(result.Red2) - red2.position).magnitude;
+				var aDist1 = (toVector3(result.Red1) - Red1.position).magnitude;
+				var aDist2 = (toVector3(result.Red2) - Red1.position).magnitude;
+				var bDist1 = (toVector3(result.Red1) - Red2.position).magnitude;
+				var bDist2 = (toVector3(result.Red2) - Red2.position).magnitude;
 
 				var array = new[] { aDist1, aDist2, bDist1, bDist2 };
 				var minValue = array.Min();
@@ -180,8 +181,8 @@ public class RecognitionHandler : MonoBehaviour
 			}
 			else
 			{
-				var dist1 = (toVector3(result.Red1) - red1.position).magnitude;
-				var dist2 = (toVector3(result.Red1) - red2.position).magnitude;
+				var dist1 = (toVector3(result.Red1) - Red1.position).magnitude;
+				var dist2 = (toVector3(result.Red1) - Red2.position).magnitude;
 
 				if (dist2 < dist1)
 				{
@@ -250,7 +251,7 @@ public class RecognitionHandler : MonoBehaviour
 			vec.x = result.Table.Translation[0];
 			vec.y = result.Table.Translation[1];
 			vec.z = result.Table.Translation[2];
-			tableTransform.localPosition = vec;
+			TableTr.localPosition = vec;
 
 			// Orientation은 Rodrigues 표현식을 사용하므로, 축 및 회전으로 표현합니다.
 			vec.x = result.Table.Orientation[0];
@@ -263,7 +264,7 @@ public class RecognitionHandler : MonoBehaviour
 			// var euler = rot.eulerAngles;
 			// euler.z = euler.x = 0;
 			// rot.eulerAngles = euler;
-			tableTransform.localRotation = rot;
+			TableTr.localRotation = rot;
 		}
 	}
 }
