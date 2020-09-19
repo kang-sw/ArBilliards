@@ -25,7 +25,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1999053808831023549}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.02, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 1999053809994466573}
@@ -71,10 +71,10 @@ TrailRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Time: 3
+  m_Time: 8
   m_Parameters:
     serializedVersion: 3
-    widthMultiplier: 0.0035
+    widthMultiplier: 0.004
     widthCurve:
       serializedVersion: 2
       m_Curve:
@@ -87,47 +87,38 @@ TrailRenderer:
         weightedMode: 0
         inWeight: 0.33333334
         outWeight: 0.33333334
-      - serializedVersion: 3
-        time: 1
-        value: 0
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
     colorGradient:
       serializedVersion: 2
-      key0: {r: 0.09471596, g: 1, b: 0.0023573197, a: 0}
-      key1: {r: 0, g: 1, b: 0.11449838, a: 0.101960786}
-      key2: {r: 0, g: 1, b: 0.11449838, a: 1}
-      key3: {r: 0, g: 0, b: 0, a: 0.07058824}
+      key0: {r: 1, g: 0, b: 0, a: 0}
+      key1: {r: 1, g: 0, b: 0, a: 1}
+      key2: {r: 1, g: 1, b: 1, a: 0.34509805}
+      key3: {r: 1, g: 1, b: 1, a: 0.6}
       key4: {r: 0, g: 0, b: 0, a: 0}
       key5: {r: 0, g: 0, b: 0, a: 0}
       key6: {r: 0, g: 0, b: 0, a: 0}
       key7: {r: 0, g: 0, b: 0, a: 0}
       ctime0: 0
       ctime1: 65535
-      ctime2: 65535
-      ctime3: 0
+      ctime2: 5180
+      ctime3: 6231
       ctime4: 0
       ctime5: 0
       ctime6: 0
       ctime7: 0
       atime0: 0
-      atime1: 5397
-      atime2: 6361
-      atime3: 6939
-      atime4: 64186
+      atime1: 2102
+      atime2: 3303
+      atime3: 5480
+      atime4: 65535
       atime5: 65535
-      atime6: 0
-      atime7: 0
+      atime6: 65535
+      atime7: 65535
       m_Mode: 0
       m_NumColorKeys: 2
-      m_NumAlphaKeys: 6
+      m_NumAlphaKeys: 5
     numCornerVertices: 10
     numCapVertices: 10
     alignment: 0
@@ -194,7 +185,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1999053809001278708}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.02, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 1999053809763749617}
@@ -240,10 +231,10 @@ TrailRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Time: 3
+  m_Time: 8
   m_Parameters:
     serializedVersion: 3
-    widthMultiplier: 0.0035
+    widthMultiplier: 0.004
     widthCurve:
       serializedVersion: 2
       m_Curve:
@@ -256,47 +247,38 @@ TrailRenderer:
         weightedMode: 0
         inWeight: 0.33333334
         outWeight: 0.33333334
-      - serializedVersion: 3
-        time: 1
-        value: 0
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
     colorGradient:
       serializedVersion: 2
-      key0: {r: 0.09471596, g: 1, b: 0.0023573197, a: 0}
-      key1: {r: 0, g: 1, b: 0.11449838, a: 0.101960786}
-      key2: {r: 0, g: 1, b: 0.11449838, a: 1}
-      key3: {r: 0, g: 0, b: 0, a: 0.07058824}
+      key0: {r: 1, g: 1, b: 1, a: 0}
+      key1: {r: 1, g: 1, b: 1, a: 1}
+      key2: {r: 1, g: 1, b: 1, a: 0.34509805}
+      key3: {r: 1, g: 1, b: 1, a: 0.6}
       key4: {r: 0, g: 0, b: 0, a: 0}
       key5: {r: 0, g: 0, b: 0, a: 0}
       key6: {r: 0, g: 0, b: 0, a: 0}
       key7: {r: 0, g: 0, b: 0, a: 0}
       ctime0: 0
       ctime1: 65535
-      ctime2: 65535
-      ctime3: 0
+      ctime2: 5180
+      ctime3: 6231
       ctime4: 0
       ctime5: 0
       ctime6: 0
       ctime7: 0
       atime0: 0
-      atime1: 5397
-      atime2: 6361
-      atime3: 6939
-      atime4: 64186
+      atime1: 2102
+      atime2: 3303
+      atime3: 5480
+      atime4: 65535
       atime5: 65535
-      atime6: 0
-      atime7: 0
+      atime6: 65535
+      atime7: 65535
       m_Mode: 0
       m_NumColorKeys: 2
-      m_NumAlphaKeys: 6
+      m_NumAlphaKeys: 5
     numCornerVertices: 10
     numCapVertices: 10
     alignment: 0
@@ -1296,7 +1278,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1999053809806322676}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.02, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 1999053809421955023}
@@ -1342,10 +1324,10 @@ TrailRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Time: 3
+  m_Time: 8
   m_Parameters:
     serializedVersion: 3
-    widthMultiplier: 0.0035
+    widthMultiplier: 0.004
     widthCurve:
       serializedVersion: 2
       m_Curve:
@@ -1358,47 +1340,38 @@ TrailRenderer:
         weightedMode: 0
         inWeight: 0.33333334
         outWeight: 0.33333334
-      - serializedVersion: 3
-        time: 1
-        value: 0
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
     colorGradient:
       serializedVersion: 2
-      key0: {r: 0.09471596, g: 1, b: 0.0023573197, a: 0}
-      key1: {r: 0, g: 1, b: 0.11449838, a: 0.101960786}
-      key2: {r: 0, g: 1, b: 0.11449838, a: 1}
-      key3: {r: 0, g: 0, b: 0, a: 0.07058824}
+      key0: {r: 1, g: 0, b: 0, a: 0}
+      key1: {r: 1, g: 0, b: 0, a: 1}
+      key2: {r: 1, g: 1, b: 1, a: 0.34509805}
+      key3: {r: 1, g: 1, b: 1, a: 0.6}
       key4: {r: 0, g: 0, b: 0, a: 0}
       key5: {r: 0, g: 0, b: 0, a: 0}
       key6: {r: 0, g: 0, b: 0, a: 0}
       key7: {r: 0, g: 0, b: 0, a: 0}
       ctime0: 0
       ctime1: 65535
-      ctime2: 65535
-      ctime3: 0
+      ctime2: 5180
+      ctime3: 6231
       ctime4: 0
       ctime5: 0
       ctime6: 0
       ctime7: 0
       atime0: 0
-      atime1: 5397
-      atime2: 6361
-      atime3: 6939
-      atime4: 64186
+      atime1: 2102
+      atime2: 3303
+      atime3: 5480
+      atime4: 65535
       atime5: 65535
-      atime6: 0
-      atime7: 0
+      atime6: 65535
+      atime7: 65535
       m_Mode: 0
       m_NumColorKeys: 2
-      m_NumAlphaKeys: 6
+      m_NumAlphaKeys: 5
     numCornerVertices: 10
     numCapVertices: 10
     alignment: 0
@@ -1802,7 +1775,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1999053810157826628}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.02, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 1999053808933428023}
@@ -1848,10 +1821,10 @@ TrailRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Time: 3
+  m_Time: 8
   m_Parameters:
     serializedVersion: 3
-    widthMultiplier: 0.0035
+    widthMultiplier: 0.004
     widthCurve:
       serializedVersion: 2
       m_Curve:
@@ -1864,47 +1837,38 @@ TrailRenderer:
         weightedMode: 0
         inWeight: 0.33333334
         outWeight: 0.33333334
-      - serializedVersion: 3
-        time: 1
-        value: 0
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
     colorGradient:
       serializedVersion: 2
-      key0: {r: 0.09471596, g: 1, b: 0.0023573197, a: 0}
-      key1: {r: 0, g: 1, b: 0.11449838, a: 0.101960786}
-      key2: {r: 0, g: 1, b: 0.11449838, a: 1}
-      key3: {r: 0, g: 0, b: 0, a: 0.07058824}
+      key0: {r: 1, g: 0.74655265, b: 0, a: 0}
+      key1: {r: 1, g: 0.74655265, b: 0, a: 1}
+      key2: {r: 1, g: 1, b: 1, a: 0.34509805}
+      key3: {r: 1, g: 1, b: 1, a: 0.6}
       key4: {r: 0, g: 0, b: 0, a: 0}
       key5: {r: 0, g: 0, b: 0, a: 0}
       key6: {r: 0, g: 0, b: 0, a: 0}
       key7: {r: 0, g: 0, b: 0, a: 0}
       ctime0: 0
       ctime1: 65535
-      ctime2: 65535
-      ctime3: 0
+      ctime2: 5180
+      ctime3: 6231
       ctime4: 0
       ctime5: 0
       ctime6: 0
       ctime7: 0
       atime0: 0
-      atime1: 5397
-      atime2: 6361
-      atime3: 6939
-      atime4: 64186
+      atime1: 2102
+      atime2: 3303
+      atime3: 5480
+      atime4: 65535
       atime5: 65535
-      atime6: 0
-      atime7: 0
+      atime6: 65535
+      atime7: 65535
       m_Mode: 0
       m_NumColorKeys: 2
-      m_NumAlphaKeys: 6
+      m_NumAlphaKeys: 5
     numCornerVertices: 10
     numCapVertices: 10
     alignment: 0
@@ -2094,16 +2058,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5ea470ed8a8ae74792d2e049343ddc4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  tableTransform: {fileID: 1999053809170656443}
-  red1: {fileID: 1999053809994466573}
-  red2: {fileID: 1999053809421955023}
-  orange: {fileID: 1999053808933428023}
-  white: {fileID: 1999053809763749617}
+  TableTr: {fileID: 1999053809170656443}
+  Red1: {fileID: 1999053809994466573}
+  Red2: {fileID: 1999053809421955023}
+  Orange: {fileID: 1999053808933428023}
+  White: {fileID: 1999053809763749617}
   nearbyThreshold: 0.01
   maxSpeed: 2
   errorCorrectionRate: 0.1
   speedDampingOnInvisibleState: 2
-  stopSpeed: 0.01
+  stopStanceFilterCoeff: 0.22
+  stopSpeed: 0.05
   Simulator: {fileID: 1999053810412700374}
 --- !u!114 &1999053810412700374
 MonoBehaviour:
@@ -2120,17 +2085,17 @@ MonoBehaviour:
   TableAnchor: {fileID: 1999053809552222295}
   LookTransform: {fileID: 0}
   SimInterval: 0.5
-  BallRadius: 0.0208
+  BallRadius: 0.022281691
   TableWidth: 0.895
   TableHeight: 0.447
   BallRestitution: 0.89
   BallDamping: 0.43
   TableRestitution: 0.67
-  TableFriction: 0.42
-  NumRotationDivider: 826
-  SimDuration: 10
-  SpeedValues:
-  - 1
+  TableFriction: 0.21
+  NumRotationDivider: 1200
+  SimDuration: 20
+  SpeedMin: 0.4
+  SpeedMax: 1.4
   PlayerBall: 2
   BallVisualizeColors:
   - {r: 1, g: 0, b: 0, a: 1}
@@ -2149,6 +2114,8 @@ MonoBehaviour:
     type: 3}
   CollisionMarkerTemplate: {fileID: 451981723993225299, guid: 4d1cd6d689c5ddd44969d4d6497e1fe5,
     type: 3}
+  NumMinCushions: 0
+  Is3BallRule: 0
 --- !u!1 &1999053810426703206
 GameObject:
   m_ObjectHideFlags: 0

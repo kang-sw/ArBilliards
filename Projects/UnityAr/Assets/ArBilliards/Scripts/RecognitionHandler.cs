@@ -4,6 +4,7 @@ using System;
 using System.CodeDom.Compiler;
 using System.Globalization;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading;
 using TMPro.EditorUtilities;
 using UnityEngine;
@@ -12,21 +13,28 @@ public class RecognitionHandler : MonoBehaviour
 {
 	#region Exposed Properties
 
+	[Header("Transforms")]
 	public Transform TableTr;
 	public Transform Red1;
 	public Transform Red2;
 	public Transform Orange;
 	public Transform White;
 
+	// 테이블을 기준으로 정정될 트랜스폼 목록입니다.
+	public Transform AdjustedTransform;
+
+	[Header("Recognition Parameters")]
 	// 두 공 사이의 거리가 가깝다고 판단하는 거리입니다.
 	public float nearbyThreshold = 0.01f;
 	public float maxSpeed = 2.0f;
 	public float errorCorrectionRate = 0.1f;
 	public float speedDampingOnInvisibleState = 2.0f;
+	public float stopStanceFilterCoeff = 0.27f;
 
 	// 공이 멈췄다고 판단하는 속도입니다.
 	public float stopSpeed = 0.01f;
 
+	[Header("Simulator")]
 	// 시뮬레이터 레퍼런스
 	public SimHandler Simulator;
 
@@ -37,6 +45,7 @@ public class RecognitionHandler : MonoBehaviour
 	private DateTime?[] _latestUpdates = new DateTime?[4];
 	private Vector3[] _velocities = new Vector3[4];
 	private Vector3?[] _prevPositions = new Vector3?[4];
+	private Vector3[] _positionFilteredOnStop = new Vector3[4];
 
 	#endregion
 
@@ -85,6 +94,18 @@ public class RecognitionHandler : MonoBehaviour
 			{
 				var ballTr = ballTrs[index];
 				ballTr.position += _velocities[index] * Time.deltaTime;
+
+				// 정지 상태의 속도라면 위치를 필터링해 누적합니다.
+				var speed = _velocities[index].magnitude;
+				if (speed < stopSpeed)
+				{
+					_positionFilteredOnStop[index] = Vector3.Lerp(_positionFilteredOnStop[index], ballTr.position,
+						 Time.deltaTime * stopStanceFilterCoeff);
+				}
+				else
+				{
+					_positionFilteredOnStop[index] = ballTr.position;
+				}
 			}
 		}
 	}
@@ -106,7 +127,7 @@ public class RecognitionHandler : MonoBehaviour
 		{
 			var confidenceArray = new[]
 			{
-				result.Table.Confidence, (result.Red1.Confidence +  result.Red2.Confidence) * 0.5f, result.Orange.Confidence,
+				result.Table.Confidence, (result.Red1.Confidence +  result.Red2.Confidence) * 0.7f, result.Orange.Confidence,
 				result.White.Confidence
 			};
 
@@ -131,8 +152,9 @@ public class RecognitionHandler : MonoBehaviour
 		if (bSimulationAvailable && Simulator)
 		{
 			// var (red1, red2, orange, white) = (toVector3(result.Red1), toVector3(result.Red2), toVector3(result.Orange), toVector3(result.White));
-			var (red1, red2, orange, white) = (this.Red1.position, this.Red2.position, this.Orange.position,
-				this.White.position);
+			// var (red1, red2, orange, white) = (this.Red1.position, this.Red2.position, this.Orange.position, this.White.position);
+			var p = _positionFilteredOnStop;
+			var (red1, red2, orange, white) = (p[0], p[1], p[2], p[3]);
 			var trs = TableTr.worldToLocalMatrix;
 
 			void doTr(ref Vector3 vec)
@@ -247,6 +269,18 @@ public class RecognitionHandler : MonoBehaviour
 	{
 		if (result.Table.Confidence > 0.5f)
 		{
+			//// Table은 항상 0, 0, 0에 있어야 합니다.
+			//var tl = result.Table.Translation;
+			//var vec = new Vector3(tl[0], tl[1], tl[2]);
+			//AdjustedTransform.localPosition -= vec;
+
+			//var rt = result.Table.Orientation;
+			//vec = new Vector3(rt[0], rt[1], rt[2]);
+			//var rot = Quaternion.AngleAxis(vec.magnitude * 180.0f / (float)Math.PI, vec.normalized);
+			//rot = Quaternion.Inverse(rot);
+			//AdjustedTransform.rotation *= rot;
+
+
 			var vec = new Vector3();
 			vec.x = result.Table.Translation[0];
 			vec.y = result.Table.Translation[1];

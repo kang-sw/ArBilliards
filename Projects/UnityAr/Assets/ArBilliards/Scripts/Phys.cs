@@ -2,6 +2,8 @@
 using System.CodeDom.Compiler;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Security.Cryptography.X509Certificates;
 using Boo.Lang.Runtime;
 using JetBrains.Annotations;
 using UnityEditor.Compilation;
@@ -18,8 +20,8 @@ namespace ArBilliards.Phys
 
 	public class PhysContext
 	{
-		public float OverlapPushVelocity = 1f;
-		public float OverlapSteps = 0.01f; // Overlap된 물체가 하나라도 있을 경우 resolve될 때까지 스탭을 아래의 값으로 고정합니다.
+		// 10밀리초 이내에 연산이 끝나지 않으면 타임아웃.
+		public int TimeoutMs = 1000;
 
 		public int Count => _objects.Count;
 		public PhysObject this[int i] => _objects[i];
@@ -89,6 +91,8 @@ namespace ArBilliards.Phys
 
 			float totalTime = 0.0f;
 			const float SMALL_NUMBER = Constants.KINDA_SMALL_NUMBER;
+			var timeoutTimer = new Stopwatch();
+			timeoutTimer.Start();
 
 			// 남은 시간이 0이 될 때까지 반복합니다.
 			while (deltaTime > 0)
@@ -144,6 +148,12 @@ namespace ArBilliards.Phys
 							minContact = contact;
 						}
 					}
+				}
+
+				// 타임아웃 검사
+				if (timeoutTimer.ElapsedMilliseconds > TimeoutMs)
+				{
+					return;
 				}
 
 				// 최소 델타 시간만큼 모든 오브젝트를 전진시킵니다.

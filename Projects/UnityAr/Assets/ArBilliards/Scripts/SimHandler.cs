@@ -96,30 +96,14 @@ public class SimHandler : MonoBehaviour
 	{
 		Update_AsyncSimulation();
 
-		if (_bLineDirty && LookTransform && _latestResult.Candidates.Count > 0)
+		Update_Rendering();
+	}
+
+	void OnDestroy()
+	{
+		if (_parallelTask != null)
 		{
-			var fwd = LookTransform.forward;
-			var r = _latestResult;
-
-			// 현재 카메라 방향에 따라 가장 적합한 candidate를 찾습니다.
-			fwd = TableAnchor.worldToLocalMatrix.MultiplyVector(fwd);
-			AsyncSimAgent.SimResult.Candidate nearlest = r.Candidates[0];
-
-			foreach (var elem in r.Candidates)
-			{
-				if (Vector3.Angle(nearlest.InitVelocity, fwd) > Vector3.Angle(elem.InitVelocity, fwd))
-					nearlest = elem;
-			}
-
-			// Render candidate markers
-
-
-			initMarkerPool();
-			for (int index = 0; index < 4; ++index)
-			{
-				renderBallPath(ColorRenderers[index], nearlest.Balls[index]);
-			}
-			trimUnusedMarkers();
+			_parallelTask.Wait();
 		}
 	}
 
@@ -149,6 +133,7 @@ public class SimHandler : MonoBehaviour
 
 	private float _intervalTimer = 0f;
 	private bool _bParallelProcessRunning;
+	private Task _parallelTask;
 	private AsyncSimAgent[] _parallel;
 
 	void Start_AsyncSimulation()
@@ -185,7 +170,7 @@ public class SimHandler : MonoBehaviour
 			PendingBallPositions = null;
 
 			// 비동기 시뮬레이션 트리거
-			new Task(() =>
+			_parallelTask = new Task(() =>
 			{
 				Parallel.For(0, _parallel.Length, (index) =>
 				{
@@ -201,10 +186,10 @@ public class SimHandler : MonoBehaviour
 				});
 
 				_latestResult = results;
-				results = null;
 				_bParallelProcessRunning = false;
-			}).Start();
-			
+			});
+
+			_parallelTask.Start();
 			_intervalTimer = 0f;
 		}
 	}
@@ -219,6 +204,39 @@ public class SimHandler : MonoBehaviour
 
 	private List<LineRenderer> _candidateMarkerPool = new List<LineRenderer>();
 	private int _numActiveCandidateMarkers;
+
+	private void Update_Rendering()
+	{
+
+		if (_bLineDirty
+			&& LookTransform // 카메라가 있는지?
+			&& _latestResult.Candidates.Count > 0) // 계산된 결과가 존재하는지?
+		{
+			var fwd = LookTransform.forward;
+			var r = _latestResult;
+
+			// 현재 카메라 방향에 따라 가장 적합한 candidate를 찾습니다.
+			fwd = TableAnchor.worldToLocalMatrix.MultiplyVector(fwd);
+			AsyncSimAgent.SimResult.Candidate nearlest = r.Candidates[0];
+
+			foreach (var elem in r.Candidates)
+			{
+				if (Vector3.Angle(nearlest.InitVelocity, fwd) > Vector3.Angle(elem.InitVelocity, fwd))
+					nearlest = elem;
+			}
+
+			// Render candidate markers
+
+
+			initMarkerPool();
+			for (int index = 0; index < 4; ++index)
+			{
+				renderBallPath(ColorRenderers[index], nearlest.Balls[index]);
+			}
+
+			trimUnusedMarkers();
+		}
+	}
 
 	void renderBallPath(LineRenderer target, AsyncSimAgent.BallPath path)
 	{
@@ -244,7 +262,10 @@ public class SimHandler : MonoBehaviour
 		for (int index = 0; index < nodes.Count; index++)
 		{
 			// 라인을 그립니다.
-			target.SetPosition(index, nodes[index].Position);
+			var pos = nodes[index].Position;
+			pos.y -= BallRadius;
+
+			target.SetPosition(index, pos);
 
 			// 각 조인트마다 충돌 마커를 스폰합니다.
 			if (index < nodes.Count - 1)
@@ -253,7 +274,7 @@ public class SimHandler : MonoBehaviour
 				marker.ParticleColor = color;
 				color.a = 0.765f;
 				marker.MeshColor = color;
-				marker.transform.localPosition = nodes[index].Position;
+				marker.transform.localPosition = pos;
 			}
 		}
 
