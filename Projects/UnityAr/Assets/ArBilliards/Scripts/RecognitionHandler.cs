@@ -117,7 +117,7 @@ public class RecognitionHandler : MonoBehaviour
 
 	public void UpdateRecognition(RecognitionResult result)
 	{
-		UpdateTableTransform(result);
+		UpdateTableTransform(ref result);
 		UpdateBallTransforms(ref result);
 
 		// 시뮬레이션을 수행 가능 여부를 질의합니다.
@@ -265,22 +265,10 @@ public class RecognitionHandler : MonoBehaviour
 		}
 	}
 
-	private void UpdateTableTransform(RecognitionResult result)
+	private void UpdateTableTransform(ref RecognitionResult result)
 	{
 		if (result.Table.Confidence > 0.5f)
 		{
-			//// Table은 항상 0, 0, 0에 있어야 합니다.
-			//var tl = result.Table.Translation;
-			//var vec = new Vector3(tl[0], tl[1], tl[2]);
-			//AdjustedTransform.localPosition -= vec;
-
-			//var rt = result.Table.Orientation;
-			//vec = new Vector3(rt[0], rt[1], rt[2]);
-			//var rot = Quaternion.AngleAxis(vec.magnitude * 180.0f / (float)Math.PI, vec.normalized);
-			//rot = Quaternion.Inverse(rot);
-			//AdjustedTransform.rotation *= rot;
-
-
 			var vec = new Vector3();
 			vec.x = result.Table.Translation[0];
 			vec.y = result.Table.Translation[1];
