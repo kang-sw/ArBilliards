@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Remoting.Messaging;
 using System.Threading.Tasks;
 using UnityEngine;
+using Random = System.Random;
 
 public enum BilliardsBall
 {
@@ -46,7 +47,8 @@ public class SimHandler : MonoBehaviour
 	[Header("Optimizations")]
 	public int NumRotationDivider = 360;
 	public float SimDuration = 10.0f;
-	public float[] SpeedValues = new[] { 0.4f };
+	public float SpeedMin = 0.4f;
+	public float SpeedMax = 1.4f;
 
 	[Header("GameState")]
 	public BilliardsBall PlayerBall = BilliardsBall.Orange;
@@ -72,9 +74,7 @@ public class SimHandler : MonoBehaviour
 	#region Main Loop
 
 	private GameObject _instancedRoot;
-	private AsyncSimAgent _sim = new AsyncSimAgent();
 	private AsyncSimAgent.SimResult _latestResult = null;
-	private float _intervalTimer = 0f;
 	private bool _bLineDirty = false;
 
 	// Start is called before the first frame update
@@ -82,33 +82,14 @@ public class SimHandler : MonoBehaviour
 	{
 		_instancedRoot = new GameObject("InstantiationRoot");
 		_instancedRoot.transform.parent = TableAnchor;
+
+		Start_AsyncSimulation();
 	}
 
 	// Update is called once per frame
 	void Update()
 	{
-		if (_sim.SimulationResult != null)
-		{
-			_latestResult = _sim.SimulationResult;
-			_bLineDirty = true;
-		}
-
-		_intervalTimer += Time.deltaTime;
-		if (_intervalTimer > SimInterval && !_sim.IsRunning && PendingBallPositions.HasValue)
-		{
-			// 비동기 시뮬레이션 트리거
-			var p = new AsyncSimAgent.InitParams();
-			updateParam(ref p);
-			AsyncSimAgent.InitParams.Rule4Balls(ref p);
-
-			(p.Red1, p.Red2, p.Orange, p.White) = PendingBallPositions.Value;
-			PendingBallPositions = null;
-
-			p.InitSpeed = SpeedValues[0];
-
-			_sim.InitAsync(p);
-			_intervalTimer = 0f;
-		}
+		Update_AsyncSimulation();
 
 		if (_bLineDirty && LookTransform && _latestResult.Candidates.Count > 0)
 		{
@@ -121,7 +102,7 @@ public class SimHandler : MonoBehaviour
 
 			foreach (var elem in r.Candidates)
 			{
-				if (Vector3.Angle(nearlest.Direction, fwd) > Vector3.Angle(elem.Direction, fwd))
+				if (Vector3.Angle(nearlest.InitVelocity, fwd) > Vector3.Angle(elem.InitVelocity, fwd))
 					nearlest = elem;
 			}
 
@@ -145,6 +126,44 @@ public class SimHandler : MonoBehaviour
 		p.PlayerBall = PlayerBall;
 		p.Table = (TableRestitution, TableWidth, TableHeight, TableFriction);
 		p.NumCandidates = NumRotationDivider;
+	}
+
+	#endregion
+
+	#region Simulations
+
+	private AsyncSimAgent _sim = new AsyncSimAgent();
+	private float _intervalTimer = 0f;
+	private bool _bParallelProcessRunning;
+
+	void Start_AsyncSimulation()
+	{
+
+	}
+
+	void Update_AsyncSimulation()
+	{
+		if (_sim.SimulationResult != null)
+		{
+			_latestResult = _sim.SimulationResult;
+			_bLineDirty = true;
+		}
+
+		_intervalTimer += Time.deltaTime;
+		if (_intervalTimer > SimInterval && !_sim.IsRunning && PendingBallPositions.HasValue)
+		{
+			// 비동기 시뮬레이션 트리거
+			var p = new AsyncSimAgent.InitParams();
+			updateParam(ref p);
+			AsyncSimAgent.InitParams.Rule4Balls(ref p);
+
+			(p.Red1, p.Red2, p.Orange, p.White) = PendingBallPositions.Value;
+			PendingBallPositions = null;
+
+			p.InitSpeedRange = (SpeedMin, SpeedMax);
+			_sim.InitAsync(p);
+			_intervalTimer = 0f;
+		}
 	}
 
 	#endregion
@@ -280,11 +299,11 @@ public class AsyncSimAgent
 		public int NumCushionHits; // 마지막 공 타격 전까지의 최소 쿠션 히트 수입니다.
 
 		// OPTIONS
-		public float InitSpeed; // 타격하는 공의 최초 속도입니다.
+		public (float Min, float Max) InitSpeedRange; // 최초 타구 시 속도입니다.
 
 		// OPTIMIZATION
 		public int NumCandidates; // 360도 범위에서 몇 개의 후보를 선택할지 결정합니다. 후보는 uniform하게 선정됩니다.
-		public (int Begin, int End)? PartialRange; // 다수의 Agent 인스턴스를 생성해 
+		public (int Begin, int End)? PartialRange; // 다수의 Agent 인스턴스를 생성할 때 유용합니다.
 		public float SimDuration; // 총 시뮬레이션 길이입니다.
 
 		public static void Rule3Balls(ref InitParams p)
@@ -309,7 +328,7 @@ public class AsyncSimAgent
 		{
 			public BallPath[] Balls; // 4개 항목
 			public float Votes; // 해당 결과의 확실성입니다.
-			public Vector3 Direction; // 타격 방향 (노멀)
+			public Vector3 InitVelocity; // 타격 방향 (노멀)
 
 			public Candidate()
 			{
@@ -318,7 +337,7 @@ public class AsyncSimAgent
 					Balls[i] = new BallPath();
 
 				Votes = 0f;
-				Direction = Vector3.zero;
+				InitVelocity = Vector3.zero;
 			}
 		}
 
@@ -430,6 +449,7 @@ public class AsyncSimAgent
 			(iter, maxIter) = (0, _p.NumCandidates);
 
 		SimResult.Candidate cand = null;
+		var rand = new Random();
 
 		for (; iter < maxIter; ++iter)
 		{
@@ -442,9 +462,12 @@ public class AsyncSimAgent
 			// -- 초기 속력 및 방향 지정
 			float angle = (360f / maxIter) * iter;
 			var dir = Quaternion.Euler(0, angle, 0) * Vector3.forward;
-			cand.Direction = dir;
 
-			var initVelocity = _p.InitSpeed * dir;
+			var (spdMin, spdMax) = _p.InitSpeedRange;
+			var spdCoeff = (float)rand.NextDouble();
+
+			var initVelocity = Mathf.Lerp(spdMin, spdMax, spdCoeff) * dir;
+			cand.InitVelocity = dir;
 			_ballRefs[(int)_p.PlayerBall].Velocity = initVelocity;
 
 			// -- 공 초기 위치 노드 셋업
