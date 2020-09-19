@@ -166,10 +166,13 @@ namespace ArBilliards.Phys
 
 				if (minContactIdx.HasValue)
 				{
-					// 충돌을 기록합니다.
 					var idx = minContactIdx.Value;
 					var (A, B) = (this[idx.A], this[idx.B]);
 
+					// 충돌을 계산합니다.
+					A.ApplyCollision(B);
+
+					// 충돌을 기록합니다.
 					ContactInfo contact;
 					contact.A = (idx.A, A.Position, A.Velocity);
 					contact.B = (idx.B, B.Position, B.Velocity);
@@ -177,9 +180,6 @@ namespace ArBilliards.Phys
 					contact.At = minContact.Value.At;
 
 					result.Add(contact);
-
-					// 충돌을 계산합니다.
-					A.ApplyCollision(B);
 				}
 
 				deltaTime -= minContactTime;

@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -30,6 +31,12 @@ public class MarkerManipulator : MonoBehaviour
 			_timeStamp = 0;
 			_ballPath = value;
 		}
+	}
+
+	public float BallDamping
+	{
+		get;
+		set;
 	}
 
 	public bool Active
@@ -66,8 +73,13 @@ public class MarkerManipulator : MonoBehaviour
 
 				if (beg.Time < _timeStamp && _timeStamp < end.Time)
 				{
-					var alpha = (_timeStamp - beg.Time) / (end.Time - beg.Time);
-					_tr.localPosition = Vector3.Lerp(beg.Position, end.Position, alpha);
+					// var alpha = (_timeStamp - beg.Time) / (end.Time - beg.Time);
+					// _tr.localPosition = Vector3.Lerp(beg.Position, end.Position, alpha);
+					var t = _timeStamp - beg.Time;
+					var alpha = BallDamping;
+					var alpha_inv = 1.0 / BallDamping;
+					_tr.localPosition = beg.Position + beg.Velocity * (float)(alpha_inv * (1 - Math.Exp(-alpha * t)));
+					break;
 				}
 			}
 

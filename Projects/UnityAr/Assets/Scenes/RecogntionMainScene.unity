@@ -660,15 +660,19 @@ PrefabInstance:
       objectReference: {fileID: 1776626643}
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
-      propertyPath: NumRotationDivider
-      value: 1200
+      propertyPath: PathForwardAngle
+      value: 60
       objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
-      propertyPath: PathFollowMarkerTemplate
-      value: 
-      objectReference: {fileID: 451981723993225299, guid: 24b0c6c899d01f845ac262531dcfa836,
+      propertyPath: SpeedMin
+      value: 0.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
+      propertyPath: SpeedMax
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700375, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -731,13 +735,8 @@ PrefabInstance:
       objectReference: {fileID: 2064407234}
     - target: {fileID: 1999053810412700376, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
-      propertyPath: stopSpeed
-      value: 0.1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810412700376, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
       propertyPath: stopStanceFilterCoeff
-      value: 0.67
+      value: 1.2
       objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700377, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}

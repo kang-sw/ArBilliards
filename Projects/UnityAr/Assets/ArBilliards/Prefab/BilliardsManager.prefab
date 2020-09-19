@@ -2068,8 +2068,8 @@ MonoBehaviour:
   maxSpeed: 2
   errorCorrectionRate: 0.1
   speedDampingOnInvisibleState: 2
-  stopStanceFilterCoeff: 0.22
-  stopSpeed: 0.02
+  stopStanceFilterCoeff: 0.67
+  stopSpeed: 0.1
   Simulator: {fileID: 1999053810412700374}
 --- !u!114 &1999053810412700374
 MonoBehaviour:
@@ -2086,14 +2086,15 @@ MonoBehaviour:
   TableAnchor: {fileID: 1999053809552222295}
   LookTransform: {fileID: 0}
   SimInterval: 3
+  PathRedrawInterval: 0.3
   BallRadius: 0.022281691
   TableWidth: 0.895
   TableHeight: 0.447
   BallRestitution: 0.89
   BallDamping: 0.43
-  TableRestitution: 0.67
-  TableFriction: 0.21
-  NumRotationDivider: 3600
+  TableRestitution: 0.78
+  TableFriction: 0.13
+  NumRotationDivider: 1200
   SimDuration: 20
   SpeedMin: 0.4
   SpeedMax: 1.4
@@ -2110,7 +2111,7 @@ MonoBehaviour:
   - {fileID: 1999053810576407002}
   - {fileID: 1999053810430120990}
   - {fileID: 1999053810069175860}
-  PathFollowMarkerTemplate: {fileID: 7511255258693191369, guid: 1b37b0dec2b13874288b9aae594dcdb2,
+  PathFollowMarkerTemplate: {fileID: 451981723993225299, guid: 24b0c6c899d01f845ac262531dcfa836,
     type: 3}
   CandidateRenderingTemplate: {fileID: 5393657805629682244, guid: 66f155073825e134a9011d71d264cc17,
     type: 3}

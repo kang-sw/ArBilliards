@@ -35,6 +35,7 @@ public class SimHandler : MonoBehaviour
 	public Transform LookTransform; // 전방 방향 트랜스폼
 	public float SimInterval = 0.3f; // 시뮬레이션 간격입니다.
 	public float PathRedrawInterval = 0.3f; // 경로 다시그리기 간격
+	public float PathForwardAngle = 30f; // 전방 방향으로 인식하는 각도
 
 	[Header("Dimensions")]
 	public float BallRadius = 0.07f / Mathf.PI;
@@ -141,6 +142,7 @@ public class SimHandler : MonoBehaviour
 	private bool _bParallelProcessRunning;
 	private Task _parallelTask;
 	private AsyncSimAgent[] _parallel;
+	private bool _prevMoveState;
 	private float AcceleratedDelta => InternalIsAnyBallMoving ? 10.0f * Time.deltaTime : Time.deltaTime;
 
 	void Start_AsyncSimulation()
@@ -159,9 +161,16 @@ public class SimHandler : MonoBehaviour
 	{
 		_intervalTimer += AcceleratedDelta;
 
+		// 이동 상태가 바뀌면, 1초 후에 비동기 시뮬레이션을 예약합니다.
+		if (_prevMoveState != InternalIsAnyBallMoving)
+		{
+			_intervalTimer = SimInterval - 1.0f;
+		}
+
+		_prevMoveState = InternalIsAnyBallMoving;
+
 		if (_intervalTimer > SimInterval && !_bParallelProcessRunning && PendingBallPositions.HasValue)
 		{
-			Debug.Log("Triggering Simulation");
 			_bParallelProcessRunning = true;
 			var results = new AsyncSimAgent.SimResult();
 
@@ -247,11 +256,22 @@ public class SimHandler : MonoBehaviour
 
 			// -- 현재 카메라 방향에 따라 강조하기에 가장 적합한 candidate를 찾습니다.
 			fwd = TableAnchor.worldToLocalMatrix.MultiplyVector(fwd);
+			fwd.y = 0;
 			AsyncSimAgent.SimResult.Candidate nearlest = r.Candidates[0];
+			var distSorted = from elem in r.Candidates
+							 where Vector3.Angle(elem.InitVelocity, fwd) < PathForwardAngle * 0.5f
+							 orderby elem.InitVelocity.sqrMagnitude
+							 select elem;
 
-			foreach (var elem in r.Candidates)
-				if (Vector3.Angle(nearlest.InitVelocity, fwd) > Vector3.Angle(elem.InitVelocity, fwd))
-					nearlest = elem;
+			nearlest = distSorted.FirstOrDefault();
+
+			if (nearlest == null)
+			{
+				nearlest = r.Candidates[0];
+				foreach (var elem in r.Candidates)
+					if (Vector3.Angle(nearlest.InitVelocity, fwd) > Vector3.Angle(elem.InitVelocity, fwd))
+						nearlest = elem;
+			}
 
 			// -- 모든 candidate에 대해 라인을 그립니다.
 			// 오브젝트 풀 예약
@@ -352,7 +372,12 @@ public class SimHandler : MonoBehaviour
 
 		// 패스 팔로우 활성화
 		if (shouldRestartPathFollow)
-			_pathFollowMarker[(int)path.Index].ActiveBallPath = path;
+		{
+			var marker =
+			_pathFollowMarker[(int)path.Index];
+			marker.ActiveBallPath = path;
+			marker.BallDamping = BallDamping;
+		}
 	}
 
 	void initMarkerPool()
@@ -608,7 +633,7 @@ public class AsyncSimAgent
 			var spdCoeff = (float)rand.NextDouble();
 
 			var initVelocity = Mathf.Lerp(spdMin, spdMax, spdCoeff) * dir;
-			cand.InitVelocity = dir;
+			cand.InitVelocity = initVelocity;
 			_ballRefs[(int)_p.PlayerBall].Velocity = initVelocity;
 
 			// -- 공 초기 위치 노드 셋업
