@@ -25,7 +25,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1999053808831023549}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: -0.0228, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 1999053809994466573}
@@ -185,7 +185,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1999053809001278708}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: -0.0228, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 1999053809763749617}
@@ -1278,7 +1278,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1999053809806322676}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: -0.0228, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 1999053809421955023}
@@ -1775,7 +1775,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1999053810157826628}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: -0.0228, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 1999053808933428023}
@@ -2063,12 +2063,13 @@ MonoBehaviour:
   Red2: {fileID: 1999053809421955023}
   Orange: {fileID: 1999053808933428023}
   White: {fileID: 1999053809763749617}
+  AdjustedTransform: {fileID: 0}
   nearbyThreshold: 0.01
   maxSpeed: 2
   errorCorrectionRate: 0.1
   speedDampingOnInvisibleState: 2
   stopStanceFilterCoeff: 0.22
-  stopSpeed: 0.05
+  stopSpeed: 0.02
   Simulator: {fileID: 1999053810412700374}
 --- !u!114 &1999053810412700374
 MonoBehaviour:
@@ -2084,7 +2085,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   TableAnchor: {fileID: 1999053809552222295}
   LookTransform: {fileID: 0}
-  SimInterval: 0.5
+  SimInterval: 3
   BallRadius: 0.022281691
   TableWidth: 0.895
   TableHeight: 0.447
@@ -2092,11 +2093,12 @@ MonoBehaviour:
   BallDamping: 0.43
   TableRestitution: 0.67
   TableFriction: 0.21
-  NumRotationDivider: 1200
+  NumRotationDivider: 3600
   SimDuration: 20
   SpeedMin: 0.4
   SpeedMax: 1.4
   PlayerBall: 2
+  CandidateMarkerLength: 0.2
   BallVisualizeColors:
   - {r: 1, g: 0, b: 0, a: 1}
   - {r: 1, g: 0, b: 0, a: 1}

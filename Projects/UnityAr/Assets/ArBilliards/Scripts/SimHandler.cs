@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Remoting.Messaging;
 using System.Threading.Tasks;
+using UnityEditor.Profiling.Memory.Experimental;
 using UnityEditorInternal;
 using UnityEngine;
 using Random = System.Random;
@@ -54,6 +55,9 @@ public class SimHandler : MonoBehaviour
 	[Header("GameState")]
 	public BilliardsBall PlayerBall = BilliardsBall.Orange;
 
+	[Header("Visualization")]
+	public float CandidateMarkerLength = 0.2f;
+
 	[Header("Visualizer Instances")]
 	public Color[] BallVisualizeColors = new Color[4];
 	public LineRenderer CandidateRenderer;
@@ -73,6 +77,7 @@ public class SimHandler : MonoBehaviour
 	#region Public States
 
 	public (Vector3 Red1, Vector3 Red2, Vector3 Orange, Vector3 White)? PendingBallPositions { get; set; }
+	public bool InternalIsAnyBallMoving { private get; set; }
 
 	#endregion
 
@@ -135,6 +140,7 @@ public class SimHandler : MonoBehaviour
 	private bool _bParallelProcessRunning;
 	private Task _parallelTask;
 	private AsyncSimAgent[] _parallel;
+	private float AcceleratedDelta => InternalIsAnyBallMoving ? 10.0f * Time.deltaTime : Time.deltaTime;
 
 	void Start_AsyncSimulation()
 	{
@@ -150,12 +156,8 @@ public class SimHandler : MonoBehaviour
 
 	void Update_AsyncSimulation()
 	{
-		if (_latestResult != null)
-		{
-			_bLineDirty = true;
-		}
+		_intervalTimer += AcceleratedDelta;
 
-		_intervalTimer += Time.deltaTime;
 		if (_intervalTimer > SimInterval && !_bParallelProcessRunning && PendingBallPositions.HasValue)
 		{
 			Debug.Log("Triggering Simulation");
@@ -186,6 +188,7 @@ public class SimHandler : MonoBehaviour
 				});
 
 				_latestResult = results;
+				_bLineDirty = true;
 				_bParallelProcessRunning = false;
 			});
 
@@ -198,6 +201,8 @@ public class SimHandler : MonoBehaviour
 
 	#region Visualizers
 
+	private float _periodCounter = 0;
+
 	private List<CollisionMarkerManipulator> _collisionMarkerPool = new List<CollisionMarkerManipulator>();
 	private int _numActiveCollisionMarkers;
 	private int _cachedNumActiveCollisionMarkers;
@@ -207,33 +212,75 @@ public class SimHandler : MonoBehaviour
 
 	private void Update_Rendering()
 	{
+		_periodCounter += AcceleratedDelta;
 
 		if (_bLineDirty
+			&& _periodCounter > SimInterval
 			&& LookTransform // 카메라가 있는지?
-			&& _latestResult.Candidates.Count > 0) // 계산된 결과가 존재하는지?
+			&& _latestResult.Candidates.Count > 0
+			&& !InternalIsAnyBallMoving) // 계산된 결과가 존재하는지?
 		{
+			_periodCounter = 0;
 			var fwd = LookTransform.forward;
 			var r = _latestResult;
 
-			// 현재 카메라 방향에 따라 가장 적합한 candidate를 찾습니다.
+			// -- 현재 카메라 방향에 따라 강조하기에 가장 적합한 candidate를 찾습니다.
 			fwd = TableAnchor.worldToLocalMatrix.MultiplyVector(fwd);
 			AsyncSimAgent.SimResult.Candidate nearlest = r.Candidates[0];
 
 			foreach (var elem in r.Candidates)
-			{
 				if (Vector3.Angle(nearlest.InitVelocity, fwd) > Vector3.Angle(elem.InitVelocity, fwd))
 					nearlest = elem;
+
+			// -- 모든 candidate에 대해 라인을 그립니다.
+			// 오브젝트 풀 예약
+			{
+				int numActive = 0;
+				while (_candidateMarkerPool.Count < r.Candidates.Count + _numActiveCandidateMarkers)
+				{
+					var obj = Instantiate(CandidateRenderingTemplate, TableAnchor);
+					var render = obj.GetComponentInChildren<LineRenderer>();
+					render.positionCount = 2;
+					obj.SetActive(false);
+					_candidateMarkerPool.Add(render);
+				}
+
+				for (var i = 0; i < r.Candidates.Count; i++)
+				{
+					var elem = r.Candidates[i];
+					var render = _candidateMarkerPool[i];
+					var nodes = elem.Balls[(int)PlayerBall].Nodes;
+					if (i >= _numActiveCandidateMarkers)
+					{
+						render.gameObject.SetActive(true);
+						++_numActiveCandidateMarkers;
+					}
+
+					++numActive;
+					var begin = nodes[0].Position;
+					var dir = nodes[1].Position - nodes[0].Position;
+					var end = dir.normalized * CandidateMarkerLength + begin;
+					begin.y -= 0.05f;
+					end.y -= 0.05f;
+
+					render.SetPosition(0, begin);
+					render.SetPosition(1, end);
+				}
+
+
+				// Trim inactive markers
+				for (int i = numActive; i < _numActiveCandidateMarkers; ++i)
+				{
+					_candidateMarkerPool[i].gameObject.SetActive(false);
+				}
+
+				_numActiveCandidateMarkers = numActive;
 			}
 
-			// Render candidate markers
-
-
+			// -- 강조된 경로의 공을 그립니다.
 			initMarkerPool();
 			for (int index = 0; index < 4; ++index)
-			{
 				renderBallPath(ColorRenderers[index], nearlest.Balls[index]);
-			}
-
 			trimUnusedMarkers();
 		}
 	}

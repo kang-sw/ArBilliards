@@ -134,7 +134,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 100004, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 400000, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
       propertyPath: m_LocalPosition.x
@@ -542,7 +542,7 @@ PrefabInstance:
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
       propertyPath: greySkybox
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
@@ -648,36 +648,21 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 1999053808831023548, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_LocalPosition.y
-      value: -0.0228
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053809001278707, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_LocalPosition.y
-      value: -0.0228
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053809806322675, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_LocalPosition.y
-      value: -0.0228
-      objectReference: {fileID: 0}
     - target: {fileID: 1999053809856864291, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: camTransform
       value: 
       objectReference: {fileID: 1359819197}
-    - target: {fileID: 1999053810157826627, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_LocalPosition.y
-      value: -0.0228
-      objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: LookTransform
       value: 
       objectReference: {fileID: 1776626643}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: NumRotationDivider
+      value: 1200
+      objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700375, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -738,6 +723,16 @@ PrefabInstance:
       propertyPath: AdjustedTransform
       value: 
       objectReference: {fileID: 2064407234}
+    - target: {fileID: 1999053810412700376, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: stopSpeed
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700376, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: stopStanceFilterCoeff
+      value: 0.67
+      objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700377, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: m_Name

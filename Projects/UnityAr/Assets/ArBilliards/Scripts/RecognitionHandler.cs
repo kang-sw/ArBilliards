@@ -85,6 +85,7 @@ public class RecognitionHandler : MonoBehaviour
 	{
 		// 최근에 제대로 갱신된 오브젝트에 대해서만 위치 추정을 수행합니다.
 		var ballTrs = new[] { Red1, Red2, Orange, White };
+		bool bAllBallStop = true;
 		for (int index = 0; index < 4; index++)
 		{
 			if (!_latestUpdates[index].HasValue)
@@ -96,6 +97,7 @@ public class RecognitionHandler : MonoBehaviour
 				ballTr.position += _velocities[index] * Time.deltaTime;
 
 				// 정지 상태의 속도라면 위치를 필터링해 누적합니다.
+
 				var speed = _velocities[index].magnitude;
 				if (speed < stopSpeed)
 				{
@@ -105,9 +107,12 @@ public class RecognitionHandler : MonoBehaviour
 				else
 				{
 					_positionFilteredOnStop[index] = ballTr.position;
+					bAllBallStop = false;
 				}
 			}
 		}
+
+		Simulator.InternalIsAnyBallMoving = !bAllBallStop;
 	}
 
 	static Vector3 toVector3(RecognitionResult.BallRecognitionDesc Desc)
