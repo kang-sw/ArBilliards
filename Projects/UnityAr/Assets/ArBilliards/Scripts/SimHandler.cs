@@ -1,13 +1,8 @@
 ﻿using System;
 using ArBilliards.Phys;
-using Boo.Lang.Runtime;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Runtime.Remoting.Messaging;
 using System.Threading.Tasks;
-using UnityEditor.Profiling.Memory.Experimental;
-using UnityEditorInternal;
 using UnityEngine;
 using Random = System.Random;
 
@@ -51,8 +46,7 @@ public class SimHandler : MonoBehaviour
 	[Header("Optimizations")]
 	public int NumRotationDivider = 360;
 	public float SimDuration = 10.0f;
-	public float SpeedMin = 0.4f;
-	public float SpeedMax = 1.4f;
+	public float[] BallInitialSpeeds = new[] { 0.1f, 0.4f, 0.8f, 1.4f };
 
 	[Header("GameState")]
 	public BilliardsBall PlayerBall = BilliardsBall.Orange;
@@ -130,7 +124,7 @@ public class SimHandler : MonoBehaviour
 		p.PlayerBall = PlayerBall;
 		p.Table = (TableRestitution, TableWidth, TableHeight, TableFriction);
 		p.NumCandidates = NumRotationDivider;
-		p.InitSpeedRange = (SpeedMin, SpeedMax);
+		p.Speeds = (float[])BallInitialSpeeds.Clone();
 		p.NumCushionHits = NumMinCushions;
 	}
 
@@ -172,7 +166,6 @@ public class SimHandler : MonoBehaviour
 		if (_intervalTimer > SimInterval && !_bParallelProcessRunning && PendingBallPositions.HasValue)
 		{
 			_bParallelProcessRunning = true;
-			var results = new AsyncSimAgent.SimResult();
 
 			// 파라미터 셋업
 			var param = new AsyncSimAgent.InitParams();
@@ -184,6 +177,8 @@ public class SimHandler : MonoBehaviour
 			// 비동기 시뮬레이션 트리거
 			_parallelTask = new Task(() =>
 			{
+				var results = new AsyncSimAgent.SimResult();
+
 				Parallel.For(0, _parallel.Length, (index) =>
 				{
 					var agent = _parallel[index];
@@ -275,6 +270,8 @@ public class SimHandler : MonoBehaviour
 
 			// -- 모든 candidate에 대해 라인을 그립니다.
 			// 오브젝트 풀 예약
+			// 만약 nearlest element가 이전과 같다면 아래 과정을 모두 생략합니다.
+			if (nearlest != _latestCandidate)
 			{
 				int numActive = 0;
 				while (_candidateMarkerPool.Count < r.Candidates.Count + _numActiveCandidateMarkers)
@@ -316,14 +313,13 @@ public class SimHandler : MonoBehaviour
 				}
 
 				_numActiveCandidateMarkers = numActive;
-			}
 
-			// -- 강조된 경로의 공을 그립니다.
-			initMarkerPool();
-			bool bShouldRestartPathFollowing = _latestCandidate != nearlest;
-			for (int index = 0; index < 4; ++index)
-				renderBallPath(ColorRenderers[index], nearlest.Balls[index], bShouldRestartPathFollowing);
-			trimUnusedMarkers();
+				// -- 강조된 경로의 공을 그립니다.
+				initMarkerPool();
+				for (int index = 0; index < 4; ++index)
+					renderBallPath(ColorRenderers[index], nearlest.Balls[index], true);
+				trimUnusedMarkers();
+			}
 
 			// -- 가장 최근의 candidate 캐시 ...
 			_latestCandidate = nearlest;
@@ -463,7 +459,7 @@ public class AsyncSimAgent
 		public int NumCushionHits; // 마지막 공 타격 전까지의 최소 쿠션 히트 수입니다.
 
 		// OPTIONS
-		public (float Min, float Max) InitSpeedRange; // 최초 타구 시 속도입니다.
+		public float[] Speeds; // 최초 타구 시 속도입니다.
 		public int SpeedDivisions; // 최초 타구시 속도를 몇 개의 uniform한 구간으로 나눌지 결정
 
 		// OPTIMIZATION
@@ -552,7 +548,7 @@ public class AsyncSimAgent
 	{
 		if (IsRunning)
 		{
-			throw new AssertionFailedException("Async process still running!");
+			throw new Exception("Async process still running!");
 		}
 
 		IsRunning = true;
@@ -571,7 +567,7 @@ public class AsyncSimAgent
 	{
 		if (IsRunning)
 		{
-			throw new AssertionFailedException("Async process still running!");
+			throw new Exception("Async process still running!");
 		}
 
 		IsRunning = true;
@@ -607,152 +603,151 @@ public class AsyncSimAgent
 		var res = _simRes = new SimResult();
 		res.Options = _p;
 
-		int candIndex, maxCands = _p.NumCandidates, step;
-
-		if (_p.Parallel.HasValue)
-			(candIndex, step) = (_p.Parallel.Value.Offset, _p.Parallel.Value.Modulator);
-		else
-			(candIndex, maxCands, step) = (0, _p.NumCandidates, 1);
-
 		SimResult.Candidate cand = null;
-		var rand = new Random();
 
-		for (; candIndex < maxCands; candIndex += step)
+		foreach (var ballInitialSpeed in _p.Speeds) // 각각의 속도에 대해 Iteration ...
 		{
-			resetBallState();
+			int candIndex, maxCands = _p.NumCandidates, step;
 
-			// -- 시뮬레이션 셋업
-			cand = cand ?? new SimResult.Candidate(); // candidate를 찾는 데 실패한 경우 메모리를 재활용하기 위함입니다.
-			var balls = cand.Balls;
+			if (_p.Parallel.HasValue)
+				(candIndex, step) = (_p.Parallel.Value.Offset, _p.Parallel.Value.Modulator);
+			else
+				(candIndex, maxCands, step) = (0, _p.NumCandidates, 1);
 
-			// -- 초기 속력 및 방향 지정
-			float angle = (360f / maxCands) * candIndex;
-			var dir = Quaternion.Euler(0, angle, 0) * Vector3.forward;
-
-			var (spdMin, spdMax) = _p.InitSpeedRange;
-			var spdCoeff = (float)rand.NextDouble();
-
-			var initVelocity = Mathf.Lerp(spdMin, spdMax, spdCoeff) * dir;
-			cand.InitVelocity = initVelocity;
-			_ballRefs[(int)_p.PlayerBall].Velocity = initVelocity;
-
-			// -- 공 초기 위치 노드 셋업
-			for (int i = 0; i < 4; ++i)
+			for (; candIndex < maxCands; candIndex += step)
 			{
-				var r = _ballRefs[i];
+				resetBallState();
 
-				BallPath.Node n;
-				n.Position = r.Position;
-				n.Velocity = r.Velocity;
-				n.Time = 0f;
-				n.Other = null;
+				// -- 시뮬레이션 셋업
+				cand = cand ?? new SimResult.Candidate(); // candidate를 찾는 데 실패한 경우 메모리를 재활용하기 위함입니다.
+				var balls = cand.Balls;
 
-				balls[i].Nodes.Add(n);
-				balls[i].Index = (BilliardsBall)i;
-			}
+				// -- 초기 속력 및 방향 지정
+				float angle = (360f / maxCands) * candIndex;
+				var dir = Quaternion.Euler(0, angle, 0) * Vector3.forward;
 
-			// -- 시뮬레이션 트리거 후 충돌 수집
-			_sim.StepSimulation(_p.SimDuration, contacts);
+				var initVelocity = ballInitialSpeed * dir;
+				cand.InitVelocity = initVelocity;
+				_ballRefs[(int)_p.PlayerBall].Velocity = initVelocity;
 
-			// 충돌 위치 목록 순회하며 공 경로 분석
-			foreach (var contact in contacts)
-			{
-				var ct = contact;
-				var A = getBallId(ct.A.Idx);
-				var B = getBallId(ct.B.Idx);
-
-				for (int swap = 0; swap < 2; ++swap)
+				// -- 공 초기 위치 노드 셋업
+				for (int i = 0; i < 4; ++i)
 				{
-					if (A.HasValue)
-					{
-						var ballIndex = (int)A.Value;
+					var r = _ballRefs[i];
 
-						BallPath.Node n;
-						n.Other = B;
-						n.Position = ct.A.Pos;
-						n.Velocity = ct.A.Vel;
-						n.Time = ct.Time;
+					BallPath.Node n;
+					n.Position = r.Position;
+					n.Velocity = r.Velocity;
+					n.Time = 0f;
+					n.Other = null;
 
-						balls[ballIndex].Nodes.Add(n);
-					}
-
-					{
-						var tmp = ct.A;
-						ct.A = ct.B;
-						ct.B = tmp;
-					}
-					{
-						var tmp = A;
-						A = B;
-						B = tmp;
-					}
-
+					balls[i].Nodes.Add(n);
+					balls[i].Index = (BilliardsBall)i;
 				}
-			}
 
-			// -- 공의 최종 위치 추가하기
-			for (int i = 0; i < 4; ++i)
-			{
-				var r = _ballRefs[i];
+				// -- 시뮬레이션 트리거 후 충돌 수집
+				_sim.StepSimulation(_p.SimDuration, contacts);
 
-				BallPath.Node n;
-				n.Position = r.Position;
-				n.Velocity = r.Velocity;
-				n.Time = _p.SimDuration;
-				n.Other = null;
-
-				balls[i].Nodes.Add(n);
-				balls[i].Index = (BilliardsBall)i;
-			}
-
-			// -- 플레이어 공 분석하여 득점 여부 계산
-			bool bGotScore = false;
-			var hits = new (int bHit, int numLastCushion)[4];
-			int numCushionHit = 0;
-
-			foreach (var node in balls[(int)_p.PlayerBall].Nodes)
-			{
-				if (!node.Other.HasValue) // Other가 비었으면 벽입니다.
+				// 충돌 위치 목록 순회하며 공 경로 분석
+				foreach (var contact in contacts)
 				{
-					++numCushionHit;
+					var ct = contact;
+					var A = getBallId(ct.A.Idx);
+					var B = getBallId(ct.B.Idx);
+
+					for (int swap = 0; swap < 2; ++swap)
+					{
+						if (A.HasValue)
+						{
+							var ballIndex = (int)A.Value;
+
+							BallPath.Node n;
+							n.Other = B;
+							n.Position = ct.A.Pos;
+							n.Velocity = ct.A.Vel;
+							n.Time = ct.Time;
+
+							balls[ballIndex].Nodes.Add(n);
+						}
+
+						{
+							var tmp = ct.A;
+							ct.A = ct.B;
+							ct.B = tmp;
+						}
+						{
+							var tmp = A;
+							A = B;
+							B = tmp;
+						}
+
+					}
+				}
+
+				// -- 공의 최종 위치 추가하기
+				for (int i = 0; i < 4; ++i)
+				{
+					var r = _ballRefs[i];
+
+					BallPath.Node n;
+					n.Position = r.Position;
+					n.Velocity = r.Velocity;
+					n.Time = _p.SimDuration;
+					n.Other = null;
+
+					balls[i].Nodes.Add(n);
+					balls[i].Index = (BilliardsBall)i;
+				}
+
+				// -- 플레이어 공 분석하여 득점 여부 계산
+				bool bGotScore = false;
+				var hits = new (int bHit, int numLastCushion)[4];
+				int numCushionHit = 0;
+
+				foreach (var node in balls[(int)_p.PlayerBall].Nodes)
+				{
+					if (!node.Other.HasValue) // Other가 비었으면 벽입니다.
+					{
+						++numCushionHit;
+					}
+					else
+					{
+						var index = (int)node.Other.Value;
+						hits[index] = (1, numCushionHit);
+					}
+				}
+
+				// 득점 조건 검사
+				var otherPlayer = _p.PlayerBall == BilliardsBall.White ? BilliardsBall.Orange : BilliardsBall.White;
+				int maxCushions = Math.Max(hits[0].numLastCushion, hits[1].numLastCushion);
+				int hitBalls = hits[0].bHit + hits[1].bHit;
+
+				if (hits[(int)otherPlayer].bHit == 1)
+				{
+					hitBalls += _p.bOpponentBallAsScore ? 1 : _p.bAvoidPlayerBallHit ? -2 : 0;
+				}
+
+				if (_p.bOpponentBallAsScore)
+					maxCushions = Math.Max(maxCushions, hits[(int)otherPlayer].numLastCushion);
+
+				if (maxCushions >= _p.NumCushionHits && hitBalls >= 2)
+				{
+					bGotScore = true;
+				}
+
+				// -- 득점시에만 candidate를 반환목록에 추가합니다.
+				// 득점에 실패한 경우 candidate 메모리를 재활용합니다.(else)
+				if (bGotScore)
+				{
+					res.Candidates.Add(cand);
+					cand = null; // 소유권 이전합니다.
 				}
 				else
 				{
-					var index = (int)node.Other.Value;
-					hits[index] = (1, numCushionHit);
+					cand.Votes = 0.0f;
+					foreach (var candBall in cand.Balls)
+						candBall.Nodes.Clear();
 				}
-			}
-
-			// 득점 조건 검사
-			var otherPlayer = _p.PlayerBall == BilliardsBall.White ? BilliardsBall.Orange : BilliardsBall.White;
-			int maxCushions = Math.Max(hits[0].numLastCushion, hits[1].numLastCushion);
-			int hitBalls = hits[0].bHit + hits[1].bHit;
-
-			if (hits[(int)otherPlayer].bHit == 1)
-			{
-				hitBalls += _p.bOpponentBallAsScore ? 1 : _p.bAvoidPlayerBallHit ? -2 : 0;
-			}
-
-			if (_p.bOpponentBallAsScore)
-				maxCushions = Math.Max(maxCushions, hits[(int)otherPlayer].numLastCushion);
-
-			if (maxCushions >= _p.NumCushionHits && hitBalls >= 2)
-			{
-				bGotScore = true;
-			}
-
-			// -- 득점시에만 candidate를 반환목록에 추가합니다.
-			// 득점에 실패한 경우 candidate 메모리를 재활용합니다.(else)
-			if (bGotScore)
-			{
-				res.Candidates.Add(cand);
-				cand = null; // 소유권 이전합니다.
-			}
-			else
-			{
-				cand.Votes = 0.0f;
-				foreach (var candBall in cand.Balls)
-					candBall.Nodes.Clear();
 			}
 		}
 

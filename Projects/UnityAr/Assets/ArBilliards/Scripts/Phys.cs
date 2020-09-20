@@ -1,13 +1,6 @@
 ﻿using System;
-using System.CodeDom.Compiler;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Security.Cryptography.X509Certificates;
-using Boo.Lang.Runtime;
-using JetBrains.Annotations;
-using UnityEditor.Compilation;
-using UnityEditor.UIElements;
 using UnityEngine;
 using Object = System.Object;
 
@@ -328,12 +321,12 @@ namespace ArBilliards.Phys
 
 			if (DampingCoeff < SMALL_NUMBER)
 			{
-				throw new AssertionFailedException("Damping coefficient must be larger than 0.");
+				throw new Exception("Damping coefficient must be larger than 0.");
 			}
 
 			if (Math.Abs(DampingCoeff - DampingCoeff) > SMALL_NUMBER)
 			{
-				throw new AssertionFailedException("Damping coefficient between spheres must be equal");
+				throw new Exception("Damping coefficient between spheres must be equal");
 			}
 
 			Vec3d P1 = Position, P2 = o.Position, V1 = Velocity, V2 = o.Velocity;
@@ -412,7 +405,7 @@ namespace ArBilliards.Phys
 
 			if (DampingCoeff < SMALL_NUMBER)
 			{
-				throw new AssertionFailedException("Damping coefficient must be larger than 0.");
+				throw new Exception("Damping coefficient must be larger than 0.");
 			}
 
 			(Vec3d Pp, Vec3d n, Vec3d P0, Vec3d V0) = (o.Position, o.Normal, this.Position, this.Velocity);

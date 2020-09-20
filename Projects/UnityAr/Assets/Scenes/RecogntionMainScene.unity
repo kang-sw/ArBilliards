@@ -673,6 +673,11 @@ PrefabInstance:
       propertyPath: SpeedMax
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: NumRotationDivider
+      value: 720
+      objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700375, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: m_LocalPosition.x
