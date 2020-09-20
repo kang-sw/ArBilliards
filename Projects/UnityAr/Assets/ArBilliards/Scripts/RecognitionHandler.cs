@@ -78,7 +78,6 @@ public class RecognitionHandler : MonoBehaviour
 	{
 		// 최근에 제대로 갱신된 오브젝트에 대해서만 위치 추정을 수행합니다.
 		var ballTrs = new[] { Red1, Red2, Orange, White };
-		bool bAllBallStop = true;
 		for (int index = 0; index < 4; index++)
 		{
 			if (!_latestUpdates[index].HasValue)
@@ -100,12 +99,11 @@ public class RecognitionHandler : MonoBehaviour
 				else
 				{
 					_positionFilteredOnStop[index] = ballTr.position;
-					bAllBallStop = false;
 				}
 			}
-		}
 
-		Simulator.InternalIsAnyBallMoving = !bAllBallStop;
+			Simulator.ReportedBallPositions = BallTransformWorldToLocal(_positionFilteredOnStop);
+		}
 	}
 
 	static Vector3 toVector3(RecognitionResult.BallRecognitionDesc Desc)
@@ -151,26 +149,32 @@ public class RecognitionHandler : MonoBehaviour
 		{
 			// var (red1, red2, orange, white) = (toVector3(result.Red1), toVector3(result.Red2), toVector3(result.Orange), toVector3(result.White));
 			// var (red1, red2, orange, white) = (this.Red1.position, this.Red2.position, this.Orange.position, this.White.position);
-			var p = _positionFilteredOnStop;
-			var (red1, red2, orange, white) = (p[0], p[1], p[2], p[3]);
-			var trs = TableTr.worldToLocalMatrix;
+			var res = BallTransformWorldToLocal(_positionFilteredOnStop);
 
-			void doTr(ref Vector3 vec)
-			{
-				var v = new Vector4(vec.x, vec.y, vec.z, 1.0f);
-				v = trs * v;
-				v.y = 0f;
-				vec = v;
-			}
-
-			// 테이블 벡터에 대해 2D 좌표로 만들고, 시뮬레이션을 트리거합니다.
-			doTr(ref red1);
-			doTr(ref red2);
-			doTr(ref orange);
-			doTr(ref white);
-
-			Simulator.PendingBallPositions = (red1, red2, orange, white);
+			Simulator.SimulationBallPositions = res;
 		}
+	}
+
+	private (Vector3 red1, Vector3 red2, Vector3 orange, Vector3 white) BallTransformWorldToLocal(Vector3[] p)
+	{
+		var (red1, red2, orange, white) = (p[0], p[1], p[2], p[3]);
+		var trs = TableTr.worldToLocalMatrix;
+
+		void doTr(ref Vector3 vec)
+		{
+			var v = new Vector4(vec.x, vec.y, vec.z, 1.0f);
+			v = trs * v;
+			v.y = 0f;
+			vec = v;
+		}
+
+		// 테이블 벡터에 대해 2D 좌표로 만들고, 시뮬레이션을 트리거합니다.
+		doTr(ref red1);
+		doTr(ref red2);
+		doTr(ref orange);
+		doTr(ref white);
+
+		return (red1, red2, orange, white);
 	}
 
 	private void UpdateBallTransforms(ref RecognitionResult result)

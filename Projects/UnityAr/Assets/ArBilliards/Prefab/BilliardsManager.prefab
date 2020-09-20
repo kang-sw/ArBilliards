@@ -2068,8 +2068,8 @@ MonoBehaviour:
   maxSpeed: 2
   errorCorrectionRate: 0.1
   speedDampingOnInvisibleState: 2
-  stopStanceFilterCoeff: 0.67
-  stopSpeed: 0.1
+  stopStanceFilterCoeff: 5
+  stopSpeed: 0.2
   Simulator: {fileID: 1999053810412700374}
 --- !u!114 &1999053810412700374
 MonoBehaviour:
@@ -2085,8 +2085,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   TableAnchor: {fileID: 1999053809552222295}
   LookTransform: {fileID: 0}
-  SimInterval: 3
+  SimInterval: 5
   PathRedrawInterval: 0.3
+  PathForwardAngle: 20
   BallRadius: 0.022281691
   TableWidth: 0.895
   TableHeight: 0.447
@@ -2094,10 +2095,14 @@ MonoBehaviour:
   BallDamping: 0.43
   TableRestitution: 0.78
   TableFriction: 0.13
-  NumRotationDivider: 1200
+  NumRotationDivider: 720
   SimDuration: 20
-  SpeedMin: 0.4
-  SpeedMax: 1.4
+  BallInitialSpeeds:
+  - 0.1
+  - 0.4
+  - 0.8
+  - 1.4
+  ResimulationDistanceThreshold: 0.005
   PlayerBall: 2
   CandidateMarkerLength: 0.2
   BallVisualizeColors:
@@ -2119,6 +2124,7 @@ MonoBehaviour:
     type: 3}
   NumMinCushions: 0
   Is3BallRule: 0
+  _isAnyBallMoving: 0
 --- !u!1 &1999053810426703206
 GameObject:
   m_ObjectHideFlags: 0

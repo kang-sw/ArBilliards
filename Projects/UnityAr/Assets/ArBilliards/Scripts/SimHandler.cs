@@ -48,6 +48,7 @@ public class SimHandler : MonoBehaviour
 	public float SimDuration = 10.0f;
 	public float[] BallInitialSpeeds = new[] { 0.1f, 0.4f, 0.8f, 1.4f };
 	public float ResimulationDistanceThreshold = 0.008f;
+	public float MovementSpeedThreshold = 0.15f;
 
 	[Header("GameState")]
 	public BilliardsBall PlayerBall = BilliardsBall.Orange;
@@ -73,8 +74,8 @@ public class SimHandler : MonoBehaviour
 
 	#region Public States
 
-	public (Vector3 Red1, Vector3 Red2, Vector3 Orange, Vector3 White)? PendingBallPositions { get; set; }
-	public bool InternalIsAnyBallMoving { private get; set; }
+	public (Vector3 Red1, Vector3 Red2, Vector3 Orange, Vector3 White)? SimulationBallPositions { get; set; }
+	public (Vector3 Red1, Vector3 Red2, Vector3 Orange, Vector3 White) ReportedBallPositions { get; set; }
 
 	#endregion
 
@@ -83,6 +84,10 @@ public class SimHandler : MonoBehaviour
 	private GameObject _instancedRoot;
 	private AsyncSimAgent.SimResult _latestResult = null;
 	private bool _bLineDirty = false;
+	private bool _prevMoveState;
+	private bool _isAnyBallMoving = false;
+	private bool _bShouldRetriggerSimulation = false;
+	private (Vector3 Red1, Vector3 Red2, Vector3 Orange, Vector3 White) _latestSimPosition, _latestReportPosition;
 
 	// Start is called before the first frame update
 	void Start()
@@ -97,8 +102,41 @@ public class SimHandler : MonoBehaviour
 	// Update is called once per frame
 	void Update()
 	{
+		float MaxDistance((Vector3 Red1, Vector3 Red2, Vector3 Orange, Vector3 White) prv,
+			(Vector3 Red1, Vector3 Red2, Vector3 Orange, Vector3 White) opt)
+		{
+			var deltas = new[] { prv.Red1 - opt.Red1, prv.Red2 - opt.Red2, prv.Orange - opt.Orange, prv.White - opt.White };
+			var dists = new float[4];
+
+			for (var i = 0; i < deltas.Length; i++)
+				dists[i] = deltas[i].magnitude;
+
+			var maxDist = dists.Max();
+			return maxDist;
+		}
+
+		// 만약 시뮬레이션 위치가 일정 이상 떨어졌다면 시뮬레이션 재실행합니다.
+		// 이 때 너무 자주 재실행되지 않도록 유예 기간을 둡니다.
+		{
+			var rpt = ReportedBallPositions;
+			var prvSim = _latestSimPosition;
+
+			var simMaxDist = MaxDistance(rpt, prvSim);
+			if (simMaxDist > ResimulationDistanceThreshold)
+			{
+				_bShouldRetriggerSimulation = true;
+			}
+
+			var prvRpt = _latestReportPosition;
+			var rptMaxSpeed = MaxDistance(rpt, prvRpt) / Time.deltaTime;
+			_latestReportPosition = rpt;
+			_isAnyBallMoving = rptMaxSpeed > MovementSpeedThreshold;
+		}
+
 		Update_AsyncSimulation();
 		Update_Rendering();
+
+		_prevMoveState = _isAnyBallMoving;
 	}
 
 	void OnDestroy()
@@ -137,8 +175,7 @@ public class SimHandler : MonoBehaviour
 	private bool _bParallelProcessRunning;
 	private Task _parallelTask;
 	private AsyncSimAgent[] _parallel;
-	private bool _prevMoveState;
-	private float AcceleratedDelta => InternalIsAnyBallMoving ? 10.0f * Time.deltaTime : Time.deltaTime;
+	private float AcceleratedDelta => _isAnyBallMoving ? 10.0f * Time.deltaTime : Time.deltaTime;
 
 	void Start_AsyncSimulation()
 	{
@@ -155,25 +192,18 @@ public class SimHandler : MonoBehaviour
 
 	void Update_AsyncSimulation()
 	{
-		_intervalTimer += AcceleratedDelta;
+		_intervalTimer += Time.deltaTime;
 
-		// 이동 상태가 바뀌면, 1초 후에 비동기 시뮬레이션을 예약합니다.
-		if (_prevMoveState != InternalIsAnyBallMoving)
+		if (_bShouldRetriggerSimulation)
 		{
-			_intervalTimer = SimInterval - 1.0f;
+			_bShouldRetriggerSimulation = false;
+			_intervalTimer = Math.Max(_intervalTimer, SimInterval - 0.5f);
 		}
 
-		_prevMoveState = InternalIsAnyBallMoving;
-
-		// 만약 시뮬레이션 위치가 일정 이상 떨어졌다면 시뮬레이션 재실행합니다.
-		// 이 때 너무 자주 재실행되지 않도록 0.5초의 유예 기간을 둡니다.
-		if (PendingBallPositions.HasValue && _latestResult != null)
-		{
-			var opt = _latestResult.Options;
-		}
-
-
-		if (_intervalTimer > SimInterval && !_bParallelProcessRunning && PendingBallPositions.HasValue)
+		if (_intervalTimer > SimInterval
+			&& !_bParallelProcessRunning
+			&& SimulationBallPositions.HasValue
+			&& !_isAnyBallMoving)
 		{
 			_bParallelProcessRunning = true;
 
@@ -181,13 +211,15 @@ public class SimHandler : MonoBehaviour
 			var param = new AsyncSimAgent.InitParams();
 			updateParam(ref param);
 
-			(param.Red1, param.Red2, param.Orange, param.White) = PendingBallPositions.Value;
-			PendingBallPositions = null;
+
+			(param.Red1, param.Red2, param.Orange, param.White) = _latestSimPosition = SimulationBallPositions.Value;
+			SimulationBallPositions = null;
 
 			// 비동기 시뮬레이션 트리거
 			_parallelTask = new Task(() =>
 			{
 				var results = new AsyncSimAgent.SimResult();
+				results.Options = param;
 
 				Parallel.For(0, _parallel.Length, (index) =>
 				{
@@ -249,11 +281,16 @@ public class SimHandler : MonoBehaviour
 	{
 		_periodCounter += AcceleratedDelta;
 
+		if (_prevMoveState != _isAnyBallMoving)
+		{
+
+		}
+
 		if (_bLineDirty
 			&& _periodCounter > PathRedrawInterval
 			&& LookTransform // 카메라가 있는지?
 			&& _latestResult.Candidates.Count > 0
-			&& !InternalIsAnyBallMoving) // 계산된 결과가 존재하는지?
+			&& !_isAnyBallMoving) // 계산된 결과가 존재하는지?
 		{
 			_periodCounter = 0;
 			var fwd = LookTransform.forward;
