@@ -6,18 +6,18 @@ cmake_minimum_required (VERSION 3.8)
 project ("Recognition")
 
 # Third-party libraries 
-find_package(Boost REQUIRED system thread) 
+find_package(Boost REQUIRED COMPONENTS system thread regex) 
 find_package(OpenCV 4 REQUIRED)
 find_package(ZED 2 REQUIRED)
 
 find_package(CUDA REQUIRED)
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
 
-add_subdirectory(third/nana)
+# add_subdirectory(third/nana)
 
 # project settings 
 set(RECOGNITION_SOURCE_DIR "src") 
-aux_source_directory(${RECOGNITION_SOURCE_DIR} RECOGNITION_SOURCES)
+file(GLOB_RECURSE RECOGNITION_SOURCES "${RECOGNITION_SOURCE_DIR}/*.cpp" "${RECOGNITION_SOURCE_DIR}/*.hpp" "${RECOGNITION_SOURCE_DIR}/*.hxx" "${RECOGNITION_SOURCE_DIR}/*.c" )
 
 add_executable(
 	Recognition 
@@ -31,10 +31,10 @@ target_compile_features(
 		cxx_std_17
 )
 
-add_dependencies(
-	Recognition
-		nana
-)
+# add_dependencies(
+# 	Recognition
+# 		nana
+# )
 
 target_link_libraries(
 	Recognition
@@ -42,7 +42,7 @@ target_link_libraries(
 		${OpenCV_LIBS} 
 		${ZED_LIBRARIES}
 		${Boost_LIBRARIES}
-		nana
+		# nana
 )
 
 target_include_directories(
