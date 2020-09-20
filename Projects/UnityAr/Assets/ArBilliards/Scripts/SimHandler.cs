@@ -354,9 +354,9 @@ public class SimHandler : MonoBehaviour
 					var end = nodes[1].Position;
 					// var dir = nodes[1].Position - nodes[0].Position;
 					// var end = dir.normalized * CandidateMarkerLength + begin;
-					// begin.y -= 0.05f;
-					// end.y -= 0.05f;
 
+					begin.y -= 0.05f;
+					end.y -= 0.05f;
 					render.SetPosition(0, begin);
 					render.SetPosition(1, end);
 				}
