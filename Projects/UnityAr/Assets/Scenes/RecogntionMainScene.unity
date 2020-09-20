@@ -661,7 +661,7 @@ PrefabInstance:
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: PathForwardAngle
-      value: 60
+      value: 20
       objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}

@@ -47,6 +47,7 @@ public class SimHandler : MonoBehaviour
 	public int NumRotationDivider = 360;
 	public float SimDuration = 10.0f;
 	public float[] BallInitialSpeeds = new[] { 0.1f, 0.4f, 0.8f, 1.4f };
+	public float ResimulationDistanceThreshold = 0.008f;
 
 	[Header("GameState")]
 	public BilliardsBall PlayerBall = BilliardsBall.Orange;
@@ -141,9 +142,10 @@ public class SimHandler : MonoBehaviour
 
 	void Start_AsyncSimulation()
 	{
-		// 프로세서 수보다 하나 모자란 개수의 스레드를 만듭니다.
-		// 요즘 세상에 싱글 코어 CPU는 없기 때문에, 숫자 검증은 생략합니다.
-		_parallel = new AsyncSimAgent[SystemInfo.processorCount - 1];
+		// 다수의 스레드를 만듭니다.
+		// 게임 스레드에 영향을 주지 않도록, 3개의 마진을 둡니다.
+		// 적어도 하나는 생성되어야 합니다.
+		_parallel = new AsyncSimAgent[Math.Max(1, SystemInfo.processorCount - 3)];
 
 		for (var index = 0; index < _parallel.Length; index++)
 		{
@@ -162,6 +164,14 @@ public class SimHandler : MonoBehaviour
 		}
 
 		_prevMoveState = InternalIsAnyBallMoving;
+
+		// 만약 시뮬레이션 위치가 일정 이상 떨어졌다면 시뮬레이션 재실행합니다.
+		// 이 때 너무 자주 재실행되지 않도록 0.5초의 유예 기간을 둡니다.
+		if (PendingBallPositions.HasValue && _latestResult != null)
+		{
+			var opt = _latestResult.Options;
+		}
+
 
 		if (_intervalTimer > SimInterval && !_bParallelProcessRunning && PendingBallPositions.HasValue)
 		{
