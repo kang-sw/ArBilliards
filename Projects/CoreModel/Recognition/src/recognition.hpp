@@ -1,10 +1,11 @@
 #pragma once
 #include <memory>
 #include <functional>
-#include <map>
+#include <nlohmann/json.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/aruco.hpp>
+
 
 namespace billiards
 {
@@ -24,6 +25,8 @@ public:
     ~recognizer_t();
 
 public: /* exposed properties */
+    nlohmann::json props;
+
     /* 주요 영상처리 프로퍼티 */
     cv::Size actual_process_size = {960, 540};
 
@@ -58,7 +61,7 @@ public: /* exposed properties */
             float candidate_radius_amp = 2.0f;      // 중점 후보 선택시 반지름 증폭율
             int num_max_contours = 96;              // 한 번에 비교할 최대 컨투어 개수
             float weight_function_base = 1.03f;     // 가중치를 계산하는데 사용하는 지수함수의 밑
-            float color_kernel_weight_base = 1.03f;       // 커널에서 가중치를 계산하는데 사용하는 지수함수의 밑
+            float color_kernel_weight_base = 1.03f; // 커널에서 가중치를 계산하는데 사용하는 지수함수의 밑
             bool render_debug = true;               // 디버그 라인 그리기
             float memoization_distance_rate = 0.1f; // 메모이제이션 최적화 거리. 반지름에 대한 비
             float color_weight = 0.33f;             // 위치 대 색상 중 색상의 가중치

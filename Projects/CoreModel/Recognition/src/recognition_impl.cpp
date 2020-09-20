@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <omp.h>
 
+
 namespace billiards
 {
 void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)

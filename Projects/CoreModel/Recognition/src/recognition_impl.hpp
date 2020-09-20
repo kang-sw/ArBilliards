@@ -8,8 +8,26 @@
 #include <vector>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/base.hpp>
+#include <any>
 
 using namespace std;
+
+namespace cv
+{
+template <int Size_, typename Ty_>
+void to_json(nlohmann::json& j, const cv::Vec<Ty_, Size_>& v)
+{
+    j = (std::array<Ty_, Size_>&)v;
+}
+
+template <int Size_, typename Ty_>
+void from_json(nlohmann::json& j, const cv::Vec<Ty_, Size_>& v)
+{
+    std::array<Ty_, Size_>& arr = j;
+    v = (cv::Vec<Ty_, Size_>&)arr;
+}
+
+} // namespace cv
 
 namespace billiards
 {
@@ -47,12 +65,44 @@ public:
     // cv::Vec3f table_points[4];
     double table_yaw_flt = 0;
 
+    unordered_map<string, any> vars;
+
 public:
     recognizer_impl_t(recognizer_t& owner)
         : m(owner)
     {
         worker_is_alive = true;
         worker = thread(&recognizer_impl_t::async_worker_thread, this);
+
+        using nlohmann::json;
+        using namespace cv;
+        using namespace std;
+
+        json params;
+        params["fast-process-width"] = 540;
+
+        {
+            auto b = params["ball"];
+
+            b["radius"] = 0.14 / CV_2PI;
+            b["color"]["red"] = {Vec3f{115, 84, 0}, Vec3f{152, 255, 255}};
+            b["color"]["orange"] = {Vec3f{75, 118, 0}, Vec3f{106, 255, 255}};
+            b["color"]["white"] = {Vec3f{0, 0, 0}, Vec3f{81, 108, 255}};
+        }
+
+        {
+            auto t = params["table"];
+
+            t["size"]["fit"] = Vec2f{0.96f, 0.51f};
+            t["size"]["outer"] = Vec2f(1.31f, 0.76f);
+            t["size"]["inner"] = Vec2f(0.895f, 0.447f);
+
+            t["hsv_filtler"] = {Vec3f{115, 84, 0}, Vec3f{2, 3, 4}};
+            t["cushion_height"] = 0.025;
+
+            t["LPF"]["position"] = 0.1666;
+            t["LPF"]["rotation"] = 0.33;
+        }
     }
 
     ~recognizer_impl_t()

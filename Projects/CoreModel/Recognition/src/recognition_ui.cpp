@@ -170,41 +170,6 @@ void recognition_draw_ui(cv::Mat& frame)
             }
         }
 
-        auto& g = g_recognizer;
-        int wnd_w = m.wnd_sz.width * 0.8;
-        COLUMN_TITLE(false, "Parameter - Table")
-        {
-            add_trackbar("LPF pos alpha: ", &g.table.LPF_alpha_pos, 1, 0.0, 1.0, wnd_w, "%.3Lf");
-            add_trackbar("LPF rot alpha: ", &g.table.LPF_alpha_rot, 1, 0.0, 1.0, wnd_w, "%.3Lf");
-            add_trackbar("ArUco marker detection square", &g.table.aruco_detection_rect_radius_per_meter, 1, 0.0f, 1000.0f, wnd_w);
-            add_trackbar("Table HSV filter min", g.table.hsv_filter_min.val, 3, 0.0, 255.0, wnd_w / 3, "%.0Lf");
-            add_trackbar("Table HSV filter max", g.table.hsv_filter_max.val, 3, 0.0, 255.0, wnd_w / 3, "%.0Lf");
-            add_trackbar("Recognition max taxicap error distance", &g.table.solvePnP_max_distance_error_threshold, 1, 0, 50, wnd_w, "%.0Lf");
-            add_trackbar("Table contour approxPolyDP epsilon", &g.table.polydp_approx_epsilon, 1, 0.0, 100.0, wnd_w);
-        }
-
-        COLUMN_TITLE(false, "Parameter - Ball Color")
-        {
-            add_trackbar("Pixel size minmax", &g.ball.pixel_count_per_meter_min, 2, 0.f, 10000.f, wnd_w / 2);
-            add_trackbar("Edge canny thresholds 1, 2", g.ball.edge_canny_thresholds, 2, 0.0, 300.0, wnd_w / 2);
-            add_trackbar("Ball RED", (float*)g.ball.color.red, 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf");
-            add_trackbar("", (float*)(g.ball.color.red + 1), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf", false);
-            add_trackbar("Ball Orange", (float*)(g.ball.color.orange + 0), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf");
-            add_trackbar("", (float*)(g.ball.color.orange + 1), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf", false);
-            add_trackbar("Ball White", (float*)(g.ball.color.white + 0), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf");
-            add_trackbar("", (float*)(g.ball.color.white + 1), 3, 0.0f, 255.0f, wnd_w / 3, "%.0Lf", false);
-        }
-
-        COLUMN_TITLE(false, "Parameter - Ball Search")
-        {
-            auto& s = g.ball.search;
-            add_trackbar("Outer Iteration", &s.iterations, 1, 1, 20, wnd_w, "%.0Lf");
-            add_trackbar("Candidates", &s.num_candidates, 1, 8, 180, wnd_w, "%.0Lf");
-            add_trackbar("Contours", &s.num_max_contours, 1, 16, 256, wnd_w, "%.0Lf");
-            add_trackbar("Base", &s.weight_function_base, 1, 1.0f, 1.5f, wnd_w, "%.3Lf");
-            add_trackbar("Optimize Color", &s.memoization_distance_rate, 1, 0.1f, 10.0f, wnd_w, "%.3Lf");
-        }
-
         COLUMN_TITLE(true, "Focusing Image")
         {
             // 고정폭 버튼을 각 행에 배치
