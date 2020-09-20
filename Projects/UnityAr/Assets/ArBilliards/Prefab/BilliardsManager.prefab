@@ -70,8 +70,8 @@ TrailRenderer:
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_Time: 8
+  m_SortingOrder: -15
+  m_Time: 4
   m_Parameters:
     serializedVersion: 3
     widthMultiplier: 0.004
@@ -92,11 +92,11 @@ TrailRenderer:
       m_RotationOrder: 4
     colorGradient:
       serializedVersion: 2
-      key0: {r: 1, g: 0, b: 0, a: 0}
-      key1: {r: 1, g: 0, b: 0, a: 1}
-      key2: {r: 1, g: 1, b: 1, a: 0.34509805}
-      key3: {r: 1, g: 1, b: 1, a: 0.6}
-      key4: {r: 0, g: 0, b: 0, a: 0}
+      key0: {r: 0, g: 0.9528302, b: 0.084344804, a: 0}
+      key1: {r: 0, g: 1, b: 0.2532153, a: 0.15686275}
+      key2: {r: 1, g: 1, b: 1, a: 1}
+      key3: {r: 1, g: 1, b: 1, a: 0.34509805}
+      key4: {r: 0, g: 0, b: 0, a: 0.6}
       key5: {r: 0, g: 0, b: 0, a: 0}
       key6: {r: 0, g: 0, b: 0, a: 0}
       key7: {r: 0, g: 0, b: 0, a: 0}
@@ -109,16 +109,16 @@ TrailRenderer:
       ctime6: 0
       ctime7: 0
       atime0: 0
-      atime1: 2102
-      atime2: 3303
-      atime3: 5480
-      atime4: 65535
+      atime1: 7732
+      atime2: 8858
+      atime3: 10059
+      atime4: 16290
       atime5: 65535
       atime6: 65535
       atime7: 65535
       m_Mode: 0
       m_NumColorKeys: 2
-      m_NumAlphaKeys: 5
+      m_NumAlphaKeys: 6
     numCornerVertices: 10
     numCapVertices: 10
     alignment: 0
@@ -230,8 +230,8 @@ TrailRenderer:
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_Time: 8
+  m_SortingOrder: -15
+  m_Time: 4
   m_Parameters:
     serializedVersion: 3
     widthMultiplier: 0.004
@@ -252,11 +252,11 @@ TrailRenderer:
       m_RotationOrder: 4
     colorGradient:
       serializedVersion: 2
-      key0: {r: 1, g: 1, b: 1, a: 0}
-      key1: {r: 1, g: 1, b: 1, a: 1}
-      key2: {r: 1, g: 1, b: 1, a: 0.34509805}
-      key3: {r: 1, g: 1, b: 1, a: 0.6}
-      key4: {r: 0, g: 0, b: 0, a: 0}
+      key0: {r: 0, g: 0.9528302, b: 0.084344804, a: 0}
+      key1: {r: 0, g: 1, b: 0.2532153, a: 0.15686275}
+      key2: {r: 1, g: 1, b: 1, a: 1}
+      key3: {r: 1, g: 1, b: 1, a: 0.34509805}
+      key4: {r: 0, g: 0, b: 0, a: 0.6}
       key5: {r: 0, g: 0, b: 0, a: 0}
       key6: {r: 0, g: 0, b: 0, a: 0}
       key7: {r: 0, g: 0, b: 0, a: 0}
@@ -269,16 +269,16 @@ TrailRenderer:
       ctime6: 0
       ctime7: 0
       atime0: 0
-      atime1: 2102
-      atime2: 3303
-      atime3: 5480
-      atime4: 65535
+      atime1: 7732
+      atime2: 8858
+      atime3: 10059
+      atime4: 16290
       atime5: 65535
       atime6: 65535
       atime7: 65535
       m_Mode: 0
       m_NumColorKeys: 2
-      m_NumAlphaKeys: 5
+      m_NumAlphaKeys: 6
     numCornerVertices: 10
     numCapVertices: 10
     alignment: 0
@@ -1219,7 +1219,7 @@ LineRenderer:
     colorGradient:
       serializedVersion: 2
       key0: {r: 1, g: 0, b: 0, a: 1}
-      key1: {r: 1, g: 0, b: 0, a: 1}
+      key1: {r: 1, g: 0, b: 0, a: 0.10980392}
       key2: {r: 0, g: 0, b: 0, a: 0}
       key3: {r: 0, g: 0, b: 0, a: 0}
       key4: {r: 0, g: 0, b: 0, a: 0}
@@ -1235,7 +1235,7 @@ LineRenderer:
       ctime6: 0
       ctime7: 0
       atime0: 0
-      atime1: 32575
+      atime1: 65535
       atime2: 65535
       atime3: 0
       atime4: 0
@@ -1244,7 +1244,7 @@ LineRenderer:
       atime7: 0
       m_Mode: 0
       m_NumColorKeys: 2
-      m_NumAlphaKeys: 3
+      m_NumAlphaKeys: 2
     numCornerVertices: 0
     numCapVertices: 0
     alignment: 0
@@ -1323,8 +1323,8 @@ TrailRenderer:
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_Time: 8
+  m_SortingOrder: -15
+  m_Time: 4
   m_Parameters:
     serializedVersion: 3
     widthMultiplier: 0.004
@@ -1345,11 +1345,11 @@ TrailRenderer:
       m_RotationOrder: 4
     colorGradient:
       serializedVersion: 2
-      key0: {r: 1, g: 0, b: 0, a: 0}
-      key1: {r: 1, g: 0, b: 0, a: 1}
-      key2: {r: 1, g: 1, b: 1, a: 0.34509805}
-      key3: {r: 1, g: 1, b: 1, a: 0.6}
-      key4: {r: 0, g: 0, b: 0, a: 0}
+      key0: {r: 0, g: 0.9528302, b: 0.084344804, a: 0}
+      key1: {r: 0, g: 1, b: 0.2532153, a: 0.15686275}
+      key2: {r: 1, g: 1, b: 1, a: 1}
+      key3: {r: 1, g: 1, b: 1, a: 0.34509805}
+      key4: {r: 0, g: 0, b: 0, a: 0.6}
       key5: {r: 0, g: 0, b: 0, a: 0}
       key6: {r: 0, g: 0, b: 0, a: 0}
       key7: {r: 0, g: 0, b: 0, a: 0}
@@ -1362,16 +1362,16 @@ TrailRenderer:
       ctime6: 0
       ctime7: 0
       atime0: 0
-      atime1: 2102
-      atime2: 3303
-      atime3: 5480
-      atime4: 65535
+      atime1: 7732
+      atime2: 8858
+      atime3: 10059
+      atime4: 16290
       atime5: 65535
       atime6: 65535
       atime7: 65535
       m_Mode: 0
       m_NumColorKeys: 2
-      m_NumAlphaKeys: 5
+      m_NumAlphaKeys: 6
     numCornerVertices: 10
     numCapVertices: 10
     alignment: 0
@@ -1716,7 +1716,7 @@ LineRenderer:
     colorGradient:
       serializedVersion: 2
       key0: {r: 0.9528302, g: 0.9528302, b: 0.9528302, a: 1}
-      key1: {r: 1, g: 1, b: 1, a: 1}
+      key1: {r: 1, g: 1, b: 1, a: 0.10980392}
       key2: {r: 0, g: 0, b: 0, a: 0}
       key3: {r: 0, g: 0, b: 0, a: 0}
       key4: {r: 0, g: 0, b: 0, a: 0}
@@ -1732,7 +1732,7 @@ LineRenderer:
       ctime6: 0
       ctime7: 0
       atime0: 0
-      atime1: 32575
+      atime1: 65535
       atime2: 65535
       atime3: 0
       atime4: 0
@@ -1741,7 +1741,7 @@ LineRenderer:
       atime7: 0
       m_Mode: 0
       m_NumColorKeys: 2
-      m_NumAlphaKeys: 3
+      m_NumAlphaKeys: 2
     numCornerVertices: 0
     numCapVertices: 0
     alignment: 0
@@ -1820,8 +1820,8 @@ TrailRenderer:
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_Time: 8
+  m_SortingOrder: -15
+  m_Time: 4
   m_Parameters:
     serializedVersion: 3
     widthMultiplier: 0.004
@@ -1842,11 +1842,11 @@ TrailRenderer:
       m_RotationOrder: 4
     colorGradient:
       serializedVersion: 2
-      key0: {r: 1, g: 0.74655265, b: 0, a: 0}
-      key1: {r: 1, g: 0.74655265, b: 0, a: 1}
-      key2: {r: 1, g: 1, b: 1, a: 0.34509805}
-      key3: {r: 1, g: 1, b: 1, a: 0.6}
-      key4: {r: 0, g: 0, b: 0, a: 0}
+      key0: {r: 0, g: 0.9528302, b: 0.084344804, a: 0}
+      key1: {r: 0, g: 1, b: 0.2532153, a: 0.15686275}
+      key2: {r: 1, g: 1, b: 1, a: 1}
+      key3: {r: 1, g: 1, b: 1, a: 0.34509805}
+      key4: {r: 0, g: 0, b: 0, a: 0.6}
       key5: {r: 0, g: 0, b: 0, a: 0}
       key6: {r: 0, g: 0, b: 0, a: 0}
       key7: {r: 0, g: 0, b: 0, a: 0}
@@ -1859,16 +1859,16 @@ TrailRenderer:
       ctime6: 0
       ctime7: 0
       atime0: 0
-      atime1: 2102
-      atime2: 3303
-      atime3: 5480
-      atime4: 65535
+      atime1: 7732
+      atime2: 8858
+      atime3: 10059
+      atime4: 16290
       atime5: 65535
       atime6: 65535
       atime7: 65535
       m_Mode: 0
       m_NumColorKeys: 2
-      m_NumAlphaKeys: 5
+      m_NumAlphaKeys: 6
     numCornerVertices: 10
     numCapVertices: 10
     alignment: 0
@@ -2068,8 +2068,8 @@ MonoBehaviour:
   maxSpeed: 2
   errorCorrectionRate: 0.1
   speedDampingOnInvisibleState: 2
-  stopStanceFilterCoeff: 5
-  stopSpeed: 0.2
+  stopStanceFilterCoeff: 3
+  stopSpeed: 0.15
   Simulator: {fileID: 1999053810412700374}
 --- !u!114 &1999053810412700374
 MonoBehaviour:
@@ -2087,6 +2087,7 @@ MonoBehaviour:
   LookTransform: {fileID: 0}
   SimInterval: 5
   PathRedrawInterval: 0.3
+  PathReplayInterval: 3
   PathForwardAngle: 20
   BallRadius: 0.022281691
   TableWidth: 0.895
@@ -2102,7 +2103,8 @@ MonoBehaviour:
   - 0.4
   - 0.8
   - 1.4
-  ResimulationDistanceThreshold: 0.005
+  ResimulationDistanceThreshold: 0.006
+  MovementSpeedThreshold: 0.1
   PlayerBall: 2
   CandidateMarkerLength: 0.2
   BallVisualizeColors:
@@ -2110,8 +2112,7 @@ MonoBehaviour:
   - {r: 1, g: 0, b: 0, a: 1}
   - {r: 1, g: 0.75392973, b: 0, a: 1}
   - {r: 1, g: 1, b: 1, a: 1}
-  CandidateRenderer: {fileID: 1999053809214765249}
-  ColorRenderers:
+  PathRenderers:
   - {fileID: 1999053809798403868}
   - {fileID: 1999053810576407002}
   - {fileID: 1999053810430120990}
@@ -2124,7 +2125,6 @@ MonoBehaviour:
     type: 3}
   NumMinCushions: 0
   Is3BallRule: 0
-  _isAnyBallMoving: 0
 --- !u!1 &1999053810426703206
 GameObject:
   m_ObjectHideFlags: 0
@@ -2321,7 +2321,7 @@ LineRenderer:
     colorGradient:
       serializedVersion: 2
       key0: {r: 1, g: 0.62840414, b: 0, a: 1}
-      key1: {r: 1, g: 0.6821606, b: 0, a: 1}
+      key1: {r: 1, g: 0.6821606, b: 0, a: 0.101960786}
       key2: {r: 0, g: 0, b: 0, a: 0}
       key3: {r: 0, g: 0, b: 0, a: 0}
       key4: {r: 0, g: 0, b: 0, a: 0}
@@ -2337,7 +2337,7 @@ LineRenderer:
       ctime6: 0
       ctime7: 0
       atime0: 0
-      atime1: 32575
+      atime1: 65535
       atime2: 65535
       atime3: 0
       atime4: 0
@@ -2346,7 +2346,7 @@ LineRenderer:
       atime7: 0
       m_Mode: 0
       m_NumColorKeys: 2
-      m_NumAlphaKeys: 3
+      m_NumAlphaKeys: 2
     numCornerVertices: 0
     numCapVertices: 0
     alignment: 0
@@ -2552,7 +2552,7 @@ LineRenderer:
       serializedVersion: 2
       key0: {r: 1, g: 0, b: 0, a: 1}
       key1: {r: 1, g: 0, b: 0, a: 1}
-      key2: {r: 0, g: 1, b: 0.10661459, a: 0}
+      key2: {r: 0, g: 1, b: 0.10661459, a: 0.101960786}
       key3: {r: 0, g: 0, b: 0, a: 0}
       key4: {r: 0, g: 0, b: 0, a: 0}
       key5: {r: 0, g: 0, b: 0, a: 0}

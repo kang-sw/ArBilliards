@@ -2,6 +2,7 @@
 using ArBilliards.Phys;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using Random = System.Random;
@@ -30,6 +31,7 @@ public class SimHandler : MonoBehaviour
 	public Transform LookTransform; // 전방 방향 트랜스폼
 	public float SimInterval = 0.3f; // 시뮬레이션 간격입니다.
 	public float PathRedrawInterval = 0.3f; // 경로 다시그리기 간격
+	public float PathReplayInterval = 2.5f;
 	public float PathForwardAngle = 30f; // 전방 방향으로 인식하는 각도
 
 	[Header("Dimensions")]
@@ -58,8 +60,7 @@ public class SimHandler : MonoBehaviour
 
 	[Header("Visualizer Instances")]
 	public Color[] BallVisualizeColors = new Color[4];
-	public LineRenderer CandidateRenderer;
-	public LineRenderer[] ColorRenderers = new LineRenderer[4];
+	public LineRenderer[] PathRenderers = new LineRenderer[4];
 
 	[Header("Visualizer Templates")]
 	public GameObject PathFollowMarkerTemplate;
@@ -248,7 +249,8 @@ public class SimHandler : MonoBehaviour
 
 	#region Visualizers
 
-	private float _periodCounter = 0;
+	private float _renderPeriodCounter = 0;
+	private float _pathReplayCounter = 0;
 
 	private List<MarkerManipulator> _collisionMarkerPool = new List<MarkerManipulator>();
 	private int _numActiveCollisionMarkers;
@@ -279,20 +281,26 @@ public class SimHandler : MonoBehaviour
 
 	private void Update_Rendering()
 	{
-		_periodCounter += AcceleratedDelta;
+		_renderPeriodCounter += AcceleratedDelta;
+		_pathReplayCounter += Time.deltaTime;
 
-		if (_prevMoveState != _isAnyBallMoving)
 		{
-
+			// 공들이 움직이기 시작할 때와 멈출 때, 알파 값을 조정합니다.
+			var newAlpha = _isAnyBallMoving ? 0.05f : 1f;
+			foreach (var render in PathRenderers)
+			{
+				var col = render.startColor;
+				col.a = Mathf.Lerp(col.a, newAlpha, Time.deltaTime * 2.0f);
+				render.startColor = col;
+			}
 		}
 
 		if (_bLineDirty
-			&& _periodCounter > PathRedrawInterval
+			&& _renderPeriodCounter > PathRedrawInterval
 			&& LookTransform // 카메라가 있는지?
 			&& _latestResult.Candidates.Count > 0
 			&& !_isAnyBallMoving) // 계산된 결과가 존재하는지?
 		{
-			_periodCounter = 0;
 			var fwd = LookTransform.forward;
 			var r = _latestResult;
 
@@ -343,10 +351,11 @@ public class SimHandler : MonoBehaviour
 
 					++numActive;
 					var begin = nodes[0].Position;
-					var dir = nodes[1].Position - nodes[0].Position;
-					var end = dir.normalized * CandidateMarkerLength + begin;
-					begin.y -= 0.05f;
-					end.y -= 0.05f;
+					var end = nodes[1].Position;
+					// var dir = nodes[1].Position - nodes[0].Position;
+					// var end = dir.normalized * CandidateMarkerLength + begin;
+					// begin.y -= 0.05f;
+					// end.y -= 0.05f;
 
 					render.SetPosition(0, begin);
 					render.SetPosition(1, end);
@@ -360,16 +369,22 @@ public class SimHandler : MonoBehaviour
 				}
 
 				_numActiveCandidateMarkers = numActive;
+				_pathReplayCounter += PathReplayInterval;
+			}
 
-				// -- 강조된 경로의 공을 그립니다.
+			// -- 강조된 경로의 공을 그립니다.
+			if (nearlest != _latestCandidate || _pathReplayCounter > PathReplayInterval)
+			{
+				_pathReplayCounter = 0f;
 				initMarkerPool();
 				for (int index = 0; index < 4; ++index)
-					renderBallPath(ColorRenderers[index], nearlest.Balls[index], true);
+					renderBallPath(PathRenderers[index], nearlest.Balls[index], true);
 				trimUnusedMarkers();
 			}
 
 			// -- 가장 최근의 candidate 캐시 ...
 			_latestCandidate = nearlest;
+			_renderPeriodCounter = 0;
 		}
 	}
 
