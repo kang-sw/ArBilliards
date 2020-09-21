@@ -1,5 +1,4 @@
 #include "recognition_impl.hpp"
-
 #include <iostream>
 #include <numeric>
 #include <vector>
@@ -7,8 +6,6 @@
 #include <opencv2/core/base.hpp>
 #include <random>
 #include <algorithm>
-#include <omp.h>
-
 
 namespace billiards
 {
@@ -691,7 +688,7 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
         rectangle(roi_rgb, ROI_small, {255, 0, 255}, 2);
 
         cv::Mat small_roi;
-        if (auto roi = get_safe_ROI(img.rgb(ROI), ROI_small)) {
+        if (auto roi = get_safe_ROI(img.rgba(ROI), ROI_small)) {
             cvtColor(*roi, small_roi, cv::COLOR_RGBA2RGB);
         }
         else {
@@ -1004,6 +1001,99 @@ void recognizer_impl_t::async_worker_thread()
     }
 }
 
+recognition_desc recognizer_impl_t::proc_img(img_t const& img)
+{
+    using namespace cv;
+    recognition_desc desc;
+
+    if (statics.empty()) {
+    }
+
+    vars = {};
+
+    auto& p = m.props;
+
+    // RGBA 이미지를 RGB로 컨버트합니다.
+    Mat img_rgb;
+    cvtColor(img.rgba, img_rgb, COLOR_RGBA2RGB);
+    vars["img-rgb"] = img_rgb;
+
+    // 공용 머터리얼 셋업 시퀀스
+    Mat img_rgb_scaled, img_hsv_scaled;
+    {
+        // 스케일된 이미지 준비
+        Size size_scaled_image((int)p["fast-process-width"], 0);
+        float scale = size_scaled_image.width / (float)img_rgb.cols;
+        size_scaled_image.height = (int)(img_rgb.rows * scale);
+
+        resize(img_rgb, img_rgb_scaled, size_scaled_image);
+        vars["img-rgb-scaled"] = img_rgb_scaled;
+
+        // 스케일된 이미지의 파라미터 준비
+        auto scp = img.camera;
+        for (auto& value : {&scp.fx, &scp.fy, &scp.cx, &scp.cy}) {
+            *value *= scale;
+        }
+        vars["camera-param-scaled"] = scp;
+
+        // HSV 이미지 준비
+        cvtColor(img_rgb_scaled, img_hsv_scaled, COLOR_RGB2HSV);
+    }
+
+    // 테이블 탐색을 위한 로직입니다.
+    {
+      // -- 테이블 색상으로 필터링 수행
+
+      // -- 경계선 검출
+
+      // -- 테이블 추정 영역 컨투어 찾기
+
+      // -- CASE 1. 테이블 전체 시야에 들어오는 경우
+      // - solvePnP 활용해서 테이블 포즈 찾기
+      // - 오차에 따라 컨피던스 설정
+      // - 값 LPF 필터 누적
+
+      // -- CASE 2. 테이블 일부만 시야에 들어온 경우
+
+      // - 오차 확인
+      // - 임의의 각도로 재투영, 정해진 횟수만큼 iterate
+    }
+
+    // 공 탐색을 위한 로직입니다.
+    {
+        // -- 테이블 영역을 Perspective에서 Orthogonal하게 투영합니다.
+        // (방법은 아직 연구가 필요 ..)
+        // - 이미지는 이미 rectify된 상태이므로, 카메라 파라미터는 따로 고려하지 않음
+        // - 테이블의 perspective point로부터 당구대 이미지 획득
+        // - 해당 이미지를 테이블을 orthogonal로 투영한 이미지 영역으로 트랜스폼
+        // (참고로, Orthogonal하게 투영된 이미지는 원근 X)
+
+        // -- 각 색상의 가장 우수한 후보를 선정
+        // - 위에서 Orthogonal Transform을 통해 얻은 이미지 사용
+        // - 필드에서 빨강, 오렌지, 흰색 각 색상의 HSV 값을 뺌
+        // - 뺀 값 각각에 가중치를 주어 합산(reduce) (H가 가장 크게, V를 가장 작게)
+        // - 해당 값의 음수를 pow의 지수로 둠 ... pow(base, -weight); 즉 거리가 멀수록 0에 가까운 값 반환
+        // - 고정 커널 크기(Orthogonal로 Transform했으므로 ..)로 컨볼루션 적용, 로컬 맥시멈 추출 ... 공 candidate
+
+
+        
+    }
+
+    // ShowImage에 모든 임시 매트릭스 추가
+    for (auto& pair : vars) {
+        auto& value = pair.second;
+
+        if (auto ptr = any_cast<Mat>(&value)) {
+            show(move(pair.first), *ptr);
+        }
+        else if (auto ptr = any_cast<UMat>(&value)) {
+            show(move(pair.first), *ptr);
+        }
+    }
+
+    return desc;
+} // namespace billiards
+
 void recognizer_impl_t::plane_to_camera(img_t const& img, plane_t const& table_plane, plane_t& table_plane_camera)
 {
     cv::Vec4f N = (cv::Vec4f&)table_plane.N;
@@ -1030,7 +1120,7 @@ float recognizer_impl_t::get_pixel_length(img_t const& img, float len_metric, fl
     return u2 - u1;
 }
 
-recognition_desc recognizer_impl_t::proc_img(img_t const& img)
+recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
 {
     using namespace cv;
 
@@ -1039,7 +1129,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     TickMeter tick_tot;
     tick_tot.start();
     Mat hsv_all;
-    Mat rgb_all_debug = img.rgb.clone();
+    Mat rgb_all_debug = img.rgba.clone();
     resize(img.depth, (Mat&)img.depth, {rgb_all_debug.cols, rgb_all_debug.rows});
 
     UMat table_blue_mask_gpu, table_blue_edges;
@@ -1147,7 +1237,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     // ROI 존재 = 당구 테이블이 시야 내에 있음
     if (roi_valid) {
         Mat3b roi_rgb;
-        cvtColor(img.rgb(ROI), roi_rgb, COLOR_RGBA2RGB);
+        cvtColor(img.rgba(ROI), roi_rgb, COLOR_RGBA2RGB);
         UMat roi_edge_gpu;
         table_blue_mask_gpu(ROI).copyTo(roi_edge_gpu);
         Mat roi_mask(ROI.size(), roi_edge_gpu.type());
@@ -1224,7 +1314,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             get_table_model(obj_pts, m.table.inner_size);
             project_model(img, table_contour_partial, table_pos_flt, table_rot_flt, obj_pts, true);
             ROI_fit = boundingRect(table_contour_partial);
-            get_safe_ROI_rect(img.rgb, ROI_fit);
+            get_safe_ROI_rect(img.rgba, ROI_fit);
 
             if (table_contour_partial.empty() == false) {
                 drawContours(rgb_all_debug, vector({table_contour_partial}), -1, {255, 255, 255}, 2);
@@ -1248,7 +1338,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
             {
                 Mat temp;
-                cvtColor(img.rgb(ROI_fit), temp, COLOR_RGBA2RGB);
+                cvtColor(img.rgba(ROI_fit), temp, COLOR_RGBA2RGB);
                 roi_rgb.release();
                 temp.copyTo(roi_rgb, roi_mask);
                 roi_rgb.copyTo(roi_table_excluded_rgb);

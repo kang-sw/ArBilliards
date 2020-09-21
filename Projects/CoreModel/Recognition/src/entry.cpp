@@ -6,7 +6,6 @@
 #include <optional>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
-#include <opencv2/imgcodecs.hpp>
 
 #define CVUI_IMPLEMENTATION
 #include "cvui.h"
@@ -100,8 +99,8 @@ private:
             image.camera_transform = *(cv::Matx44f*)&odesc->transform;
             cv::Point rgb_size(odesc->rgb_w, odesc->rgb_h);
             cv::Point depth_size(odesc->depth_w, odesc->depth_h);
-            image.rgb.create(rgb_size, CV_8UC4);
-            memcpy(image.rgb.data, ochnk->rgb_view.data(), ochnk->rgb_view.size());
+            image.rgba.create(rgb_size, CV_8UC4);
+            memcpy(image.rgba.data, ochnk->rgb_view.data(), ochnk->rgb_view.size());
             image.depth.create(depth_size, CV_32FC1);
             memcpy(image.depth.data, ochnk->depth_view.data(), ochnk->depth_view.size());
 

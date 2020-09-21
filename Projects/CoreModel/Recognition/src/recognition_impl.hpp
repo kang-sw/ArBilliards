@@ -15,13 +15,13 @@ using namespace std;
 namespace cv
 {
 template <int Size_, typename Ty_>
-void to_json(nlohmann::json& j, const cv::Vec<Ty_, Size_>& v)
+void to_json(nlohmann::json& j, const Vec<Ty_, Size_>& v)
 {
     j = (std::array<Ty_, Size_>&)v;
 }
 
 template <int Size_, typename Ty_>
-void from_json(nlohmann::json& j, const cv::Vec<Ty_, Size_>& v)
+void from_json(const nlohmann::json& j, Vec<Ty_, Size_>& v)
 {
     std::array<Ty_, Size_>& arr = j;
     v = (cv::Vec<Ty_, Size_>&)arr;
@@ -58,14 +58,18 @@ public:
     unordered_map<string, cv::Mat> img_show_queue;
     shared_mutex img_show_mtx;
 
+    vector<pair<string, double>> elapsed_seconds;
+
     recognition_desc prev_desc;
     cv::Vec3f table_pos_flt = {};
     cv::Vec3f table_rot_flt = {};
 
+    cv::Vec3f ball_pos_prev[4] = {};
+
     // cv::Vec3f table_points[4];
     double table_yaw_flt = 0;
 
-    unordered_map<string, any> vars;
+    unordered_map<string, any> vars, statics;
 
 public:
     recognizer_impl_t(recognizer_t& owner)
@@ -97,7 +101,7 @@ public:
             t["size"]["outer"] = Vec2f(1.31f, 0.76f);
             t["size"]["inner"] = Vec2f(0.895f, 0.447f);
 
-            t["hsv_filtler"] = {Vec3f{115, 84, 0}, Vec3f{2, 3, 4}};
+            t["filter"] = {Vec3f{115, 84, 0}, Vec3f{2, 3, 4}};
             t["cushion_height"] = 0.025;
 
             t["LPF"]["position"] = 0.1666;
@@ -141,6 +145,7 @@ public:
      * 주된 이미지 처리를 수행합니다.
      */
     recognition_desc proc_img(img_t const& img);
+    recognition_desc proc_img2(img_t const& img);
 
     /**
      * 테이블 위치를 찾습니다. 
@@ -194,10 +199,22 @@ public:
     /** @} */
 
     /**
+     * 최외각 경계를 1 픽셀 깎아냅니다.
+     * binary 이미지로부터 erode를 통해 경계선 검출 시 경계선에 접한 컨투어가 닫힌 도형이 되도록 합니다.
+     */
+    void carveOutermostPixels(cv::InputOutputArray io);
+
+    /**
      * 내부적으로 필터링을 수행하는 테이블 위치 및 회전 설정자입니다.
      */
     cv::Vec3f set_filtered_table_pos(cv::Vec3f new_pos, float confidence = 1.0f);
     cv::Vec3f set_filtered_table_rot(cv::Vec3f new_rot, float confidence = 1.0f);
+
+    /**
+     * from 기준의 인덱스를 to 기준의 인덱스로 매핑합니다.
+     * 종횡비는 일치하지 않아도 됩니다.
+     */
+    cv::Point map_index(cv::InputArray from, cv::InputArray to, cv::Point index);
 
     /**
      * 각 정점에 대해, 시야 사각뿔에 대한 컬링을 수행합니다.

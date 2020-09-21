@@ -128,7 +128,7 @@ public:
         cv::Vec3f camera_translation;
         cv::Vec4f camera_orientation; // In Euler angles ..
         cv::Matx<float, 4, 4> camera_transform;
-        cv::Mat rgb;
+        cv::Mat rgba;
         cv::Mat depth;
 
         camera_param_type camera;
@@ -184,8 +184,8 @@ struct recognition_desc
         {
             ball_recognition_result red1;
             ball_recognition_result red2;
-            ball_recognition_result white;
             ball_recognition_result orange;
+            ball_recognition_result white;
         } ball;
     };
 
