@@ -42,8 +42,12 @@ public class SimHandler : MonoBehaviour
 	[Header("Coefficients")]
 	public float BallRestitution = 0.71f;
 	public float BallDamping = 0.33f;
+	public float BallRollFriction = 0.01f;
+	public float BallKineticFriction = 0.2f;
+	public float BallStaticFriction = 0.12f;
+	public float BallRollTime = 0.5f;
 	public float TableRestitution = 0.53f;
-	public float TableFriction = 0.22f;
+	public float TableStaticFriction = 0.22f;
 
 	[Header("Optimizations")]
 	public int NumRotationDivider = 360;
@@ -162,9 +166,11 @@ public class SimHandler : MonoBehaviour
 		p.SimDuration = SimDuration;
 		p.Ball = (BallRestitution, BallDamping, BallRadius);
 		p.PlayerBall = PlayerBall;
-		p.Table = (TableRestitution, TableWidth, TableHeight, TableFriction);
+		p.Table = (TableRestitution, TableWidth, TableHeight, TableStaticFriction);
+		p.BallFriction = (BallKineticFriction, BallRollFriction, BallStaticFriction);
 		p.NumCandidates = NumRotationDivider;
 		p.Speeds = (float[])BallInitialSpeeds.Clone();
+		p.BallRollTime = BallRollTime;
 		p.NumCushionHits = NumMinCushions;
 	}
 
@@ -513,6 +519,8 @@ public class AsyncSimAgent
 		public Vector3 Red1, Red2, Orange, White; // 테이블 원점 0, 0에 대한 당구공 4개의 좌표
 		public (float Restitution, float Width, float Height, float Friction) Table; // 테이블 속성
 		public (float Restitution, float Damping, float Radius) Ball; // 공 속성
+		public (float Kinetic, float Roll, float Static) BallFriction;
+		public float BallRollTime;
 
 		// RULES 
 		public BilliardsBall PlayerBall; // 플레이어가 칠 공입니다.
@@ -830,7 +838,7 @@ public class AsyncSimAgent
 
 		var spn = new PhysStaticPlane();
 		spn.Restitution = rst;
-		spn.Damping = f;
+		spn.Damping = spn.Friction.Static = f;
 
 		foreach (var pos in _wallPositions)
 		{
@@ -848,6 +856,8 @@ public class AsyncSimAgent
 		ball.Radius = _p.Ball.Radius;
 		ball.Restitution = _p.Ball.Restitution;
 		ball.Damping = _p.Ball.Damping;
+		ball.Friction = _p.BallFriction;
+		ball.RollBeginTime = _p.BallRollTime;
 
 		// 인덱스 맵 생성
 		for (int index = 0; index < 4; index++)

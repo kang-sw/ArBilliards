@@ -18,6 +18,8 @@ namespace ArBilliards.Phys
 		// 10밀리초 이내에 연산이 끝나지 않으면 타임아웃.
 		public int TimeoutMs = 1000;
 
+		public Vector3 UpVector = Vector3.up;
+
 		public int Count => _objects.Count;
 		public PhysObject this[int i] => _objects[i];
 		public IEnumerable<PhysObject> Enumerable => _objects;
@@ -205,7 +207,7 @@ namespace ArBilliards.Phys
 		public Vector3 AngularVelocity { get; protected set; }
 		public double Damping = 0.001;
 		public float Restitution = 1.0f;
-		public (double Kinetic, double Rolling, double Static) Friction = (0.2, 0.01, 0.76);
+		public (float Kinetic, float Rolling, float Static) Friction = (0.2f, 0.01f, 0.21f);
 
 		public double DeltaSinceLastCollision { get; private set; }
 
@@ -337,6 +339,7 @@ namespace ArBilliards.Phys
 	internal class PhysSphere : PhysObject
 	{
 		public float Radius = 1.0f;
+		public float RollBeginTime = 0.3f;
 
 		public override PhysType Type => PhysType.Sphere;
 
@@ -372,22 +375,31 @@ namespace ArBilliards.Phys
 			// 각속도 업데이트
 			// 각가속도 계산
 			{
-				var Vp = SourceVelocity;
-				var r = Vector3.down;
-				var m = Mass;
-				var g = Constants.G;
-				var R = Radius;
+				var Vp = Vector3.Cross(SourceAngularVelocity, -Context.UpVector) + Velocity;
+				//var r = Vector3.down;
+				//var m = Mass;
+				//var g = Constants.G;
+				//var R = Radius;
 
-				Vector3 calc_dW(float friction)
+				//Vector3 calc_dW(float friction)
+				//{
+				//	return (5.0f / 2) / (m * R * R) *
+				//		   Vector3.Cross(r, (-friction * m * g * R / Vp.magnitude) * Vp);
+				//}
+
+				//var dW = calc_dW((float)mu);
+
+				if (Vp.sqrMagnitude > Constants.KINDA_SMALL_NUMBER)
 				{
-					return (5.0f / 2) / (m * R * R) *
-						   Vector3.Cross(r, (-friction * m * g * R / Vp.magnitude) * Vp);
+					var r = -Context.UpVector;
+
+					var dWRoll = Vector3.Cross(r, (-Friction.Rolling / Vp.magnitude) * Vp);
+					var dWSlip = Vector3.Cross(r, (-Friction.Kinetic / Vp.magnitude) * Vp);
+
+					var slipTime = Math.Min((float)DeltaSinceLastCollision, RollBeginTime);
+					var rollTime = Math.Max((float)DeltaSinceLastCollision - RollBeginTime, 0);
+					AngularVelocity = SourceAngularVelocity + dWRoll * rollTime + dWSlip * slipTime;
 				}
-
-				var mu = IsRolling() ? Friction.Rolling : Friction.Kinetic;
-				var dW = calc_dW((float)mu);
-
-				AngularVelocity = dW * (float)DeltaSinceLastCollision;
 			}
 		}
 
@@ -401,10 +413,17 @@ namespace ArBilliards.Phys
 			var (e, m1, m2) = (0.5f * (A.Restitution + B.Restitution), A.Mass, B.Mass);
 			var (V1, V2) = (A.Velocity, B.Velocity);
 
+			void ApplyAngularDelta(PhysSphere S, float friction, Vector3 contactDir)
+			{
+				S.Velocity += Vector3.Cross(S.AngularVelocity * friction, S.Context.UpVector);
+				S.AngularVelocity *= (1.0f - friction);
+			}
+
 			switch (B.Type)
 			{
 			case PhysType.Sphere:
 			{
+				// 선형 성분을 계산합니다.
 				var center = (B.Position - A.Position).normalized;
 
 				var V1p = Vector3.Project(V1, center);
@@ -419,6 +438,10 @@ namespace ArBilliards.Phys
 				A.Velocity = nV1;
 				B.VelocityInternal = nV2;
 
+				// 단순 회전 모델 = 회전을 정지 마찰력만큼 감쇠시키고 속도에 그대로 가산합니다.
+				ApplyAngularDelta(A, A.Friction.Static, center);
+				ApplyAngularDelta((PhysSphere)B, B.Friction.Static, -center);
+
 				break;
 			}
 			case PhysType.StaticPlane:
@@ -427,21 +450,27 @@ namespace ArBilliards.Phys
 				var PL = (PhysStaticPlane)B;
 				var N = PL.Normal;
 
-				var frictionCoeff = PL.Damping;
-
 				var V1p = Vector3.Project(V1, N);
 				var nV1p = -e * V1p;
 
 				// 횡축의 속도를 조절하는 휴리스틱입니다.
 				// 속도가 높으면 영향을 미치지 않지만, 속도가 적을수록 횡축 속도를 감소시킵니다.
+				// 입사각 40도 이내에서만 적용
 				// TODO
-				var spd = V1.magnitude;
-				var V1f = V1 - V1p;
-				V1f = (float)Math.Exp(-frictionCoeff) * V1f + V1p;
+				if (Vector3.Angle(V1, -N) < 30)
+				{
+					var frictionCoeff = PL.Damping;
+					var V1f = V1 - V1p;
+					V1f = (float)Math.Exp(-frictionCoeff) * V1f + V1p;
+					V1 = V1f;
+				}
 
-				var nV1 = V1f + (nV1p - V1p);
-				A.Velocity = nV1;
+				A.Velocity = (nV1p - V1p) + V1;
 
+				var rollVec = Vector3.Cross(A.AngularVelocity * PL.Friction.Static, A.Context.UpVector);
+				rollVec = Vector3.Project(rollVec, N);
+				A.Velocity += rollVec;
+				A.AngularVelocity *= (1.0f - PL.Friction.Static);
 				break;
 			}
 			}
@@ -470,7 +499,7 @@ namespace ArBilliards.Phys
 
 			// 오버랩 계산
 			var dist0 = ((Vector3)(P1 - P2)).magnitude;
-			if ((r1 + r2) - dist0 > 0 && Vec3d.Dot(V1, V2) < 0)
+			if ((r1 + r2) - dist0 > SMALL_NUMBER && Vec3d.Dot(V1, V2) < 0)
 			{
 				Contact ct;
 				ct.A = (P1, V1);
@@ -555,7 +584,7 @@ namespace ArBilliards.Phys
 			// 또한, 평면으로 다가가는 경우만 오버랩 처리합니다.
 			var Proj = Vector3.Project(Pp - P0, n);
 			var contactDist = Proj.magnitude;
-			if (r - contactDist > 0 && Vector3.Dot(Proj, V0) > 0)
+			if (r - contactDist > SMALL_NUMBER && Vector3.Dot(Proj, V0) > 0)
 			{
 				Contact contact;
 				contact.A = (P0, V0);

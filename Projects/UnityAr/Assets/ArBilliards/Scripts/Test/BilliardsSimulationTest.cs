@@ -56,6 +56,7 @@ public class BilliardsSimulationTest : MonoBehaviour
 			sph.Mass = 10f;
 			sph.Damping = 0.44;
 			sph.Restitution = 0.61f;
+			sph.Friction.Static = 0.7f;
 
 			sph.Radius = 0.11f;
 			sph.SourceVelocity = new Vector3(2.4f, 0.3f);
