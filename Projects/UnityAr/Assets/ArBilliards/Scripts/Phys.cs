@@ -432,8 +432,7 @@ namespace ArBilliards.Phys
 				// TODO
 				if (Vector3.Angle(V1, -N) < 30)
 				{
-					var frictionCoeff = PL.Damping;
-					frictionCoeff *= 0.3 * V1.magnitude;
+					var frictionCoeff = PL.Damping * V1.sqrMagnitude;
 					var V1f = V1 - V1p;
 					V1f = (float)Math.Exp(-frictionCoeff) * V1f + V1p;
 					V1 = V1f;
