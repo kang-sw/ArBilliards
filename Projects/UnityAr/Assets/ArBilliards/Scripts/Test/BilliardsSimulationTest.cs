@@ -39,14 +39,14 @@ public class BilliardsSimulationTest : MonoBehaviour
 
 		{
 			var pln = new PhysStaticPlane();
-			pln.RestitutionCoeff = 0.71f;
+			pln.Restitution = 0.71f;
 			var norms = new[] { (-1f, 0), (1f, 0), (0f, -0.6f), (0, 0.6f), (-1.2f, 0), (1.2f, 0), (0, -0.8f), (0, 0.8f) };
 
 			foreach (var normal in norms)
 			{
 				var vec = new Vector3(normal.Item1, normal.Item2);
 
-				pln.Position = -vec;
+				pln.SourcePosition = -vec;
 				pln.Normal = vec;
 				_sim.Spawn(pln);
 			}
@@ -54,18 +54,18 @@ public class BilliardsSimulationTest : MonoBehaviour
 		{
 			var sph = new PhysSphere();
 			sph.Mass = 10f;
-			sph.DampingCoeff = 0.44;
-			sph.RestitutionCoeff = 0.61f;
+			sph.Damping = 0.44;
+			sph.Restitution = 0.61f;
 
 			sph.Radius = 0.11f;
-			sph.Velocity = new Vector3(2.4f, 0.3f);
+			sph.SourceVelocity = new Vector3(2.4f, 0.3f);
 			_sim.Spawn(sph);
 
-			sph.Position = new Vector3(0.96f, 0.0f);
-			sph.Velocity = Vector3.zero;
+			sph.SourcePosition = new Vector3(0.96f, 0.0f);
+			sph.SourceVelocity = Vector3.zero;
 			_sim.Spawn(sph);
 
-			sph.Position = new Vector3(0.04f, 0.0f);
+			sph.SourcePosition = new Vector3(0.04f, 0.0f);
 			_sim.Spawn(sph);
 		}
 
