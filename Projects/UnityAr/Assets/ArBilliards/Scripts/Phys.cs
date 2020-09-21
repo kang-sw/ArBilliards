@@ -373,34 +373,7 @@ namespace ArBilliards.Phys
 			base.AdvanceMovementImpl(delta);
 
 			// 각속도 업데이트
-			// 각가속도 계산
-			{
-				var Vp = Vector3.Cross(SourceAngularVelocity, -Context.UpVector) + Velocity;
-				//var r = Vector3.down;
-				//var m = Mass;
-				//var g = Constants.G;
-				//var R = Radius;
 
-				//Vector3 calc_dW(float friction)
-				//{
-				//	return (5.0f / 2) / (m * R * R) *
-				//		   Vector3.Cross(r, (-friction * m * g * R / Vp.magnitude) * Vp);
-				//}
-
-				//var dW = calc_dW((float)mu);
-
-				if (Vp.sqrMagnitude > Constants.KINDA_SMALL_NUMBER)
-				{
-					var r = -Context.UpVector;
-
-					var dWRoll = Vector3.Cross(r, (-Friction.Rolling / Vp.magnitude) * Vp);
-					var dWSlip = Vector3.Cross(r, (-Friction.Kinetic / Vp.magnitude) * Vp);
-
-					var slipTime = Math.Min((float)DeltaSinceLastCollision, RollBeginTime);
-					var rollTime = Math.Max((float)DeltaSinceLastCollision - RollBeginTime, 0);
-					AngularVelocity = SourceAngularVelocity + dWRoll * rollTime + dWSlip * slipTime;
-				}
-			}
 		}
 
 		public override void ApplyCollisionImpl(PhysObject B)
@@ -460,6 +433,7 @@ namespace ArBilliards.Phys
 				if (Vector3.Angle(V1, -N) < 30)
 				{
 					var frictionCoeff = PL.Damping;
+					frictionCoeff *= 0.3 * V1.magnitude;
 					var V1f = V1 - V1p;
 					V1f = (float)Math.Exp(-frictionCoeff) * V1f + V1p;
 					V1 = V1f;
