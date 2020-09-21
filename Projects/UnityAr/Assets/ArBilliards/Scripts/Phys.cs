@@ -1,20 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Xml.Schema;
+using TreeEditor;
 using UnityEngine;
-using Object = System.Object;
 
 namespace ArBilliards.Phys
 {
 	public static class Constants
 	{
 		public const float KINDA_SMALL_NUMBER = 1e-7f;
+		public const float G = 9.8f;
 	}
 
 	public class PhysContext
 	{
 		// 10밀리초 이내에 연산이 끝나지 않으면 타임아웃.
 		public int TimeoutMs = 1000;
+
+		public Vector3 UpVector = Vector3.up;
 
 		public int Count => _objects.Count;
 		public PhysObject this[int i] => _objects[i];
@@ -34,6 +38,7 @@ namespace ArBilliards.Phys
 		public int Spawn(PhysObject obj)
 		{
 			obj = (PhysObject)obj.Clone();
+			obj.__InternalSetContext(this);
 			int index;
 
 			if (_availableIndexes.Count > 0)
@@ -94,6 +99,12 @@ namespace ArBilliards.Phys
 				(int A, int B)? minContactIdx = null;
 				PhysObject.Contact? minContact = null;
 				bool bOverlapOccured = false;
+
+				// 가장 먼저 발생하는 이벤트를 찾습니다.
+				foreach (var A in Enumerable)
+				{
+					minContactTime = Mathf.Min(minContactTime, A.CalcNextEventTime());
+				}
 
 				// 가장 먼저 접촉하는 페어를 찾습니다.
 				for (int idxA = 0; idxA < Count; idxA++)
@@ -189,11 +200,66 @@ namespace ArBilliards.Phys
 	public abstract class PhysObject : ICloneable
 	{
 		public abstract PhysType Type { get; }
+		public PhysContext Context { get; private set; }
 		public float Mass = 1.0f;
-		public Vector3 Position = new Vector3();
-		public Vector3 Velocity = new Vector3();
-		public double DampingCoeff = 0.001;
-		public float RestitutionCoeff = 1.0f;
+		public Vector3 Position { get; protected set; }
+		public Vector3 Velocity { get; protected set; }
+		public Vector3 AngularVelocity { get; protected set; }
+		public double Damping = 0.001;
+		public float Restitution = 1.0f;
+		public (float Kinetic, float Rolling, float Static) Friction = (0.2f, 0.01f, 0.21f);
+
+		public double DeltaSinceLastCollision { get; private set; }
+
+		public Vector3 AngularVelocityInternal { set => AngularVelocity = value; }
+		public Vector3 VelocityInternal { set => Velocity = value; }
+
+		public Vector3 SourceVelocity
+		{
+			get => _sourceVelocity;
+			set {
+				DeltaSinceLastCollision = 0;
+				_sourcePosition = Position;
+				_sourceAngularVelocity = AngularVelocity;
+				Velocity = _sourceVelocity = value;
+			}
+		}
+
+		public Vector3 SourcePosition
+		{
+			get => _sourcePosition;
+			set {
+				DeltaSinceLastCollision = 0;
+				Position = _sourcePosition = value;
+				_sourceAngularVelocity = AngularVelocity;
+				_sourceVelocity = Velocity;
+			}
+		}
+
+		public Vector3 SourceAngularVelocity
+		{
+			get => _sourceAngularVelocity;
+			set {
+				DeltaSinceLastCollision = 0;
+				_sourcePosition = Position;
+				AngularVelocity = _sourceAngularVelocity = value;
+				_sourceVelocity = Velocity;
+			}
+		}
+
+		public Vector3 _sourceVelocity;
+		public Vector3 _sourcePosition;
+		public Vector3 _sourceAngularVelocity;
+
+		/// <summary>
+		/// AdvanceMovement가 명시적으로 호출되어야 하는 다음 순간을 반환합니다.
+		/// 당구공의 경우, 미끄러지는 공이 구르기 시작할 때 마찰 계수를 계산하기 위해 사용합니다.
+		/// </summary>
+		/// <returns></returns>
+		public virtual float CalcNextEventTime()
+		{
+			return float.MaxValue;
+		}
 
 		/// <summary>
 		/// 현재 위치와 속도를 바탕으로 대상 오브젝트와 충돌하는 최소 시간을 구합니다.
@@ -208,14 +274,20 @@ namespace ArBilliards.Phys
 		/// </summary>
 		/// <param name="delta">다른 충돌체에 충돌하기까지의 시간보다 짧은 델타 시간입니다.</param>
 		/// <returns></returns>
-		public virtual void AdvanceMovement(float delta)
+		public void AdvanceMovement(float delta)
 		{
-			var eat = Math.Exp(-DampingCoeff * delta);
-			Vec3d V = Velocity;
-			Vec3d P = Position;
+			DeltaSinceLastCollision += delta;
+			AdvanceMovementImpl(delta);
+		}
+
+		protected virtual void AdvanceMovementImpl(float delta)
+		{
+			var eat = Math.Exp(-Damping * DeltaSinceLastCollision);
+			Vec3d V = _sourceVelocity;
+			Vec3d P = _sourcePosition;
 
 			Velocity = V * eat;
-			Position = P + V * (1.0 / DampingCoeff) * (1.0f - eat);
+			Position = P + V * (1.0 / Damping) * (1.0f - eat);
 		}
 
 		/// <summary>
@@ -224,7 +296,22 @@ namespace ArBilliards.Phys
 		/// </summary>
 		/// <param name="other">연산을 적용할 대상 오브젝트입니다.</param>
 		/// <returns></returns>
-		public abstract void ApplyCollision(PhysObject other);
+		public void ApplyCollision(PhysObject other)
+		{
+			ApplyCollisionImpl(other);
+
+			_sourceVelocity = Velocity;
+			_sourcePosition = Position;
+			_sourceAngularVelocity = AngularVelocity;
+			DeltaSinceLastCollision = 0;
+
+			other._sourceVelocity = other.Velocity;
+			other._sourcePosition = other.Position;
+			other._sourceAngularVelocity = other.AngularVelocity;
+			other.DeltaSinceLastCollision = 0;
+		}
+
+		public abstract void ApplyCollisionImpl(PhysObject other);
 
 		public struct Contact
 		{
@@ -238,11 +325,21 @@ namespace ArBilliards.Phys
 		{
 			return MemberwiseClone();
 		}
+
+		public void __InternalSetContext(PhysContext owner)
+		{
+			if (Context != null)
+			{
+				throw new Exception("Invalid access to internal method!");
+			}
+			Context = owner;
+		}
 	}
 
 	internal class PhysSphere : PhysObject
 	{
 		public float Radius = 1.0f;
+		public float RollBeginTime = 0.3f;
 
 		public override PhysType Type => PhysType.Sphere;
 
@@ -259,20 +356,47 @@ namespace ArBilliards.Phys
 			}
 		}
 
-		public override void ApplyCollision(PhysObject B)
+		public bool IsRolling()
+		{
+			var Vp = Velocity;
+			var W = AngularVelocity;
+
+			var sizeVp = Vp.magnitude;
+			var RsizeW = Radius * W.magnitude;
+
+			return RsizeW >= sizeVp;
+		}
+
+		protected override void AdvanceMovementImpl(float delta)
+		{
+			// 기본 이동을 적용
+			base.AdvanceMovementImpl(delta);
+
+			// 각속도 업데이트
+
+		}
+
+		public override void ApplyCollisionImpl(PhysObject B)
 		{
 			// 충돌 각도를 계산하기 위해, 먼저 두 구의 중심선에 대한 벡터 투영을 구합니다.
 			// ref: https://sites.google.com/site/3dgameprogram/home/physics-modeling-for-game-programming/-gibongaenyeomdajigi---mulli/-jiljeom-ui-chungdol
 			const float SMALL_NUMBER = Constants.KINDA_SMALL_NUMBER;
 			var A = this;
 
-			var (e, m1, m2) = (0.5f * (A.RestitutionCoeff + B.RestitutionCoeff), A.Mass, B.Mass);
+			var (e, m1, m2) = (0.5f * (A.Restitution + B.Restitution), A.Mass, B.Mass);
 			var (V1, V2) = (A.Velocity, B.Velocity);
+
+			void ApplyAngularDelta(PhysSphere S, float friction, Vector3 contactDir)
+			{
+				S.Velocity += Vector3.Cross(S.AngularVelocity * friction, S.Context.UpVector);
+				S.AngularVelocity *= (1.0f - friction);
+			}
 
 			switch (B.Type)
 			{
 			case PhysType.Sphere:
 			{
+				// 선형 성분을 계산합니다.
 				var center = (B.Position - A.Position).normalized;
 
 				var V1p = Vector3.Project(V1, center);
@@ -285,7 +409,11 @@ namespace ArBilliards.Phys
 				var nV2 = V2 + (nV2p - V2p);
 
 				A.Velocity = nV1;
-				B.Velocity = nV2;
+				B.VelocityInternal = nV2;
+
+				// 단순 회전 모델 = 회전을 정지 마찰력만큼 감쇠시키고 속도에 그대로 가산합니다.
+				ApplyAngularDelta(A, A.Friction.Static, center);
+				ApplyAngularDelta((PhysSphere)B, B.Friction.Static, -center);
 
 				break;
 			}
@@ -295,21 +423,27 @@ namespace ArBilliards.Phys
 				var PL = (PhysStaticPlane)B;
 				var N = PL.Normal;
 
-				var frictionCoeff = PL.DampingCoeff;
-
 				var V1p = Vector3.Project(V1, N);
 				var nV1p = -e * V1p;
 
 				// 횡축의 속도를 조절하는 휴리스틱입니다.
 				// 속도가 높으면 영향을 미치지 않지만, 속도가 적을수록 횡축 속도를 감소시킵니다.
+				// 입사각 40도 이내에서만 적용
 				// TODO
-				var spd = V1.magnitude;
-				var V1f = V1 - V1p;
-				V1f = (float)Math.Exp(-frictionCoeff) * V1f + V1p;
+				if (Vector3.Angle(V1, -N) < 30)
+				{
+					var frictionCoeff = PL.Damping * V1.sqrMagnitude;
+					var V1f = V1 - V1p;
+					V1f = (float)Math.Exp(-frictionCoeff) * V1f + V1p;
+					V1 = V1f;
+				}
 
-				var nV1 = V1f + (nV1p - V1p);
-				A.Velocity = nV1;
+				A.Velocity = (nV1p - V1p) + V1;
 
+				var rollVec = Vector3.Cross(A.AngularVelocity * PL.Friction.Static, A.Context.UpVector);
+				rollVec = Vector3.Project(rollVec, N);
+				A.Velocity += rollVec;
+				A.AngularVelocity *= (1.0f - PL.Friction.Static);
 				break;
 			}
 			}
@@ -319,24 +453,26 @@ namespace ArBilliards.Phys
 		{
 			const float SMALL_NUMBER = Constants.KINDA_SMALL_NUMBER;
 
-			if (DampingCoeff < SMALL_NUMBER)
+			// TODO: 차후 새로운 회전-기반 모델로 변경하는 경우, DeltaFromLastCollision 값을 활용하여 마찰 계수를 결정합니다. 이 때, 아래 식은 t0 ~ t1(구르기 시작), t1~에 대해 서로 다른 마찰 계수로 각각 계산되어야 합니다.
+
+			if (Damping < SMALL_NUMBER)
 			{
 				throw new Exception("Damping coefficient must be larger than 0.");
 			}
 
-			if (Math.Abs(DampingCoeff - DampingCoeff) > SMALL_NUMBER)
+			if (Math.Abs(Damping - Damping) > SMALL_NUMBER)
 			{
 				throw new Exception("Damping coefficient between spheres must be equal");
 			}
 
 			Vec3d P1 = Position, P2 = o.Position, V1 = Velocity, V2 = o.Velocity;
 			float r1 = Radius, r2 = o.Radius;
-			double alpha_inv = 1 / DampingCoeff;
+			double alpha_inv = 1 / Damping;
 			Vec3d A, B;
 
 			// 오버랩 계산
 			var dist0 = ((Vector3)(P1 - P2)).magnitude;
-			if ((r1 + r2) - dist0 > 0 && Vec3d.Dot(V1, V2) < 0)
+			if ((r1 + r2) - dist0 > SMALL_NUMBER && Vec3d.Dot(V1, V2) < 0)
 			{
 				Contact ct;
 				ct.A = (P1, V1);
@@ -403,13 +539,13 @@ namespace ArBilliards.Phys
 		{
 			const float SMALL_NUMBER = 1e-7f;
 
-			if (DampingCoeff < SMALL_NUMBER)
+			if (Damping < SMALL_NUMBER)
 			{
 				throw new Exception("Damping coefficient must be larger than 0.");
 			}
 
 			(Vec3d Pp, Vec3d n, Vec3d P0, Vec3d V0) = (o.Position, o.Normal, this.Position, this.Velocity);
-			(double alpha, double alpha_inv, double r) = (DampingCoeff, 1.0 / DampingCoeff, Radius);
+			(double alpha, double alpha_inv, double r) = (Damping, 1.0 / Damping, Radius);
 
 			// 속도와 노멀이 항상 마주봐야 합니다.
 			if (Vec3d.Dot(n, V0) > 0)
@@ -421,7 +557,7 @@ namespace ArBilliards.Phys
 			// 또한, 평면으로 다가가는 경우만 오버랩 처리합니다.
 			var Proj = Vector3.Project(Pp - P0, n);
 			var contactDist = Proj.magnitude;
-			if (r - contactDist > 0 && Vector3.Dot(Proj, V0) > 0)
+			if (r - contactDist > SMALL_NUMBER && Vector3.Dot(Proj, V0) > 0)
 			{
 				Contact contact;
 				contact.A = (P0, V0);
@@ -493,17 +629,17 @@ namespace ArBilliards.Phys
 			}
 		}
 
-		public override void AdvanceMovement(float delta)
+		protected override void AdvanceMovementImpl(float delta)
 		{
 			// DO NOTHING
 		}
 
-		public override void ApplyCollision(PhysObject other)
+		public override void ApplyCollisionImpl(PhysObject other)
 		{
 			// Only if target is sphere ...
 			if (other.Type == PhysType.Sphere)
 			{
-				((PhysSphere)other).ApplyCollision(this);
+				((PhysSphere)other).ApplyCollisionImpl(this);
 			}
 		}
 	}
@@ -575,3 +711,4 @@ namespace ArBilliards.Phys
 	}
 
 }
+

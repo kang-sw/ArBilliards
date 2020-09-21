@@ -20,7 +20,7 @@ public enum BilliardsBall
 ///
 /// 사용자의 카메라 각도에 따라 자동으로 해당 방향의 가장 vote가 높은 시뮬레이션 경로를 강조합니다.
 ///
-/// 시뮬레이션은 비동기적으로 수행됩니다.
+/// 시뮬레이션은 비동기적으로 수행됩니다. 
 /// </summary>
 public class SimHandler : MonoBehaviour
 {
@@ -42,8 +42,12 @@ public class SimHandler : MonoBehaviour
 	[Header("Coefficients")]
 	public float BallRestitution = 0.71f;
 	public float BallDamping = 0.33f;
+	public float BallRollFriction = 0.01f;
+	public float BallKineticFriction = 0.2f;
+	public float BallStaticFriction = 0.12f;
+	public float BallRollTime = 0.5f;
 	public float TableRestitution = 0.53f;
-	public float TableFriction = 0.22f;
+	public float TableStaticFriction = 0.22f;
 
 	[Header("Optimizations")]
 	public int NumRotationDivider = 360;
@@ -162,9 +166,11 @@ public class SimHandler : MonoBehaviour
 		p.SimDuration = SimDuration;
 		p.Ball = (BallRestitution, BallDamping, BallRadius);
 		p.PlayerBall = PlayerBall;
-		p.Table = (TableRestitution, TableWidth, TableHeight, TableFriction);
+		p.Table = (TableRestitution, TableWidth, TableHeight, TableStaticFriction);
+		p.BallFriction = (BallKineticFriction, BallRollFriction, BallStaticFriction);
 		p.NumCandidates = NumRotationDivider;
 		p.Speeds = (float[])BallInitialSpeeds.Clone();
+		p.BallRollTime = BallRollTime;
 		p.NumCushionHits = NumMinCushions;
 	}
 
@@ -513,6 +519,8 @@ public class AsyncSimAgent
 		public Vector3 Red1, Red2, Orange, White; // 테이블 원점 0, 0에 대한 당구공 4개의 좌표
 		public (float Restitution, float Width, float Height, float Friction) Table; // 테이블 속성
 		public (float Restitution, float Damping, float Radius) Ball; // 공 속성
+		public (float Kinetic, float Roll, float Static) BallFriction;
+		public float BallRollTime;
 
 		// RULES 
 		public BilliardsBall PlayerBall; // 플레이어가 칠 공입니다.
@@ -690,7 +698,7 @@ public class AsyncSimAgent
 
 				var initVelocity = ballInitialSpeed * dir;
 				cand.InitVelocity = initVelocity;
-				_ballRefs[(int)_p.PlayerBall].Velocity = initVelocity;
+				_ballRefs[(int)_p.PlayerBall].SourceVelocity = initVelocity;
 
 				// -- 공 초기 위치 노드 셋업
 				for (int i = 0; i < 4; ++i)
@@ -698,8 +706,8 @@ public class AsyncSimAgent
 					var r = _ballRefs[i];
 
 					BallPath.Node n;
-					n.Position = r.Position;
-					n.Velocity = r.Velocity;
+					n.Position = r.SourcePosition;
+					n.Velocity = r.SourceVelocity;
 					n.Time = 0f;
 					n.Other = null;
 
@@ -829,13 +837,13 @@ public class AsyncSimAgent
 		};
 
 		var spn = new PhysStaticPlane();
-		spn.RestitutionCoeff = rst;
-		spn.DampingCoeff = f;
+		spn.Restitution = rst;
+		spn.Damping = spn.Friction.Static = f;
 
 		foreach (var pos in _wallPositions)
 		{
 			// 위치, 노멀 설정은 아래에서 ...
-			spn.Position = new Vector3(pos.x, 0, pos.y);
+			spn.SourcePosition = new Vector3(pos.x, 0, pos.y);
 			spn.Normal = new Vector3(-pos.x, 0, -pos.y);
 			_sim.Spawn(spn);
 		}
@@ -846,8 +854,10 @@ public class AsyncSimAgent
 
 		var ball = new PhysSphere();
 		ball.Radius = _p.Ball.Radius;
-		ball.RestitutionCoeff = _p.Ball.Restitution;
-		ball.DampingCoeff = _p.Ball.Damping;
+		ball.Restitution = _p.Ball.Restitution;
+		ball.Damping = _p.Ball.Damping;
+		ball.Friction = _p.BallFriction;
+		ball.RollBeginTime = _p.BallRollTime;
 
 		// 인덱스 맵 생성
 		for (int index = 0; index < 4; index++)
@@ -879,8 +889,8 @@ public class AsyncSimAgent
 		for (int index = 0; index < 4; index++)
 		{
 			var ballRef = _ballRefs[index];
-			ballRef.Position = _ballPositions[index];
-			ballRef.Velocity = Vector3.zero;
+			ballRef.SourcePosition = _ballPositions[index];
+			ballRef.SourceVelocity = Vector3.zero;
 		}
 	}
 }
