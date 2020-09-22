@@ -10,17 +10,6 @@
 #include <opencv2/core/base.hpp>
 #include <any>
 #include <vector>
-#include <vector>
-#include <vector>
-#include <vector>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
 
 using namespace std;
 
@@ -178,10 +167,15 @@ public:
         int num_iteration = 10;
         int num_candidates = 64;
         float rot_axis_variant = 0.05;
+        float rot_variant = 0.2f;
         float pos_initial_distance = 0.5f;
         int border_margin = 3;
-        cv::Size2f FOV = {90 * CV_PI / 180.0f, 60 * CV_PI / 180.0f};
+        cv::Size2f FOV = {90, 60};
         float confidence_calc_base = 1.02f; // 에러 계산에 사용
+        float iterative_narrow_ratio = 0.87f;
+
+        cv::Mat debug_render_mat;
+        bool render_debug_glyphs = true;
     };
 
     struct transform_estimation_result_t {
@@ -235,7 +229,7 @@ public:
      * 최외각 경계를 1 픽셀 깎아냅니다.
      * binary 이미지로부터 erode를 통해 경계선 검출 시 경계선에 접한 컨투어가 닫힌 도형이 되도록 합니다.
      */
-    void carveOutermostPixels(cv::InputOutputArray io);
+    static void carve_outermost_pixels(cv::InputOutputArray io, cv::Scalar as);
 
     /**
      * 내부적으로 필터링을 수행하는 테이블 위치 및 회전 설정자입니다.
@@ -260,12 +254,12 @@ public:
     /**
      * 대상 모델 버텍스 목록을 화면 상에 투영합니다.
      */
-    static void project_model(img_t const& img, vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90 * CV_PI / 180.0f, float FOV_v = 60 * CV_PI / 180.0f);
+    static void project_model(img_t const& img, vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90, float FOV_v = 60);
 
     /**
      * 대상 모델 버텍스 목록을 화면 상에 투영합니다. Point 벡터를 반환하는 편의 함수 버전입니다.
      */
-    static void project_model(img_t const& img, vector<cv::Point>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90 * CV_PI / 180.0f, float FOV_v = 60 * CV_PI / 180.0f);
+    static void project_model(img_t const& img, vector<cv::Point>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90, float FOV_v = 60);
 
     /**
      * 대상 모델 버텍스 목록을 카메라 좌표계로 투영합니다.

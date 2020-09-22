@@ -228,7 +228,15 @@ public class JsonIPC : MonoBehaviour
 
 			Cmd.WrS.Write(JsonUtility.ToJson(O));
 			Cmd.WrS.Write((char)3);
-			Cmd.WrS.Flush();
+
+			try
+			{
+				Cmd.WrS.Flush();
+			}
+			catch
+			{
+				Debug.Log("Connection lost");
+			}
 
 			int Stamp = O.Stamp;
 
@@ -278,14 +286,21 @@ public class JsonIPC : MonoBehaviour
 		{
 			new Task(() =>
 			{
-				Bin.WrB.Write(0x00abcdef);
-				Bin.WrB.Write(Stamp);
+				try
+				{
+					Bin.WrB.Write(0x00abcdef);
+					Bin.WrB.Write(Stamp);
 
-				Bin.WrB.Write(ProcessingPixelBuf.Length);
-				Bin.WrB.Write(ProcessingDepthBuf.Length);
-				Bin.WrB.Write(ProcessingPixelBuf.ToArray());
-				Bin.WrB.Write(ProcessingDepthBuf.ToArray());
-				Bin.WrB.Flush();
+					Bin.WrB.Write(ProcessingPixelBuf.Length);
+					Bin.WrB.Write(ProcessingDepthBuf.Length);
+					Bin.WrB.Write(ProcessingPixelBuf.ToArray());
+					Bin.WrB.Write(ProcessingDepthBuf.ToArray());
+
+					Bin.WrB.Flush();
+				}
+				catch
+				{
+				}
 
 				bProcessingAsyncReadback = false;
 				ProcessingDepthBuf = ProcessingPixelBuf = null;
@@ -293,4 +308,3 @@ public class JsonIPC : MonoBehaviour
 		}
 	}
 }
-

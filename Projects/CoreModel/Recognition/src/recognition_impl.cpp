@@ -20,12 +20,12 @@ void random_vector(Rand_& rand, cv::Vec<Ty_, Sz_>& vec, Ty_ range)
     vec = cv::normalize(vec) * range;
 }
 
-static float contour_distance(vector<cv::Vec2f> const& ct_a, vector<cv::Vec2f> ct_b)
+static float contour_distance(vector<cv::Vec2f> const& ct_a, vector<cv::Vec2f> const& ct_b)
 {
     CV_Assert(ct_a.size() == ct_b.size());
     float dist_min = numeric_limits<float>::max();
 
-    for (int offset = 0; offset < ct_a.size() - 1; ++offset) {
+    for (int offset = 0; offset < ct_a.size(); ++offset) {
         float dist_sum = 0;
         for (int cmp_idx = 0; cmp_idx < ct_a.size(); ++cmp_idx) {
             int oidx = (offset + cmp_idx) % ct_a.size();
@@ -49,14 +49,14 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         auto is_border_pixel = [](cv::Size img_size, cv::Vec2f pixel, int margin = 3) {
             bool w = pixel[0] < margin || pixel[0] >= img_size.width - margin;
             bool h = pixel[1] < margin || pixel[1] >= img_size.height - margin;
-            return w && h;
+            return w || h;
         };
 
         int num_in = 0, num_out = 0;
         cv::Size size(img.rgba.cols, img.rgba.rows);
         for (auto& pt : input) {
             auto is_border = is_border_pixel(size, pt, p.border_margin);
-            num_in += is_border;
+            num_in += !is_border;
             num_out += is_border;
         }
 
@@ -75,9 +75,9 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
     distr_t distr_rot_axis{0, p.rot_axis_variant}; // 회전 축의 방향에 다양성 부여
 
     float pos_variant = p.pos_initial_distance;
-    float rot_variant = CV_2PI;
+    float rot_variant = p.rot_variant;
 
-    vector cands = {candidate_t{0, init_pos, init_rot}};
+    vector cands = {candidate_t{numeric_limits<float>::max(), init_pos, init_rot}};
     vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
     vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
 
@@ -115,7 +115,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
             ch_mapped.clear();
             ch_model.assign(model.begin(), model.end());
 
-            project_model(img, ch_mapped, init_pos, init_rot, ch_model, true, p.FOV.width, p.FOV.height);
+            project_model(img, ch_mapped, cand.pos, cand.rot, ch_model, true, p.FOV.width, p.FOV.height);
 
             // 컨투어 개수가 달라도 기각함에 유의!
             if (ch_mapped.empty() || ch_mapped.size() != input.size()) {
@@ -132,8 +132,8 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         // 에러가 가장 적은 candidate를 선택하고, 나머지를 기각합니다.
         if (auto min_it = min_element(cands.begin(), cands.end(), [](auto a, auto b) { return a.error < b.error; }); min_it != cands.end()) {
             // 탐색 범위를 좁히고 계속합니다.
-            pos_variant *= 0.5f;
-            rot_variant *= 0.5f;
+            pos_variant *= p.iterative_narrow_ratio;
+            rot_variant *= p.iterative_narrow_ratio;
             init_pos = min_it->pos;
             init_rot = min_it->rot;
 
@@ -150,6 +150,15 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
     res.confidence = pow(p.confidence_calc_base, -suitable.error);
     res.position = suitable.pos;
     res.rotation = suitable.rot;
+
+    if (p.render_debug_glyphs && p.debug_render_mat.data) {
+        vector<cv::Point> points;
+        ch_model = model;
+
+        project_model(img, points, res.position, res.rotation, ch_model, true, p.FOV.width, p.FOV.height);
+        cv::drawContours(p.debug_render_mat, vector{{points}}, -1, {0, 255, 0}, 3);
+    }
+
     return res;
 }
 
@@ -314,8 +323,6 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
     // 테이블을 찾는데 실패한 경우 iteration method를 활용해 테이블 위치를 추정합니다.
     if (!table_contours.empty() && desc.table.confidence == 0) {
-        auto const& input = table_contours;
-
         vector<Vec3f> model;
         get_table_model(model, m.table.recognition_size);
 
@@ -323,22 +330,30 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         auto init_rot = table_rot_flt;
 
         auto num_iteration = 10;
-        auto num_candidates = 64;
-        auto rot_axis_variant = 0.028f;   // rotation 자체의 variant입니다.
-        auto pos_initial_distance = 0.3f; // 시작 위치
-
-        auto fov_hori = 90 * CV_PI / 180.0f;
-        auto fov_vert = 60 * CV_PI / 180.0f;
+        auto num_candidates = 12;
+        auto rot_axis_variant = 0.008f; // rotation 자체의 variant입니다.
+        auto rot_variant = 0.06f;
+        auto pos_initial_distance = 0.14f; // 시작 위치
 
         auto border_margin = 3;
 
-        // ---- function range
-        //
+        vector<Point> points;
+        for (auto& pt : table_contours) { points.push_back((Vec2i)pt); }
+        drawContours(rgb, vector{{points}}, -1, {255, 0, 0}, 3);
 
-        auto result = estimate_matching_transform(img, input, model, init_pos, init_rot, {num_iteration, num_candidates, rot_axis_variant, pos_initial_distance, border_margin});
+        // 테이블 컨투어의 방향을 뒤집어줍니다.
+        vector<Vec2f> input = table_contours;
+
+        transform_estimation_param_t param = {num_iteration, num_candidates, rot_axis_variant, rot_variant, pos_initial_distance, border_margin};
+        param.FOV = m.FOV;
+        param.debug_render_mat = rgb;
+        param.render_debug_glyphs = true;
+
+        auto result = estimate_matching_transform(img, input, model, init_pos, init_rot, param);
 
         if (result.has_value()) {
             auto& res = *result;
+            draw_axes(img, const_cast<cv::Mat&>(rgb), res.rotation, res.position, 0.07f, 2);
             desc.table.confidence = res.confidence;
             set_filtered_table_pos(res.position, res.confidence);
             set_filtered_table_rot(res.rotation, res.confidence);
@@ -370,9 +385,9 @@ void recognizer_impl_t::cull_frustum(float hfov_rad, float vfov_rad, vector<cv::
     using namespace cv;
     // 시야 사각뿔의 4개 평면은 반드시 원점을 지납니다.
     // 평면은 N.dot(P-P1)=0 꼴인데, 평면 상의 임의의 점 P1은 원점으로 설정해 노멀만으로 평면을 나타냅니다.
-    static vector<plane_t> planes;
+    vector<plane_t> planes;
     {
-        planes.clear();
+        //    planes.clear();
 
         // horizontal 평면 = zx 평면
         // vertical 평면 = yz 평면
@@ -380,14 +395,14 @@ void recognizer_impl_t::cull_frustum(float hfov_rad, float vfov_rad, vector<cv::
         Rodrigues(Vec3f(vfov_rad * 0.5f, 0, 0), rot_vfov); // x축 양의 회전
         planes.push_back({rot_vfov * Vec3f{0, 1, 0}, 0});  // 위쪽 면
 
-        Rodrigues(Vec3f(-vfov_rad * 0.5f, 0, 0), rot_vfov);
+        Rodrigues(Vec3f(-vfov_rad * 0.53f, 0, 0), rot_vfov);
         planes.push_back({rot_vfov * Vec3f{0, -1, 0}, 0}); // 아래쪽 면
 
-        Rodrigues(Vec3f(0, hfov_rad * 0.5f, 0), rot_vfov);
+        Rodrigues(Vec3f(0, hfov_rad * 0.50f, 0), rot_vfov);
         planes.push_back({rot_vfov * Vec3f{-1, 0, 0}, 0}); // 오른쪽 면
 
-        Rodrigues(Vec3f(0, -hfov_rad * 0.5f, 0), rot_vfov);
-        planes.push_back({rot_vfov * Vec3f{1, 0, 0}, 0}); // 오른쪽 면
+        Rodrigues(Vec3f(0, -hfov_rad * 0.508f, 0), rot_vfov);
+        planes.push_back({rot_vfov * Vec3f{1, 0, 0}, 0}); // 왼쪽 면
     }
 
     // 먼저, 절두체 내에 있는 점을 찾고 해당 점을 탐색의 시작점으로 지정합니다.
@@ -783,7 +798,7 @@ void recognizer_impl_t::project_model(img_t const& img, vector<cv::Vec2f>& mappe
 
     // 오브젝트 포인트에 frustum culling 수행
     if (do_cull) {
-        cull_frustum(FOV_h, FOV_v, model_vertexes);
+        cull_frustum(FOV_h * CV_PI / 180.0f, FOV_v * CV_PI / 180.0f, model_vertexes);
     }
 
     if (!model_vertexes.empty()) {
@@ -1168,12 +1183,34 @@ void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> con
     }
 }
 
+void recognizer_impl_t::carve_outermost_pixels(cv::InputOutputArray io, cv::Scalar as)
+{
+    if (io.isUMat()) {
+        auto mat = io.getUMat();
+        mat.row(0).setTo(as);
+        mat.col(0).setTo(as);
+        mat.row(mat.rows - 1).setTo(as);
+        mat.col(mat.cols - 1).setTo(as);
+    }
+    else if (io.isMat()) {
+        auto mat = io.getMat();
+        mat.row(0).setTo(as);
+        mat.col(0).setTo(as);
+        mat.row(mat.rows - 1).setTo(as);
+        mat.col(mat.cols - 1).setTo(as);
+    }
+}
+
 void recognizer_impl_t::async_worker_thread()
 {
     while (worker_is_alive) {
         {
             unique_lock<mutex> lck(worker_event_wait_mtx);
             worker_event_wait.wait(lck);
+        }
+
+        if (!worker_is_alive) {
+            break;
         }
 
         opt_img_t img;
@@ -1366,7 +1403,10 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         GaussianBlur(umat_temp, umat_temp, {3, 3}, 5);
         threshold(umat_temp, table_blue_mask_gpu, 128, 255, THRESH_BINARY);
 
+        carve_outermost_pixels(table_blue_mask_gpu, 0);
         erode(table_blue_mask_gpu, umat_temp, {}, {-1, -1}, 1);
+
+        // 최외각의 1픽셀 깎아내기
         bitwise_xor(table_blue_mask_gpu, umat_temp, table_blue_edges);
     }
 
@@ -1506,7 +1546,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             // 테이블 컨투어를 재조정합니다.
             vector<Vec3f> obj_pts;
             get_table_model(obj_pts, m.table.inner_size);
-            project_model(img, table_contour_partial, table_pos_flt, table_rot_flt, obj_pts, true);
+            project_model(img, table_contour_partial, table_pos_flt, table_rot_flt, obj_pts, true, m.FOV.width, m.FOV.height);
             ROI_fit = boundingRect(table_contour_partial);
             get_safe_ROI_rect(img.rgba, ROI_fit);
 

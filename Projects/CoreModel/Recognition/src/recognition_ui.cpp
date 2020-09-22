@@ -174,7 +174,7 @@ void recognition_draw_ui(cv::Mat& frame)
         int wnd_w = m.wnd_sz.width * 0.8;
         COLUMN_TITLE(false, "Parameter - Generic")
         {
-            add_trackbar("FOV", (float*)&g.FOV, 2, 20.0f, 120.0f, wnd_w);
+            add_trackbar("FOV", (float*)&g.FOV, 2, 20.0f, 120.0f, wnd_w / 2);
         }
 
         COLUMN_TITLE(false, "Parameter - Table")

@@ -28,7 +28,7 @@ public: /* exposed properties */
 
     /* 주요 영상처리 프로퍼티 */
     cv::Size actual_process_size = {960, 540};
-    cv::Size2f FOV = {90.0f, 60.0f};
+    cv::Size2f FOV = {84.9f, 52.9f};
 
     /* 당구공 관련 프로퍼티 */
     // 크기 및 색상을 설정 가능합니다.
