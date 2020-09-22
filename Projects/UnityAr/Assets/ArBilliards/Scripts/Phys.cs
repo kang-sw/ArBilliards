@@ -414,9 +414,11 @@ namespace ArBilliards.Phys
 				A.Velocity = nV1;
 				B.VelocityInternal = nV2;
 
+				var angle = Mathf.Abs(Vector3.Angle(V1 - V2, center));
+
 				// 단순 회전 모델 = 회전을 정지 마찰력만큼 감쇠시키고 속도에 그대로 가산합니다.
-				ApplyAngularDelta(A, A.Friction.Static, center);
-				ApplyAngularDelta((PhysSphere)B, B.Friction.Static, -center);
+				ApplyAngularDelta(A, (90f - angle) / 90f * A.Friction.Static, center);
+				ApplyAngularDelta((PhysSphere)B, (90f - angle) / 90f * B.Friction.Static, -center);
 
 				break;
 			}
@@ -434,9 +436,10 @@ namespace ArBilliards.Phys
 				// 입사각 40도 이내에서만 적용
 				// TODO
 				// if (Vector3.Angle(V1, -N) < 40)
+				var V1f = V1 - V1p;
+				if (V1f.sqrMagnitude > 0)
 				{
-					var V1f = V1 - V1p;
-					var frictionCoeff = PL.Damping / (V1f.magnitude);
+					var frictionCoeff = PL.Damping * Math.Pow(V1p.magnitude / V1f.magnitude, 2.5);
 					V1f = (float)Math.Exp(-frictionCoeff) * V1f + V1p;
 					V1 = V1f;
 				}
@@ -444,8 +447,8 @@ namespace ArBilliards.Phys
 				A.Velocity = (nV1p - V1p) + V1;
 
 				A.AngularVelocity *= PL.Friction.Static;
-				var rollVec = Vector3.Cross(A.AngularVelocity * PL.Friction.Static, A.Context.UpVector);
-				rollVec = Vector3.Project(rollVec, N);
+				var rollVec = Vector3.Cross(A.AngularVelocity, A.Context.UpVector);
+				rollVec = Vector3.Project(rollVec, -N);
 				A.Velocity += rollVec;
 				break;
 			}
