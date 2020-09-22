@@ -9,6 +9,18 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/base.hpp>
 #include <any>
+#include <vector>
+#include <vector>
+#include <vector>
+#include <vector>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
 
 using namespace std;
 
@@ -158,6 +170,29 @@ public:
       vector<cv::Vec2f>& table_contours);
 
     /**
+     * 주로 테이블에 활용 ...
+     * 화면 상에서 폐색된 컨투어 리스트와, 모델의 시작 위치로부터 최종 위치를 추론합니다.
+     */
+
+    struct transform_estimation_param_t {
+        int num_iteration = 10;
+        int num_candidates = 64;
+        float rot_axis_variant = 0.05;
+        float pos_initial_distance = 0.5f;
+        int border_margin = 3;
+        cv::Size2f FOV = {90 * CV_PI / 180.0f, 60 * CV_PI / 180.0f};
+        float confidence_calc_base = 1.02f; // 에러 계산에 사용
+    };
+
+    struct transform_estimation_result_t {
+        cv::Vec3f position;
+        cv::Vec3f rotation;
+        float confidence;
+    };
+
+    static optional<transform_estimation_result_t> estimate_matching_transform(img_t const& img, vector<cv::Vec2f> const& input, vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& param);
+
+    /**
      * 마커로부터 테이블 위치를 보정합니다.
      */
     void correct_table_pos(
@@ -168,8 +203,7 @@ public:
       cv::Mat3b roi_rgb,
       vector<cv::Point> table_contour_partial);
 
-    struct ball_find_result_t
-    {
+    struct ball_find_result_t {
         cv::Point img_center;
         cv::Point3f ball_position;
         float geometric_weight;
@@ -177,8 +211,7 @@ public:
         float pixel_radius;
     };
 
-    struct ball_find_parameter_t
-    {
+    struct ball_find_parameter_t {
         struct plane_t const* table_plane; // 광선을 투사할 테이블 평면입니다. 반드시 카메라 좌표계
         cv::Mat precomputed_color_weights; // 미리 계산된 컬러 가중치 매트릭스.
         cv::Mat blue_mask;                 // 파란색 테이블 마스크
@@ -227,12 +260,12 @@ public:
     /**
      * 대상 모델 버텍스 목록을 화면 상에 투영합니다.
      */
-    static void project_model(img_t const& img, vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true);
+    static void project_model(img_t const& img, vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90 * CV_PI / 180.0f, float FOV_v = 60 * CV_PI / 180.0f);
 
     /**
      * 대상 모델 버텍스 목록을 화면 상에 투영합니다. Point 벡터를 반환하는 편의 함수 버전입니다.
      */
-    static void project_model(img_t const& img, vector<cv::Point>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true);
+    static void project_model(img_t const& img, vector<cv::Point>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90 * CV_PI / 180.0f, float FOV_v = 60 * CV_PI / 180.0f);
 
     /**
      * 대상 모델 버텍스 목록을 카메라 좌표계로 투영합니다.
@@ -248,6 +281,7 @@ public:
      * 카메라 매트릭스를 획득합니다.
      */
     static void get_camera_matx(img_t const& img, cv::Mat& mat_cam, cv::Mat& mat_disto);
+    static std::pair<cv::Matx33d, cv::Matx41d> get_camera_matx(img_t const& img);
 
     /**
      * 테이블 크기로부터 모델 공간에서의 테이블에 대한 3D 원점을 획득합니다.
@@ -315,8 +349,7 @@ public:
 };
 
 // 평면을 나타내는 타입입니다.
-struct plane_t
-{
+struct plane_t {
     cv::Vec3f N;
     float d;
 
