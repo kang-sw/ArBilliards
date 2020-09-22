@@ -145,7 +145,7 @@ void recognition_draw_ui(cv::Mat& frame)
         COLUMN_TITLE(true, "Paramter Operations")
         ROW("")
         {
-            static bool is_first_run = true;
+            static bool is_first_run = false;
             auto& g = g_recognizer;
             if (button(m.wnd_sz.width / 3, 60, "RESET")) {
                 auto base = billiards::recognizer_t();

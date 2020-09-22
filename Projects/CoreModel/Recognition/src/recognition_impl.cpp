@@ -60,7 +60,8 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
             num_out += is_border;
         }
 
-        if (num_in < 2 || num_out < 2) {
+        // 방향을 구별 가능한 최소 숫자입니다.
+        if ((num_in + num_out < 6) && (num_in < 2 || num_out < 2)) {
             return {};
         }
     }
@@ -1354,8 +1355,23 @@ float recognizer_impl_t::get_pixel_length(img_t const& img, float len_metric, fl
 recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 {
     using namespace cv;
-
     recognition_desc desc = {};
+
+    // Image 리사이즈
+    // auto img = img_in;
+#if 0
+    {
+        Size new_size = m.actual_process_size;
+        float scaler = (float)new_size.width / img_in.rgba.cols;
+        UMat rgb_umat_temp;
+        resize(img_in.rgba.getUMat(ACCESS_READ), rgb_umat_temp, new_size);
+        rgb_umat_temp.copyTo(img.rgba);
+        img.camera.fx *= scaler;
+        img.camera.fy *= scaler;
+        img.camera.cx *= scaler;
+        img.camera.cy *= scaler;
+    }
+#endif
 
     TickMeter tick_tot;
     tick_tot.start();
@@ -1760,7 +1776,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                         sort(results.begin(), results.end(), predicate);
                     }
 
-                    auto pivot = m.ball.search.confidence_pivot_weight;
+                    auto pivot = m.ball.search.confidence_pivot_weight * img.rgba.cols * img.rgba.rows;
                     recognition_desc::ball_recognition_result* order[] = {&desc.ball.red1, &desc.ball.red2, &desc.ball.orange, &desc.ball.white};
                     int table_indexes[] = {0, 0, 1, 2};
                     int elem_indexes[] = {0, 1, 0, 0};

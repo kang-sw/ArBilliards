@@ -27,7 +27,7 @@ public: /* exposed properties */
     nlohmann::json props;
 
     /* 주요 영상처리 프로퍼티 */
-    cv::Size actual_process_size = {960, 540};
+    cv::Size actual_process_size = {800, 480};
     cv::Size2f FOV = {84.9f, 52.9f};
 
     /* 당구공 관련 프로퍼티 */
@@ -55,17 +55,17 @@ public: /* exposed properties */
 
         struct
         {
-            int iterations = 7;                     // 전체 프로세스 반복 회수
-            int num_candidates = 16;                // 한 번의 이터레이션에서 선택할 중점 후보의 개수
-            float candidate_radius_amp = 2.0f;      // 중점 후보 선택시 반지름 증폭율
-            int num_max_contours = 96;              // 한 번에 비교할 최대 컨투어 개수
-            float weight_function_base = 1.03f;     // 가중치를 계산하는데 사용하는 지수함수의 밑
-            float color_kernel_weight_base = 1.03f; // 커널에서 가중치를 계산하는데 사용하는 지수함수의 밑
-            bool render_debug = true;               // 디버그 라인 그리기
-            float memoization_distance_rate = 0.1f; // 메모이제이션 최적화 거리. 반지름에 대한 비
-            float color_weight = 0.33f;             // 위치 대 색상 중 색상의 가중치
-            float color_dist_amplitude = 64.0f;     // 가중치 계산 시, 정규화 구간의 색상을 증폭(클수록 가중치 낮아짐)
-            float confidence_pivot_weight = 350.f;  // 컨피던스 1.0 기준 웨이트 합
+            int iterations = 7;                                  // 전체 프로세스 반복 회수
+            int num_candidates = 16;                             // 한 번의 이터레이션에서 선택할 중점 후보의 개수
+            float candidate_radius_amp = 2.0f;                   // 중점 후보 선택시 반지름 증폭율
+            int num_max_contours = 96;                           // 한 번에 비교할 최대 컨투어 개수
+            float weight_function_base = 1.03f;                  // 가중치를 계산하는데 사용하는 지수함수의 밑
+            float color_kernel_weight_base = 1.03f;              // 커널에서 가중치를 계산하는데 사용하는 지수함수의 밑
+            bool render_debug = true;                            // 디버그 라인 그리기
+            float memoization_distance_rate = 0.1f;              // 메모이제이션 최적화 거리. 반지름에 대한 비
+            float color_weight = 0.33f;                          // 위치 대 색상 중 색상의 가중치
+            float color_dist_amplitude = 64.0f;                  // 가중치 계산 시, 정규화 구간의 색상을 증폭(클수록 가중치 낮아짐)
+            double confidence_pivot_weight = 350 / (1280 * 720.0); // 컨피던스 1.0 기준 웨이트 합
         } search;
 
     } ball;
