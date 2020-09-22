@@ -6,7 +6,6 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/aruco.hpp>
 
-
 namespace billiards
 {
 /**
@@ -29,14 +28,14 @@ public: /* exposed properties */
 
     /* 주요 영상처리 프로퍼티 */
     cv::Size actual_process_size = {960, 540};
+    cv::Size2f FOV = {90.0f, 60.0f};
 
     /* 당구공 관련 프로퍼티 */
     // 크기 및 색상을 설정 가능합니다.
     // red, white, orange의 경우 표기명으로, 공의 실제 색상과는 상이할 수 있습니다.
 
     // 당구공 인식 관련 프로퍼티 목록
-    struct ball_param_type
-    {
+    struct ball_param_type {
         float radius = 0.14 / CV_2PI;
 
         // 공의 Contour 목록을 파악한 후, 각각의 contour 다각형 면적이 최소 얼마 이상이 되어야 공으로 인식되는지 결정하는 값입니다.
@@ -72,8 +71,7 @@ public: /* exposed properties */
     } ball;
 
     /* 테이블 관련 프로퍼티 */
-    struct table_param_type
-    {
+    struct table_param_type {
         cv::Vec2f recognition_size = {0.96f, 0.51f};
         cv::Vec2f outer_masking_size = {1.31f, 0.76f};
         cv::Vec2f inner_size = {0.895f, 0.447f};
@@ -114,8 +112,7 @@ public: /* exposed properties */
 
 public:
     /* 카메라 파라미터 구조체 */
-    struct camera_param_type
-    {
+    struct camera_param_type {
         double fx, cx, fy, cy;
         double k1, k2, p1, p2;
     };
@@ -123,8 +120,7 @@ public:
     /**
      * 공급 이미지 서술 구조체
      */
-    struct parameter_type
-    {
+    struct parameter_type {
         cv::Vec3f camera_translation;
         cv::Vec4f camera_orientation; // In Euler angles ..
         cv::Matx<float, 4, 4> camera_transform;
@@ -166,13 +162,11 @@ private:
 /**
  * 당구 게임의 인식 결과를 나타내는 구조체입니다.
  */
-struct recognition_desc
-{
+struct recognition_desc {
     /**
      * 각 당구공의 인식 결과를, 확실한 정도와 함께 저장합니다.
      */
-    struct ball_recognition_result
-    {
+    struct ball_recognition_result {
         float position[3];
         float confidence;
     };
@@ -192,8 +186,7 @@ struct recognition_desc
     /**
      * 테이블의 인식 결과입니다.
      */
-    struct table_result
-    {
+    struct table_result {
         cv::Vec3f position;    // X Y Z in unity
         cv::Vec4f orientation; // Quaternion representation in unity coord
         float confidence;

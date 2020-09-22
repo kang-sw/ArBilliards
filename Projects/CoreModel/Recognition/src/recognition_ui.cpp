@@ -77,14 +77,12 @@ void add_counter(const char* name, Ty* val, int array_size, Ty step, int width)
 void recognition_draw_ui(cv::Mat& frame)
 {
     // sugars
-    struct row__
-    {
+    struct row__ {
         row__(int w = -1, int h = -1, int p = -1) { beginRow(w, h, p); }
         ~row__() { endRow(); }
     };
 
-    struct col__
-    {
+    struct col__ {
         col__(int w = -1, int h = -1, int p = -1) { beginColumn(w, h, p); }
         ~col__() { endColumn(); }
     };
@@ -158,6 +156,7 @@ void recognition_draw_ui(cv::Mat& frame)
                 ofstream fs("config.bin");
                 fs.write(reinterpret_cast<const char*>(&g.table), sizeof g.table);
                 fs.write(reinterpret_cast<const char*>(&g.ball), sizeof g.ball);
+                fs.write(reinterpret_cast<const char*>(&g.ball), sizeof g.FOV);
                 fs.flush();
             }
             if (button(m.wnd_sz.width / 3, 60, "IMPORT") || is_first_run) {
@@ -165,49 +164,19 @@ void recognition_draw_ui(cv::Mat& frame)
                 if (fs.is_open()) {
                     fs.read(reinterpret_cast<char*>(&g.table), sizeof g.table);
                     fs.read(reinterpret_cast<char*>(&g.ball), sizeof g.ball);
+                    fs.read(reinterpret_cast<char*>(&g.ball), sizeof g.FOV);
                 }
                 is_first_run = false;
             }
         }
 
-        COLUMN_TITLE(true, "Focusing Image")
-        {
-            // 고정폭 버튼을 각 행에 배치
-
-            auto it = m.shows.begin();
-            auto const end = m.shows.end();
-
-            int const ENTITY_WIDTH = 120;
-            int num_btn_per_row = m.wnd_sz.width / ENTITY_WIDTH;
-            int actual_entity_width = m.wnd_sz.width / num_btn_per_row;
-
-            while (it != end) {
-                ROW("")
-                for (int i = 0; i < m.wnd_sz.width / ENTITY_WIDTH; ++i) {
-                    if (it == end) {
-                        break;
-                    }
-
-                    auto& pair = *it++;
-                    auto found_it = m.active_img.find(pair.first);
-                    bool const is_active_image = found_it != m.active_img.end();
-
-                    if (button(actual_entity_width, 30, pair.first, DEFAULT_FONT_SCALE, is_active_image ? 0x22dd22 : DEFAULT_BUTTON_COLOR)) {
-                        if (is_active_image) {
-                            m.pending_destroy.emplace(pair.first);
-                            m.active_img.erase(found_it);
-                        }
-                        else {
-                            m.active_img.emplace(pair.first);
-                        }
-                    }
-                }
-            }
-        }
-
-        
         auto& g = g_recognizer;
         int wnd_w = m.wnd_sz.width * 0.8;
+        COLUMN_TITLE(false, "Parameter - Generic")
+        {
+            add_trackbar("FOV", (float*)&g.FOV, 2, 20.0f, 120.0f, wnd_w);
+        }
+
         COLUMN_TITLE(false, "Parameter - Table")
         {
             add_trackbar("LPF pos alpha: ", &g.table.LPF_alpha_pos, 1, 0.0, 1.0, wnd_w, "%.3Lf");

@@ -666,7 +666,7 @@ void recognizer_impl_t::draw_axes(img_t const& img, cv::Mat& dest, cv::Vec3f rve
     pts.assign({{0, 0, 0}, {marker_length, 0, 0}, {0, -marker_length, 0}, {0, 0, marker_length}});
 
     vector<Vec2f> mapped;
-    project_model(img, mapped, tvec, rvec, pts, false, 90 * CV_PI / 180.0f, 60 * CV_PI / 180.0f);
+    project_model(img, mapped, tvec, rvec, pts, false);
 
     pair<int, int> pairs[] = {{0, 1}, {0, 2}, {0, 3}};
     Scalar colors[] = {{0, 0, 255}, {0, 255, 0}, {255, 0, 0}};
@@ -686,7 +686,7 @@ void recognizer_impl_t::draw_circle(img_t const& img, cv::Mat& dest, float base_
     vector<Vec3f> pos{{0, 0, 0}};
     vector<Vec2f> pt;
 
-    project_model(img, pt, tvec_world, Vec3f(), pos, false, 90 * CV_PI / 180.0f, 60 * CV_PI / 180.0f);
+    project_model(img, pt, tvec_world, Vec3f(), pos, false);
 
     float size = base_size / norm(pos);
     circle(dest, Point(pt[0][0], pt[0][1]), size, color, -1);
@@ -827,10 +827,8 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
         vector<cv::Vec3f> obj_pts;
         get_table_model(obj_pts, m.table.recognition_size);
 
-        // 정점을 하나씩 투사합니다.
-        // frustum culling을 배제하기 위함입니다.
         vector<cv::Vec2f> points;
-        project_model(img, points, table_pos_flt, table_rot_flt, obj_pts, false, 90 * CV_PI / 180.0f, 60 * CV_PI / 180.0f);
+        project_model(img, points, table_pos_flt, table_rot_flt, obj_pts, false);
 
         { // debug rendering
             vector<vector<cv::Point>> draw_point(1);
@@ -850,7 +848,7 @@ void recognizer_impl_t::correct_table_pos(img_t const& img, recognition_desc& de
             marker_pts[2] += cv::Vec3f(x, 0, -z);
             marker_pts[3] += cv::Vec3f(x, 0, z);
         }
-        project_model(img, marker_proj_pts, table_pos_flt, table_rot_flt, marker_pts, false, 90 * CV_PI / 180.0f, 60 * CV_PI / 180.0f);
+        project_model(img, marker_proj_pts, table_pos_flt, table_rot_flt, marker_pts);
 
         for (int i = 0; i < obj_pts.size(); ++i) {
             auto& c = cached_location_contours.emplace_back();
@@ -1396,7 +1394,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         vector<cv::Vec3f> obj_pts;
         get_table_model(obj_pts, m.table.outer_masking_size);
 
-        project_model(img, table_contours, pos, rot, obj_pts, 90 * CV_PI / 180.0f, 60 * CV_PI / 180.0f);
+        project_model(img, table_contours, pos, rot, obj_pts, true, m.FOV.width, m.FOV.height);
 
         // debug draw contours
         if (!table_contours.empty()) {
