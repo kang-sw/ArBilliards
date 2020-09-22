@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Xml.Schema;
-using TreeEditor;
 using UnityEngine;
 
 namespace ArBilliards.Phys
@@ -373,7 +371,12 @@ namespace ArBilliards.Phys
 			base.AdvanceMovementImpl(delta);
 
 			// 각속도 업데이트
+			// 각속도의 최대치를 구하고, 시간을 바탕으로 각속도를 예측합니다.
+			var maxAngVel = Vector3.Cross(Velocity, -Context.UpVector);
+			var angVelRatio = Math.Min((float)DeltaSinceLastCollision / RollBeginTime, 1.0f);
 
+			var maxAngVelDelta = maxAngVel - AngularVelocity;
+			AngularVelocity += maxAngVelDelta * angVelRatio;
 		}
 
 		public override void ApplyCollisionImpl(PhysObject B)
@@ -430,20 +433,20 @@ namespace ArBilliards.Phys
 				// 속도가 높으면 영향을 미치지 않지만, 속도가 적을수록 횡축 속도를 감소시킵니다.
 				// 입사각 40도 이내에서만 적용
 				// TODO
-				if (Vector3.Angle(V1, -N) < 30)
+				// if (Vector3.Angle(V1, -N) < 40)
 				{
-					var frictionCoeff = PL.Damping * V1.sqrMagnitude;
 					var V1f = V1 - V1p;
+					var frictionCoeff = PL.Damping / (V1f.magnitude);
 					V1f = (float)Math.Exp(-frictionCoeff) * V1f + V1p;
 					V1 = V1f;
 				}
 
 				A.Velocity = (nV1p - V1p) + V1;
 
+				A.AngularVelocity *= PL.Friction.Static;
 				var rollVec = Vector3.Cross(A.AngularVelocity * PL.Friction.Static, A.Context.UpVector);
 				rollVec = Vector3.Project(rollVec, N);
 				A.Velocity += rollVec;
-				A.AngularVelocity *= (1.0f - PL.Friction.Static);
 				break;
 			}
 			}

@@ -48,6 +48,7 @@ public class SimHandler : MonoBehaviour
 	public float BallRollTime = 0.5f;
 	public float TableRestitution = 0.53f;
 	public float TableStaticFriction = 0.22f;
+	public float TableHorizontalSuppress = 0.03f;
 
 	[Header("Optimizations")]
 	public int NumRotationDivider = 360;
@@ -172,6 +173,7 @@ public class SimHandler : MonoBehaviour
 		p.Speeds = (float[])BallInitialSpeeds.Clone();
 		p.BallRollTime = BallRollTime;
 		p.NumCushionHits = NumMinCushions;
+		p.TableSuppress = TableHorizontalSuppress;
 	}
 
 	#endregion
@@ -521,6 +523,7 @@ public class AsyncSimAgent
 		public (float Restitution, float Damping, float Radius) Ball; // 공 속성
 		public (float Kinetic, float Roll, float Static) BallFriction;
 		public float BallRollTime;
+		public float TableSuppress;
 
 		// RULES 
 		public BilliardsBall PlayerBall; // 플레이어가 칠 공입니다.
@@ -838,8 +841,8 @@ public class AsyncSimAgent
 
 		var spn = new PhysStaticPlane();
 		spn.Restitution = rst;
-		spn.Damping = spn.Friction.Static = f;
-
+		spn.Damping = _p.TableSuppress;
+		spn.Friction.Static = f;
 		foreach (var pos in _wallPositions)
 		{
 			// 위치, 노멀 설정은 아래에서 ...
