@@ -1,10 +1,12 @@
 ﻿using System;
 using ArBilliards.Phys;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 using Random = System.Random;
 
 public enum BilliardsBall
@@ -679,6 +681,8 @@ public class AsyncSimAgent
 		res.Options = _p;
 
 		SimResult.Candidate cand = null;
+		Stopwatch sw = new Stopwatch();
+		sw.Start();
 
 		foreach (var ballInitialSpeed in _p.Speeds) // 각각의 속도에 대해 Iteration ...
 		{
@@ -691,6 +695,11 @@ public class AsyncSimAgent
 
 			for (; candIndex < maxCands; candIndex += step)
 			{
+				if (sw.ElapsedMilliseconds > 2000)
+				{
+					break;
+				}
+
 				resetBallState();
 
 				// -- 시뮬레이션 셋업
