@@ -556,7 +556,7 @@ PrefabInstance:
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
       propertyPath: enableTracking
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
@@ -667,31 +667,6 @@ PrefabInstance:
       propertyPath: LookTransform
       value: 
       objectReference: {fileID: 1776626643}
-    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: BallRollTime
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: TableStaticFriction
-      value: 0.23
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: TableRestitution
-      value: 0.86
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: TableHorizontalSuppress
-      value: 0.06
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: MovementSpeedThreshold
-      value: 0.07
-      objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700375, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: m_LocalPosition.x

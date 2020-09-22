@@ -145,7 +145,7 @@ public class RecognitionHandler : MonoBehaviour
 
 		} while (false);
 
-		if (bSimulationAvailable && Simulator)
+		// if (true && bSimulationAvailable && Simulator)
 		{
 			// var (red1, red2, orange, white) = (toVector3(result.Red1), toVector3(result.Red2), toVector3(result.Orange), toVector3(result.White));
 			// var (red1, red2, orange, white) = (this.Red1.position, this.Red2.position, this.Orange.position, this.White.position);

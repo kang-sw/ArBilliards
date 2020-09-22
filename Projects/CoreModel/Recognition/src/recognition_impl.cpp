@@ -109,6 +109,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         }
 
         // 모든 candidate를 iterate하여 에러를 계산합니다.
+        //  #pragma omp parallel for private(ch_mapped) private(ch_model)
         for (int index = 0; index < cands.size(); ++index) {
             auto& cand = cands[index];
 
@@ -131,7 +132,8 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         }
 
         // 에러가 가장 적은 candidate를 선택하고, 나머지를 기각합니다.
-        if (auto min_it = min_element(cands.begin(), cands.end(), [](auto a, auto b) { return a.error < b.error; }); min_it != cands.end()) {
+        if (auto min_it = min_element(cands.begin(), cands.end(), [](auto a, auto b) { return a.error < b.error; });
+            min_it != cands.end() && min_it->error < 1e8f) {
             // 탐색 범위를 좁히고 계속합니다.
             pos_variant *= p.iterative_narrow_ratio;
             rot_variant *= p.iterative_narrow_ratio;
@@ -330,8 +332,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         auto init_pos = table_pos_flt;
         auto init_rot = table_rot_flt;
 
-        auto num_iteration = 10;
-        auto num_candidates = 12;
+        auto num_iteration = 5;
+        auto num_candidates = 25;
         auto rot_axis_variant = 0.008f; // rotation 자체의 variant입니다.
         auto rot_variant = 0.06f;
         auto pos_initial_distance = 0.14f; // 시작 위치

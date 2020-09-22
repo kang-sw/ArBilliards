@@ -278,8 +278,10 @@ public class SimHandler : MonoBehaviour
 			var obj = Instantiate(PathFollowMarkerTemplate, TableAnchor);
 			obj.transform.localScale = Vector3.one * BallRadius * 1.9f;
 			_pathFollowMarker[i] = obj.GetComponent<MarkerManipulator>();
-			_pathFollowMarker[i].MeshColor = BallVisualizeColors[i];
-			_pathFollowMarker[i].ParticleColor = BallVisualizeColors[i];
+			var color = BallVisualizeColors[i];
+			color.a = 0.66f;
+			_pathFollowMarker[i].MeshColor = color;
+			_pathFollowMarker[i].ParticleColor = color;
 
 			// 패스팔로우 파티클 비활성화 (너무 요란함)
 			var emission = _pathFollowMarker[i].ParticleSystem.emission;

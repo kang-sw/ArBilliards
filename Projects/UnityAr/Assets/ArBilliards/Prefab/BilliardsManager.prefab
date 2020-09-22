@@ -2334,19 +2334,20 @@ MonoBehaviour:
   BallDamping: 0.43
   BallRollFriction: 0.01
   BallKineticFriction: 0.3
-  BallStaticFriction: 0.2
-  BallRollTime: 0.7
-  TableRestitution: 0.91
+  BallStaticFriction: 0.33
+  BallRollTime: 0.5
+  TableRestitution: 0.86
   TableStaticFriction: 0.43
-  NumRotationDivider: 720
-  SimDuration: 20
+  TableHorizontalSuppress: 0.06
+  NumRotationDivider: 1080
+  SimDuration: 12
   BallInitialSpeeds:
-  - 0.1
-  - 0.4
-  - 0.8
-  - 1.4
+  - 0.15
+  - 0.3
+  - 0.6
+  - 0.9
   ResimulationDistanceThreshold: 0.006
-  MovementSpeedThreshold: 0.1
+  MovementSpeedThreshold: 0.07
   PlayerBall: 2
   CandidateMarkerLength: 0.2
   BallVisualizeColors:
