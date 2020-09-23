@@ -15,4 +15,4 @@
 
 # INDEX
 
-1. [영상 인식 알고리즘 작업 일지](/Docs/Report/RecognitionImplLog/__content.md)
+1. [영상 인식 알고리즘 작업 일지](/Docs/Old/Report/RecognitionImplLog/__content.md)

@@ -141,7 +141,7 @@ public class JsonIPC : MonoBehaviour
 
 	// Update is called once per frame
 	void Update()
-	{
+	{ 
 		if (JsonRecognitionResult != null)
 		{
 			var JsonStr = JsonRecognitionResult;
