@@ -19,8 +19,7 @@ billiards::recognizer_t g_recognizer;
 tcp_server g_app;
 
 // ================================================================================================
-struct image_desc_t
-{
+struct image_desc_t {
     array<float, 3> translation;
     array<float, 4> orientation;
     array<float, 16> transform;
@@ -34,8 +33,7 @@ struct image_desc_t
     weak_ptr<boost::asio::ip::tcp::socket> connection;
 };
 
-struct image_chunk_t
-{
+struct image_chunk_t {
     vector<char> chunk;
     string_view rgb_view;
     string_view depth_view;
@@ -197,8 +195,7 @@ public:
     }
 
 private:
-    struct body_type
-    {
+    struct body_type {
         string json_raw;
         std::function<void(tcp_connection_desc const& conn, json const& parsed)> json_handler;
     };
@@ -275,8 +272,7 @@ public:
     }
 
 private:
-    struct body_type
-    {
+    struct body_type {
         vector<char> bin;
     };
 
@@ -319,6 +315,7 @@ static void on_image_request(tcp_connection_desc const& conn, json const& parsed
 void recognition_draw_ui(cv::Mat& frame);
 
 // ================================================================================================
+#include <sl/Camera.hpp>
 int main(void)
 {
     size_t num_thr = thread::hardware_concurrency();
