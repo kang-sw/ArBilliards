@@ -1311,6 +1311,8 @@ recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
         // - 뺀 값 각각에 가중치를 주어 합산(reduce) (H가 가장 크게, V를 가장 작게)
         // - 해당 값의 음수를 pow의 지수로 둠 ... pow(base, -weight); 즉 거리가 멀수록 0에 가까운 값 반환
         // - 고정 커널 크기(Orthogonal로 Transform했으므로 ..)로 컨볼루션 적용, 로컬 맥시멈 추출 ... 공 candidate
+
+        // NOTE: 경계선 평가는 기존의 방법을 사용하되, 이진 이미지가 아닌 HSV 색공간의 Value 표현으로부터 경계선을 검출합니다. Value 표현에 gradient를 먹이고 증폭하면 경계선 이미지를 얻을 수 있을듯? 이후 contour를 사용하는 대신, 원 인덱스 픽셀에 대해 검사하여 가장 높은 가중치를 획득합니다.
     }
 
     // ShowImage에 모든 임시 매트릭스 추가

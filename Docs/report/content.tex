@@ -3,6 +3,7 @@
 \usepackage{graphicx} 
 \usepackage{fullpage}
 \usepackage{siunitx}
+\usepackage[ruled,vlined]{algorithm2e}
 \usepackage{hyperref}
 \usepackage[nameinlink]{cleveref}
 \usepackage{listings}
@@ -38,6 +39,7 @@
 \crefname{table}{표}{표}
 \crefname{listing}{목록}{목록}
 \crefname{section}{절}{절}
+\crefname{algorithm}{알고리즘}{알고리즘}
 
 \title{AR 당구}
 \author{강승우 \\ 한국기술교육대학교 전자공학과}
@@ -47,8 +49,6 @@
 \maketitle
 
 \setlength{\parindent}{0.3cm}
-
-
 
 
 \begin{abstract}
@@ -199,19 +199,50 @@
         \label{fig;ball-recognition-howto}
 \end{figure}
 
-이미 위에서 테이블의 3D 포즈를 계산하였다. 이렇게 계산된 포즈는 테이블의 바깥쪽 쿠션 높이를 기준으로 한 평면이므로(\cref{fig;cushion-height-example}의 A) 이를 약간 아래쪽으로 오프셋함으로써 광선을 투사할 대상이 될 평면 (b)는 손쉽게 계산할 수 있다.
+이미 위에서 테이블의 3D 포즈를 계산하였다. 이렇게 계산된 포즈는 테이블의 바깥쪽 쿠션 높이를 기준으로 한 평면이므로(\cref{fig;cushion-height-example}의 A), 평면 (b)는 테이블 평면을 노멀 반대 방향으로 약간 오프셋하여 손쉽게 계산할 수 있다.
 
 \begin{figure}[ht]
         \centering
-        \includegraphics{img/cushion-height-example.png}
+        \includegraphics[width=8cm]{img/cushion-height-example.png}
         \caption[Caption for LOF]{당구대 쿠션 높이 예시\footnotemark}
         \label{fig;cushion-height-example}
 \end{figure}
 \footnotetext{이미지 출처: https://www.pooltablefeltcloth.com/cushion-height-guide-for-k-66-k-55.html}
 
-다음은 
+다음으로 필요한 것은 각 공의 중점을 찾아내는 것이다. 탑-다운으로 이미지를 촬영해 이미지 상에서 공의 크기가 균일하고 공 사이에 폐색$_\text{occlusion}$이 발생하지 않는 일반적인 당구 보조 프로그램과 달리, AR 당구는 사용자 시점에서 영상 인식을 수행해야 하기 때문에 거리에 따라 구체의 이미지 상 반지름이 다르고, 폐색 또한 발생할 수 있다.
 
-\cref{section;imgproc;table}에서 당구대의 펠트에 해당하는 마스킹 영역을 이미 계산하였다. 이 영역을 반전하면 당구공이 존재할 수 있는 영역이 된다.
+\begin{figure}
+        \centering
+        \includegraphics[width=8cm]{img/billiards-ar-view.png}
+        \caption{AR 당구의 당구공 인식은 더 많은 요인을 고려해야 한다}
+\end{figure}
+카메라로부터의 거리에 따라 변화하는 공 원형의 반지름에 대응하기 위해 공을 검출하기 위한 커널의 크기를 매 평가시마다 동적으로 조절한다. 이 과정은 \cref{algo;kernel-radius}에 서술되어 있듯, 임의의 2D 점에 대한 먼 3D 점을 구하고, 카메라 원점 $(0, 0, 0)$과 해당 점 사이에 광선을 투사해 평면 (b)와 만나는 지점의 z 값을 찾음으로써 이루어진다. 
+
+\begin{algorithm}
+        \caption{Estimate ball radius scale of given pixel coordinate}
+        \label{algo;kernel-radius}
+        \SetAlgoLined
+        $\vec{P}_{ball} (u, v) \gets$ [Input] 2D point of estimated circle center \\
+        $\vec{P}_{ray} (x, y, z) \gets$ $\vec{P}_{ball}$'s 3D coordinate assuming z as 10 \\
+        $\vec{P}_{ball3} (x, y, z) \gets$ contact between $(0, 0, 0)$ and $\vec{P}_{ray}$ on the table plane (b) \\
+        \KwResult{Evaluation kernel's radius scale is $z^{-1}$}
+\end{algorithm}
+
+\subsubsection{적합도 평가}
+일반적으로, AR 당구의 사용자 시점에서 공은 다른 공에 의해 폐색될 수 있다. 즉, 많은 경우 공을 찾는 알고리즘은 오차가 적은 공보다 더 가능성이 높아 보이는 공을 찾게 된다. 이 과정을 직관적으로 수행하기 위해 각 중점 후보를 평가하는 과정에서 오차치가 아닌 적합도를 계산한다.
+
+적합도는 오차 $\epsilon$에 대한 함수로, 적합도 $$a=\alpha^{-\epsilon^2}$$로 계산한다(\cref{fig;suitability-alpha-comparison}). 이 때 $\alpha$는 적합도의 허용치를 결정하는 계수로 여기서는 1.015로 두었다. 이 식에서 각 경우(픽셀 또는 정점의 비교, 후술)의 적합도 최대치는 오차가 0인 경우 1이다. 
+
+\begin{figure}[ht]
+        \centering
+        \includegraphics[width=7cm]{img/suitability-alpha-comparison.png}
+        \caption{$\alpha$ 값에 따른 오차에 대한 적합도 그래프}
+        \label{fig;suitability-alpha-comparison}
+\end{figure}
+
+\subsubsection{경계 적합도}
+먼저 이미지의 HSV 색공간 표현에 대해 각 공 별로 필터링을 적용, 
+
 
 
 
