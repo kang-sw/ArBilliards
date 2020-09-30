@@ -23,7 +23,14 @@ filtered = cv2.inRange(hsv, np.uint8([0, 160, 0]), np.uint8([25, 255, 255]))
 edge = filtered - cv2.erode(filtered, None)
 
 ctrs = cv2.findContours(edge, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-debug_src = cv2.drawContours(img, ctrs[0], -1, [255, 255, 255], -1)
+
+debug_src = cv2.drawContours(img, ctrs[0], -1, [0, 0, 0], thickness=7)
+
+for ctr in ctrs[0]:
+    for vtx in ctr:
+        pt = vtx[0]
+        cv2.circle(debug_src, (pt[0], pt[1]), 3, [0, 0, 255], thickness=-1)
+
 
 cv2.imshow("render", debug_src)
 cv2.imshow("h", channels[0] - maskmat)
