@@ -3,6 +3,7 @@
 % ---------------------------------------------- PACKAGE IMPORTS
 \usepackage{kotex}
 \usepackage{multicol}
+\usepackage{fixltx2e}
 \usepackage{float}
 \usepackage{graphicx}
 \usepackage{fullpage}
@@ -57,15 +58,18 @@
 % ---------------------------------------------- GENERAL SETTINGS
 \setlength{\parindent}{0.3cm} % The first indent width setup
 
+% ---------------------------------------------- CUSTOM COMMANDS
+\newcommand{\textss}[1]{\scriptsize#1\normalsize}
+
 % ---------------------------------------------- HEADER
 \title{AR 당구}
 \author{강승우 \\ 한국기술교육대학교 전자공학과}
 \date{2020.10}
 
+% ---------------------------------------------- CONTENT
 \begin{document}
 \maketitle
 
-% ---------------------------------------------- CONTENT
 \begin{figure}[ht]
     \centering
     \includegraphics[width=5cm]{img/abstract-final.png}
@@ -85,7 +89,7 @@
 \twocolumn[]
 \section{영상 처리}
 \subsection{개요}
-가상 현실$_\text{Vritual Reality}$ 기술은 말 그대로 가상으로 세계를 만들고, 헤드 트래킹 기술을 통해 가상 세계의 카메라 위치를 사용자 눈의 위치와 동기화하여 사실적인 시청각 경험을 부여하는 기술이다.
+가상 현실\textss{Vritual Reality} 기술은 말 그대로 가상으로 세계를 만들고, 헤드 트래킹 기술을 통해 가상 세계의 카메라 위치를 사용자 눈의 위치와 동기화하여 사실적인 시청각 경험을 부여하는 기술이다.
 
 \begin{figure}[ht]
     \begin{center}
@@ -103,7 +107,7 @@
 
 가상 현실 어플리케이션은 기존의 전통적인 3D 게임에서 카메라의 제어만을 사용자가 장착한 HMD의 헤드 트래킹 신호에 위임한 것으로, 가상 현실 세계를 만드는 것은 3D 게임을 만드는 것과 다르지 않다.
 
-본 과제에서 구현한 증강 현실$_\text{Augmented Reality}$ 어플리케이션 또한 이 개념에서 크게 벗어나지 않는다. 여전히 가상 세계의 좌표와 카메라 위치 동기화 및 오브젝트 배치가 필요하며, 이들 오브젝트를 현실 세계의 영상 위에 덧그린다는 것이 가상 현실과의 유일한 차이점이다.
+본 과제에서 구현한 증강 현실\textss{Augmented Reality} 어플리케이션 또한 이 개념에서 크게 벗어나지 않는다. 여전히 가상 세계의 좌표와 카메라 위치 동기화 및 오브젝트 배치가 필요하며, 이들 오브젝트를 현실 세계의 영상 위에 덧그린다는 것이 가상 현실과의 유일한 차이점이다.
 
 그러나 증강 현실 어플리케이션이 설득력을 얻기 위해서는 덧그린 가상 현실 오브젝트의 위치와 크기, 모양 등이 영상의 물체와 보기 좋게 어우러져야 하므로, 영상 처리를 통해 현실 세계의 오브젝트가 가상 세계의 어느 트랜스폼으로 매핑되는지 파악하는 것이 중요하다.
 
@@ -124,6 +128,7 @@ AR 당구의 영상 처리 또한 이러한 맥락에서 동작한다. 당구대
 \end{figure}
 
 \footnotetext{휴대성, 작업의 용이성, 경제성 등을 고려하여 작은 크기의 미니 당구 세트를 활용하였다.}
+    
 
 \cref{fig;pool-table}에서 당구대 펠트의 진한 파란색이 매우 뚜렷하다. 색감이 이렇게 강한 물체는 HSV 색공간으로 표현했을 때  hue 영역이 안정적으로 고정되고, saturation이 강해 다른 영역과 쉽게 구별할 수 있다(\cref{fig;pool-table-hs}).
 
@@ -135,12 +140,11 @@ AR 당구의 영상 처리 또한 이러한 맥락에서 동작한다. 당구대
 \end{figure}
 
 \begin{figure}[ht]
-    \begin{center}
-        \includegraphics[width=5cm, height=5cm, keepaspectratio]{img/billiards-table-h-shift.png}
-        \includegraphics[width=5cm, height=5cm, keepaspectratio]{img/billiards-table-s.png}
-        \includegraphics[width=5cm, height=5cm, keepaspectratio]{img/billiards-table-v.png}
-    \end{center}
-    \caption[Caption for LOF]{\cref{fig;pool-table}의 HSV 색공간 변환 이미지. 왼쪽부터 H\footnotemark, S, V \\ 검은색은 0, 흰색은 255 범위}
+    \centering
+    \includegraphics[width=5cm, height=5cm, keepaspectratio]{img/billiards-table-h-shift.png}
+    \includegraphics[width=5cm, height=5cm, keepaspectratio]{img/billiards-table-s.png}
+    \includegraphics[width=5cm, height=5cm, keepaspectratio]{img/billiards-table-v.png}
+    \caption[Caption for LOF]{\cref{fig;pool-table}의 HSV 색공간 변환 이미지. 순서대로 H\footnotemark, S, V. 검은색은 0, 흰색은 255 범위}
     \label{fig;pool-table-hs}
 \end{figure}
 
@@ -164,17 +168,17 @@ Value(밝기)는 당구대 영역을 식별하는 데 큰 도움을 주진 않�
     \label{fig;pool-table-edge}
 \end{figure}
 
-\footnotetext{이 때, Hue 이미지는 파란색이 0도와 180도에 걸쳐 있어서, 5\si{\degree} 우측으로 시프트.}
+\footnotetext{이 때, Hue 채널은 파란색이 0도와 180도 양단에 걸쳐 있어 5\si{\degree} 우측으로 전이\textss{shift}하였다}
 
 \cref{fig;pool-table-edge}의 왼쪽 이미지가 위에서 말한 필터링을 적용한 결과이다. \footnotemark 여러 가지 물체가 당구대 위에 올려져 있고, 당구대의 쿠션 밑에 생긴 음영 등으로 인해 당구대의 펠트 전체가 깔끔하게 덮이지는 않았지만, 당구대 영역을 식별하는 것은 가능하다.
-\footnotetext{OpenCV의 inRange 함수를 사용한다. 함수 inRange는 이미지의 각 채널(여기서는 H, S, V)에 대해 필터링할 값의 범위를 지정하고, 각 픽셀이 해당 범위 내에 속하는지 여부를 검사해 부울$_\text{bool}$ 값으로 반환한다.}
+\footnotetext{OpenCV의 inRange 함수를 사용한다. 함수 inRange는 이미지의 각 채널(여기서는 H, S, V)에 대해 필터링할 값의 범위를 지정하고, 각 픽셀이 해당 범위 내에 속하는지 여부를 검사해 부울\textss{bool} 값으로 반환한다.}
 
-그러나 이 시점에서 아직 \cref{fig;pool-table-edge-a}의 이진 이미지는 단순힌 부울 값 배열로, 프로그램은 이 이미지만 놓고 봤을 때 당구대 영역의 위치는 물론, 존재 여부조차 알 수 없다. 따라서 이미지에서 당구대를 이루는 영역이 어디인지를 찾고 처리하기 쉬운 형태로 표현하기 위해 이미지 상에 존재하는 모든 도형을 찾고, 당구대의 조건에 부합하는 도형을 선택하기로 한다. 여기서는 픽셀 면적이 일정 이상이고, 꼭지점의 개수가 정확히 4개인 도형을 찾는다.
+그러나 이 시점에서 \cref{fig;pool-table-edge-a}의 이진 이미지는 단순힌 부울 값 배열로, 이미지만 놓고 봤을 때 프로그램은 당구대 영역의 위치는 물론, 존재 여부조차 알 수 없다. 따라서 이미지에서 당구대를 이루는 영역이 어디인지를 찾고 처리하기 쉬운 형태로 표현하기 위해 이미지 상에 존재하는 모든 도형을 찾고, 당구대의 조건에 부합하는 도형을 선택하기로 한다. 여기서는 픽셀 면적이 일정 이상이고, 꼭지점의 개수가 정확히 4개인 도형을 찾는다.
 
-먼저 이미지의 경계선 정보가 필요하다. 이진 이미지에 침식 연산\footnotemark을 적용한 후, 원본 이미지에서 침식된 이미지를 빼는 것으로 각 덩어리$_\text{chunk}$의 경계선만을 남길 수 있다. \cref{fig;pool-table-edge-b}가 이에 해당한다.
+먼저 이미지의 경계선 정보가 필요하다. 이진 이미지에 침식 연산\footnotemark을 적용한 후, 원본 이미지에서 침식된 이미지를 빼는 것으로 각 덩어리\textss{chunk}의 경계선만을 남길 수 있다. \cref{fig;pool-table-edge-b}가 이에 해당한다.
 \footnotetext{이진 이미지에서, 값이 1인 각각의 픽셀을 인접한 픽셀들과 평가하여, 인접한 픽셀 모두 1이면 1로, 하나라도 0이면 0으로 바꾸는 연산. 노이즈 제거 등에 활용한다}
 
-경계선 이미지에 OpenCV의 findContours 함수를 적용한다.\cite{findContours} findContours는 이진 이미지에 존재하는 모든 닫힌 도형 목록을 찾아 반환하는 함수로, 하나의 도형(등고선$_\text{contour}$으로 표현)은 그 도형을 이루는 정점의 좌표 목록으로 구성된다.
+경계선 이미지에 OpenCV의 findContours 함수를 적용한다.\cite{findContours} findContours는 이진 이미지에 존재하는 모든 닫힌 도형 목록을 찾아 반환하는 함수로, 하나의 도형(등고선\textss{contour}으로 표현)은 그 도형을 이루는 정점의 좌표 목록으로 구성된다.
 
 이 때 함수가 가장 바깥쪽의 도형만 탐색하게끔 인자를 지정한다. \cref{fig;pool-table-edge-b}의 당구공, HMD, 쿠션의 음영 등으로 인해 생긴 도형들은 모두 가장 바깥쪽의 당구대 영역 내부에 존재하므로 도형 탐색 과정에서 고려하지 않는다. 이로써 당구대 내부에 생기는 어느 정도의 잡음은 무시할 수 있게 된다.
 
@@ -234,9 +238,9 @@ Value(밝기)는 당구대 영역을 식별하는 데 큰 도움을 주진 않�
 
 단순히 정점의 개수가 4개이며, 넓이가 일정 이상이면서 가장 큰 도형을 당구대의 영역으로 판단하는데, 당구대 영역의 도형이 \cref{fig;table-lowangle-aprx}와 같이 계산되면 이를 당구대 영역으로 인식하지 못하게 된다.
 
-그러나 \cref{fig;table-lowangle-aprx}에서 검출된 정점 중 가장 바깥쪽의 정점 4개를 이어보면 여전히 내부의 다른 모든 정점을 포함하는 볼록 다각형$_\text{convex hull}$을 획득할 수 있다. 다행히도 OpenCV 라이브러리에는 정점 목록으로부터 볼록 다각형을 계산해내는 함수성 또한 포함되어 있어, 이를 적용한 결과는 \cref{fig;table-lowangle-convexhull}과 같다.
+그러나 \cref{fig;table-lowangle-aprx}에서 검출된 정점 중 가장 바깥쪽의 정점 4개를 이어보면 여전히 내부의 다른 모든 정점을 포함하는 볼록 다각형\textss{convex hull}을 획득할 수 있다. 다행히도 OpenCV 라이브러리에는 정점 목록으로부터 볼록 다각형을 계산해내는 함수성 또한 포함되어 있어, 이를 적용한 결과는 \cref{fig;table-lowangle-convexhull}과 같다.
 
-이 때 조금이라도 돌출된 부분이 있다면 \cref{fig;table-lowangle-convexhull-src}와 같이 돌출된 부분을 새로운 정점으로 계산하게 되므로, 정점의 개수를 다시 4개로 근사하기 위해 예의 approxPolyDP 함수를 재적용, \cref{fig;table-lowangle-convexhull-aprx}를 얻는다.
+이 때 조금이라도 돌출된 부분이 있다면 \cref{fig;table-lowangle-convexhull-src}와 같이 돌출된 부분을 새로운 정점으로 계산하게 되므로, 정점의 개수를 다시 4개로 근사하기 위해 예의 approxPolyDP 함수를 다시 적용, \cref{fig;table-lowangle-convexhull-aprx}를 얻는다.
 
 \begin{figure}[ht]
     \centering
@@ -254,7 +258,9 @@ Value(밝기)는 당구대 영역을 식별하는 데 큰 도움을 주진 않�
     \label{fig;table-lowangle-convexhull}
 \end{figure}
 
-이렇게 얻어진 당구대 영역의 사각형은(코앞에 커다란 파란색 현수막이 걸린 게 아닌 이상) 대부분의 경우 찾아낸 사각형 중 가장 큰 크기를 갖게 되므로, 사각형을 이루는 네 개의 정점이 당구대의 네 귀퉁이에 해당한다고 안전하게 가정할 수 있다.
+이렇게 얻어진 당구대 영역의 사각형은(바로 앞에 파랗고 커다란 직사각형 물체를 갖다 놓지 않는 한) 대체로 찾아낸 사각형 중 가장 큰 크기를 갖게 되므로, 사각형을 이루는 네 개의 정점이 당구대의 네 귀퉁이에 해당한다고 안전하게 가정할 수 있다.
+
+당구대의 펠트에 해당하는, 바깥 쿠션 영역의 치수는 $0.96 \times 0.51[m]$이다. 만약 카메라의 위치에 있는 같은 크기의 직사각형 판을, 적절하게 회전시키고 이동시키면 화면 상의 테이블 펠트 영역을 정확하게 덮을 수 있을 것이다. 이 때 카메라와 같은 위치(원점)에 존재하는 가상의 테이블을 모델이라 하고, 원점에 존재하는 모델로 화면 상의 테이블 영역을 덮기 위해 적용해야 하는 위치와 회전 정도를 테이블의 포즈\textss{pose}라 한다.
 
 
 
@@ -348,7 +354,7 @@ Value(밝기)는 당구대 영역을 식별하는 데 큰 도움을 주진 않�
 \end{figure}
 \footnotetext{이미지 출처: https://www.pooltablefeltcloth.com/cushion-height-guide-for-k-66-k-55.html}
 
-다음으로 필요한 것은 각 공의 중점을 찾아내는 것이다. 탑-다운으로 이미지를 촬영해 이미지 상에서 공의 크기가 균일하고 공 사이에 폐색$_\text{occlusion}$이 발생하지 않는 일반적인 당구 보조 프로그램과 달리, AR 당구는 사용자 시점에서 영상 인식을 수행해야 하기 때문에 거리에 따라 구체의 이미지 상 반지름이 다르고, 폐색 또한 발생할 수 있다.
+다음으로 필요한 것은 각 공의 중점을 찾아내는 것이다. 탑-다운으로 이미지를 촬영해 이미지 상에서 공의 크기가 균일하고 공 사이에 폐색\textss{occlusion}이 발생하지 않는 일반적인 당구 보조 프로그램과 달리, AR 당구는 사용자 시점에서 영상 인식을 수행해야 하기 때문에 거리에 따라 구체의 이미지 상 반지름이 다르고, 폐색 또한 발생할 수 있다.
 
 \begin{figure}
     \centering
