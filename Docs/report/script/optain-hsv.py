@@ -24,18 +24,21 @@ edge = filtered - cv2.erode(filtered, None)
 
 ctrs = cv2.findContours(edge, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-debug_src = cv2.drawContours(img, ctrs[0], -1, [0, 0, 0], thickness=7)
 
-for ctr in ctrs[0]:
-    for vtx in ctr:
-        pt = vtx[0]
-        cv2.circle(debug_src, (pt[0], pt[1]), 3, [0, 0, 255], thickness=-1)
+ctr = max(ctrs[0], key=cv2.contourArea)
+ctr = cv2.approxPolyDP(ctr, 10, True)
+ctr = cv2.convexHull(ctr, clockwise=False)
+ctr = cv2.approxPolyDP(ctr, 10, True)
+debug_src = cv2.drawContours(img, [ctr], -1, [0, 0, 0], thickness=2)
+for vtx in ctr:
+    pt = vtx[0]
+    cv2.circle(debug_src, (pt[0], pt[1]), 10, [0, 0, 255], thickness=-1)
 
 
 cv2.imshow("render", debug_src)
-cv2.imshow("h", channels[0] - maskmat)
-cv2.imshow("s", channels[1])
-cv2.imshow("v", channels[2])
+# cv2.imshow("h", channels[0] - maskmat)
+# cv2.imshow("s", channels[1])
+# cv2.imshow("v", channels[2])
 cv2.imshow("filtered", filtered)
 cv2.imshow("edge", edge)
 cv2.waitKey(0)
