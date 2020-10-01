@@ -61,7 +61,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         }
 
         // 방향을 구별 가능한 최소 숫자입니다.
-        if ((num_in + num_out < 6) && (num_in < 2 || num_out < 2)) {
+        if(num_in * 2 + num_out < 6) {
             return {};
         }
     }
@@ -1376,6 +1376,9 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         img.camera.cy *= scaler;
     }
 #endif
+
+    show("rgb", img.rgba);
+    show("depth", img.depth / 2.0f);
 
     TickMeter tick_tot;
     tick_tot.start();

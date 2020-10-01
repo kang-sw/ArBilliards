@@ -102,8 +102,11 @@ public:
             t["size"]["outer"] = Vec2f(1.31f, 0.76f);
             t["size"]["inner"] = Vec2f(0.895f, 0.447f);
 
-            t["filter"] = {Vec3f{115, 84, 0}, Vec3f{2, 3, 4}};
+            t["filter"] = {Vec3f{0, 150, 0}, Vec3f{20, 255, 255}};
+            t["hsv-shift"] = 15;
             t["cushion_height"] = 0.025;
+
+            t["error-base"] = 1.02;
 
             t["LPF"]["position"] = 0.1666;
             t["LPF"]["rotation"] = 0.33;
