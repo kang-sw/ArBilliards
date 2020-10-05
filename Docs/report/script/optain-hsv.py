@@ -18,6 +18,8 @@ channels[0] = channels[0] + 15
 maskmat = np.uint8((channels[0] > 180)*180)
 channels[0] = channels[0] - maskmat
 
+hsv_concat = cv2.hconcat(channels)
+
 hsv = cv2.merge(channels)
 
 filtered = cv2.inRange(hsv, np.int32([0, 150, 0]), np.int32([30, 255, 255]))
@@ -28,12 +30,12 @@ filtered[:, filtered.shape[1]-1] = 0
 
 edge = filtered - cv2.erode(filtered, None)
 
-ctrs = cv2.findContours(edge, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+ctrs = cv2.findContours(edge, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_L1)
 
 ctr = max(ctrs[0], key=cv2.contourArea)
-ctr = cv2.approxPolyDP(ctr, 5, True)
-ctr = cv2.convexHull(ctr, clockwise=False)
-ctr = cv2.approxPolyDP(ctr, 5, True)
+# ctr = cv2.approxPolyDP(ctr, 5, True)
+# ctr = cv2.convexHull(ctr, clockwise=False)
+# ctr = cv2.approxPolyDP(ctr, 5, True)
 debug_src = cv2.drawContours(img, [ctr], -1, [0, 0, 0], thickness=2)
 for vtx in ctr:
     pt = vtx[0]
@@ -48,9 +50,15 @@ cv2.rectangle(canvas, (0, 0), canvas.shape[::-1][1:3], (0, 0, 0), 10)
 # %%
 cv2.imshow("canvas", canvas)
 cv2.imshow("render", debug_src)
+cv2.imshow("hsv", hsv_concat)
 # cv2.imshow("h", channels[0] - maskmat)
 # cv2.imshow("s", channels[1])
 # cv2.imshow("v", channels[2])
 cv2.imshow("filtered", filtered)
-# cv2.imshow("edge", edge)
-cv2.waitKey(0)
+cv2.imshow("edge", edge)
+
+while True:
+    res = cv2.waitKey(0)
+    print(res)
+    if res == 113:
+        break

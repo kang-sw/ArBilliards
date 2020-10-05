@@ -55,8 +55,8 @@ public class BilliardsSimulationTest : MonoBehaviour
 			var sph = new PhysSphere();
 			sph.Mass = 10f;
 			sph.Damping = 0.44;
-			sph.Restitution = 0.61f;
-			sph.Friction.Static = 0.7f;
+			sph.Restitution = 0.65f;
+			sph.Friction.Static = 0.12f;
 
 			sph.Radius = 0.11f;
 			sph.SourceVelocity = new Vector3(2.4f, 0.3f);
@@ -66,7 +66,7 @@ public class BilliardsSimulationTest : MonoBehaviour
 			sph.SourceVelocity = Vector3.zero;
 			_sim.Spawn(sph);
 
-			sph.SourcePosition = new Vector3(0.04f, 0.0f);
+			sph.SourcePosition = new Vector3(0.54f, -0.15f);
 			_sim.Spawn(sph);
 		}
 
