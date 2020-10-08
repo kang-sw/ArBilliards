@@ -14,6 +14,7 @@ hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
 
 channels = cv2.split(hsv)
 
+channel0 = channels[0]
 channels[0] = channels[0] + 15
 maskmat = np.uint8((channels[0] > 180)*180)
 channels[0] = channels[0] - maskmat
@@ -56,6 +57,12 @@ cv2.imshow("hsv", hsv_concat)
 # cv2.imshow("v", channels[2])
 cv2.imshow("filtered", filtered)
 cv2.imshow("edge", edge)
+
+channels[0] = channel0
+channels[2].fill(255)
+rgb_coloronly = cv2.cvtColor(cv2.merge(channels), cv2.COLOR_HSV2RGB)
+
+cv2.imshow("colorspace", rgb_coloronly)
 
 while True:
     res = cv2.waitKey(0)
