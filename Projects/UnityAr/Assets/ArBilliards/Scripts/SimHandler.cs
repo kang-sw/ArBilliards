@@ -180,7 +180,7 @@ public class SimHandler : MonoBehaviour
 
 	Vector3 getPlayerBallPosition()
 	{
-		return PlayerBall == BilliardsBall.Orange ? _latestReportPosition.Orange : _latestReportPosition.White;
+		return PlayerBall == BilliardsBall.Orange ? ReportedBallPositions.Orange : ReportedBallPositions.White;
 	}
 
 	#endregion
@@ -318,7 +318,7 @@ public class SimHandler : MonoBehaviour
 			&& _latestResult.Candidates.Count > 0
 			&& !_isAnyBallMoving) // 계산된 결과가 존재하는지?
 		{
-			var fwd = LookTransform.forward;// getPlayerBallPosition() - LookTransform.position;
+			var fwd = TableAnchor.localToWorldMatrix.MultiplyPoint(getPlayerBallPosition()) - LookTransform.position;
 			var r = _latestResult;
 
 			// 시뮬레이션이 갱신된 경우, 칠 라인을 갱신합니다.
@@ -446,7 +446,7 @@ public class SimHandler : MonoBehaviour
 		{
 			// 라인을 그립니다.
 			var pos = nodes[index].Position;
-			pos.y -= BallRadius;
+			// pos.y -= BallRadius;
 
 			target.SetPosition(index, pos);
 
