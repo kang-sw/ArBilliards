@@ -269,12 +269,24 @@ void recognition_draw_ui(cv::Mat& frame)
 #include <nana/gui/widgets/treebox.hpp>
 #include <nana/gui/widgets/textbox.hpp>
 #include <nana/gui/widgets/button.hpp>
+#include <nana/gui/widgets/listbox.hpp>
+
+struct n_type {
+    unordered_map<string, cv::Mat> shows;
+    nana::form fm{nana::API::make_center(800, 600)};
+    nana::listbox lb{fm};
+    map<string, nlohmann::json*> param_mappings;
+};
+
+static n_type* n;
 
 void exec_ui()
 {
     using namespace nana;
     using nlohmann::json;
-    form fm(API::make_center(800, 600)); // 주 폼
+    n_type nn;
+    n = &nn;
+    form& fm = n->fm; // 주 폼
 
     // 기본 컨피그 파일 로드
     if (ifstream strm("config.txt"); strm.is_open()) {
@@ -290,13 +302,13 @@ void exec_ui()
     textbox param_enter_box(fm);
 
     optional<treebox::item_proxy> selected_proxy;
-    static map<string, json*> param_mappings;
+    
     param_enter_box.multi_lines(false);
 
     // -- JSON 파라미터 입력 창 핸들
     param_enter_box.events().text_changed([&](arg_textbox const& tb) {
         if (selected_proxy) {
-            if (auto it = param_mappings.find(selected_proxy->key()); it != param_mappings.end()) {
+            if (auto it = n->param_mappings.find(selected_proxy->key()); it != n->param_mappings.end()) {
                 auto text = tb.widget.text();
                 auto prop = *it->second;
                 auto original_type = prop.type();
@@ -316,8 +328,8 @@ void exec_ui()
                 new_label = new_label.substr(0, new_label.find(' '));
                 new_label += "  [" + tb.widget.text() + ']';
 
-                selected_proxy.value().text(new_label);
-
+                selected_proxy->text(new_label);
+                
                 drawing(tr).update();
             }
         }
@@ -334,7 +346,7 @@ void exec_ui()
                 string value_text = prop.key();
                 string key = root.key() + prop.key();
 
-                param_mappings[key] = const_cast<json*>(&prop.value());
+                n->param_mappings[key] = const_cast<json*>(&prop.value());
 
                 if (prop.value().is_object() || prop.value().is_array()) {
                     auto node = tree.insert(root, key, move(value_text));
@@ -356,8 +368,8 @@ void exec_ui()
         // -- JSON 파라미터 선택 처리
         tr.events().selected([&](arg_treebox const& arg) {
             if (arg.item.child().empty()) {
-                if (auto it = param_mappings.find(arg.item.key());
-                    arg.operated && it != param_mappings.end()) {
+                if (auto it = n->param_mappings.find(arg.item.key());
+                    arg.operated && it != n->param_mappings.end()) {
                     selected_proxy = arg.item;
                     auto selected = *it;
 
@@ -386,9 +398,17 @@ void exec_ui()
         reload_tr();
     });
 
+    // -- 표시되는 이미지 목록
+    auto& matlist = n->lb;
+    matlist.append_header("Mat Name");
+    matlist.append_header("Rows");
+    matlist.append_header("Cols");
+    matlist.append_header("Type");
+    matlist.append_header("Displaying");
+
     place layout(fm);
     layout.div(
-      "<mat_lists weight=30%>"
+      "<mat_lists weight=60%>"
       "<vert"
       "    <margin=5 gap=5 weight=40 <btn_reset><btn_export><btn_import>>"
       "    <margin=5 center>"
@@ -399,6 +419,7 @@ void exec_ui()
     layout["btn_reset"] << btn_reset;
     layout["btn_export"] << btn_export;
     layout["btn_import"] << btn_import;
+    layout["mat_lists"] << matlist;
 
     layout.collocate();
 
@@ -410,4 +431,9 @@ void exec_ui()
         ofstream strm("config.txt");
         strm << g_recognizer.props.dump();
     }
+}
+
+void ui_on_refresh()
+{
+    g_recognizer.poll(n->shows);
 }

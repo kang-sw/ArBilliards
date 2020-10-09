@@ -21,6 +21,8 @@ using nlohmann::json;
 billiards::recognizer_t g_recognizer;
 tcp_server g_app;
 
+void ui_on_refresh();
+
 // ================================================================================================
 struct image_desc_t {
     array<float, 3> translation;
@@ -139,6 +141,8 @@ private:
                     conn->async_write_some(boost::asio::const_buffer(p_str->c_str(), p_str->length()), [p_str](boost::system::error_code ec, std::size_t cnt) {
                         cout << ec << "::" << cnt << " bytes sent\n";
                     });
+
+                    ui_on_refresh();
                 }
             };
             g_recognizer.refresh_image(image, move(improc_callback));
