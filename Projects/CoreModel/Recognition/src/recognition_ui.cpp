@@ -2,6 +2,7 @@
 #include <cvui.h>
 #include <set>
 #include <fstream>
+#include <nana/gui.hpp>
 
 extern billiards::recognizer_t g_recognizer;
 
@@ -259,4 +260,106 @@ void recognition_draw_ui(cv::Mat& frame)
     }
     m.shows.clear();
     m.pending_destroy.clear();
+}
+
+#include <nana/gui/widgets/form.hpp>
+#include <nana/gui/widgets/scroll.hpp>
+#include <nana/gui/widgets/treebox.hpp>
+#include <nana/gui/widgets/textbox.hpp>
+
+void exec_ui()
+{
+    using namespace nana;
+    using nlohmann::json;
+    form fm(API::make_center(800, 600)); // 주 폼
+
+    treebox tr(fm);
+    textbox param_enter_box(fm);
+
+    optional<treebox::item_proxy> selected_proxy;
+    static map<string, json*> param_mappings;
+    param_enter_box.multi_lines(false);
+
+    param_enter_box.events().text_changed([&](arg_textbox const& tb) {
+        if (selected_proxy) {
+            if (auto it = param_mappings.find(selected_proxy->key()); it != param_mappings.end()) {
+                auto text = tb.widget.text();
+                auto prop = *it->second;
+                auto original_type = prop.type();
+                prop = json::parse(text, nullptr, false);
+
+                if (original_type != prop.type()) { // 파싱에 실패하면, 아무것도 하지 않습니다.
+                    tb.widget.bgcolor(colors::light_pink);
+                    return;
+                }
+
+                // 파싱에 성공했다면 즉시 이를 반영합니다.
+                tb.widget.bgcolor(colors::light_green);
+                *it->second = prop;
+
+                auto new_label = selected_proxy.value().text();
+                new_label = new_label.substr(0, new_label.find(' '));
+                new_label += "  [" + tb.widget.text() + ']';
+
+                selected_proxy.value().text(new_label);
+
+                drawing(tr).update();
+            }
+        }
+        else {
+            tb.widget.bgcolor(colors::light_gray);
+        }
+    });
+
+    struct node_iterative_constr_t {
+        static void exec(treebox& tree, treebox::item_proxy root, json const& elem)
+        {
+            for (auto& prop : elem.items()) {
+                string value_text = prop.key();
+                string key = root.key() + prop.key();
+
+                param_mappings[key] = const_cast<json*>(&prop.value());
+
+                if (prop.value().is_object() || prop.value().is_array()) {
+                    auto node = tree.insert(root, key, move(value_text));
+                    if (prop.value().is_array()) { node.expand(true); }
+
+                    exec(tree, node, prop.value());
+                }
+                else {
+                    value_text += "  [" + prop.value().dump() + ']';
+                    tree.insert(root, key, move(value_text));
+                }
+            }
+        }
+    };
+    node_iterative_constr_t::exec(tr, tr.insert("param", "Parameters"), g_recognizer.props);
+    tr.auto_draw(true);
+    tr.events().selected([&](arg_treebox const& arg) {
+        if (arg.item.child().empty()) {
+            if (auto it = param_mappings.find(arg.item.key());
+                arg.operated && it != param_mappings.end()) {
+                selected_proxy = arg.item;
+                auto selected = *it;
+
+                param_enter_box.select(true);
+                param_enter_box.del();
+                param_enter_box.append(selected.second->dump(), true);
+                param_enter_box.select(true);
+                param_enter_box.focus();
+                return;
+            }
+        }
+        selected_proxy = {};
+        param_enter_box.select(true), param_enter_box.del();
+    });
+
+    place layout(fm);
+    layout.div("<mat_lists><vert <center><enter weight=30>");
+    layout["center"] << tr;
+    layout["enter"] << param_enter_box;
+    layout.collocate();
+
+    fm.show();
+    exec();
 }

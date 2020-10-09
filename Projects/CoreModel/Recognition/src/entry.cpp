@@ -8,6 +8,9 @@
 #include <opencv2/highgui.hpp>
 
 #define CVUI_IMPLEMENTATION
+
+#include <nana/gui.hpp>
+
 #include "cvui.h"
 #include "tcp_server.hpp"
 #include "recognition.hpp"
@@ -314,6 +317,8 @@ static void on_image_request(tcp_connection_desc const& conn, json const& parsed
 
 void recognition_draw_ui(cv::Mat& frame);
 
+void exec_ui();
+
 // ================================================================================================
 #include <sl/Camera.hpp>
 int main(void)
@@ -352,26 +357,30 @@ int main(void)
     cout << "info: initializing recognizer ... \n";
 
     // UI Initialize
-    auto const UI_NAME = "recognition";
-    cv::Mat ui_frame(300, 200, CV_8UC3);
+    if (0) {
+        auto const UI_NAME = "recognition";
+        cv::Mat ui_frame(300, 200, CV_8UC3);
 
-    cvui::init(UI_NAME);
+        cvui::init(UI_NAME);
 
-    while (true) {
-        cv::TickMeter tm;
-        tm.start();
+        while (true) {
+            cv::TickMeter tm;
+            tm.start();
 
-        cvui::context(UI_NAME);
-        recognition_draw_ui(ui_frame);
-        cvui::imshow(UI_NAME, ui_frame);
+            cvui::context(UI_NAME);
+            recognition_draw_ui(ui_frame);
+            cvui::imshow(UI_NAME, ui_frame);
 
-        tm.stop();
-        int to_wait = max<int>(1, 16 - tm.getAvgTimeMilli());
+            tm.stop();
+            int to_wait = max<int>(1, 16 - tm.getAvgTimeMilli());
 
-        if ((cv::waitKey(to_wait) & 0xff) == 'q') {
-            break;
+            if ((cv::waitKey(to_wait) & 0xff) == 'q') {
+                break;
+            }
         }
     }
+
+    exec_ui();
 
     g_app.abort();
     return 0;

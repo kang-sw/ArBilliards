@@ -13,7 +13,7 @@ find_package(ZED 2 REQUIRED)
 find_package(CUDA REQUIRED)
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
 
-# add_subdirectory(third/nana)
+add_subdirectory(third/nana)
 
 # project settings 
 set(RECOGNITION_SOURCE_DIR "src") 
@@ -31,10 +31,10 @@ target_compile_features(
 		cxx_std_17
 )
 
-# add_dependencies(
-# 	Recognition
-# 		nana
-# )
+add_dependencies(
+	Recognition
+		nana
+)
 
 target_link_libraries(
 	Recognition
@@ -42,7 +42,7 @@ target_link_libraries(
 		${OpenCV_LIBS} 
 		${ZED_LIBRARIES}
 		${Boost_LIBRARIES}
-		# nana
+		nana
 )
 
 target_include_directories(

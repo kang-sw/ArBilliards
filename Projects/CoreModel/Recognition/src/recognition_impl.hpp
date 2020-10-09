@@ -83,11 +83,11 @@ public:
         using namespace cv;
         using namespace std;
 
-        json params;
-        params["fast-process-width"] = 540;
+        json& params = m.props;
+        params["fast-process-width"] = 540.0f;
 
         {
-            auto b = params["ball"];
+            auto& b = params["ball"];
 
             b["radius"] = 0.14 / CV_2PI;
             b["color"]["red"] = {Vec3f{115, 84, 0}, Vec3f{152, 255, 255}};
@@ -96,7 +96,7 @@ public:
         }
 
         {
-            auto t = params["table"];
+            auto& t = params["table"];
 
             t["size"]["fit"] = Vec2f{0.96f, 0.51f};
             t["size"]["outer"] = Vec2f(1.31f, 0.76f);
