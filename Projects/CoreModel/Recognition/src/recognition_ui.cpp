@@ -7,7 +7,6 @@
 extern billiards::recognizer_t g_recognizer;
 
 using namespace std;
-using namespace cvui;
 
 static struct
 {
@@ -28,6 +27,7 @@ static struct
 template <typename Ty>
 void add_trackbar(const char* name, Ty* val, int array_size, Ty min, Ty max, int width, const char* fmt = "%.1Lf", bool has_separator = true)
 {
+    using namespace cvui;
     beginColumn();
     if (has_separator) {
         rect(m.wnd_sz.width, 2, 0x888888);
@@ -52,6 +52,7 @@ void add_trackbar(const char* name, Ty* val, int array_size, Ty min, Ty max, int
 template <typename Ty>
 void add_counter(const char* name, Ty* val, int array_size, Ty step, int width)
 {
+    using namespace cvui;
     beginColumn(width);
     rect(m.wnd_sz.width, 2, 0x888888);
     text(name);
@@ -78,6 +79,7 @@ void add_counter(const char* name, Ty* val, int array_size, Ty step, int width)
 void recognition_draw_ui(cv::Mat& frame)
 {
     // sugars
+    using namespace cvui;
     struct row__ {
         row__(int w = -1, int h = -1, int p = -1) { beginRow(w, h, p); }
         ~row__() { endRow(); }
@@ -266,12 +268,23 @@ void recognition_draw_ui(cv::Mat& frame)
 #include <nana/gui/widgets/scroll.hpp>
 #include <nana/gui/widgets/treebox.hpp>
 #include <nana/gui/widgets/textbox.hpp>
+#include <nana/gui/widgets/button.hpp>
 
 void exec_ui()
 {
     using namespace nana;
     using nlohmann::json;
     form fm(API::make_center(800, 600)); // 주 폼
+
+    // 기본 컨피그 파일 로드
+    if (ifstream strm("config.txt"); strm.is_open()) {
+        try {
+            json parsed = json::parse((stringstream() << strm.rdbuf()).str());
+            g_recognizer.props = parsed;
+        } catch (std::exception& e) {
+            cout << "Failed to load configuration file ... " << endl;
+        }
+    }
 
     treebox tr(fm);
     textbox param_enter_box(fm);
@@ -280,6 +293,7 @@ void exec_ui()
     static map<string, json*> param_mappings;
     param_enter_box.multi_lines(false);
 
+    // -- JSON 파라미터 입력 창 핸들
     param_enter_box.events().text_changed([&](arg_textbox const& tb) {
         if (selected_proxy) {
             if (auto it = param_mappings.find(selected_proxy->key()); it != param_mappings.end()) {
@@ -290,6 +304,7 @@ void exec_ui()
 
                 if (original_type != prop.type()) { // 파싱에 실패하면, 아무것도 하지 않습니다.
                     tb.widget.bgcolor(colors::light_pink);
+                    cout << "error: type is " << prop.type_name() << endl;
                     return;
                 }
 
@@ -311,6 +326,7 @@ void exec_ui()
         }
     });
 
+    // -- JSON 파라미터 트리 빌드
     struct node_iterative_constr_t {
         static void exec(treebox& tree, treebox::item_proxy root, json const& elem)
         {
@@ -322,7 +338,6 @@ void exec_ui()
 
                 if (prop.value().is_object() || prop.value().is_array()) {
                     auto node = tree.insert(root, key, move(value_text));
-                    if (prop.value().is_array()) { node.expand(true); }
 
                     exec(tree, node, prop.value());
                 }
@@ -333,33 +348,66 @@ void exec_ui()
             }
         }
     };
-    node_iterative_constr_t::exec(tr, tr.insert("param", "Parameters"), g_recognizer.props);
-    tr.auto_draw(true);
-    tr.events().selected([&](arg_treebox const& arg) {
-        if (arg.item.child().empty()) {
-            if (auto it = param_mappings.find(arg.item.key());
-                arg.operated && it != param_mappings.end()) {
-                selected_proxy = arg.item;
-                auto selected = *it;
 
-                param_enter_box.select(true);
-                param_enter_box.del();
-                param_enter_box.append(selected.second->dump(), true);
-                param_enter_box.select(true);
-                param_enter_box.focus();
-                return;
+    auto reload_tr = [&]() {
+        tr.clear();
+        node_iterative_constr_t::exec(tr, tr.insert("param", "Parameters").expand(true), g_recognizer.props);
+
+        // -- JSON 파라미터 선택 처리
+        tr.events().selected([&](arg_treebox const& arg) {
+            if (arg.item.child().empty()) {
+                if (auto it = param_mappings.find(arg.item.key());
+                    arg.operated && it != param_mappings.end()) {
+                    selected_proxy = arg.item;
+                    auto selected = *it;
+
+                    param_enter_box.select(true);
+                    param_enter_box.del();
+                    param_enter_box.append(selected.second->dump(), true);
+                    param_enter_box.select(true);
+                    param_enter_box.focus();
+                    return;
+                }
             }
-        }
-        selected_proxy = {};
-        param_enter_box.select(true), param_enter_box.del();
+            selected_proxy = {};
+            param_enter_box.select(true), param_enter_box.del();
+        });
+    };
+    reload_tr();
+
+    // -- 리셋, 익스포트, 임포트 버튼 구현
+    button btn_reset(fm), btn_export(fm), btn_import(fm);
+    btn_reset.caption("Reset");
+    btn_export.caption("Export As...");
+    btn_import.caption("Import From...");
+
+    btn_reset.events().click([&](arg_click const& arg) {
+        g_recognizer.props = billiards::recognizer_t().props;
+        reload_tr();
     });
 
     place layout(fm);
-    layout.div("<mat_lists><vert <center><enter weight=30>");
+    layout.div(
+      "<mat_lists weight=30%>"
+      "<vert"
+      "    <margin=5 gap=5 weight=40 <btn_reset><btn_export><btn_import>>"
+      "    <margin=5 center>"
+      "    <enter weight=30 margin=5>>");
+
     layout["center"] << tr;
     layout["enter"] << param_enter_box;
+    layout["btn_reset"] << btn_reset;
+    layout["btn_export"] << btn_export;
+    layout["btn_import"] << btn_import;
+
     layout.collocate();
 
     fm.show();
     exec();
+
+    // Export default configuration
+    {
+        ofstream strm("config.txt");
+        strm << g_recognizer.props.dump();
+    }
 }
