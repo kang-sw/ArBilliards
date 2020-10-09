@@ -1313,6 +1313,8 @@ recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
         // - 고정 커널 크기(Orthogonal로 Transform했으므로 ..)로 컨볼루션 적용, 로컬 맥시멈 추출 ... 공 candidate
 
         // NOTE: 경계선 평가는 기존의 방법을 사용하되, 이진 이미지가 아닌 HSV 색공간의 Value 표현으로부터 경계선을 검출합니다. Value 표현에 gradient를 먹이고 증폭하면 경계선 이미지를 얻을 수 있을듯? 이후 contour를 사용하는 대신, 원 인덱스 픽셀에 대해 검사하여 가장 높은 가중치를 획득합니다.
+        // NOTE: 커널 연산 개선, 정사각형 범위에서 iterate 하되, 반지름 안에 들어가는 픽셀만 가중치를 유효하게 계산합니다.
+        // NOTE: 커널 가중치 계산 시 거리가 가까운 픽셀이 우세하므로, 계산된 픽셀 개수로 나눠줍니다.
     }
 
     // ShowImage에 모든 임시 매트릭스 추가

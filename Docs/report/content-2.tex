@@ -252,11 +252,93 @@ $$ s_{n} = e^{-d_{n}k_{e}} $$
 
 그러나 \cref{fig;table-hsv-coloronly}에서 볼 수 있듯 카메라에 가까운 부분과 먼 부분의 공 크기가 서로 달라 고정된 크기의 커널을 전체 이미지에 적용하면 정확한 결과를 얻을 수 없다. 따라서 추정 중점으로 투사한 광선과 테이블의 접점으로부터 해당 점과 카메라 사이의 거리를 계산하고, 이로부터 당구공의 추정 반지름을 계산해 더 알맞는 커널을 적용, 적합도의 합을 계산한다.
 
-이렇게 계산된 당구공의 중점 방향으로, 카메라 위치가 원점인 광선을 투사해 당구대와 충돌하는 점이 카메라에 대한 당구공의 상대 위치가 된다(\cref{fig;raycast-to-table}). 
+이렇게 계산된 당구공의 중점 방향으로, 카메라 위치가 원점인 광선을 투사해 당구대와 충돌하는 점이 카메라에 대한 당구공의 상대 위치가 된다(\cref{fig;raycast-to-table}).
 
 당구대와 당구공의 상대 위치에 AR 헤드셋의 위치 추적 기능이 보고한 카메라 트랜스폼을 적용하면, 당구대와 당구공의 AR 공간에서의 절대 좌표를 획득할 수 있다. 이것이 \cref{fig;overall-proc}의 영상 처리 프로그램이 Unity 어플리케이션으로 전송하는 인식 정보에 해당한다.
 
 \subsection{물리 시뮬레이션}
+당구대와 네 공의 절대 위치를 모두 아는 경우, 물리 시뮬레이션을 통해 플레이어가 친 공의 경로를 시뮬레이션하고 득점이 나는 경우를 계산해낼 수 있다.
+
+일반적으로 물리 시뮬레이션은 시분할, 또는 타임 스텝이라 불리는 이산적인 방법에 의해 제어된다. 예를 들어 시점 $n$에서 물체의 가속도가 $\vec{a}_n$이고, 시뮬레이션 간격이 $\delta{t}$일 때 각각의 시뮬레이션 단계에서 다음 속도와 위치를 다음과 같이 계산하는 식이다.
+
+$$ \vec{v}_{n+1} = \vec{v}_n + \vec{a}_n\delta{t} $$
+$$ \vec{s}_{n+1} = \vec{s}_n + \vec{v}\delta{t} $$
+
+이는 적분 연산을 단순화하므로 복잡한 물리 수식과 점화식의 도입이 자유롭다는 장점이 있다. 또한 시뮬레이션 간격 $\delta{t}$를 조절함으로써 시뮬레이션의 정확도와 최적화 수준을 제어할 수 있다.
+
+그러나 시분할 방식의 시뮬레이션은 전체 시뮬레이션의 길이, 그리고 정확도 수준에 따라 연산량이 선형적으로 증가한다. 이는 경로 탐색을 위해 공의 타격을 360도 방향으로, 다양한 속도에 걸쳐 수천 회 이상 시뮬레이션 해야 하는 AR 당구의 환경에서는 큰 단점으로 작용한다. 
+
+따라서 본 연구에선 시분할이 아닌 이벤트 기반의 물리 시뮬레이션 기능을 설계한다. 시뮬레이션은 당구공과 쿠션의 물리만을 고려한 단순한 구 및 평면 모델만을 사용한다. 
+
+일반적인 시분할 시뮬레이션이 \cref{algo;timestep}과 같이 고정된 시간 간격에 대해 업데이트를 수행하고 충돌 여부를 검사하는 것과 달리, 이벤트 기반 시뮬레이션은 \cref{algo;event-driven}에서와 같이 전체 시뮬레이션 길이에 대해 충돌 검사를 모두 수행한 후, 가장 먼저 충돌이 발생하는 시간을 선택해 해당 시간만큼만 시간을 진행시킨 뒤 충돌 처리를 수행, 이를 반복하는 방식으로 구현된다.
+
+\begin{algorithm}
+    \caption{일반적인 시분할 시뮬레이션}
+    \label{algo;timestep}
+    input colliders : set of collision objects\\
+    input duration : total simulation duration \\
+    input delta : fixed delta time step \\
+    output collisions : list of all collisions \\
+    \While{duration > 0}{
+        \ForEach{collider in colliders}{
+            \CommentSty{// advances movement} \\
+            collider.updateAcceleration(delta) \\
+            collider.updateVelocity(delta) \\
+            collider.updatePosition(delta) 
+        }
+        
+        \ForEach{A in colliders}{
+            B = next iterator of A \\
+            \While{B is in colliders}{
+                collisionResult = A.calculateCollision(B) \\
+                \If(){collisionResult exists}{
+                    collisions.add(collisionResult)
+                }
+                B = next iterator of B
+            }
+        }
+        
+        duration = duration - delta
+    }
+\end{algorithm}
+
+\begin{algorithm}
+    \caption{이벤트 기반 시뮬레이션}
+    \label{algo;event-driven}
+    input colliders : set of collision objects\\
+    input duration : total simulation duration \\
+    output collisions : list of all collisions \\
+    \While{duration > 0}{
+        minimumTime = duration \\
+        fastestCollision = empty \\
+        \ForEach{A in colliders}{
+            B = next iterator of A \\
+            \While{B is in colliders}{
+                collisionResult = A.calculateCollision(B, duration) \\
+                \If(){collisionResult.time < minimumTime}{
+                    minimumTime = collisionResult.time \\
+                    fastestCollision = collisionResult
+                }
+                B = next iterator of B
+            }
+        }
+        
+        \ForEach{collider in colliders}{
+            collider.advanceMovement(minimumTime)
+        }
+        
+        \If(){fastestCollision exists}{
+            A = fastestCollision.A
+            B = fastestCollision.B
+            A.applyCollision(B)
+            collisions.add(fastestCollision)
+        }
+        
+        duration = duration - minimumTime
+    }
+\end{algorithm}
+
+이 방법을 사용하면 O($n^2$)의 높은 복잡도를 가진 충돌 검사 연산을 시분할 방식에 비해 극적으로 적게 수행할 수 있다. 이때 충돌 검사는 구체 궤적 교차(swept sphere intersection) 검사 및, 일반적인 점 궤적-평면 간 교차 검사를 통해 수행한다. \cite{GameProgramming:Sanjay}
 
 
 

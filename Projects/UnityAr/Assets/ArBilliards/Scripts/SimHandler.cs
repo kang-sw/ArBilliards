@@ -178,6 +178,11 @@ public class SimHandler : MonoBehaviour
 		p.TableSuppress = TableHorizontalSuppress;
 	}
 
+	Vector3 getPlayerBallPosition()
+	{
+		return PlayerBall == BilliardsBall.Orange ? _latestReportPosition.Orange : _latestReportPosition.White;
+	}
+
 	#endregion
 
 	#region Simulations
@@ -307,14 +312,21 @@ public class SimHandler : MonoBehaviour
 			}
 		}
 
-		if (_bLineDirty
+		if (_latestResult != null
 			&& _renderPeriodCounter > PathRedrawInterval
 			&& LookTransform // 카메라가 있는지?
 			&& _latestResult.Candidates.Count > 0
 			&& !_isAnyBallMoving) // 계산된 결과가 존재하는지?
 		{
-			var fwd = LookTransform.forward;
+			var fwd = LookTransform.forward;// getPlayerBallPosition() - LookTransform.position;
 			var r = _latestResult;
+
+			// 시뮬레이션이 갱신된 경우, 칠 라인을 갱신합니다.
+			if (_bLineDirty)
+			{
+				_bLineDirty = false;
+				_latestCandidate = null;
+			}
 
 			// -- 현재 카메라 방향에 따라 강조하기에 가장 적합한 candidate를 찾습니다.
 			fwd = TableAnchor.worldToLocalMatrix.MultiplyVector(fwd);
@@ -322,7 +334,7 @@ public class SimHandler : MonoBehaviour
 			AsyncSimAgent.SimResult.Candidate nearlest = r.Candidates[0];
 			var distSorted = from elem in r.Candidates
 							 where Vector3.Angle(elem.InitVelocity, fwd) < PathForwardAngle * 0.5f
-							 orderby elem.InitVelocity.sqrMagnitude
+							 orderby elem.Votes
 							 select elem;
 
 			nearlest = distSorted.FirstOrDefault();
@@ -333,6 +345,15 @@ public class SimHandler : MonoBehaviour
 				foreach (var elem in r.Candidates)
 					if (Vector3.Angle(nearlest.InitVelocity, fwd) > Vector3.Angle(elem.InitVelocity, fwd))
 						nearlest = elem;
+			}
+
+			if (_latestCandidate != null)
+			{
+				// Vote가 더 클때만 교체
+				if (nearlest.Votes > _latestCandidate.Votes)
+				{
+					nearlest = _latestCandidate;
+				}
 			}
 
 			// -- 모든 candidate에 대해 라인을 그립니다.
@@ -565,7 +586,7 @@ public class AsyncSimAgent
 		public class Candidate
 		{
 			public BallPath[] Balls; // 4개 항목
-			public float Votes; // 해당 결과의 확실성입니다.
+			public float Votes; // 해당 결과의 유용성 가중치
 			public Vector3 InitVelocity; // 타격 방향 (노멀)
 
 			public Candidate()
@@ -595,7 +616,7 @@ public class AsyncSimAgent
 	{
 		public struct Node
 		{
-			public BilliardsBall? Other; // 충돌변인. null이면 벽에 충돌
+			public (BilliardsBall Index, Vector3 Position, Vector3 Velocity)? Other; // 충돌변인. null이면 벽에 충돌
 			public float Time; // 충돌 시점
 			public Vector3 Position;
 			public Vector3 Velocity; // 해당 위치 통과 시점 속도
@@ -746,7 +767,11 @@ public class AsyncSimAgent
 							var ballIndex = (int)A.Value;
 
 							BallPath.Node n;
-							n.Other = B;
+							if (B.HasValue)
+								n.Other = (B.Value, ct.B.Pos, ct.B.Vel);
+							else
+								n.Other = null;
+
 							n.Position = ct.A.Pos;
 							n.Velocity = ct.A.Vel;
 							n.Time = ct.Time;
@@ -787,6 +812,7 @@ public class AsyncSimAgent
 				bool bGotScore = false;
 				var hits = new (int bHit, int numLastCushion)[4];
 				int numCushionHit = 0;
+				float weight = 0; // 가중치 값으로, 더 조건이 좋은 공을 선별하는 데 사용합니다.
 
 				foreach (var node in balls[(int)_p.PlayerBall].Nodes)
 				{
@@ -796,10 +822,38 @@ public class AsyncSimAgent
 					}
 					else
 					{
-						var index = (int)node.Other.Value;
+						var other = node.Other.Value;
+						var index = (int)other.Index;
+
+						// 4구 룰 한정
+						// 다른 공을 치기 전 이미 친 공을 다시 치는 경우, vote를 감합니다.
+						int? otherBall = null;
+
+						if (index == 0)
+							otherBall = 1;
+						else if (index == 1)
+							otherBall = 0;
+
+						if (otherBall.HasValue && hits[index].bHit != 0 && hits[otherBall.Value].bHit == 0)
+						{
+							weight -= 1f;
+						}
+
+						if (hits[index].bHit == 0  // 처음 치는 공인 경우
+							&& otherBall.HasValue) // otherBall이 있다는 것은 빨간 공을 때렸다는 뜻
+						{
+							// 충돌 각도가 클수록(접점-중점 방향 벡터와 속도의 내적으로 판단) 더 좋은 충돌입니다.
+							var contactDir = (other.Position - node.Position).normalized;
+							var angleWeight = Vector3.Dot(contactDir, node.Velocity.normalized);
+							angleWeight = 2f * Mathf.Pow(angleWeight, 0.633f); // 내적이 0에 가까울수록 = 얇게 부딪칠수록 낮은 가중치
+							weight += Math.Max(angleWeight, 1f);
+						}
+
 						hits[index] = (1, numCushionHit);
 					}
 				}
+
+				cand.Votes = weight;
 
 				// 득점 조건 검사
 				var otherPlayer = _p.PlayerBall == BilliardsBall.White ? BilliardsBall.Orange : BilliardsBall.White;
