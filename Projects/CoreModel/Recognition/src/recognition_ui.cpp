@@ -369,6 +369,12 @@ void exec_ui()
     if (ifstream strm("config.json"); strm.is_open()) {
         try {
             json parsed = json::parse((stringstream() << strm.rdbuf()).str());
+
+            if (auto it = parsed.find("window-position"); it != parsed.end()) {
+                array<int, 4> wndPos = *it;
+                fm.move((rectangle&)wndPos);
+            }
+
             json_iterative_substitute(g_recognizer.props, parsed);
         } catch (std::exception& e) {
             cout << "Failed to load configuration file ... " << endl;
@@ -604,10 +610,10 @@ void exec_ui()
     place layout(fm);
     layout.div(
       "<vert"
-      "    weight=400"
       "    <mat_lists>"
       "    <timings>>"
       "<vert"
+      "    weight=400"
       "    <margin=5 gap=5 weight=40 <btn_reset><btn_export><btn_import>>"
       "    <enter weight=30 margin=5>"
       "    <margin=5 center>>");
@@ -622,11 +628,21 @@ void exec_ui()
 
     layout.collocate();
 
+    fm.events().move([&](auto) {
+        auto rect = rectangle(fm.pos(), fm.size());
+        g_recognizer.props["window-position"] = (array<int, 4>&)rect;
+    });
+    fm.events().resized([&](auto) {
+        auto rect = rectangle(fm.pos(), fm.size());
+        g_recognizer.props["window-position"] = (array<int, 4>&)rect;
+    });
+
     fm.show();
     exec();
 
     // Export default configuration
     {
+
         ofstream strm("config.json");
         strm << g_recognizer.props.dump(4);
     }
