@@ -4,6 +4,7 @@
 #include <fstream>
 #include <chrono>
 #include <nana/gui.hpp>
+#include <ciso646>
 
 extern billiards::recognizer_t g_recognizer;
 
@@ -15,6 +16,7 @@ using namespace std;
 #include <nana/gui/widgets/textbox.hpp>
 #include <nana/gui/widgets/button.hpp>
 #include <nana/gui/widgets/listbox.hpp>
+#include <nana/gui/filebox.hpp>
 
 struct n_type {
     mutex shows_lock;
@@ -25,7 +27,7 @@ struct n_type {
     atomic_bool dirty;
 };
 
-static n_type* n;
+static unique_ptr<n_type> n;
 
 static string getImgType(int imgTypeInt)
 {
@@ -105,25 +107,30 @@ static void json_iterative_substitute(json& to, json const& from)
 void exec_ui()
 {
     using namespace nana;
-    n_type nn;
-    n = &nn;
+    n = make_unique<n_type>();
     form& fm = n->fm; // 주 폼
 
     // 기본 컨피그 파일 로드
-    if (ifstream strm("config.json"); strm.is_open()) {
-        try {
-            json parsed = json::parse((stringstream() << strm.rdbuf()).str());
+    auto load_from_path = [&](string path) {
+        if (ifstream strm(path); strm.is_open()) {
+            try {
+                json parsed = json::parse((stringstream() << strm.rdbuf()).str());
 
-            if (auto it = parsed.find("window-position"); it != parsed.end()) {
-                array<int, 4> wndPos = *it;
-                fm.move((rectangle&)wndPos);
+                if (auto it = parsed.find("window-position"); it != parsed.end()) {
+                    array<int, 4> wndPos = *it;
+                    fm.move((rectangle&)wndPos);
+                }
+
+                json_iterative_substitute(g_recognizer.props, parsed);
+                return true;
+            } catch (std::exception& e) {
+                cout << "Failed to load configuration file ... " << endl;
             }
-
-            json_iterative_substitute(g_recognizer.props, parsed);
-        } catch (std::exception& e) {
-            cout << "Failed to load configuration file ... " << endl;
         }
-    }
+        return false;
+    };
+
+    load_from_path("config.json");
 
     treebox tr(fm);
     textbox param_enter_box(fm);
@@ -227,6 +234,32 @@ void exec_ui()
 
         if (mb.show() == msgbox::pick_yes) {
             g_recognizer.props = billiards::recognizer_t().props;
+            reload_tr();
+        }
+    });
+
+    btn_export.events().click([&](arg_click const& arg) {
+        filebox fb(fm, false);
+        fb.add_filter("Json File", "*.json");
+        fb.add_filter("All", "*.*");
+        fb.allow_multi_select(false);
+
+        if (auto paths = fb(); !paths.empty()) {
+            auto path = paths.front();
+            ofstream strm(path);
+            strm << g_recognizer.props.dump(4);
+        }
+    });
+
+    btn_import.events().click([&](arg_click const& arg) {
+        filebox fb(fm, true);
+        fb.add_filter("Json File", "*.json");
+        fb.add_filter("All", "*.*");
+        fb.allow_multi_select(false);
+
+        if (auto paths = fb(); !paths.empty()) {
+            auto path = paths.front();
+            auto res = load_from_path(path.string());
             reload_tr();
         }
     });

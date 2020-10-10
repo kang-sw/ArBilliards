@@ -363,6 +363,8 @@ int main(void)
     exec_ui();
 
     g_recognizer.destroy();
+    this_thread::sleep_for(100ms);
     g_app.abort();
+    this_thread::sleep_for(100ms);
     return 0;
 }
