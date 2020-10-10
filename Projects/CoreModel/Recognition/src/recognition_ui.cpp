@@ -91,14 +91,39 @@ using nlohmann::json;
 
 static void json_iterative_substitute(json& to, json const& from)
 {
+    int index = 0;
     for (auto& pair : to.items()) {
-        auto it = from.find(pair.key());
-        if (it != from.end()) {
-            if (pair.value().type() == json::value_t::array || pair.value().type() == json::value_t::object) {
-                json_iterative_substitute(pair.value(), *it);
+        auto& value = pair.value();
+        json const* src = nullptr;
+        if (value.type() == nlohmann::detail::value_t::array && from.type() == nlohmann::detail::value_t::array) {
+            cout << "info: subtitute index " << index;
+            if (index < from.size()) {
+                src = &from[index++];
+                cout << "success";
             }
-            else if (strcmp(pair.value().type_name(), it->type_name()) == 0) {
-                pair.value() = *it;
+            cout << endl;
+        }
+        else {
+            cout << "info: subtitute key " << pair.key();
+            if (auto it = from.find(pair.key()); it != from.end()) {
+                cout << " success";
+                src = &*it;
+            }
+            cout << endl;
+        }
+
+        if (src) {
+            if (value.type() == json::value_t::object) {
+                json_iterative_substitute(value, *src);
+            }
+            else if (value.type() == json::value_t::array) {
+                // for (int i = 0, max = min(value.size(), src->size()); i < max; ++i) {
+                //     json_iterative_substitute(value[i], (*src)[i]);
+                // }
+                value = *src;
+            }
+            else if (strcmp(value.type_name(), src->type_name()) == 0) {
+                value = *src;
             }
         }
     }
@@ -126,6 +151,7 @@ void exec_ui()
                 return true;
             } catch (std::exception& e) {
                 cout << "Failed to load configuration file ... " << endl;
+                cout << e.what() << endl;
             }
         }
         return false;
@@ -323,6 +349,13 @@ void exec_ui()
     tickmeters.append_header("Name", 160);
     tickmeters.append_header("Elapsed", 240);
 
+    tickmeters.set_sort_compare(0, [](const string& str1, any* a, const string& str2, any* b, bool reverse) {
+        int s1 = stoi(str1);
+        int s2 = stoi(str2);
+
+        return reverse != s1 < s2;
+    });
+
     // -- Waitkey 폴링 타이머
     timer tm_waitkey{16ms};
     tm_waitkey.elapse([&]() {
@@ -382,14 +415,33 @@ void exec_ui()
 
             // 틱 미터 갱신
             tickmeters.auto_draw(false);
-            tickmeters.erase();
             {
                 int order = 1;
+                for (auto& items : tickmeters.at(0)) {
+                    items.text(2, "-");
+                }
+
                 for (auto& ticks : g_recognizer.get_latest_timings()) {
                     auto tick = ticks.second.count();
                     char buf[24];
-                    snprintf(buf, sizeof buf, "%d.%03d", tick / 1000, tick % 1000);
-                    tickmeters.at(0).append({to_string(order++), ticks.first, buf + " ms"s});
+                    snprintf(buf, sizeof buf, "%d.%03d ms", tick / 1000, tick % 1000);
+
+                    auto finder = [&]() {
+                        for (auto& row : tickmeters.at(0)) {
+                            if (row.text(1) == ticks.first) {
+                                return optional{row};
+                            }
+                        }
+                        return optional<listbox::item_proxy>{};
+                    };
+
+                    if (auto found = finder()) {
+                        found->text(0, to_string(order++));
+                        found->text(2, buf);
+                    }
+                    else {
+                        tickmeters.at(0).append({to_string(order++), ticks.first, (string)buf});
+                    }
                 }
             }
             tickmeters.auto_draw(true);
