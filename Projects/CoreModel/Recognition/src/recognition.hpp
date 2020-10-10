@@ -156,7 +156,7 @@ public:
     /**
      * 내부에 캐시된 이미지를 반환합니다.
      */
-    [[nodiscard]] parameter_type const* get_image() const;
+    [[nodiscard]] parameter_type get_image_snapshot() const;
 
     /**
      * 타이밍 리스트를 반환합니다.

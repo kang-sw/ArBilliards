@@ -1272,6 +1272,7 @@ void recognizer_impl_t::async_worker_thread()
         if (read_lock lck(img_cue_mtx); img_cue.has_value()) {
             img = move(*img_cue);
             on_finish = move(img_cue_cb);
+
             img_cue = {};
             img_cue_cb = {};
         }
@@ -1279,6 +1280,10 @@ void recognizer_impl_t::async_worker_thread()
         if (img.has_value()) {
             img_show_queue.clear();
             auto desc = proc_img(*img);
+            {
+                write_lock lock(img_snapshot_mtx);
+                img_prev = *img;
+            }
             {
                 write_lock lock(img_show_mtx);
                 img_show = img_show_queue;
@@ -1433,11 +1438,24 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
         // 기존 방법을 근소하게 개선하는 방향으로 ..
         // ROI 획득
+        auto tb = p["ball"];
+
         auto debug = varget(Mat, MAT_DEBUG);
         auto area_mask = varget(Mat, TABLE_AREA_MASK);
         auto u_rgb = varget(UMat, UMAT_RGB);
+        auto u_hsv = varget(UMat, UMAT_HSV);
 
+        // 이 ROI는 항상 안전!
         auto ROI = boundingRect(table_contour);
+        u_rgb = u_rgb(ROI);
+        u_hsv = u_hsv(ROI);
+
+        // array<UMat, 3> channels;
+        // split(u_hsv, channels);
+        // auto& [u_h, u_s, u_v] = channels;
+        // 
+        // UMat u_delta_hype;
+        // Laplacian(u_v, u_delta_hype, CV_32F, 3);
     }
 
     // ShowImage에 모든 임시 매트릭스 추가
@@ -1990,6 +2008,12 @@ void recognizer_t::poll(std::unordered_map<std::string, cv::Mat>& shows)
             shows[pair.first] = pair.second;
         }
     }
+}
+
+recognizer_t::parameter_type recognizer_t::get_image_snapshot() const
+{
+    read_lock lock(impl_->img_snapshot_mtx);
+    return impl_->img_prev;
 }
 
 std::vector<std::pair<std::string, std::chrono::microseconds>> recognizer_t::get_latest_timings() const

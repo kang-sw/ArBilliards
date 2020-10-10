@@ -67,6 +67,8 @@ public:
     opt_img_t img_cue;
     shared_mutex img_cue_mtx;
     img_cb_t img_cue_cb;
+    shared_mutex img_snapshot_mtx;
+    img_t img_prev;
 
     unordered_map<string, cv::Mat> img_show;
     unordered_map<string, cv::Mat> img_show_queue;
