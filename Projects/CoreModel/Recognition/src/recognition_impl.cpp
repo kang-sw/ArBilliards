@@ -297,7 +297,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         }
 
         // 방향을 구별 가능한 최소 숫자입니다.
-        if (num_in * 2 + num_out < 6) {
+        if (num_in * 2 + num_out < 5) {
             return {};
         }
     }
@@ -576,13 +576,15 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         auto init_pos = table_pos_flt;
         auto init_rot = table_rot_flt;
 
-        auto num_iteration = 5;
-        auto num_candidates = 25;
-        auto rot_axis_variant = 0.008f; // rotation 자체의 variant입니다.
-        auto rot_variant = 0.06f;
-        auto pos_initial_distance = 0.14f; // 시작 위치
+        auto tpa = tp["partial"];
 
-        auto border_margin = 3;
+        int num_iteration = tpa["iteration"];
+        int num_candidates = tpa["candidates"];
+        float rot_axis_variant = tpa["rot-axis-variant"];
+        float rot_variant = tpa["rot-amount-variant"];
+        float pos_initial_distance = tpa["pos-variant"];
+
+        int border_margin = tpa["border-margin"];
 
         vector<Point> points;
         for (auto& pt : table_contours) { points.push_back((Vec2i)pt); }
@@ -608,6 +610,20 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             desc.table.position = table_pos_flt;
             desc.table.orientation = (Vec4f&)table_rot_flt;
         }
+    }
+
+    if (desc.table.confidence > 0.115f) {
+        Mat1b table_mask(image_size);
+        table_mask.setTo(0);
+
+        vector<Vec2i> pts;
+        pts.assign(table_contours.begin(), table_contours.end());
+        drawContours(table_mask, vector{{pts}}, -1, {255}, -1);
+
+        vars["table-area-mask"] = (Mat)table_mask;
+    }
+    else {
+        table_contours.clear();
     }
 
     // 이전 테이블 위치를 렌더
@@ -1343,16 +1359,6 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         // -- 테이블 추정 영역 찾기
         vector<Vec2f> table_contour;
         find_table(VAR(img_t, "imdesc-scaled"), desc, VAR(Mat, "debug"), VAR(UMat, "uimg-table-color-mask"), table_contour);
-
-        // -- CASE 2. 테이블 일부만 시야에 들어온 경우
-
-        // - 오차 확인
-        // - 임의의 각도로 재투영, 정해진 횟수만큼 iterate
-        if (desc.table.confidence == 0 && !table_contour.empty()) {
-        }
-
-        desc.table.position = table_pos_flt;
-        desc.table.orientation = (Vec4f&)table_rot_flt;
     }
 
     // 공 탐색을 위한 로직입니다.

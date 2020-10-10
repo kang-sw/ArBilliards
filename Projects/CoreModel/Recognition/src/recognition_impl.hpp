@@ -129,6 +129,15 @@ public:
             t["cushion_height"] = 0.025;
 
             t["error-base"] = 1.02;
+            t["minimum-confidence"] = 0.15;
+
+            auto& tpa = t["partial"];
+            tpa["iteration"] = 5;
+            tpa["candidates"] = 25;
+            tpa["rot-axis-variant"] = 0.015;
+            tpa["rot-amount-variant"] = 0.06;
+            tpa["pos-variant"] = 0.14;
+            tpa["border-margin"] = 3;
 
             t["LPF"]["position"] = 0.1666;
             t["LPF"]["rotation"] = 0.33;
