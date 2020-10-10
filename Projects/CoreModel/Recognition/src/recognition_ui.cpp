@@ -635,6 +635,13 @@ void exec_ui()
     fm.events().resized([&](auto) {
         auto rect = rectangle(fm.pos(), fm.size());
         g_recognizer.props["window-position"] = (array<int, 4>&)rect;
+        static_assert(sizeof rect == sizeof(array<int, 4>));
+    });
+
+    timer autosave(300000ms);
+    autosave.elapse([&]() {
+        ofstream strm("config.json");
+        strm << g_recognizer.props.dump(4);
     });
 
     fm.show();
@@ -642,12 +649,12 @@ void exec_ui()
 
     // Export default configuration
     {
-
         ofstream strm("config.json");
         strm << g_recognizer.props.dump(4);
     }
 
     this_thread::sleep_for(100ms);
+    cout << "info: GUI Profram Expired" << endl;
     cv::destroyAllWindows();
     cv::waitKey(1);
 }
