@@ -46,7 +46,6 @@ struct plane_t {
     optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
 };
 
-
 using img_t = recognizer_t::parameter_type;
 using img_cb_t = recognizer_t::process_finish_callback_type;
 using opt_img_t = optional<img_t>;
@@ -103,6 +102,8 @@ public:
         json& params = m.props;
         params["fast-process-width"] = 540;
         params["do-resize"] = false;
+
+        params["FOV"] = Vec2f{84.9f, 52.9f};
 
         {
             auto& b = params["ball"];
@@ -272,7 +273,6 @@ public:
      */
     cv::Point map_index(cv::InputArray from, cv::InputArray to, cv::Point index);
 
-
     /**
      * 대상 모델 버텍스 목록을 화면 상에 투영합니다.
      */
@@ -363,7 +363,6 @@ public:
      */
     static float get_pixel_length(img_t const& img, float len_metric, float Z_metric);
 };
-
 
 enum BALL_INDEX
 {

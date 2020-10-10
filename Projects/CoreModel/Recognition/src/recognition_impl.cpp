@@ -40,7 +40,6 @@ void copy_ROI(cv::Matx<Ty_, r0, c0>& to, cv::Matx<Ty_, r1, c1> const& from, int 
     }
 }
 
-
 static cv::Matx44f get_world_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot)
 {
     using namespace cv;
@@ -96,48 +95,57 @@ static void cull_frustum_impl(vector<cv::Vec3f>& obj_pts, plane_t const* plane_p
         return;
     }
 
-    for (size_t idx = 0; idx < obj_pts.size(); idx++) {
-        size_t nidx = idx + 1 >= obj_pts.size() ? 0 : idx + 1;
-        auto& o = obj_pts;
+    if (1) {
+        for (size_t idx = 0; idx < obj_pts.size(); idx++) {
+            size_t nidx = idx + 1 >= obj_pts.size() ? 0 : idx + 1;
+            auto& o = obj_pts;
 
-        // 각 평면에 대해 ...
-        for (auto& plane : planes) {
-            // 이 때, idx는 반드시 평면 안에 있습니다.
-            if (plane.calc(o[idx]) < 0) {
-                continue;
-            }
-
-            if (plane.has_contact(o[idx], o[nidx]) == false) {
-                // 이 문맥에서는 반드시 o[idx]가 평면 위에 위치합니다.
-                continue;
-            }
-
-            // 평면 위->아래로 진입하는 문맥
-            // 접점 상에 새 점을 삽입합니다.
-            {
-                auto contact = plane.find_contact(o[idx], o[nidx]).value();
-                o.insert(o.begin() + nidx, contact);
-            }
-
-            // nidx부터 0번 인덱스까지, 다시 진입해 들어오는 직선을 찾습니다.
-            for (size_t pivot = nidx + 1; pivot < o.size();) {
-                auto next_idx = pivot + 1 >= o.size() ? 0 : pivot + 1;
-
-                if (!plane.has_contact(o[pivot], o[next_idx])) {
-                    // 만약 접점이 없다면, 현재 직선의 시작점은 완전히 평면 밖에 있으므로 삭제합니다.
-                    // nidx2의 엘리먼트가 idx2로 밀려 들어오므로, 인덱스 증감은 따로 일어나지 않음
-                    o.erase(o.begin() + pivot);
-                }
-                else {
-                    // 접점이 존재한다면 현재 위치의 점을 접점으로 대체하고 break
-                    auto contact = plane.find_contact(o[pivot], o[next_idx]).value();
-                    o[pivot] = contact;
+            // 각 평면에 대해 ...
+            for (auto& plane : planes) {
+                // 이 때, idx는 반드시 평면 안에 있습니다.
+                if (idx >= obj_pts.size()) {
                     break;
                 }
-            }
 
-            // 현재 인덱스를 건드리지 않으므로, 다른 평면은 딱히 변하지 않습니다.
-            // 또한 새로 생성된 점은 반드시 기존 직선 위에서 생성되므로 평면의 순서는 관계 없습니다.
+                if (plane.calc(o[idx]) < 0) {
+                    continue;
+                }
+
+                if (plane.has_contact(o[idx], o[nidx]) == false) {
+                    // 이 문맥에서는 반드시 o[idx]가 평면 위에 위치합니다.
+                    continue;
+                }
+
+                // 평면 위->아래로 진입하는 문맥
+                // 접점 상에 새 점을 삽입합니다.
+                o.insert(o.begin() + nidx, plane.find_contact(o[idx], o[nidx]).value());
+
+                // nidx부터 0번 인덱스까지, 다시 진입해 들어오는 직선을 찾습니다.
+                for (size_t pivot = nidx + 1; pivot < o.size();) {
+                    auto next_idx = pivot + 1 >= o.size() ? 0 : pivot + 1;
+
+                    if (!plane.has_contact(o[pivot], o[next_idx])) {
+                        // 만약 접점이 없다면, 현재 직선의 시작점은 완전히 평면 밖에 있으므로 삭제합니다.
+                        // nidx2의 엘리먼트가 idx2로 밀려 들어오므로, 인덱스 증감은 따로 일어나지 않음
+                        o.erase(o.begin() + pivot);
+                    }
+                    else {
+                        // 접점이 존재한다면 현재 위치의 점을 접점으로 대체하고 break
+                        o[pivot] = plane.find_contact(o[pivot], o[next_idx]).value();
+                        break;
+                    }
+                }
+
+                // 현재 인덱스를 건드리지 않으므로, 다른 평면은 딱히 변하지 않습니다.
+                // 또한 새로 생성된 점은 반드시 기존 직선 위에서 생성되므로 평면의 순서는 관계 없습니다.
+            }
+        }
+    }
+    else {
+        for (auto plane : planes) {
+            for (size_t idx = 0; idx < obj_pts.size(); ++idx) {
+                auto nidx = idx + 1 == obj_pts.size() ? 0 : idx + 1;
+            }
         }
     }
 }
@@ -145,7 +153,6 @@ static void cull_frustum_impl(vector<cv::Vec3f>& obj_pts, plane_t const* plane_p
 static void fit_contour_to_screen(vector<cv::Vec2f>& pts, cv::Size screen_size)
 {
     // 기본적으로 frustum culling과 같지만, 화면에 맞춥니다.
-    array<plane_t, 4> planes;
 }
 
 static void cull_frustum(vector<cv::Vec3f>& obj_pts, vector<plane_t> const& planes)
@@ -212,15 +219,15 @@ static vector<plane_t> generate_frustum(float hfov_rad, float vfov_rad)
         Rodrigues(Vec3f(vfov_rad * 0.5f, 0, 0), rot_vfov); // x축 양의 회전
         planes.push_back({rot_vfov * Vec3f{0, 1, 0}, 0});  // 위쪽 면
 
-        //Rodrigues(Vec3f(-vfov_rad * 0.53f, 0, 0), rot_vfov);
-        Rodrigues(Vec3f(-vfov_rad * 0.5f, 0, 0), rot_vfov);
+        Rodrigues(Vec3f(-vfov_rad * 0.53f, 0, 0), rot_vfov);
+        // Rodrigues(Vec3f(-vfov_rad * 0.5f, 0, 0), rot_vfov);
         planes.push_back({rot_vfov * Vec3f{0, -1, 0}, 0}); // 아래쪽 면
 
         Rodrigues(Vec3f(0, hfov_rad * 0.50f, 0), rot_vfov);
         planes.push_back({rot_vfov * Vec3f{-1, 0, 0}, 0}); // 오른쪽 면
 
-        //Rodrigues(Vec3f(0, -hfov_rad * 0.508f, 0), rot_vfov);
-        Rodrigues(Vec3f(0, -hfov_rad * 0.5f, 0), rot_vfov);
+        Rodrigues(Vec3f(0, -hfov_rad * 0.508f, 0), rot_vfov);
+        //Rodrigues(Vec3f(0, -hfov_rad * 0.5f, 0), rot_vfov);
         planes.push_back({rot_vfov * Vec3f{1, 0, 0}, 0}); // 왼쪽 면
     }
 
@@ -387,7 +394,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         ch_model = model;
 
         project_model(img, points, res.position, res.rotation, ch_model, true, p.FOV.width, p.FOV.height);
-        cv::drawContours(p.debug_render_mat, vector{{points}}, -1, {0, 255, 0}, 3);
+        cv::drawContours(p.debug_render_mat, vector{{points}}, -1, {0, 0, 255}, 3);
     }
 
     return res;
@@ -554,7 +561,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             set_filtered_table_pos(tvec_world, confidence);
             desc.table.confidence = confidence;
             draw_axes(img, (Mat&)rgb, rvec_world, tvec_world, 0.08f, 3);
-            drawContours(rgb, contours, -1, {0, 255, 0}, 3);
+            drawContours(rgb, contours, -1, {255, 123, 0}, 3);
         }
 
         desc.table.position = table_pos_flt;
@@ -587,7 +594,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         vector<Vec2f> input = table_contours;
 
         transform_estimation_param_t param = {num_iteration, num_candidates, rot_axis_variant, rot_variant, pos_initial_distance, border_margin};
-        param.FOV = m.FOV;
+        Vec2f FOV = p["FOV"];
+        param.FOV = {FOV[0], FOV[1]};
         param.debug_render_mat = rgb;
         param.render_debug_glyphs = true;
 
@@ -601,6 +609,21 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             set_filtered_table_rot(res.rotation, res.confidence);
             desc.table.position = table_pos_flt;
             desc.table.orientation = (Vec4f&)table_rot_flt;
+        }
+    }
+
+    // 이전 테이블 위치를 단순히 렌더
+    {
+        vector<Vec3f> model;
+        vector<Point> mapped;
+        get_table_model(model, tp["size"]["fit"]);
+
+        Vec2f FOV = p["FOV"];
+        project_model(img, mapped, table_pos_flt, table_rot_flt, model, true, FOV[0], FOV[1]);
+        draw_axes(img, (Mat&)rgb, table_rot_flt, table_pos_flt, 0.08f, 3);
+
+        if (!mapped.empty()) {
+            drawContours(rgb, vector{{mapped}}, -1, {255, 255, 255}, 3);
         }
     }
 }
@@ -1083,14 +1106,15 @@ plane_t& plane_t::transform(cv::Vec3f tvec, cv::Vec3f rvec)
 
 float plane_t::calc(cv::Vec3f const& pt) const
 {
-    auto mult = N.mul(pt);
-    auto res = accumulate(mult.val, mult.val + 3, 0) + d;
-    return abs(res) < 1e-6f ? 0 : res;
+    auto v = N.mul(pt);
+    auto res = v[0] + v[1] + v[2] + d;
+    return res; //abs(res) < 1e-6f ? 0 : res;
 }
 
 bool plane_t::has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
 {
-    return calc(P1) * calc(P2) < 0.f;
+    return !!find_contact(P1, P2);
+    // return calc(P1) * calc(P2) < 0.f;
 }
 
 optional<float> plane_t::calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const
@@ -1100,7 +1124,7 @@ optional<float> plane_t::calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const
     auto upper = N.dot(P3 - P1);
     auto lower = N.dot(P2 - P1);
 
-    if (abs(lower) > 1e-6f) {
+    if (abs(lower) > 1e-7f) {
         auto u = upper / lower;
 
         return u;
@@ -1111,10 +1135,10 @@ optional<float> plane_t::calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const
 
 optional<cv::Vec3f> plane_t::find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
 {
-    if (auto uo = calc_u(P1, P2)) {
+    if (auto uo = calc_u(P1, P2); uo && calc(P1) * calc(P2) < 0) {
         auto u = *uo;
 
-        if (u <= 1.f && u >= 0.f) {
+        if (u <= 1.f && u > 0.f) {
             return P1 + (P2 - P1) * u;
         }
     }
@@ -1687,126 +1711,6 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         // -- 테이블 추정 영역 찾기
         vector<Vec2f> table_contour;
         find_table(VAR(img_t, "imdesc-scaled"), desc, VAR(Mat, "debug"), VAR(UMat, "uimg-table-color-mask"), table_contour);
-
-#if 0
-     {
-            TM(contour_search);
-            auto& tc = tp["contour"];
-
-            vector<vector<Point>> contours;
-            findContours(u_edge, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-
-            // SolvePnP가 실패할 경우, partial matching을 수행하기 위해 가장 넓은 영역을 캐시합니다.
-            int max_area_elem = -1;
-            double max_area_value = 0;
-
-            auto min_area = (double)tc["area-threshold-ratio"] * (image_size.area());
-            double epsilon[] = {tc["approx-epsilon-preprocess"], tc["approx-epsilon-convexhull"]};
-
-            for (size_t i = 0; i < contours.size(); i++) {
-                auto& contour = contours[i];
-                auto area = contourArea(contour);
-                if (area < min_area) { continue; }
-
-                approxPolyDP(contour, contour, epsilon[0], true);
-                convexHull(vector{contour}, contour, false);
-                approxPolyDP(contour, contour, epsilon[1], true);
-
-                if (area > max_area_value) {
-                    max_area_value = area;
-                    max_area_elem = i;
-                }
-            }
-
-            if (max_area_elem != -1) {
-                table_contour = contours[max_area_elem];
-
-                drawContours(VAR(Mat, "debug"), vector{{table_contour}}, -1, {0, 0, 0}, 3);
-                putText(VAR(Mat, "debug"), (stringstream() << "size: " << max_area_value / image_size.area() << '%').str(), table_contour[0], FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
-            }
-        }
-
-        // -- CASE 1. 테이블 전체 시야에 들어오는 경우
-        // - solvePnP 활용해서 테이블 포즈 찾기
-        // - 오차에 따라 컨피던스 설정
-        // - 값 LPF 필터 누적
-        // 꼭지점 개수가 정확히 4개이고, 모든 픽셀이 border_pixel이 아니라면 solvePnP 적용 가능
-        if (table_contour.size() == 4) {
-            TM(solve_pnp);
-
-            bool all_index_valid = true;
-            for (auto& pt : table_contour) {
-                if (is_border_pixel(image_size, (Vec2i)pt)) {
-                    all_index_valid = false;
-                    break;
-                }
-            }
-
-            if (all_index_valid) {
-                Mat1f depth = VAR(Mat, "img-depth");
-                auto& imdesc = VAR(img_t, "imdesc-scaled");
-
-                vector<Vec3f> model;
-                vector<Point2f> contour_points;
-                contour_points.assign(table_contour.begin(), table_contour.end());
-
-                // 짧은 변- 긴 변 순서가 되도록, 위치를 정렬합니다.
-                {
-                    vector<Vec3f> p3;
-                    for (auto& pt : contour_points) {
-                        auto& pt3 = p3.emplace_back();
-                        pt3[0] = pt.x;
-                        pt3[1] = pt.y;
-                        pt3[2] = depth(pt.y, pt.x);
-                        get_point_coord_3d(imdesc, pt3[0], pt3[1], pt3[2]);
-                    }
-
-                    // 긴 변이 먼저 나타나는 경우, 배열 엘리먼트를 하나씩 뒤로 밉니다.
-                    if (norm(p3[1] - p3[0], NORM_L2SQR) > norm(p3[2] - p3[1], NORM_L2SQR)) {
-                        contour_points.insert(contour_points.begin(), contour_points.back());
-                        contour_points.pop_back();
-                    }
-                }
-
-                auto [cam, disto] = get_camera_matx(imdesc);
-                Vec3f rvec, tvec;
-                get_table_model(model, tp["size"]["fit"]);
-                solvePnP(model, contour_points, cam, disto, rvec, tvec);
-
-                vars["table-cam-rvec"] = rvec;
-                vars["table-cam-tvec"] = tvec;
-
-                // Confidence 계산
-                float confidence = 0.f;
-                {
-                    vector<Point2f> pts;
-                    vector<Point> pts_32s;
-                    projectPoints(model, rvec, tvec, cam, disto, pts);
-
-                    pts_32s.assign(pts.begin(), pts.end());
-                    drawContours(VAR(Mat, "debug"), vector{{pts_32s}}, -1, {0, 255, 0}, 3);
-
-                    double error_sum = 0;
-                    for (size_t i = 0; i < pts.size(); i++) {
-                        Vec2f a = (Vec2i)table_contour[i];
-                        Vec2f b = pts[i];
-
-                        auto error = norm(b - a, NORM_L2SQR);
-                        error_sum += error;
-                    }
-
-                    confidence = pow(tp["error-base"], -sqrt(error_sum));
-                }
-
-                camera_to_world(imdesc, rvec, tvec);
-                set_filtered_table_pos(tvec, confidence);
-                set_filtered_table_rot(rvec, confidence);
-
-                desc.table.confidence = confidence;
-                draw_axes(imdesc, VAR(Mat, "debug"), rvec, tvec, 0.1f, 5);
-            }
-        }
-#endif
 
         // -- CASE 2. 테이블 일부만 시야에 들어온 경우
 
