@@ -366,7 +366,7 @@ void exec_ui()
     form& fm = n->fm; // 주 폼
 
     // 기본 컨피그 파일 로드
-    if (ifstream strm("config.txt"); strm.is_open()) {
+    if (ifstream strm("config.json"); strm.is_open()) {
         try {
             json parsed = json::parse((stringstream() << strm.rdbuf()).str());
             json_iterative_substitute(g_recognizer.props, parsed);
@@ -610,8 +610,8 @@ void exec_ui()
 
     // Export default configuration
     {
-        ofstream strm("config.txt");
-        strm << g_recognizer.props.dump();
+        ofstream strm("config.json");
+        strm << g_recognizer.props.dump(4);
     }
 
     cv::destroyAllWindows();
