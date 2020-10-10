@@ -139,7 +139,7 @@ private:
                     p_str->push_back('\n');
 
                     conn->async_write_some(boost::asio::const_buffer(p_str->c_str(), p_str->length()), [p_str](boost::system::error_code ec, std::size_t cnt) {
-                        cout << ec << "::" << cnt << " bytes sent\n";
+                        //cout << ec << "::" << cnt << " bytes sent\n";
                     });
 
                     ui_on_refresh();

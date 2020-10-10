@@ -59,7 +59,9 @@ public:
     unordered_map<string, cv::Mat> img_show_queue;
     shared_mutex img_show_mtx;
 
-    vector<pair<string, double>> elapsed_seconds;
+    vector<pair<string, std::chrono::microseconds>> elapsed_seconds;
+    vector<pair<string, std::chrono::microseconds>> elapsed_seconds_prev;
+    shared_mutex elapsed_seconds_mtx;
 
     recognition_desc prev_desc;
     cv::Vec3f table_pos_flt = {};
@@ -84,7 +86,7 @@ public:
         using namespace std;
 
         json& params = m.props;
-        params["fast-process-width"] = 540.0f;
+        params["fast-process-width"] = 540;
 
         {
             auto& b = params["ball"];

@@ -41,6 +41,27 @@ static float contour_distance(vector<cv::Vec2f> const& ct_a, vector<cv::Vec2f> c
     return dist_min;
 }
 
+struct timer_scope_t {
+    timer_scope_t(recognizer_impl_t* self, string name)
+        : self_(*self)
+        , name_(name)
+    {
+        tm_.start();
+    }
+
+    ~timer_scope_t()
+    {
+        tm_.stop();
+        auto& arg = self_.elapsed_seconds.emplace_back();
+        arg.first = move(name_);
+        arg.second = chrono::microseconds((int64)tm_.getTimeMicro());
+    }
+
+    recognizer_impl_t& self_;
+    cv::TickMeter tm_;
+    string name_;
+};
+
 optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::estimate_matching_transform(img_t const& img, vector<cv::Vec2f> const& input, vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p)
 {
     // 입력을 verify합니다. frustum culliing을 활용하기 때문에, 반드시 컨투어 픽셀 두 개 이상이 이미지의 경계선에 걸쳐 있어야 합니다.
@@ -61,7 +82,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         }
 
         // 방향을 구별 가능한 최소 숫자입니다.
-        if(num_in * 2 + num_out < 6) {
+        if (num_in * 2 + num_out < 6) {
             return {};
         }
     }
@@ -1232,16 +1253,24 @@ void recognizer_impl_t::async_worker_thread()
                 write_lock lock(img_show_mtx);
                 img_show = img_show_queue;
             }
+            {
+                write_lock lock(elapsed_seconds_mtx);
+                elapsed_seconds_prev = move(elapsed_seconds);
+                elapsed_seconds.clear();
+            }
             if (on_finish) { on_finish(*img, desc); }
             prev_desc = desc;
         }
     }
 }
 
-recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
+#define TM(name) timer_scope_t TICKMETER__##name(this, #name)
+recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 {
     using namespace cv;
     recognition_desc desc;
+
+    TM(total);
 
     if (statics.empty()) {
     }
@@ -1258,12 +1287,14 @@ recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
     // 공용 머터리얼 셋업 시퀀스
     Mat img_rgb_scaled, img_hsv_scaled;
     {
+        TM(scailing);
+
         // 스케일된 이미지 준비
         Size size_scaled_image((int)p["fast-process-width"], 0);
         float scale = size_scaled_image.width / (float)img_rgb.cols;
         size_scaled_image.height = (int)(img_rgb.rows * scale);
 
-        resize(img_rgb, img_rgb_scaled, size_scaled_image);
+        resize(img_rgb, img_rgb_scaled, size_scaled_image, 0, 0, INTER_NEAREST);
         vars["img-rgb-scaled"] = img_rgb_scaled;
 
         // 스케일된 이미지의 파라미터 준비
@@ -1318,16 +1349,17 @@ recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
     }
 
     // ShowImage에 모든 임시 매트릭스 추가
-    for (auto& pair : vars) {
-        auto& value = pair.second;
+    if (TM(copying); true)
+        for (auto& pair : vars) {
+            auto& value = pair.second;
 
-        if (auto ptr = any_cast<Mat>(&value)) {
-            show(move(pair.first), *ptr);
+            if (auto ptr = any_cast<Mat>(&value)) {
+                show(move(pair.first), *ptr);
+            }
+            else if (auto ptr = any_cast<UMat>(&value)) {
+                show(move(pair.first), *ptr);
+            }
         }
-        else if (auto ptr = any_cast<UMat>(&value)) {
-            show(move(pair.first), *ptr);
-        }
-    }
 
     return desc;
 } // namespace billiards
@@ -1358,7 +1390,7 @@ float recognizer_impl_t::get_pixel_length(img_t const& img, float len_metric, fl
     return u2 - u1;
 }
 
-recognition_desc recognizer_impl_t::proc_img(img_t const& img)
+recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
 {
     using namespace cv;
     recognition_desc desc = {};
@@ -1859,5 +1891,11 @@ void recognizer_t::poll(std::unordered_map<std::string, cv::Mat>& shows)
             shows[pair.first] = pair.second;
         }
     }
+}
+
+std::vector<std::pair<std::string, std::chrono::microseconds>> recognizer_t::get_latest_timings() const
+{
+    read_lock lock{impl_->elapsed_seconds_mtx};
+    return impl_->elapsed_seconds_prev;
 }
 } // namespace billiards
