@@ -333,8 +333,8 @@ string time_to_from_string(chrono::system_clock::time_point tp)
 nana::listbox::oresolver& operator<<(nana::listbox::oresolver& ores, const mat_desc_row_t const& data)
 {
     ores << data.mat_name;
-    ores << data.mat.rows;
     ores << data.mat.cols;
+    ores << data.mat.rows;
     ores << getImgType(data.mat.type());
     ores << time_to_from_string(data.tp);
 
@@ -471,16 +471,22 @@ void exec_ui()
     btn_import.caption("Import From...");
 
     btn_reset.events().click([&](arg_click const& arg) {
-        g_recognizer.props = billiards::recognizer_t().props;
-        reload_tr();
+        msgbox mb(arg.window_handle, "Parameter Reset", msgbox::yes_no);
+        mb.icon(msgbox::icon_question);
+        mb << "Are you sure?";
+
+        if (mb.show() == msgbox::pick_yes) {
+            g_recognizer.props = billiards::recognizer_t().props;
+            reload_tr();
+        }
     });
 
     // -- 표시되는 이미지 목록
     auto& matlist = n->lb;
-    matlist.append_header("Mat Name", 110);
-    matlist.append_header("R", 30);
-    matlist.append_header("C", 30);
-    matlist.append_header("Type", 60);
+    matlist.append_header("Mat Name", 160);
+    matlist.append_header("W", 40);
+    matlist.append_header("H", 40);
+    matlist.append_header("Type", 50);
     matlist.append_header("Updated");
 
     // 이벤트 바인딩
@@ -493,31 +499,42 @@ void exec_ui()
         }
     });
 
-    // 이미지 목록 시간 업데이트 타이머
+    // 이미지 목록
     timer list_update_timer(333ms);
     list_update_timer.elapse([&]() {
+        if (!fm.enabled()) {
+            list_update_timer.stop();
+            return;
+        }
+
+        matlist.auto_draw(false);
         for (auto item_proxy : matlist.at(0)) {
             try {
                 auto& val = item_proxy.value<mat_desc_row_t>();
-                item_proxy.text(4, time_to_from_string(val.tp));
+                item_proxy.resolve_from(val);
             } catch (exception e) {
                 cout << e.what() << endl;
             }
         }
-        drawing(matlist).update();
+        matlist.auto_draw(true);
     });
     list_update_timer.start();
 
     // -- 틱 미터 박스
     listbox tickmeters(fm);
     tickmeters.append_header("", 20);
-    tickmeters.append_header("Name");
+    tickmeters.append_header("Name", 160);
     tickmeters.append_header("Elapsed", 240);
 
     // -- Waitkey 폴링 타이머
     timer tm_waitkey{16ms};
     tm_waitkey.elapse([&]() {
         cv::waitKey(1);
+
+        if (!fm.enabled()) {
+            tm_waitkey.stop();
+            return;
+        }
 
         if (n->dirty) {
             // 이미지 목록을 업데이트
@@ -614,6 +631,7 @@ void exec_ui()
         strm << g_recognizer.props.dump(4);
     }
 
+    this_thread::sleep_for(100ms);
     cv::destroyAllWindows();
     cv::waitKey(1);
 }

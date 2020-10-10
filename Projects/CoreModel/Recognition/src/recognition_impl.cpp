@@ -50,7 +50,7 @@ struct timer_scope_t {
         tm_.start();
         auto& arg = self_.elapsed_seconds.emplace_back();
         for (int i = 0; i < timer_scope_counter; i++) {
-            arg.first.append("| ");
+            arg.first.append("  ");
         }
         arg.first += move(name);
         timer_scope_counter++;
@@ -69,17 +69,18 @@ struct timer_scope_t {
     int index_;
 };
 
+static bool is_border_pixel(cv::Size img_size, cv::Vec2f pixel, int margin = 3)
+{
+    bool w = pixel[0] < margin || pixel[0] >= img_size.width - margin;
+    bool h = pixel[1] < margin || pixel[1] >= img_size.height - margin;
+    return w || h;
+}
+
 optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::estimate_matching_transform(img_t const& img, vector<cv::Vec2f> const& input, vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p)
 {
     // 입력을 verify합니다. frustum culliing을 활용하기 때문에, 반드시 컨투어 픽셀 두 개 이상이 이미지의 경계선에 걸쳐 있어야 합니다.
     // 적어도 2개 이상의 정점이 이미지 경계 밖에 있어야 하고, 2개 이상의 정점이 경계 안에 있어야 합니다.
     {
-        auto is_border_pixel = [](cv::Size img_size, cv::Vec2f pixel, int margin = 3) {
-            bool w = pixel[0] < margin || pixel[0] >= img_size.width - margin;
-            bool h = pixel[1] < margin || pixel[1] >= img_size.height - margin;
-            return w || h;
-        };
-
         int num_in = 0, num_out = 0;
         cv::Size size(img.rgba.cols, img.rgba.rows);
         for (auto& pt : input) {
@@ -1271,10 +1272,15 @@ void recognizer_impl_t::async_worker_thread()
     }
 }
 
-#define TM(name) \
-    timer_scope_t TM__##name { this, #name }
+#define YTRACE(x, y) \
+    timer_scope_t TM_##x##__##y { this, #x }
+#define XTRACE(x, y) YTRACE(x, y)
+#define TM(name)     XTRACE(name, __COUNTER__)
 
-recognition_desc recognizer_impl_t::proc_img(img_t const& img)
+#define VAR(type, varname)   any_cast<type&>(vars[varname])
+#define ASSIGN(var, varname) var = any_cast<remove_reference_t<decltype(var)>&>(vars[varname])
+
+recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 {
     using namespace cv;
     recognition_desc desc;
@@ -1283,19 +1289,20 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     if (statics.empty()) {
     }
 
-    vars = {};
+    // vars = {};
 
     auto const& p = m.props;
 
     {
         TM(initial_preprocessing);
+        img_t imdesc_scaled = imdesc_source;
 
         // RGBA 이미지를 RGB로 컨버트합니다.
         Mat img_rgb;
         {
-            TM(initial_rgb_conversion);
+            TM(rgb_conversion);
 
-            cvtColor(img.rgba, img_rgb, COLOR_RGBA2RGB);
+            cvtColor(imdesc_source.rgba, img_rgb, COLOR_RGBA2RGB);
             vars["img-rgb"] = img_rgb;
         }
 
@@ -1308,29 +1315,31 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         Mat img_rgb_scaled, img_hsv_scaled;
         UMat uimg_rgb_scaled, uimg_hsv_scaled;
         if ((bool)p["do-resize"]) {
-            TM(initial_scailing);
+            TM(scailing);
 
             // 스케일된 이미지 준비
-
-            resize(img_rgb.getUMat(ACCESS_FAST), uimg_rgb_scaled, scaled_image_size, 0, 0, INTER_NEAREST);
+            resize(img_rgb.getUMat(ACCESS_FAST), uimg_rgb_scaled, scaled_image_size, 0, 0, INTER_LINEAR);
+            uimg_rgb_scaled.copyTo(img_rgb_scaled);
 
             // 스케일된 이미지의 파라미터 준비
-            auto scp = img.camera;
+            auto scp = imdesc_source.camera;
             for (auto& value : {&scp.fx, &scp.fy, &scp.cx, &scp.cy}) {
                 *value *= image_scale;
             }
-            vars["camera-param-scaled"] = scp;
+            imdesc_scaled.camera = scp;
+            cvtColor(img_rgb_scaled, imdesc_scaled.rgba, COLOR_RGB2RGBA);
         }
         else {
-            TM(initial_copying);
+            TM(copying);
             img_rgb_scaled = img_rgb;
             img_rgb_scaled.copyTo(uimg_rgb_scaled);
-            vars["camera-param-scaled"] = img.camera;
         }
+
+        vars["imdesc-scaled"] = imdesc_scaled;
 
         // 색공간 변환 수행
         {
-            TM(initial_hsv_conversion);
+            TM(hsv_conversion);
             vars["img-rgb-scaled"] = img_rgb_scaled;
             vars["uimg-rgb-scaled"] = uimg_rgb_scaled;
 
@@ -1340,12 +1349,26 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             vars["img-hsv-scaled"] = img_hsv_scaled;
             vars["uimg-hsv-scaled"] = uimg_hsv_scaled;
         }
+
+        // 깊이 이미지 크기 변환
+        {
+            TM(depth_resize);
+            UMat u_depth;
+            Mat depth;
+            resize(imdesc_scaled.depth, u_depth, scaled_image_size);
+            u_depth.copyTo(depth);
+            vars["uimg-depth"] = u_depth;
+            vars["img-depth"] = depth;
+        }
     }
+
+    // 디버깅용 이미지 설정
+    vars["debug"] = VAR(Mat, "img-rgb-scaled").clone();
 
     // 테이블 탐색을 위한 로직입니다.
     {
         TM(table_find);
-        auto& param = p["table"];
+        auto& tp = p["table"];
         auto& u_hsv = any_cast<UMat&>(vars["uimg-hsv-scaled"]);
         auto image_size = any_cast<Size>(vars["scaled-image-size"]);
 
@@ -1353,9 +1376,10 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         UMat u_mask;
         UMat u_eroded, u_edge;
         {
-            TM(table_filtering);
-            array<Vec3f, 2> filters = param["filter"];
+            TM(filtering);
+            array<Vec3f, 2> filters = tp["filter"];
             filter_hsv(u_hsv, u_mask, filters[0], filters[1]);
+            carve_outermost_pixels(u_mask, {0});
             vars["uimg-table-color-mask"] = u_mask;
 
             // -- 경계선 검출
@@ -1366,11 +1390,15 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         // -- 테이블 추정 영역 찾기
         vector<Point> table_contour;
         {
-            TM(table_contour_search);
-            auto& tc = param["contour"];
+            TM(contour_search);
+            auto& tc = tp["contour"];
 
             vector<vector<Point>> contours;
             findContours(u_edge, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+            // SolvePnP가 실패할 경우, partial matching을 수행하기 위해 가장 넓은 영역을 캐시합니다.
+            int max_area_elem = -1;
+            double max_area_value = 0;
 
             auto min_area = (double)tc["area-threshold-ratio"] * (image_size.area());
             double epsilon[] = {tc["approx-epsilon-preprocess"], tc["approx-epsilon-convexhull"]};
@@ -1383,6 +1411,18 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 approxPolyDP(contour, contour, epsilon[0], true);
                 convexHull(vector{contour}, contour, false);
                 approxPolyDP(contour, contour, epsilon[1], true);
+
+                if (area > max_area_value) {
+                    max_area_value = area;
+                    max_area_elem = i;
+                }
+            }
+
+            if (max_area_elem != -1) {
+                table_contour = contours[max_area_elem];
+
+                drawContours(VAR(Mat, "debug"), vector{{table_contour}}, -1, {0, 0, 0}, 3);
+                putText(VAR(Mat, "debug"), (stringstream() << "size: " << max_area_value / image_size.area() << '%').str(), table_contour[0], FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
             }
         }
 
@@ -1390,11 +1430,63 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
         // - solvePnP 활용해서 테이블 포즈 찾기
         // - 오차에 따라 컨피던스 설정
         // - 값 LPF 필터 누적
+        // 꼭지점 개수가 정확히 4개이고, 모든 픽셀이 border_pixel이 아니라면 solvePnP 적용 가능
+        if (table_contour.size() == 4) {
+            TM(solve_pnp);
+
+            bool all_index_valid = true;
+            for (auto& pt : table_contour) {
+                if (is_border_pixel(image_size, (Vec2i)pt)) {
+                    all_index_valid = false;
+                    break;
+                }
+            }
+
+            if (all_index_valid) {
+                Mat1f depth = VAR(Mat, "img-depth");
+                auto& imdesc = VAR(img_t, "imdesc-scaled");
+
+                vector<Vec3f> model;
+                vector<Point2f> contour_points;
+                contour_points.assign(table_contour.begin(), table_contour.end());
+
+                // 짧은 변- 긴 변 순서가 되도록, 위치를 정렬합니다.
+                {
+                    vector<Vec3f> p3;
+                    for (auto& pt : contour_points) {
+                        auto& pt3 = p3.emplace_back();
+                        pt3[0] = pt.x;
+                        pt3[1] = pt.y;
+                        pt3[2] = depth(pt.y, pt.x);
+                        get_point_coord_3d(imdesc, pt3[0], pt3[1], pt3[2]);
+                    }
+
+                    // 긴 변이 먼저 나타나는 경우, 배열 엘리먼트를 하나씩 뒤로 밉니다.
+                    if (norm(p3[1] - p3[0], NORM_L2SQR) > norm(p3[2] - p3[1], NORM_L2SQR)) {
+                        contour_points.insert(contour_points.begin(), contour_points.back());
+                        contour_points.pop_back();
+                    }
+                }
+
+                auto [cam, disto] = get_camera_matx(imdesc);
+                Vec3f rvec, tvec;
+                get_table_model(model, tp["size"]["fit"]);
+                solvePnP(model, contour_points, cam, disto, rvec, tvec);
+
+                vars["table-cam-rvec"] = rvec;
+                vars["table-cam-tvec"] = tvec;
+
+                camera_to_world(imdesc, rvec, tvec);
+                draw_axes(imdesc, VAR(Mat, "debug"), rvec, tvec, 0.1f, 5);
+            }
+        }
 
         // -- CASE 2. 테이블 일부만 시야에 들어온 경우
 
         // - 오차 확인
         // - 임의의 각도로 재투영, 정해진 횟수만큼 iterate
+        if (desc.table.confidence == 0 && !table_contour.empty()) {
+        }
     }
 
     // 공 탐색을 위한 로직입니다.
@@ -1419,7 +1511,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
     }
 
     // ShowImage에 모든 임시 매트릭스 추가
-    if (TM(copying); true)
+    if (TM(copying); true) {
         for (auto& pair : vars) {
             auto& value = pair.second;
 
@@ -1430,6 +1522,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
                 show(move(pair.first), *ptr);
             }
         }
+    }
 
     return desc;
 } // namespace billiards

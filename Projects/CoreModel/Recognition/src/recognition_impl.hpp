@@ -1,4 +1,5 @@
 #include "recognition.hpp"
+#include "recognition.hpp"
 #include <thread>
 #include <shared_mutex>
 #include <atomic>
@@ -32,6 +33,20 @@ void from_json(const nlohmann::json& j, Vec<Ty_, Size_>& v)
 
 namespace billiards
 {
+// 평면을 나타내는 타입입니다.
+struct plane_t {
+    cv::Vec3f N;
+    float d;
+
+    static plane_t from_NP(cv::Vec3f N, cv::Vec3f P);
+    plane_t& transform(cv::Vec3f tvec, cv::Vec3f rvec);
+    float calc(cv::Vec3f const& pt) const;
+    bool has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
+    optional<float> calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
+    optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
+};
+
+
 using img_t = recognizer_t::parameter_type;
 using img_cb_t = recognizer_t::process_finish_callback_type;
 using opt_img_t = optional<img_t>;
@@ -136,6 +151,9 @@ public:
 
     void show(string wnd_name, cv::Mat img)
     {
+        if (img.empty()) {
+            return;
+        }
         img_show_queue[move(wnd_name)] = img.clone();
     }
 
@@ -155,7 +173,7 @@ public:
     /**
      * 주된 이미지 처리를 수행합니다.
      */
-    recognition_desc proc_img(img_t const& img);
+    recognition_desc proc_img(img_t const& imdesc_source);
     recognition_desc proc_img2(img_t const& img);
 
     /**
@@ -352,18 +370,6 @@ public:
     static float get_pixel_length(img_t const& img, float len_metric, float Z_metric);
 };
 
-// 평면을 나타내는 타입입니다.
-struct plane_t {
-    cv::Vec3f N;
-    float d;
-
-    static plane_t from_NP(cv::Vec3f N, cv::Vec3f P);
-    plane_t& transform(cv::Vec3f tvec, cv::Vec3f rvec);
-    float calc(cv::Vec3f const& pt) const;
-    bool has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
-    optional<float> calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
-    optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
-};
 
 enum BALL_INDEX
 {
