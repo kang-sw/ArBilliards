@@ -185,7 +185,7 @@ public:
       const cv::Mat& rgb,
       const cv::UMat& filtered,
       vector<cv::Vec2f>& table_contours);
-
+    void find_table2(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours);
     /**
      * 주로 테이블에 활용 ...
      * 화면 상에서 폐색된 컨투어 리스트와, 모델의 시작 위치로부터 최종 위치를 추론합니다.

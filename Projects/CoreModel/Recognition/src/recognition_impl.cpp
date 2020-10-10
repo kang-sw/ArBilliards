@@ -197,6 +197,215 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
 void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
 {
     using namespace cv;
+    auto p = m.props;
+    auto tp = p["table"];
+
+    {
+        auto tc = tp["contour"];
+
+        vector<vector<Point>> candidates;
+        vector<Vec4i> hierarchy;
+        findContours(filtered, candidates, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_NONE);
+
+        // 테이블 전체가 시야에 없을 때에도 위치를 추정할 수 있도록, 가장 큰 영역을 기록해둡니다.
+        auto max_size_arg = make_pair(-1, 0.0);
+        auto eps0 = tc["approx-epsilon-preprocess"];
+        auto eps1 = tc["approx-epsilon-convexhull"];
+
+        // 사각형 컨투어 찾기
+        for (int idx = 0; idx < candidates.size(); ++idx) {
+            auto& contour = candidates[idx];
+
+            approxPolyDP(vector(contour), contour, eps0, true);
+            auto area_size = contourArea(contour);
+            if (area_size < m.table.min_pxl_area_threshold) {
+                continue;
+            }
+
+            if (max_size_arg.second < area_size) {
+                max_size_arg = {idx, area_size};
+            }
+
+            convexHull(vector(contour), contour, true);
+            approxPolyDP(vector(contour), contour, eps1, true);
+            // drawContours(rgb, candidates, -1, {255, 128, 0}, 3);
+            putText(rgb, (stringstream() << "[" << contour.size() << ", " << area_size << "]").str(), contour[0], FONT_HERSHEY_PLAIN, 1.0, {0, 255, 0});
+
+            bool const table_found = contour.size() == 4;
+
+            if (table_found) {
+                // drawContours(filtered, candidates, idx, {255}, 1);
+
+                // marshal
+                for (auto& pt : contour) {
+                    table_contours.push_back(Vec2f(pt.x, pt.y));
+                }
+            }
+        }
+
+        if (table_contours.empty() && max_size_arg.first >= 0) {
+            for (auto& pt : candidates[max_size_arg.first]) {
+                table_contours.emplace_back(pt.x, pt.y);
+            }
+            drawContours(rgb, vector{{table_contours}}, -1, {0, 0, 0}, 3);
+        }
+    }
+
+    // 가장 높은 confidence ...
+    if (table_contours.size() == 4) {
+        vector<Vec3f> obj_pts;
+        Vec3d tvec;
+        Vec3d rvec;
+
+        {
+            float half_x = m.table.recognition_size.val[0] / 2;
+            float half_z = m.table.recognition_size.val[1] / 2;
+
+            // ref: OpenCV coordinate system
+            // 참고: findContour로 찾아진 외각 컨투어 세트는 항상 반시계방향으로 정렬됩니다.
+            obj_pts.push_back({-half_x, 0, half_z});
+            obj_pts.push_back({-half_x, 0, -half_z});
+            obj_pts.push_back({half_x, 0, -half_z});
+            obj_pts.push_back({half_x, 0, half_z});
+        }
+
+        // tvec의 초기값을 지정해주기 위해, 깊이 이미지를 이용하여 당구대 중점 위치를 추정합니다.
+        bool estimation_valid = true;
+        vector<cv::Vec3d> table_points_3d = {};
+        {
+            // 카메라 파라미터는 컬러 이미지 기준이므로, 깊이 이미지 해상도를 일치시킵니다.
+            cv::Mat depth = img.depth;
+
+            auto& c = img.camera;
+
+            // 당구대의 네 점의 좌표를 적절한 3D 좌표로 변환합니다.
+            for (auto& uv : table_contours) {
+                auto u = uv[0];
+                auto v = uv[1];
+                auto z_metric = depth.at<float>(v, u);
+
+                auto& pt = table_points_3d.emplace_back();
+                pt[2] = z_metric;
+                pt[0] = z_metric * ((u - c.cx) / c.fx);
+                pt[1] = z_metric * ((v - c.cy) / c.fy);
+            }
+        }
+        bool solve_successful = false;
+        /*
+        solve_successful = estimation_valid;
+        /*/
+        // 3D 테이블 포인트를 바탕으로 2D 포인트를 정렬합니다.
+        // 모델 공간에서 테이블의 인덱스는 짧은 쿠션에서 시작해 긴 쿠션으로 반시계 방향 정렬된 상태입니다. 이미지에서 검출된 컨투어는 테이블의 반시계 방향 정렬만을 보장하므로, 모델 공간에서의 정점과 같은 순서가 되도록 contour를 재정렬합니다.
+        {
+            assert(table_contours.size() == table_points_3d.size());
+
+            // 오차를 감안해 공간에서 변의 길이가 table size의 mean보다 작은 값을 선정합니다.
+            auto thres = sum(m.table.recognition_size)[0] * 0.5;
+            for (int idx = 0; idx < table_contours.size() - 1; idx++) {
+                auto& t = table_points_3d;
+                auto& c = table_contours;
+                auto len = norm(t[idx + 1] - t[idx], NORM_L2);
+
+                // 다음 인덱스까지의 거리가 문턱값보다 짧다면 해당 인덱스를 가장 앞으로 당깁니다(재정렬).
+                if (len < thres) {
+                    c.insert(c.end(), c.begin(), c.begin() + idx);
+                    t.insert(t.end(), t.begin(), t.begin() + idx);
+                    c.erase(c.begin(), c.begin() + idx);
+                    t.erase(t.begin(), t.begin() + idx);
+
+                    break;
+                }
+            }
+            auto& p = img.camera;
+            double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
+
+            double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
+            auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
+            auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
+
+            solve_successful = solvePnP(obj_pts, table_contours, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_ITERATIVE);
+
+            //            auto error_estimate = norm(tvec_estimate - tvec);
+        }
+        //*/
+
+        if (solve_successful) {
+            Vec3f tvec_world = tvec, rvec_world = rvec;
+            camera_to_world(img, rvec_world, tvec_world);
+
+            vector<vector<Point>> contours;
+            project_model(img, contours.emplace_back(), tvec_world, rvec_world, obj_pts, false);
+
+            // 각 점을 비교하여 에러를 계산합니다.
+            auto& proj = contours.front();
+            int max_error = -1;
+            for (size_t index = 0; index < 4; index++) {
+                Vec2f projpt = (Vec2i)proj[index];
+                max_error = max<int>(norm(projpt - table_contours[index], NORM_L1), max_error);
+            }
+
+            if (max_error < m.table.solvePnP_max_distance_error_threshold) {
+                set_filtered_table_rot(rvec_world);
+                set_filtered_table_pos(tvec_world);
+                desc.table.confidence = 0.9f;
+                draw_axes(img, (Mat&)rgb, rvec_world, tvec_world, 0.08f, 3);
+                drawContours(rgb, contours, -1, {0, 255, 0}, 3);
+            }
+            else {
+                drawContours(rgb, contours, -1, {0, 0, 0}, 1);
+            }
+        }
+
+        desc.table.position = table_pos_flt;
+        desc.table.orientation = (Vec4f&)table_rot_flt;
+    }
+
+    // 테이블을 찾는데 실패한 경우 iteration method를 활용해 테이블 위치를 추정합니다.
+    if (!table_contours.empty() && desc.table.confidence == 0) {
+        vector<Vec3f> model;
+        get_table_model(model, m.table.recognition_size);
+
+        auto init_pos = table_pos_flt;
+        auto init_rot = table_rot_flt;
+
+        auto num_iteration = 5;
+        auto num_candidates = 25;
+        auto rot_axis_variant = 0.008f; // rotation 자체의 variant입니다.
+        auto rot_variant = 0.06f;
+        auto pos_initial_distance = 0.14f; // 시작 위치
+
+        auto border_margin = 3;
+
+        vector<Point> points;
+        for (auto& pt : table_contours) { points.push_back((Vec2i)pt); }
+        drawContours(rgb, vector{{points}}, -1, {255, 0, 0}, 3);
+
+        // 테이블 컨투어의 방향을 뒤집어줍니다.
+        vector<Vec2f> input = table_contours;
+
+        transform_estimation_param_t param = {num_iteration, num_candidates, rot_axis_variant, rot_variant, pos_initial_distance, border_margin};
+        param.FOV = m.FOV;
+        param.debug_render_mat = rgb;
+        param.render_debug_glyphs = true;
+
+        auto result = estimate_matching_transform(img, input, model, init_pos, init_rot, param);
+
+        if (result.has_value()) {
+            auto& res = *result;
+            draw_axes(img, const_cast<cv::Mat&>(rgb), res.rotation, res.position, 0.07f, 2);
+            desc.table.confidence = res.confidence;
+            set_filtered_table_pos(res.position, res.confidence);
+            set_filtered_table_rot(res.rotation, res.confidence);
+            desc.table.position = table_pos_flt;
+            desc.table.orientation = (Vec4f&)table_rot_flt;
+        }
+    }
+}
+
+
+void recognizer_impl_t::find_table2(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
+{
+    using namespace cv;
 
     {
         vector<vector<Point>> candidates;
@@ -204,7 +413,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         findContours(filtered, candidates, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_NONE);
 
         // 테이블 전체가 시야에 없을 때에도 위치를 추정할 수 있도록, 가장 큰 영역을 기록해둡니다.
-        auto max_size_arg = make_pair(-1, 0.0);
+        auto max_size_arg = make_pair(-1, 0.0); 
 
         // 사각형 컨투어 찾기
         for (int idx = 0; idx < candidates.size(); ++idx) {
@@ -215,7 +424,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             if (area_size < m.table.min_pxl_area_threshold) {
                 continue;
             }
-
+            
             if (max_size_arg.second < area_size) {
                 max_size_arg = {idx, area_size};
             }
@@ -241,6 +450,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             for (auto& pt : candidates[max_size_arg.first]) {
                 table_contours.emplace_back(pt.x, pt.y);
             }
+            drawContours(rgb, vector{{table_contours}}, -1, {0, 0, 0}, 3);
         }
     }
 
@@ -1335,8 +1545,6 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             img_rgb_scaled.copyTo(uimg_rgb_scaled);
         }
 
-        vars["imdesc-scaled"] = imdesc_scaled;
-
         // 색공간 변환 수행
         {
             TM(hsv_conversion);
@@ -1359,7 +1567,11 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             u_depth.copyTo(depth);
             vars["uimg-depth"] = u_depth;
             vars["img-depth"] = depth;
+
+            imdesc_scaled.depth = depth;
         }
+
+        vars["imdesc-scaled"] = imdesc_scaled;
     }
 
     // 디버깅용 이미지 설정
@@ -1388,8 +1600,11 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         }
 
         // -- 테이블 추정 영역 찾기
-        vector<Point> table_contour;
-        {
+        vector<Vec2f> table_contour;
+        find_table(VAR(img_t, "imdesc-scaled"), desc, VAR(Mat, "debug"), VAR(UMat, "uimg-table-color-mask"), table_contour);
+
+#if 0
+     {
             TM(contour_search);
             auto& tc = tp["contour"];
 
@@ -1476,10 +1691,37 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
                 vars["table-cam-rvec"] = rvec;
                 vars["table-cam-tvec"] = tvec;
 
+                // Confidence 계산
+                float confidence = 0.f;
+                {
+                    vector<Point2f> pts;
+                    vector<Point> pts_32s;
+                    projectPoints(model, rvec, tvec, cam, disto, pts);
+
+                    pts_32s.assign(pts.begin(), pts.end());
+                    drawContours(VAR(Mat, "debug"), vector{{pts_32s}}, -1, {0, 255, 0}, 3);
+
+                    double error_sum = 0;
+                    for (size_t i = 0; i < pts.size(); i++) {
+                        Vec2f a = (Vec2i)table_contour[i];
+                        Vec2f b = pts[i];
+
+                        auto error = norm(b - a, NORM_L2SQR);
+                        error_sum += error;
+                    }
+
+                    confidence = pow(tp["error-base"], -sqrt(error_sum));
+                }
+
                 camera_to_world(imdesc, rvec, tvec);
+                set_filtered_table_pos(tvec, confidence);
+                set_filtered_table_rot(rvec, confidence);
+
+                desc.table.confidence = confidence;
                 draw_axes(imdesc, VAR(Mat, "debug"), rvec, tvec, 0.1f, 5);
             }
         }
+#endif
 
         // -- CASE 2. 테이블 일부만 시야에 들어온 경우
 
@@ -1487,6 +1729,9 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         // - 임의의 각도로 재투영, 정해진 횟수만큼 iterate
         if (desc.table.confidence == 0 && !table_contour.empty()) {
         }
+
+        desc.table.position = table_pos_flt;
+        desc.table.orientation = (Vec4f&)table_rot_flt;
     }
 
     // 공 탐색을 위한 로직입니다.
