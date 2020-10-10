@@ -130,7 +130,8 @@ void exec_ui()
         return false;
     };
 
-    load_from_path("config.json");
+    if (load_from_path("config.json")) {
+    }
 
     treebox tr(fm);
     textbox param_enter_box(fm);
@@ -140,37 +141,49 @@ void exec_ui()
     param_enter_box.multi_lines(false);
 
     // -- JSON 파라미터 입력 창 핸들
-    param_enter_box.events().text_changed([&](arg_textbox const& tb) {
+    auto param_enter_query = [&](bool apply_change) {
         if (selected_proxy) {
             if (auto it = n->param_mappings.find(selected_proxy->key()); it != n->param_mappings.end()) {
-                auto text = tb.widget.text();
+                auto text = param_enter_box.text();
                 auto prop = *it->second;
                 auto original_type = prop.type_name();
                 prop = json::parse(text, nullptr, false);
 
                 if (strcmp(original_type, prop.type_name()) != 0) { // 파싱에 실패하면, 아무것도 하지 않습니다.
-                    tb.widget.bgcolor(colors::light_pink);
+                    param_enter_box.bgcolor(colors::light_pink);
                     cout << "error: type is " << prop.type_name() << endl;
                     return;
                 }
 
                 // 파싱에 성공했다면 즉시 이를 반영합니다.
-                tb.widget.bgcolor(colors::light_green);
-                *it->second = prop;
+                param_enter_box.bgcolor(colors::light_green);
 
-                auto new_label = selected_proxy.value().text();
-                new_label = new_label.substr(0, new_label.find(' '));
-                new_label += "  [" + tb.widget.text() + ']';
+                if (apply_change) {
+                    *it->second = prop;
 
-                selected_proxy->text(new_label);
+                    auto new_label = selected_proxy.value().text();
+                    new_label = new_label.substr(0, new_label.find(' '));
+                    new_label += "  [" + param_enter_box.text() + ']';
 
-                drawing(tr).update();
+                    selected_proxy->text(new_label);
+                    param_enter_box.select(true);
+
+                    drawing(tr).update();
+                }
             }
         }
         else {
-            tb.widget.bgcolor(colors::light_gray);
+            param_enter_box.bgcolor(colors::light_gray);
+        }
+    };
+
+    param_enter_box.events().key_char([&](arg_keyboard const& arg) {
+        if (arg.key == 13) {
+            param_enter_query(true);
         }
     });
+
+    param_enter_box.events().text_changed([&](arg_textbox const& arg) { param_enter_query(false); });
 
     // -- JSON 파라미터 트리 빌드
     struct node_iterative_constr_t {
@@ -383,6 +396,14 @@ void exec_ui()
     });
     tm_waitkey.start();
 
+    // -- 스냅샷 관련
+    bool snapshot_active = false;
+    billiards::recognizer_t::parameter_type snapshot;
+    button btn_snap_load(fm), btn_snapshot(fm), btn_snap_abort(fm);
+    btn_snap_load.caption("Load Snapshot");
+    btn_snapshot.caption("Capture Snapshot");
+    btn_snap_abort.caption("Abort Snapshot");
+
     // -- 레이아웃 설정
     place layout(fm);
     layout.div(
@@ -391,9 +412,10 @@ void exec_ui()
       "    <timings>>"
       "<vert"
       "    weight=400"
-      "    <margin=5 gap=5 weight=40 <btn_reset><btn_export><btn_import>>"
+      "    <margin=[5,5,2,5] gap=5 weight=40 <btn_reset><btn_export><btn_import>>"
+      "    <margin=[0,5,5,5] gap=5 weight=30 <btn_snap_load><btn_snapshot><btn_snap_abort weight=25%>>"
       "    <enter weight=30 margin=5>"
-      "    <margin=5 center>>");
+      "    <center margin=5>>");
 
     layout["center"] << tr;
     layout["enter"] << param_enter_box;
@@ -402,7 +424,9 @@ void exec_ui()
     layout["btn_import"] << btn_import;
     layout["mat_lists"] << matlist;
     layout["timings"] << tickmeters;
-
+    layout["btn_snap_load"] << btn_snap_load;
+    layout["btn_snapshot"] << btn_snapshot;
+    layout["btn_snap_abort"] << btn_snap_abort;
     layout.collocate();
 
     fm.events().move([&](auto) {
@@ -431,18 +455,22 @@ void exec_ui()
     }
 
     this_thread::sleep_for(100ms);
-    cout << "info: GUI Profram Expired" << endl;
+    cout << "info: GUI Expired" << endl;
     cv::destroyAllWindows();
     cv::waitKey(1);
+
+    n.reset();
 }
 
 void ui_on_refresh()
 {
-    {
-        lock_guard<mutex> lock{n->shows_lock};
-        n->shows.clear();
-        g_recognizer.poll(n->shows);
-    }
+    if (n) {
+        {
+            lock_guard<mutex> lock{n->shows_lock};
+            n->shows.clear();
+            g_recognizer.poll(n->shows);
+        }
 
-    n->dirty = true;
+        n->dirty = true;
+    }
 }
