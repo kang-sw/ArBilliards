@@ -360,11 +360,15 @@ int main(void)
 
     cout << "info: initializing recognizer ... \n";
 
-    exec_ui();
+    try {
+        exec_ui();
 
-    g_recognizer.destroy();
-    this_thread::sleep_for(100ms);
-    g_app.abort();
-    this_thread::sleep_for(100ms);
+        g_recognizer.destroy();
+        this_thread::sleep_for(100ms);
+        g_app.abort();
+        this_thread::sleep_for(100ms);
+    } catch (exception e) {
+        cout << e.what() << endl;
+    }
     return 0;
 }

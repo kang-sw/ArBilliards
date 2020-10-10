@@ -691,7 +691,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
 cv::Vec3f recognizer_impl_t::set_filtered_table_pos(cv::Vec3f new_pos, float confidence)
 {
-    float alpha = m.table.LPF_alpha_pos * confidence;
+    float alpha = (float)m.props["table"]["LPF"]["position"] * confidence;
     return table_pos_flt = (1 - alpha) * table_pos_flt + alpha * new_pos;
 }
 
@@ -702,7 +702,7 @@ cv::Vec3f recognizer_impl_t::set_filtered_table_rot(cv::Vec3f new_rot, float con
         new_rot = rotate_local(new_rot, {0, (float)CV_PI, 0});
     }
 
-    float alpha = m.table.LPF_alpha_rot * confidence;
+    float alpha = (float)m.props["table"]["LPF"]["rotation"] * confidence;
     return table_rot_flt = (1 - alpha) * table_rot_flt + alpha * new_rot;
 }
 
@@ -1996,6 +1996,10 @@ void recognizer_t::destroy()
 
 void recognizer_t::refresh_image(parameter_type image, recognizer_t::process_finish_callback_type&& callback)
 {
+    if (!impl_) {
+        return;
+    }
+
     auto& m = *impl_;
     bool img_swap_before_prev_img_proc = false;
 
