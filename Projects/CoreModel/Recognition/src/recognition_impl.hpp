@@ -1,5 +1,4 @@
 #include "recognition.hpp"
-#include "recognition.hpp"
 #include <thread>
 #include <shared_mutex>
 #include <atomic>
@@ -186,7 +185,6 @@ public:
       const cv::Mat& rgb,
       const cv::UMat& filtered,
       vector<cv::Vec2f>& table_contours);
-    void find_table2(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours);
 
     /**
      * 주로 테이블에 활용 ...

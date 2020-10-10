@@ -187,25 +187,29 @@ static void project_model_fast(img_t const& img, vector<cv::Vec2f>& mapped_conto
  * 두 컨투어 집합 사이의 거리를 구합니다.
  * 항상 일정한 방향을 가정합니다.
  */
-static float contour_distance(vector<cv::Vec2f> const& ct_a, vector<cv::Vec2f> const& ct_b)
+static float contour_distance(vector<cv::Vec2f> const& ct_a, vector<cv::Vec2f>& ct_b)
 {
     CV_Assert(ct_a.size() == ct_b.size());
-    float dist_min = numeric_limits<float>::max();
 
-    for (int offset = 0; offset < ct_a.size(); ++offset) {
-        float dist_sum = 0;
-        for (int cmp_idx = 0; cmp_idx < ct_a.size(); ++cmp_idx) {
-            int oidx = (offset + cmp_idx) % ct_a.size();
-            auto a = ct_a[cmp_idx];
-            auto b = ct_b[oidx];
+    float sum = 0;
 
-            dist_sum += norm(a - b);
+    for (auto& pt : ct_a) {
+        float min_dist = numeric_limits<float>::max();
+        int min_idx = 0;
+        for (int i = 0; i < ct_b.size(); ++i) {
+            auto dist = cv::norm(ct_b[i] - pt, cv::NORM_L2SQR);
+            if (dist < min_dist) {
+                min_dist = dist;
+                min_idx = i;
+            }
         }
 
-        dist_min = min(dist_sum, dist_min);
+        sum += min_dist;
+        ct_b[min_idx] = ct_b.back();
+        ct_b.pop_back();
     }
 
-    return dist_min;
+    return sqrt(sum);
 }
 
 static vector<plane_t> generate_frustum(float hfov_rad, float vfov_rad)
@@ -526,12 +530,6 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                     break;
                 }
             }
-            //auto& p = img.camera;
-            //double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
-
-            //double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
-            //auto mat_cam = cv::Mat(3, 3, CV_64FC1, M);
-            //auto mat_disto = cv::Mat(4, 1, CV_64FC1, disto);
             auto [mat_cam, mat_disto] = get_camera_matx(img);
 
             solve_successful = solvePnP(obj_pts, table_contours, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_ITERATIVE);
@@ -555,7 +553,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 error_sum += norm(projpt - table_contours[index], NORM_L2SQR);
             }
 
-            float confidence = pow(tp["error-base"], sqrt(error_sum));
+            float confidence = pow(tp["error-base"], -sqrt(error_sum));
 
             set_filtered_table_rot(rvec_world, confidence);
             set_filtered_table_pos(tvec_world, confidence);
@@ -612,11 +610,11 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         }
     }
 
-    // 이전 테이블 위치를 단순히 렌더
+    // 이전 테이블 위치를 렌더
     {
         vector<Vec3f> model;
         vector<Point> mapped;
-        get_table_model(model, tp["size"]["fit"]);
+        get_table_model(model, tp["size"]["inner"]);
 
         Vec2f FOV = p["FOV"];
         project_model(img, mapped, table_pos_flt, table_rot_flt, model, true, FOV[0], FOV[1]);
@@ -969,7 +967,6 @@ void billiards::recognizer_impl_t::project_model(img_t const& img, vector<cv::Po
         mapped.emplace_back((int)pt[0], (int)pt[1]);
     }
 }
-
 
 void recognizer_impl_t::find_ball_center(img_t const& img, vector<cv::Point> const& contours_src, ball_find_parameter_t const& p, ball_find_result_t& r)
 {
@@ -1620,12 +1617,6 @@ recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
             if (candidates.empty() == false && max_size_index >= 0) {
                 table_contour_partial = candidates[max_size_index];
             }
-        }
-
-        if (false && table_not_detect && table_contour_partial.empty() == false) {
-            approxPolyDP(table_contour_partial, table_contour_partial, 25, true);
-
-            correct_table_pos(img, desc, rgb_all_debug, ROI, roi_rgb, table_contour_partial);
         }
 
         show("partial-view", roi_rgb);
