@@ -49,7 +49,7 @@ struct timer_scope_t {
     {
         tm_.start();
         auto& arg = self_.elapsed_seconds.emplace_back();
-        for (size_t i = 0; i < timer_scope_counter; i++) {
+        for (int i = 0; i < timer_scope_counter; i++) {
             arg.first.append("| ");
         }
         arg.first += move(name);
@@ -1271,83 +1271,130 @@ void recognizer_impl_t::async_worker_thread()
     }
 }
 
-#define TM(name) timer_scope_t TICKMETER__##name(this, #name)
+#define TM(name) \
+    timer_scope_t TM__##name { this, #name }
+
 recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 {
     using namespace cv;
     recognition_desc desc;
 
     TM(total);
-
     if (statics.empty()) {
     }
 
     vars = {};
 
-    auto& p = m.props;
+    auto const& p = m.props;
 
-    // RGBA 이미지를 RGB로 컨버트합니다.
-    Mat img_rgb;
     {
-        TM(initial_rgb_conversion);
+        TM(initial_preprocessing);
 
-        cvtColor(img.rgba, img_rgb, COLOR_RGBA2RGB);
-        vars["img-rgb"] = img_rgb;
-    }
+        // RGBA 이미지를 RGB로 컨버트합니다.
+        Mat img_rgb;
+        {
+            TM(initial_rgb_conversion);
 
-    // 공용 머터리얼 셋업 시퀀스
-    Mat img_rgb_scaled, img_hsv_scaled;
-    UMat uimg_rgb_scaled, uimg_hsv_scaled;
-    if ((bool)p["do-resize"]) {
-        TM(initial_scailing);
-
-        // 스케일된 이미지 준비
-        Size size_scaled_image((int)p["fast-process-width"], 0);
-        float scale = size_scaled_image.width / (float)img_rgb.cols;
-        size_scaled_image.height = (int)(img_rgb.rows * scale);
-
-        resize(img_rgb.getUMat(ACCESS_FAST), uimg_rgb_scaled, size_scaled_image, 0, 0, INTER_NEAREST);
-
-        // 스케일된 이미지의 파라미터 준비
-        auto scp = img.camera;
-        for (auto& value : {&scp.fx, &scp.fy, &scp.cx, &scp.cy}) {
-            *value *= scale;
+            cvtColor(img.rgba, img_rgb, COLOR_RGBA2RGB);
+            vars["img-rgb"] = img_rgb;
         }
-        vars["camera-param-scaled"] = scp;
-    }
-    else {
-        TM(initial_copying);
-        img_rgb_scaled = img_rgb;
-        img_rgb_scaled.copyTo(uimg_rgb_scaled);
-        vars["camera-param-scaled"] = img.camera;
-    }
 
-    // 색공간 변환 수행
-    {
-        TM(initial_hsv_conversion);
+        // 공용 머터리얼 셋업 시퀀스
+        Size scaled_image_size((int)p["fast-process-width"], 0);
+        float image_scale = scaled_image_size.width / (float)img_rgb.cols;
+        scaled_image_size.height = (int)(img_rgb.rows * image_scale);
+        vars["scaled-image-size"] = scaled_image_size;
 
-        vars["img-rgb-scaled"] = img_rgb_scaled;
-        cvtColor(uimg_rgb_scaled, uimg_hsv_scaled, COLOR_RGB2HSV);
-        uimg_hsv_scaled.copyTo(img_hsv_scaled);
+        Mat img_rgb_scaled, img_hsv_scaled;
+        UMat uimg_rgb_scaled, uimg_hsv_scaled;
+        if ((bool)p["do-resize"]) {
+            TM(initial_scailing);
+
+            // 스케일된 이미지 준비
+
+            resize(img_rgb.getUMat(ACCESS_FAST), uimg_rgb_scaled, scaled_image_size, 0, 0, INTER_NEAREST);
+
+            // 스케일된 이미지의 파라미터 준비
+            auto scp = img.camera;
+            for (auto& value : {&scp.fx, &scp.fy, &scp.cx, &scp.cy}) {
+                *value *= image_scale;
+            }
+            vars["camera-param-scaled"] = scp;
+        }
+        else {
+            TM(initial_copying);
+            img_rgb_scaled = img_rgb;
+            img_rgb_scaled.copyTo(uimg_rgb_scaled);
+            vars["camera-param-scaled"] = img.camera;
+        }
+
+        // 색공간 변환 수행
+        {
+            TM(initial_hsv_conversion);
+            vars["img-rgb-scaled"] = img_rgb_scaled;
+            vars["uimg-rgb-scaled"] = uimg_rgb_scaled;
+
+            cvtColor(uimg_rgb_scaled, uimg_hsv_scaled, COLOR_RGB2HSV);
+            uimg_hsv_scaled.copyTo(img_hsv_scaled);
+
+            vars["img-hsv-scaled"] = img_hsv_scaled;
+            vars["uimg-hsv-scaled"] = uimg_hsv_scaled;
+        }
     }
 
     // 테이블 탐색을 위한 로직입니다.
     {
-      // -- 테이블 색상으로 필터링 수행
+        TM(table_find);
+        auto& param = p["table"];
+        auto& u_hsv = any_cast<UMat&>(vars["uimg-hsv-scaled"]);
+        auto image_size = any_cast<Size>(vars["scaled-image-size"]);
 
-      // -- 경계선 검출
+        // -- 테이블 색상으로 필터링 수행
+        UMat u_mask;
+        UMat u_eroded, u_edge;
+        {
+            TM(table_filtering);
+            array<Vec3f, 2> filters = param["filter"];
+            filter_hsv(u_hsv, u_mask, filters[0], filters[1]);
+            vars["uimg-table-color-mask"] = u_mask;
 
-      // -- 테이블 추정 영역 컨투어 찾기
+            // -- 경계선 검출
+            erode(u_mask, u_eroded, {});
+            subtract(u_mask, u_eroded, u_edge);
+        }
 
-      // -- CASE 1. 테이블 전체 시야에 들어오는 경우
-      // - solvePnP 활용해서 테이블 포즈 찾기
-      // - 오차에 따라 컨피던스 설정
-      // - 값 LPF 필터 누적
+        // -- 테이블 추정 영역 찾기
+        vector<Point> table_contour;
+        {
+            TM(table_contour_search);
+            auto& tc = param["contour"];
 
-      // -- CASE 2. 테이블 일부만 시야에 들어온 경우
+            vector<vector<Point>> contours;
+            findContours(u_edge, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
 
-      // - 오차 확인
-      // - 임의의 각도로 재투영, 정해진 횟수만큼 iterate
+            auto min_area = (double)tc["area-threshold-ratio"] * (image_size.area());
+            double epsilon[] = {tc["approx-epsilon-preprocess"], tc["approx-epsilon-convexhull"]};
+
+            for (size_t i = 0; i < contours.size(); i++) {
+                auto& contour = contours[i];
+                auto area = contourArea(contour);
+                if (area < min_area) { continue; }
+
+                approxPolyDP(contour, contour, epsilon[0], true);
+                convexHull(vector{contour}, contour, false);
+                approxPolyDP(contour, contour, epsilon[1], true);
+            }
+        }
+
+        // -- CASE 1. 테이블 전체 시야에 들어오는 경우
+        // - solvePnP 활용해서 테이블 포즈 찾기
+        // - 오차에 따라 컨피던스 설정
+        // - 값 LPF 필터 누적
+
+        // -- CASE 2. 테이블 일부만 시야에 들어온 경우
+
+        // - 오차 확인
+        // - 임의의 각도로 재투영, 정해진 횟수만큼 iterate
     }
 
     // 공 탐색을 위한 로직입니다.

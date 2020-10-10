@@ -24,7 +24,7 @@ void to_json(nlohmann::json& j, const Vec<Ty_, Size_>& v)
 template <int Size_, typename Ty_>
 void from_json(const nlohmann::json& j, Vec<Ty_, Size_>& v)
 {
-    std::array<Ty_, Size_>& arr = j;
+    std::array<Ty_, Size_> const& arr = j;
     v = (cv::Vec<Ty_, Size_>&)arr;
 }
 
@@ -105,8 +105,12 @@ public:
             t["size"]["outer"] = Vec2f(1.31f, 0.76f);
             t["size"]["inner"] = Vec2f(0.895f, 0.447f);
 
-            t["filter"] = {Vec3f{0, 150, 0}, Vec3f{20, 255, 255}};
-            t["hsv-shift"] = 15;
+            auto& tc = t["contour"];
+            tc["area-threshold-ratio"] = 0.03;
+            tc["approx-epsilon-preprocess"] = 5;
+            tc["approx-epsilon-convexhull"] = 5;
+
+            t["filter"] = {Vec3f{165, 150, 0}, Vec3f{15, 255, 255}};
             t["cushion_height"] = 0.025;
 
             t["error-base"] = 1.02;
