@@ -87,6 +87,7 @@ public:
 
         json& params = m.props;
         params["fast-process-width"] = 540;
+        params["do-resize"] = false;
 
         {
             auto& b = params["ball"];

@@ -341,10 +341,26 @@ nana::listbox::oresolver& operator<<(nana::listbox::oresolver& ores, const mat_d
     return ores;
 }
 
+using nlohmann::json;
+
+static void json_iterative_substitute(json& to, json const& from)
+{
+    for (auto& pair : to.items()) {
+        auto it = from.find(pair.key());
+        if (it != from.end()) {
+            if (pair.value().type() == json::value_t::array || pair.value().type() == json::value_t::object) {
+                json_iterative_substitute(pair.value(), *it);
+            }
+            else if (strcmp(pair.value().type_name(), it->type_name()) == 0) {
+                pair.value() = *it;
+            }
+        }
+    }
+}
+
 void exec_ui()
 {
     using namespace nana;
-    using nlohmann::json;
     n_type nn;
     n = &nn;
     form& fm = n->fm; // 주 폼
@@ -353,7 +369,7 @@ void exec_ui()
     if (ifstream strm("config.txt"); strm.is_open()) {
         try {
             json parsed = json::parse((stringstream() << strm.rdbuf()).str());
-            g_recognizer.props = parsed;
+            json_iterative_substitute(g_recognizer.props, parsed);
         } catch (std::exception& e) {
             cout << "Failed to load configuration file ... " << endl;
         }
@@ -494,8 +510,9 @@ void exec_ui()
 
     // -- 틱 미터 박스
     listbox tickmeters(fm);
-    tickmeters.append_header("name");
-    tickmeters.append_header("elapsed", 240);
+    tickmeters.append_header("", 20);
+    tickmeters.append_header("Name");
+    tickmeters.append_header("Elapsed", 240);
 
     // -- Waitkey 폴링 타이머
     timer tm_waitkey{16ms};
@@ -552,8 +569,14 @@ void exec_ui()
             // 틱 미터 갱신
             tickmeters.auto_draw(false);
             tickmeters.erase();
-            for (auto& ticks : g_recognizer.get_latest_timings()) {
-                tickmeters.at(0).append({ticks.first, to_string(ticks.second.count() / 1000.0) + " ms"});
+            {
+                int order = 1;
+                for (auto& ticks : g_recognizer.get_latest_timings()) {
+                    auto tick = ticks.second.count();
+                    char buf[24];
+                    snprintf(buf, sizeof buf, "%d.%03d", tick / 1000, tick % 1000);
+                    tickmeters.at(0).append({to_string(order++), ticks.first, buf + " ms"s});
+                }
             }
             tickmeters.auto_draw(true);
         }

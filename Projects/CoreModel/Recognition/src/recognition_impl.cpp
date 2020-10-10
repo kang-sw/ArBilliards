@@ -41,25 +41,32 @@ static float contour_distance(vector<cv::Vec2f> const& ct_a, vector<cv::Vec2f> c
     return dist_min;
 }
 
+static int timer_scope_counter;
 struct timer_scope_t {
     timer_scope_t(recognizer_impl_t* self, string name)
         : self_(*self)
-        , name_(name)
+        , index_(self->elapsed_seconds.size())
     {
         tm_.start();
+        auto& arg = self_.elapsed_seconds.emplace_back();
+        for (size_t i = 0; i < timer_scope_counter; i++) {
+            arg.first.append("| ");
+        }
+        arg.first += move(name);
+        timer_scope_counter++;
     }
 
     ~timer_scope_t()
     {
+        timer_scope_counter--;
         tm_.stop();
-        auto& arg = self_.elapsed_seconds.emplace_back();
-        arg.first = move(name_);
+        auto& arg = self_.elapsed_seconds[index_];
         arg.second = chrono::microseconds((int64)tm_.getTimeMicro());
     }
 
     recognizer_impl_t& self_;
     cv::TickMeter tm_;
-    string name_;
+    int index_;
 };
 
 optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::estimate_matching_transform(img_t const& img, vector<cv::Vec2f> const& input, vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p)
@@ -1281,21 +1288,25 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
 
     // RGBA 이미지를 RGB로 컨버트합니다.
     Mat img_rgb;
-    cvtColor(img.rgba, img_rgb, COLOR_RGBA2RGB);
-    vars["img-rgb"] = img_rgb;
+    {
+        TM(initial_rgb_conversion);
+
+        cvtColor(img.rgba, img_rgb, COLOR_RGBA2RGB);
+        vars["img-rgb"] = img_rgb;
+    }
 
     // 공용 머터리얼 셋업 시퀀스
     Mat img_rgb_scaled, img_hsv_scaled;
-    {
-        TM(scailing);
+    UMat uimg_rgb_scaled, uimg_hsv_scaled;
+    if ((bool)p["do-resize"]) {
+        TM(initial_scailing);
 
         // 스케일된 이미지 준비
         Size size_scaled_image((int)p["fast-process-width"], 0);
         float scale = size_scaled_image.width / (float)img_rgb.cols;
         size_scaled_image.height = (int)(img_rgb.rows * scale);
 
-        resize(img_rgb, img_rgb_scaled, size_scaled_image, 0, 0, INTER_NEAREST);
-        vars["img-rgb-scaled"] = img_rgb_scaled;
+        resize(img_rgb.getUMat(ACCESS_FAST), uimg_rgb_scaled, size_scaled_image, 0, 0, INTER_NEAREST);
 
         // 스케일된 이미지의 파라미터 준비
         auto scp = img.camera;
@@ -1303,9 +1314,21 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& img)
             *value *= scale;
         }
         vars["camera-param-scaled"] = scp;
+    }
+    else {
+        TM(initial_copying);
+        img_rgb_scaled = img_rgb;
+        img_rgb_scaled.copyTo(uimg_rgb_scaled);
+        vars["camera-param-scaled"] = img.camera;
+    }
 
-        // HSV 이미지 준비
-        cvtColor(img_rgb_scaled, img_hsv_scaled, COLOR_RGB2HSV);
+    // 색공간 변환 수행
+    {
+        TM(initial_hsv_conversion);
+
+        vars["img-rgb-scaled"] = img_rgb_scaled;
+        cvtColor(uimg_rgb_scaled, uimg_hsv_scaled, COLOR_RGB2HSV);
+        uimg_hsv_scaled.copyTo(img_hsv_scaled);
     }
 
     // 테이블 탐색을 위한 로직입니다.
