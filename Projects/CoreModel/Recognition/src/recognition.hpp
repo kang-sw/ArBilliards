@@ -23,6 +23,9 @@ public:
     recognizer_t();
     ~recognizer_t();
 
+    void initialize();
+    void destroy();
+
 public: /* exposed properties */
     nlohmann::json props;
 

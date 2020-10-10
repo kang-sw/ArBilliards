@@ -360,32 +360,9 @@ int main(void)
 
     cout << "info: initializing recognizer ... \n";
 
-    // UI Initialize
-    if (0) {
-        auto const UI_NAME = "recognition";
-        cv::Mat ui_frame(300, 200, CV_8UC3);
-
-        cvui::init(UI_NAME);
-
-        while (true) {
-            cv::TickMeter tm;
-            tm.start();
-
-            cvui::context(UI_NAME);
-            recognition_draw_ui(ui_frame);
-            cvui::imshow(UI_NAME, ui_frame);
-
-            tm.stop();
-            int to_wait = max<int>(1, 16 - tm.getAvgTimeMilli());
-
-            if ((cv::waitKey(to_wait) & 0xff) == 'q') {
-                break;
-            }
-        }
-    }
-
     exec_ui();
 
+    g_recognizer.destroy();
     g_app.abort();
     return 0;
 }

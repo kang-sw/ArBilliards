@@ -12,6 +12,52 @@
 
 using namespace billiards;
 
+template <typename Fn_>
+void circle_op(int cent_x, int cent_y, int radius, Fn_&& op)
+{
+    int x = 0, y = radius;
+    int d = 1 - radius;             // 결정변수를 int로 변환
+    int delta_e = 3;                // E가 선택됐을 때 증분값
+    int delta_se = -2 * radius + 5; // SE가 선탣됐을 때 증분값
+
+    op(cent_x + x, cent_y + y);
+    op(cent_x - x, cent_y + y);
+    op(cent_x + x, cent_y - y);
+    op(cent_x - x, cent_y - y);
+    op(cent_x + y, cent_y + x);
+    op(cent_x - y, cent_y + x);
+    op(cent_x + y, cent_y - x);
+    op(cent_x - y, cent_y - x);
+
+    // 12시 방향에서 시작해서 시계방향으로 회전한다고 했을 때
+    // 45도를 지나면 y값이 x값보다 작아지는걸 이용
+    while (y > x) {
+        // E 선택
+        if (d < 0) {
+            d += delta_e;
+            delta_e += 2;
+            delta_se += 2;
+        }
+        // SE 선택
+        else {
+            d += delta_se;
+            delta_e += 2;
+            delta_se += 4;
+            y--;
+        }
+        x++;
+
+        op(cent_x + x, cent_y + y);
+        op(cent_x - x, cent_y + y);
+        op(cent_x + x, cent_y - y);
+        op(cent_x - x, cent_y - y);
+        op(cent_x + y, cent_y + x);
+        op(cent_x - y, cent_y + x);
+        op(cent_x + y, cent_y - x);
+        op(cent_x - y, cent_y - x);
+    }
+}
+
 template <typename Rand_, typename Ty_, int Sz_>
 void random_vector(Rand_& rand, cv::Vec<Ty_, Sz_>& vec, Ty_ range)
 {
@@ -273,8 +319,8 @@ struct timer_scope_t {
 #define XTRACE(x, y) YTRACE(x, y)
 #define TM(name)     XTRACE(name, __COUNTER__)
 
-#define VAR(type, varname)   any_cast<type&>(vars[varname])
-#define ASSIGN(var, varname) var = any_cast<remove_reference_t<decltype(var)>&>(vars[varname])
+#define varset(varname)       ((void)billiards::names::varname, vars[#varname])
+#define varget(type, varname) ((void)billiards::names::varname, any_cast<type&>(vars[#varname]))
 
 static bool is_border_pixel(cv::Size img_size, cv::Vec2f pixel, int margin = 3)
 {
@@ -406,12 +452,13 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
 
 void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
 {
+    using namespace names;
     TM(table_search);
 
     using namespace cv;
     auto p = m.props;
     auto tp = p["table"];
-    auto image_size = any_cast<Size>(vars["scaled-image-size"]);
+    auto image_size = varget(Size, IMAGE_SIZE); // any_cast<Size>(vars["scaled-image-size"]);
 
     {
         TM(process_contour);
@@ -620,7 +667,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         pts.assign(table_contours.begin(), table_contours.end());
         drawContours(table_mask, vector{{pts}}, -1, {255}, -1);
 
-        vars["table-area-mask"] = (Mat)table_mask;
+        varset(TABLE_AREA_MASK) = (Mat)table_mask;
     }
     else {
         table_contours.clear();
@@ -1249,14 +1296,14 @@ void recognizer_impl_t::async_worker_thread()
 
 recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 {
+    using namespace names;
+    using namespace names;
     using namespace cv;
     recognition_desc desc = {};
 
     TM(total);
     if (statics.empty()) {
     }
-
-    // vars = {};
 
     auto const& p = m.props;
 
@@ -1270,14 +1317,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             TM(rgb_conversion);
 
             cvtColor(imdesc_source.rgba, img_rgb, COLOR_RGBA2RGB);
-            vars["img-rgb"] = img_rgb;
+            varset(MAT_RGB_SOURCE) = img_rgb;
         }
 
         // 공용 머터리얼 셋업 시퀀스
         Size scaled_image_size((int)p["fast-process-width"], 0);
         float image_scale = scaled_image_size.width / (float)img_rgb.cols;
         scaled_image_size.height = (int)(img_rgb.rows * image_scale);
-        vars["scaled-image-size"] = scaled_image_size;
+        varset(IMAGE_SIZE) = scaled_image_size;
 
         Mat img_rgb_scaled, img_hsv_scaled;
         UMat uimg_rgb_scaled, uimg_hsv_scaled;
@@ -1305,14 +1352,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         // 색공간 변환 수행
         {
             TM(hsv_conversion);
-            vars["img-rgb-scaled"] = img_rgb_scaled;
-            vars["uimg-rgb-scaled"] = uimg_rgb_scaled;
+            varset(MAT_RGB) = img_rgb_scaled;
+            varset(UMAT_RGB) = uimg_rgb_scaled;
 
             cvtColor(uimg_rgb_scaled, uimg_hsv_scaled, COLOR_RGB2HSV);
             uimg_hsv_scaled.copyTo(img_hsv_scaled);
 
-            vars["img-hsv-scaled"] = img_hsv_scaled;
-            vars["uimg-hsv-scaled"] = uimg_hsv_scaled;
+            varset(MAT_HSV) = img_hsv_scaled;
+            varset(UMAT_HSV) = uimg_hsv_scaled;
         }
 
         // 깊이 이미지 크기 변환
@@ -1322,24 +1369,24 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             Mat depth;
             resize(imdesc_scaled.depth, u_depth, scaled_image_size);
             u_depth.copyTo(depth);
-            vars["uimg-depth"] = u_depth;
-            vars["img-depth"] = depth;
+            varset(UMAT_DEPTH) = u_depth;
+            varset(MAT_DEPTH) = depth;
 
             imdesc_scaled.depth = depth;
         }
 
-        vars["imdesc-scaled"] = imdesc_scaled;
+        varset(IMDESC) = imdesc_scaled;
     }
 
     // 디버깅용 이미지 설정
-    vars["debug"] = VAR(Mat, "img-rgb-scaled").clone();
+    varset(MAT_DEBUG) = varget(Mat, MAT_RGB).clone();
 
     // 테이블 탐색을 위한 로직입니다.
     {
         TM(table_find);
         auto& tp = p["table"];
-        auto& u_hsv = any_cast<UMat&>(vars["uimg-hsv-scaled"]);
-        auto image_size = any_cast<Size>(vars["scaled-image-size"]);
+        auto& u_hsv = varget(UMat, UMAT_HSV);
+        auto image_size = varget(Size, IMAGE_SIZE);
 
         // -- 테이블 색상으로 필터링 수행
         UMat u_mask;
@@ -1349,7 +1396,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             array<Vec3f, 2> filters = tp["filter"];
             filter_hsv(u_hsv, u_mask, filters[0], filters[1]);
             carve_outermost_pixels(u_mask, {0});
-            vars["uimg-table-color-mask"] = u_mask;
+            varset(MAT_TABLE_FILTERED) = u_mask;
 
             // -- 경계선 검출
             erode(u_mask, u_eroded, {});
@@ -1358,11 +1405,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
         // -- 테이블 추정 영역 찾기
         vector<Vec2f> table_contour;
-        find_table(VAR(img_t, "imdesc-scaled"), desc, VAR(Mat, "debug"), VAR(UMat, "uimg-table-color-mask"), table_contour);
+        find_table(varget(img_t, IMDESC), desc, varget(Mat, MAT_DEBUG), varget(UMat, MAT_TABLE_FILTERED), table_contour);
+
+        varset(CONTOUR_TABLE) = table_contour;
     }
 
     // 공 탐색을 위한 로직입니다.
-    {
+    if (auto table_contour = varget(vector<Vec2f>, CONTOUR_TABLE);
+        !table_contour.empty()) {
         // -- 테이블 영역을 Perspective에서 Orthogonal하게 투영합니다.
         // (방법은 아직 연구가 필요 ..)
         // - 이미지는 이미 rectify된 상태이므로, 카메라 파라미터는 따로 고려하지 않음
@@ -1380,6 +1430,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         // NOTE: 경계선 평가는 기존의 방법을 사용하되, 이진 이미지가 아닌 HSV 색공간의 Value 표현으로부터 경계선을 검출합니다. Value 표현에 gradient를 먹이고 증폭하면 경계선 이미지를 얻을 수 있을듯? 이후 contour를 사용하는 대신, 원 인덱스 픽셀에 대해 검사하여 가장 높은 가중치를 획득합니다.
         // NOTE: 커널 연산 개선, 정사각형 범위에서 iterate 하되, 반지름 안에 들어가는 픽셀만 가중치를 유효하게 계산합니다.
         // NOTE: 커널 가중치 계산 시 거리가 가까운 픽셀이 우세하므로, 계산된 픽셀 개수로 나눠줍니다.
+
+        // 기존 방법을 근소하게 개선하는 방향으로 ..
+        // ROI 획득
+        auto debug = varget(Mat, MAT_DEBUG);
+        auto area_mask = varget(Mat, TABLE_AREA_MASK);
+        auto u_rgb = varget(UMat, UMAT_RGB);
+
+        auto ROI = boundingRect(table_contour);
     }
 
     // ShowImage에 모든 임시 매트릭스 추가
@@ -1891,6 +1949,18 @@ recognizer_t::recognizer_t()
 }
 
 recognizer_t::~recognizer_t() = default;
+
+void recognizer_t::initialize()
+{
+    if (!impl_) {
+        impl_ = make_unique<recognizer_impl_t>(*this);
+    }
+}
+
+void recognizer_t::destroy()
+{
+    impl_.reset();
+}
 
 void recognizer_t::refresh_image(parameter_type image, recognizer_t::process_finish_callback_type&& callback)
 {

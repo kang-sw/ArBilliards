@@ -377,4 +377,34 @@ enum BALL_INDEX
     BALL_ORANGE,
     BALL_WHITE
 };
+
+namespace names
+{
+enum Type{
+    TABLE_AREA_MASK,
+
+    IMAGE_SIZE,
+
+    MAT_DEBUG,
+
+    MAT_RGB_SOURCE,
+    MAT_RGB,
+    MAT_HSV,
+    MAT_DEPTH,
+
+    UMAT_RGB,
+    UMAT_HSV,
+    UMAT_DEPTH,
+
+    MAT_TABLE_FILTERED,
+
+    CONTOUR_TABLE,
+
+    IMDESC_SOURCE,
+    IMDESC,
+
+};
+}
+
+
 } // namespace billiards
