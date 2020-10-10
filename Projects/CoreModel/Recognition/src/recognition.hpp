@@ -206,3 +206,9 @@ struct recognition_desc {
 };
 
 } // namespace billiards
+
+namespace std
+{
+ostream& operator<<(ostream& strm, billiards::recognizer_t::parameter_type const& desc);
+istream& operator>>(istream& strm, billiards::recognizer_t::parameter_type& desc);
+} // namespace std

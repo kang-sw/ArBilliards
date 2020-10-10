@@ -1453,7 +1453,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         // array<UMat, 3> channels;
         // split(u_hsv, channels);
         // auto& [u_h, u_s, u_v] = channels;
-        // 
+        //
         // UMat u_delta_hype;
         // Laplacian(u_v, u_delta_hype, CV_32F, 3);
     }
@@ -2022,3 +2022,72 @@ std::vector<std::pair<std::string, std::chrono::microseconds>> recognizer_t::get
     return impl_->elapsed_seconds_prev;
 }
 } // namespace billiards
+
+namespace std
+{
+ostream& operator<<(ostream& strm, billiards::recognizer_t::parameter_type const& desc)
+{
+    auto write = [&strm](auto val) {
+        strm.write((char*)&val, sizeof val);
+    };
+    write(desc.camera);
+    write(desc.camera_transform);
+    write(desc.camera_translation);
+    write(desc.camera_orientation);
+
+    auto rgba = desc.rgba.clone();
+    auto depth = desc.depth.clone();
+
+    write(rgba.rows);
+    write(rgba.cols);
+    write(rgba.type());
+    write((size_t)rgba.total() * rgba.elemSize());
+
+    write(depth.rows);
+    write(depth.cols);
+    write(depth.type());
+    write((size_t)depth.total() * depth.elemSize());
+
+    strm.write((char*)rgba.data, rgba.total() * rgba.elemSize());
+    strm.write((char*)depth.data, depth.total() * depth.elemSize());
+
+    return strm;
+}
+
+istream& operator>>(istream& strm, billiards::recognizer_t::parameter_type& desc)
+{
+    auto read = [&strm](auto& val) {
+        strm.read((char*)&val, sizeof(remove_reference_t<decltype(val)>));
+    };
+
+    read(desc.camera);
+    read(desc.camera_transform);
+    read(desc.camera_translation);
+    read(desc.camera_orientation);
+
+    int rgba_rows, rgba_cols, rgba_type;
+    size_t rgba_bytes;
+    int depth_rows, depth_cols, depth_type;
+    size_t depth_bytes;
+
+    read(rgba_rows);
+    read(rgba_cols);
+    read(rgba_type);
+    read(rgba_bytes);
+
+    read(depth_rows);
+    read(depth_cols);
+    read(depth_type);
+    read(depth_bytes);
+
+    auto& rgba = desc.rgba;
+    rgba = cv::Mat(rgba_rows, rgba_cols, rgba_type);
+    strm.read((char*)rgba.data, rgba_bytes);
+
+    auto& depth = desc.depth;
+    depth = cv::Mat(depth_rows, depth_cols, depth_type);
+    strm.read((char*)depth.data, depth_bytes);
+
+    return strm;
+}
+} // namespace std

@@ -109,6 +109,7 @@ void exec_ui()
     using namespace nana;
     n = make_unique<n_type>();
     form& fm = n->fm; // 주 폼
+    fm.caption("AR Billiards Image Processing Core");
 
     // 기본 컨피그 파일 로드
     auto load_from_path = [&](string path) {
@@ -397,12 +398,51 @@ void exec_ui()
     tm_waitkey.start();
 
     // -- 스냅샷 관련
-    bool snapshot_active = false;
-    billiards::recognizer_t::parameter_type snapshot;
+    optional<billiards::recognizer_t::parameter_type> snapshot;
+    timer snapshot_loader{100ms};
     button btn_snap_load(fm), btn_snapshot(fm), btn_snap_abort(fm);
     btn_snap_load.caption("Load Snapshot");
     btn_snapshot.caption("Capture Snapshot");
     btn_snap_abort.caption("Abort Snapshot");
+
+    btn_snap_abort.events().click([&](auto) { snapshot.reset(); });
+    btn_snap_load.events().click([&](auto) {
+        filebox fb(fm, true);
+        fb.add_filter("Ar Billiards Snapshot Format", "*.arbsnap");
+        fb.allow_multi_select(false);
+
+        if (auto paths = fb(); paths.empty() == false) {
+            auto path = paths.front().string();
+            ifstream strm{path, ios::binary | ios::in};
+
+            if (strm.is_open()) {
+                strm >> snapshot.emplace();
+                snapshot_loader.start();
+            }
+        }
+    });
+    btn_snapshot.events().click([&](auto) {
+        auto snap = g_recognizer.get_image_snapshot();
+        filebox fb(fm, false);
+        fb.add_filter("Ar Billiards Snapshot Format", "*.arbsnap");
+        fb.allow_multi_select(false);
+
+        if (auto paths = fb(); paths.empty() == false) {
+            auto path = paths.front().string();
+            ofstream strm{path, ios::binary | ios::out};
+            strm << snap;
+        }
+    });
+
+    snapshot_loader.elapse([&]() {
+        if (snapshot) {
+            void ui_on_refresh();
+            g_recognizer.refresh_image(*snapshot, [](auto&, auto&) { ui_on_refresh(); });
+        }
+        else {
+            snapshot_loader.stop();
+        }
+    });
 
     // -- 레이아웃 설정
     place layout(fm);
