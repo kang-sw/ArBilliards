@@ -186,6 +186,7 @@ public:
       const cv::UMat& filtered,
       vector<cv::Vec2f>& table_contours);
     void find_table2(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours);
+
     /**
      * 주로 테이블에 활용 ...
      * 화면 상에서 폐색된 컨투어 리스트와, 모델의 시작 위치로부터 최종 위치를 추론합니다.
@@ -271,13 +272,6 @@ public:
      */
     cv::Point map_index(cv::InputArray from, cv::InputArray to, cv::Point index);
 
-    /**
-     * 각 정점에 대해, 시야 사각뿔에 대한 컬링을 수행합니다.
-     * @param hfov_rad 라디안 단위의 수평 시야각
-     * @param vfov_rad 라디안 단위의 수직 시야각
-     * @param obj_pts 카메라 좌표계에 대한 다각형 포인트 목록입니다. 
-     */
-    static void cull_frustum(float hfov_rad, float vfov_rad, vector<cv::Vec3f>& obj_pts);
 
     /**
      * 대상 모델 버텍스 목록을 화면 상에 투영합니다.
