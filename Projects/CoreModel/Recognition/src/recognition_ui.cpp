@@ -95,15 +95,7 @@ static void json_iterative_substitute(json& to, json const& from)
     for (auto& pair : to.items()) {
         auto& value = pair.value();
         json const* src = nullptr;
-        if (value.type() == nlohmann::detail::value_t::array && from.type() == nlohmann::detail::value_t::array) {
-            cout << "info: subtitute index " << index;
-            if (index < from.size()) {
-                src = &from[index++];
-                cout << "success";
-            }
-            cout << endl;
-        }
-        else {
+        {
             cout << "info: subtitute key " << pair.key();
             if (auto it = from.find(pair.key()); it != from.end()) {
                 cout << " success";
@@ -117,10 +109,14 @@ static void json_iterative_substitute(json& to, json const& from)
                 json_iterative_substitute(value, *src);
             }
             else if (value.type() == json::value_t::array) {
-                // for (int i = 0, max = min(value.size(), src->size()); i < max; ++i) {
-                //     json_iterative_substitute(value[i], (*src)[i]);
-                // }
-                value = *src;
+                for (int i = 0; i < min(value.size(), src->size()); ++i) {
+                    if (value[i].type() == nlohmann::detail::value_t::object) {
+                        json_iterative_substitute(value[i], (*src)[i]);
+                    }
+                    else {
+                        value[i] = (*src)[i];
+                    }
+                }
             }
             else if (strcmp(value.type_name(), src->type_name()) == 0) {
                 value = *src;
@@ -241,6 +237,11 @@ void exec_ui()
 
         // -- JSON 파라미터 선택 처리
         tr.events().selected([&](arg_treebox const& arg) {
+            // 말단 노드인 경우에만 입력 창을 활성화합니다.
+            if (!arg.operated) {
+                return;
+            }
+
             if (arg.item.child().empty()) {
                 if (auto it = n->param_mappings.find(arg.item.key());
                     arg.operated && it != n->param_mappings.end()) {
@@ -255,6 +256,9 @@ void exec_ui()
                     return;
                 }
             }
+            else { // 말단 노드가 아니라면 expand
+                arg.item.expand(true);
+            }
             selected_proxy = {};
             param_enter_box.select(true), param_enter_box.del();
         });
@@ -267,6 +271,7 @@ void exec_ui()
     btn_export.caption("Export As...");
     btn_import.caption("Import From...");
 
+    btn_reset.bgcolor(colors::gray);
     btn_reset.events().click([&](arg_click const& arg) {
         msgbox mb(arg.window_handle, "Parameter Reset", msgbox::yes_no);
         mb.icon(msgbox::icon_question);
@@ -504,7 +509,7 @@ void exec_ui()
       "    <timings>>"
       "<vert"
       "    weight=400"
-      "    <margin=[5,5,2,5] gap=5 weight=40 <btn_reset><btn_export><btn_import>>"
+      "    <margin=[5,5,2,5] gap=5 weight=40 <btn_reset weight=15%><btn_export><btn_import>>"
       "    <margin=[0,5,5,5] gap=5 weight=30 <btn_snap_load><btn_snapshot><btn_snap_abort weight=25%>>"
       "    <enter weight=30 margin=5>"
       "    <center margin=5>>");

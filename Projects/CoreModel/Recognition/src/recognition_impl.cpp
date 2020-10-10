@@ -1450,12 +1450,26 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         u_rgb = u_rgb(ROI);
         u_hsv = u_hsv(ROI);
 
-        // array<UMat, 3> channels;
-        // split(u_hsv, channels);
-        // auto& [u_h, u_s, u_v] = channels;
-        //
-        // UMat u_delta_hype;
-        // Laplacian(u_v, u_delta_hype, CV_32F, 3);
+        vector<UMat> channels;
+        UMat u_delta_hype;
+
+        {
+            TM(hype_calc);
+            split(u_hsv, channels);
+            {
+                UMat view;
+                hconcat(channels, view);
+                show("ROI HSV view", view);
+            }
+
+            {
+                UMat u_v32;
+                channels[2].convertTo(u_v32, CV_32F, 1 / 255.f);
+                Laplacian(u_v32, u_delta_hype, CV_32F, 3);
+            }
+
+            show("Value Range Laplacian", u_delta_hype);
+        }
     }
 
     // ShowImage에 모든 임시 매트릭스 추가
