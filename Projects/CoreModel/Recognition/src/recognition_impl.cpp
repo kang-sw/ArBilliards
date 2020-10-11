@@ -355,9 +355,9 @@ struct timer_scope_t {
 
 #define YTRACE(x, y) \
     timer_scope_t TM_##x##__##y { this, #x }
-#define XTRACE(x, y) YTRACE(x, y)
-#define TM(name)     XTRACE(name, __COUNTER__)
-#define TMB(name)    if (TM(name); true)
+#define XTRACE(x, y)       YTRACE(x, y)
+#define ELAPSE_SCOPE(name) XTRACE(name, __COUNTER__)
+#define ELAPSE_BLOCK(name) if (ELAPSE_SCOPE(name); true)
 
 #define varset(varname)       ((void)billiards::names::varname, vars[#varname])
 #define varget(type, varname) ((void)billiards::names::varname, any_cast<type&>(vars[#varname]))
@@ -493,7 +493,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
 void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
 {
     using namespace names;
-    TM(table_search);
+    ELAPSE_SCOPE(table_search);
 
     using namespace cv;
     auto p = m.props;
@@ -501,7 +501,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
     auto image_size = varget(Size, Size_Image); // any_cast<Size>(vars["scaled-image-size"]);
 
     {
-        TM(process_contour);
+        ELAPSE_SCOPE(process_contour);
         auto tc = tp["contour"];
 
         vector<vector<Point>> candidates;
@@ -563,7 +563,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
     }
 
     if (table_contours.size() == 4 && !is_any_border_point) {
-        TM(pnp);
+        ELAPSE_SCOPE(pnp);
         vector<Vec3f> obj_pts;
         Vec3d tvec;
         Vec3d rvec;
@@ -655,7 +655,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
     // 테이블을 찾는데 실패한 경우 iteration method를 활용해 테이블 위치를 추정합니다.
     if (!table_contours.empty() && desc.table.confidence == 0) {
-        TM(partial);
+        ELAPSE_SCOPE(partial);
 
         vector<Vec3f> model;
         get_table_model(model, m.table.recognition_size);
@@ -1355,20 +1355,20 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
     using namespace cv;
     recognition_desc desc = {};
 
-    TM(total);
+    ELAPSE_SCOPE(total);
     if (statics.empty()) {
     }
 
     auto const& p = m.props;
 
     {
-        TM(initial_preprocessing);
+        ELAPSE_SCOPE(initial_preprocessing);
         img_t imdesc_scaled = imdesc_source;
 
         // RGBA 이미지를 RGB로 컨버트합니다.
         Mat img_rgb;
         {
-            TM(rgb_conversion);
+            ELAPSE_SCOPE(rgb_conversion);
 
             cvtColor(imdesc_source.rgba, img_rgb, COLOR_RGBA2RGB);
             varset(Img_SrcRGB) = img_rgb;
@@ -1383,7 +1383,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         Mat img_rgb_scaled, img_hsv_scaled;
         UMat uimg_rgb_scaled, uimg_hsv_scaled;
         if ((bool)p["do-resize"]) {
-            TM(scailing);
+            ELAPSE_SCOPE(scailing);
 
             // 스케일된 이미지 준비
             resize(img_rgb.getUMat(ACCESS_FAST), uimg_rgb_scaled, scaled_image_size, 0, 0, INTER_LINEAR);
@@ -1398,14 +1398,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             cvtColor(img_rgb_scaled, imdesc_scaled.rgba, COLOR_RGB2RGBA);
         }
         else {
-            TM(copying);
+            ELAPSE_SCOPE(copying);
             img_rgb_scaled = img_rgb;
             img_rgb_scaled.copyTo(uimg_rgb_scaled);
         }
 
         // 색공간 변환 수행
         {
-            TM(hsv_conversion);
+            ELAPSE_SCOPE(hsv_conversion);
             varset(Img_RGB) = img_rgb_scaled;
             varset(UImg_RGB) = uimg_rgb_scaled;
 
@@ -1418,7 +1418,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
         // 깊이 이미지 크기 변환
         {
-            TM(depth_resize);
+            ELAPSE_SCOPE(depth_resize);
             UMat u_depth;
             Mat depth;
             resize(imdesc_scaled.depth, u_depth, scaled_image_size);
@@ -1437,7 +1437,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
     // 테이블 탐색을 위한 로직입니다.
     {
-        TM(table_track_total);
+        ELAPSE_SCOPE(table_track_total);
         auto& tp = p["table"];
         auto& u_hsv = varget(UMat, UImg_HSV);
         auto image_size = varget(Size, Size_Image);
@@ -1446,11 +1446,12 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         UMat u_mask;
         UMat u_eroded, u_edge;
         {
-            TM(filtering);
+            ELAPSE_SCOPE(filtering);
             array<Vec3f, 2> filters = tp["filter"];
             filter_hsv(u_hsv, u_mask, filters[0], filters[1]);
             carve_outermost_pixels(u_mask, {0});
             varset(UImg_TableFiltered) = u_mask;
+            show("Table Blue Color Mask", u_mask);
 
             // -- 경계선 검출
             erode(u_mask, u_eroded, {});
@@ -1486,7 +1487,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
         // 기존 방법을 근소하게 개선하는 방향으로 ..
         // ROI 획득
-        TM(ball_track_total);
+        ELAPSE_SCOPE(ball_track_total);
         auto b = p["ball"];
 
         auto debug = varget(Mat, Img_Debug);
@@ -1505,7 +1506,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         split(u_hsv, channels);
         auto [u_h, u_s, u_v] = (UMat(&)[3])(*channels.data());
 
-        TMB(hype_calc)
+        ELAPSE_BLOCK(hype_calc)
         {
             {
                 UMat view;
@@ -1516,7 +1517,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             {
                 UMat u_v32;
                 u_v.convertTo(u_v32, CV_32F, 1 / 255.f);
-                Laplacian(u_v32, u_delta_hype, CV_32F, 5);
+                Laplacian(u_v32, u_delta_hype, CV_32F, 3);
             }
 
             show("Value Range Laplacian", u_delta_hype);
@@ -1528,7 +1529,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         // - 테이블의 가장 가까운 점으로부터 공의 최대 반경을 계산합니다.
         // - 문턱값 이상의 인덱스를 선별합니다(findNoneZero + mask)
         // - 선별된 인덱스와 value 채널로부터 강조된 경계선 이미지를 통해 각각의 점에 대해 경계 적합도를 검사합니다.
-        TMB(matching)
+        ELAPSE_BLOCK(matching)
         {
             auto& bm = b["common"];
             UMat u_match_map[3]; // 공의 각 색상에 대한 매치 맵입니다.
@@ -1542,25 +1543,26 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
             // 각각의 색상에 대해 매칭을 수행합니다.
             auto depth = (Mat1f&)varget(Mat, Img_Depth);
-            Scalar colors[] = {b["red"]["color"], b["orange"]["color"], b["white"]["color"]};
-            Scalar weight = (Vec2f)bm["weight-hue-sat"];
-            auto ln_base = log((double)bm["error-base"]);
-            char const* ball_names[] = {"Red", "Orange", "White"};
             auto imdesc = varget(img_t, Imgdesc);
+            auto intr__balls__ = {b["red"], b["orange"], b["white"]};
+            auto balls = intr__balls__.begin();
+            char const* ball_names[] = {"Red", "Orange", "White"};
+            auto ln_base = log((double)bm["error-base"]);
 
             // 테이블 평면 획득
             auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, 1, 0});
             plane_to_camera(imdesc, table_plane, table_plane);
 
             // 컬러 스케일
-            for (auto& sc : colors) { sc = sc * (1 / 255.f); }
+            Scalar weight = (Vec2f)bm["weight-hue-sat"];
             weight /= norm(weight);
 
-            TMB(field_generate)
+            ELAPSE_BLOCK(field_generate)
             for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
                 auto& m = u_match_map[ball_idx];
+                Scalar color = (Vec2f)balls[ball_idx]["color"] / 255;
 
-                subtract(m, colors[ball_idx], u0);
+                subtract(m, color, u0);
                 multiply(u0, u0, u1);
                 multiply(u1, weight, u0);
 
@@ -1570,17 +1572,26 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
                 multiply(u0, -ln_base, u1);
                 exp(u1, m);
-
-                show("Ball Match Field: "s + ball_names[ball_idx], m);
             }
 
+            ELAPSE_BLOCK(edge_match)
             for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
+                auto& m = u_match_map[ball_idx];
+                auto& bp = balls[ball_idx];
+
+                // color match값이 threshold보다 큰 모든 인덱스를 선택하고, 인덱스 집합을 생성합니다.
+                vector<Point> cand_indexes;
+                compare(m, (float)bp["suitability-threshold"s], u0, CMP_GT);
+                bitwise_and(u0, area_mask(ROI), u1);
+                show("Ball Match Field: "s + ball_names[ball_idx], u1);
+
+                findNonZero(u1, cand_indexes);
             }
         }
     }
 
     // ShowImage에 모든 임시 매트릭스 추가
-    TMB(item_copy)
+    ELAPSE_BLOCK(item_copy)
     for (auto& pair : vars) {
         auto& value = pair.second;
 

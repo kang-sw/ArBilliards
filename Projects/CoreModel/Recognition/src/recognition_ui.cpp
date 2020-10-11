@@ -5,6 +5,7 @@
 #include <chrono>
 #include <nana/gui.hpp>
 #include <ciso646>
+#include <queue>
 
 extern billiards::recognizer_t g_recognizer;
 
@@ -125,25 +126,50 @@ static void json_iterative_substitute(json& to, json const& from)
     }
 }
 
+#define AUTOSAVE_PATH "auto-config.json"
 void exec_ui()
 {
     using namespace nana;
     n = make_unique<n_type>();
     form& fm = n->fm; // 주 폼
-    fm.caption("AR Billiards Image Processing Core");
 
-    // 기본 컨피그 파일 로드
+    // 변수 목록
+    string current_save_path = AUTOSAVE_PATH;
+    bool is_dirty = false;
+
+    // -- 상태 창
+    queue<string> state_messages;
+
+    // 타이틀바 창 업데이트 함수
+    auto fm_caption_dirty = [&]() {
+        auto str = "AR Billiards Image Processing Core - "s;
+        auto divide = current_save_path.find_last_of("\\");
+        str += divide == npos ? current_save_path : current_save_path.substr(divide + 1);
+        if (is_dirty) {
+            str += " (*)";
+        }
+        fm.caption(str);
+    };
+    fm_caption_dirty();
+
+    // 파일 로드 함수
     auto load_from_path = [&](string path) {
         if (ifstream strm(path); strm.is_open()) {
             try {
                 json parsed = json::parse((stringstream() << strm.rdbuf()).str());
 
+                // 윈도우 위치도 로드
                 if (auto it = parsed.find("window-position"); it != parsed.end()) {
                     array<int, 4> wndPos = *it;
                     fm.move((rectangle&)wndPos);
                 }
 
                 json_iterative_substitute(g_recognizer.props, parsed);
+                current_save_path = path;
+                is_dirty = false;
+                state_messages.emplace("loaded configurations from file "s + path);
+                fm_caption_dirty();
+
                 return true;
             } catch (std::exception& e) {
                 cout << "Failed to load configuration file ... " << endl;
@@ -153,8 +179,18 @@ void exec_ui()
         return false;
     };
 
-    if (load_from_path("config.json")) {
-    }
+    // 세이브 함수
+    auto save_as = [&](string path) {
+        ofstream strm(path);
+        strm << g_recognizer.props.dump(4);
+
+        is_dirty = false;
+        state_messages.emplace("saved configurations to file "s + path);
+        fm_caption_dirty();
+    };
+
+    // 설정 로드
+    if (load_from_path(AUTOSAVE_PATH)) { }
 
     treebox tr(fm);
     textbox param_enter_box(fm);
@@ -162,6 +198,8 @@ void exec_ui()
     optional<treebox::item_proxy> selected_proxy;
 
     param_enter_box.multi_lines(false);
+
+    // -- 상태 바
 
     // -- JSON 파라미터 입력 창 핸들
     auto param_enter_query = [&](bool apply_change) {
@@ -192,6 +230,9 @@ void exec_ui()
                     param_enter_box.select(true);
 
                     drawing(tr).update();
+
+                    is_dirty = true;
+                    fm_caption_dirty();
                 }
             }
         }
@@ -268,8 +309,8 @@ void exec_ui()
     // -- 리셋, 익스포트, 임포트 버튼 구현
     button btn_reset(fm), btn_export(fm), btn_import(fm);
     btn_reset.caption("Reset");
-    btn_export.caption("Export As...");
-    btn_import.caption("Import From...");
+    btn_export.caption("Export As...(Alt+Q)");
+    btn_import.caption("Import From...(Alt+O)");
 
     btn_reset.bgcolor(colors::gray);
     btn_reset.events().click([&](arg_click const& arg) {
@@ -291,8 +332,7 @@ void exec_ui()
 
         if (auto paths = fb(); !paths.empty()) {
             auto path = paths.front();
-            ofstream strm(path);
-            strm << g_recognizer.props.dump(4);
+            save_as(path.string());
         }
     });
 
@@ -471,8 +511,8 @@ void exec_ui()
     optional<billiards::recognizer_t::parameter_type> snapshot;
     timer snapshot_loader{100ms};
     button btn_snap_load(fm), btn_snapshot(fm), btn_snap_abort(fm);
-    btn_snap_load.caption("Load Snapshot");
-    btn_snapshot.caption("Capture Snapshot");
+    btn_snap_load.caption("Load Snapshot (Alt+E)");
+    btn_snapshot.caption("Capture Snapshot (Alt+C)");
     btn_snap_abort.caption("Abort Snapshot");
 
     btn_snap_abort.events().click([&](auto) { snapshot.reset(); });
@@ -491,6 +531,7 @@ void exec_ui()
             }
         }
     });
+
     btn_snapshot.events().click([&](auto) {
         auto snap = g_recognizer.get_image_snapshot();
         filebox fb(fm, false);
@@ -511,6 +552,32 @@ void exec_ui()
         }
         else {
             snapshot_loader.stop();
+        }
+    });
+
+    // -- 단축키 집합
+    fm.register_shortkey(L's');
+    fm.register_shortkey(L'o');
+    fm.register_shortkey(L'e');
+    fm.register_shortkey(L'q');
+    fm.register_shortkey(L'c');
+    fm.events().shortkey([&](arg_keyboard key) {
+        switch (key.key) {
+            case L'q':
+                btn_export.events().click.emit({}, fm);
+                break;
+            case L's':
+                save_as(current_save_path);
+                break;
+            case L'o':
+                btn_import.events().click.emit({}, fm);
+                break;
+            case L'e':
+                btn_snap_load.events().click.emit({}, fm);
+                break;
+            case L'c':
+                btn_snapshot.events().click.emit({}, fm);
+                break;
         }
     });
 
@@ -549,18 +616,12 @@ void exec_ui()
         static_assert(sizeof rect == sizeof(array<int, 4>));
     });
 
-    timer autosave(300000ms);
-    autosave.elapse([&]() {
-        ofstream strm("config.json");
-        strm << g_recognizer.props.dump(4);
-    });
-
     fm.show();
     exec();
 
     // Export default configuration
     {
-        ofstream strm("config.json");
+        ofstream strm(AUTOSAVE_PATH);
         strm << g_recognizer.props.dump(4);
     }
 

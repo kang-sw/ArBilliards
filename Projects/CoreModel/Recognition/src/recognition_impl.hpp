@@ -9,13 +9,7 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/base.hpp>
 #include <any>
-#include <vector>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
+#include <vector> 
 
 using namespace std;
 
@@ -131,15 +125,15 @@ public:
             auto& b = params["ball"];
 
             b["red"]["color"] = Vec2f{133, 135};
-            b["red"]["color-threshold"] = 0.35;
+            b["red"]["suitability-threshold"] = 0.35;
             b["red"]["filter"] = {Vec3f{115, 84, 0}, Vec3f{152, 255, 255}};
 
             b["orange"]["color"] = Vec2f{85, 173};
-            b["orange"]["color-threshold"] = 0.35;
+            b["orange"]["suitability-threshold"] = 0.35;
             b["orange"]["filter"] = {Vec3f{75, 118, 0}, Vec3f{106, 255, 255}};
 
             b["white"]["color"] = Vec2f{40, 54};
-            b["white"]["color-threshold"] = 0.35;
+            b["white"]["suitability-threshold"] = 0.35;
             b["white"]["filter"] = {Vec3f{0, 0, 0}, Vec3f{81, 108, 255}};
 
             auto& bm = b["common"];
