@@ -386,7 +386,7 @@ void exec_ui()
         matlist.auto_draw(true);
     });
     list_update_timer.start();
-
+    
     // -- 틱 미터 박스
     listbox tickmeters(fm);
     tickmeters.append_header("", 20);

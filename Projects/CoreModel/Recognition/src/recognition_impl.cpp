@@ -126,6 +126,20 @@ void copyMatx(cv::Matx<Ty_, r0, c0>& to, cv::Matx<Ty_, r1, c1> const& from, int 
     }
 }
 
+static int get_pixel_length_on_contact(img_t const& imdesc, plane_t plane, cv::Point pt, float length)
+{
+    using namespace cv;
+
+    Vec3f far(pt.x, pt.y, 1);
+    recognizer_impl_t::get_point_coord_3d(imdesc, far[0], far[1], 1);
+    if (auto distance = plane.calc_u({}, far); distance && *distance > 0) {
+        auto pxl_len = recognizer_impl_t::get_pixel_length(imdesc, length, *distance);
+        return pxl_len;
+    }
+
+    return -1;
+}
+
 // 주의: 왜곡 고려 안 함!
 static void project_points(vector<cv::Vec3f> const& points, cv::Matx33f const& camera, cv::Matx41f const& disto, vector<cv::Vec2f>& o_points)
 {
@@ -154,7 +168,6 @@ static cv::Matx44f get_world_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot)
 /**
  * 각 정점에 대해, 시야 사각뿔에 대한 컬링을 수행합니다.
  */
-
 static void cull_frustum_impl(vector<cv::Vec3f>& obj_pts, plane_t const* plane_ptr, size_t num_planes)
 {
     using namespace cv;
@@ -254,11 +267,8 @@ static void cull_frustum(vector<cv::Vec3f>& obj_pts, vector<plane_t> const& plan
     cull_frustum_impl(obj_pts, planes.data(), planes.size());
 }
 
-static void project_model_fast(img_t const& img, vector<cv::Vec2f>& mapped_contour, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull, vector<plane_t> const& planes)
+static void project_model_local(img_t const& img, vector<cv::Vec2f>& mapped_contour, vector<cv::Vec3f>& model_vertexes, bool do_cull, vector<plane_t> const& planes)
 {
-    using t = recognizer_impl_t;
-    t::transform_to_camera(img, obj_pos, obj_rot, model_vertexes);
-
     // 오브젝트 포인트에 frustum culling 수행
     if (do_cull) {
         cull_frustum(model_vertexes, planes);
@@ -266,7 +276,7 @@ static void project_model_fast(img_t const& img, vector<cv::Vec2f>& mapped_conto
 
     if (!model_vertexes.empty()) {
         // obj_pts 점을 카메라에 대한 상대 좌표로 치환합니다.
-        auto [mat_cam, mat_disto] = t::get_camera_matx(img);
+        auto [mat_cam, mat_disto] = recognizer_impl_t::get_camera_matx(img);
 
         // 각 점을 매핑합니다.
         // projectPoints(model_vertexes, cv::Vec3f(0, 0, 0), cv::Vec3f(0, 0, 0), mat_cam, mat_disto, mapped_contour);
@@ -276,6 +286,40 @@ static void project_model_fast(img_t const& img, vector<cv::Vec2f>& mapped_conto
             fit_contour_to_screen(mapped_contour, {img.rgba.cols, img.rgba.rows});
         }
     }
+}
+
+static vector<plane_t> generate_frustum(float hfov_rad, float vfov_rad)
+{
+    using namespace cv;
+    vector<plane_t> planes;
+    {
+        // horizontal 평면 = zx 평면
+        // vertical 평면 = yz 평면
+        Matx33f rot_vfov;
+        Rodrigues(Vec3f(vfov_rad * 0.5f, 0, 0), rot_vfov); // x축 양의 회전
+        planes.push_back({rot_vfov * Vec3f{0, 1, 0}, 0});  // 위쪽 면
+
+        Rodrigues(Vec3f(-vfov_rad * 0.53f, 0, 0), rot_vfov);
+        // Rodrigues(Vec3f(-vfov_rad * 0.5f, 0, 0), rot_vfov);
+        planes.push_back({rot_vfov * Vec3f{0, -1, 0}, 0}); // 아래쪽 면
+
+        Rodrigues(Vec3f(0, hfov_rad * 0.50f, 0), rot_vfov);
+        planes.push_back({rot_vfov * Vec3f{-1, 0, 0}, 0}); // 오른쪽 면
+
+        Rodrigues(Vec3f(0, -hfov_rad * 0.508f, 0), rot_vfov);
+        //Rodrigues(Vec3f(0, -hfov_rad * 0.5f, 0), rot_vfov);
+        planes.push_back({rot_vfov * Vec3f{1, 0, 0}, 0}); // 왼쪽 면
+    }
+
+    return move(planes);
+}
+
+static void project_model_fast(img_t const& img, vector<cv::Vec2f>& mapped_contour, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull, vector<plane_t> const& planes)
+{
+    using t = recognizer_impl_t;
+    t::transform_to_camera(img, obj_pos, obj_rot, model_vertexes);
+
+    project_model_local(img, mapped_contour, model_vertexes, do_cull, planes);
 }
 
 /**
@@ -305,32 +349,6 @@ static float contour_distance(vector<cv::Vec2f> const& ct_a, vector<cv::Vec2f>& 
     }
 
     return sqrt(sum);
-}
-
-static vector<plane_t> generate_frustum(float hfov_rad, float vfov_rad)
-{
-    using namespace cv;
-    vector<plane_t> planes;
-    {
-        // horizontal 평면 = zx 평면
-        // vertical 평면 = yz 평면
-        Matx33f rot_vfov;
-        Rodrigues(Vec3f(vfov_rad * 0.5f, 0, 0), rot_vfov); // x축 양의 회전
-        planes.push_back({rot_vfov * Vec3f{0, 1, 0}, 0});  // 위쪽 면
-
-        Rodrigues(Vec3f(-vfov_rad * 0.53f, 0, 0), rot_vfov);
-        // Rodrigues(Vec3f(-vfov_rad * 0.5f, 0, 0), rot_vfov);
-        planes.push_back({rot_vfov * Vec3f{0, -1, 0}, 0}); // 아래쪽 면
-
-        Rodrigues(Vec3f(0, hfov_rad * 0.50f, 0), rot_vfov);
-        planes.push_back({rot_vfov * Vec3f{-1, 0, 0}, 0}); // 오른쪽 면
-
-        Rodrigues(Vec3f(0, -hfov_rad * 0.508f, 0), rot_vfov);
-        //Rodrigues(Vec3f(0, -hfov_rad * 0.5f, 0), rot_vfov);
-        planes.push_back({rot_vfov * Vec3f{1, 0, 0}, 0}); // 왼쪽 면
-    }
-
-    return move(planes);
 }
 
 namespace billiards
@@ -747,9 +765,18 @@ cv::Vec3f recognizer_impl_t::set_filtered_table_pos(cv::Vec3f new_pos, float con
 
 cv::Vec3f recognizer_impl_t::set_filtered_table_rot(cv::Vec3f new_rot, float confidence)
 {
+    // 180도 회전한 경우, 다시 180도 돌려줍니다.
     if (norm(table_rot - new_rot) > (170.0f) * CV_PI / 180.0f) {
-        // rotation[1] += CV_PI;
         new_rot = rotate_local(new_rot, {0, (float)CV_PI, 0});
+    }
+
+    // 노멀이 위를 향하도록 합니다.
+    {
+        cv::Vec3f up{0, 1, 0};
+        up = rodrigues(new_rot) * up;
+        if (up[1] < 0) {
+            new_rot = rotate_local(new_rot, {(float)CV_PI, 0, 0});
+        }
     }
 
     float alpha = (float)m.props["table"]["LPF"]["rotation"] * confidence;
@@ -995,7 +1022,9 @@ plane_t plane_t::from_rp(cv::Vec3f rvec, cv::Vec3f tvec, cv::Vec3f up)
 {
     using namespace cv;
     auto P = tvec;
-    Matx33f rotator = rodrigues(rvec);
+    // Matx33f rotator = rodrigues(rvec);
+    Matx33f rotator;
+    Rodrigues(rvec, rotator);
     auto N = rotator * up;
     return plane_t::from_NP(N, P);
 }
@@ -1358,6 +1387,254 @@ void recognizer_impl_t::async_worker_thread()
     }
 }
 
+void recognizer_impl_t::find_balls(recognition_desc& desc)
+{
+    using namespace cv;
+    auto& p = m.props;
+    auto table_contour = varget(vector<cv::Vec2f>, Var_TableContour);
+
+    // -- 테이블 영역을 Perspective에서 Orthogonal하게 투영합니다.
+    // (방법은 아직 연구가 필요 ..)
+    // - 이미지는 이미 rectify된 상태이므로, 카메라 파라미터는 따로 고려하지 않음
+    // - 테이블의 perspective point로부터 당구대 이미지 획득
+    // - 해당 이미지를 테이블을 orthogonal로 투영한 이미지 영역으로 트랜스폼
+    // (참고로, Orthogonal하게 투영된 이미지는 원근 X)
+
+    // -- 각 색상의 가장 우수한 후보를 선정
+    // - 위에서 Orthogonal Transform을 통해 얻은 이미지 사용
+    // - 필드에서 빨강, 오렌지, 흰색 각 색상의 HSV 값을 뺌
+    // - 뺀 값 각각에 가중치를 주어 합산(reduce) (H가 가장 크게, V를 가장 작게)
+    // - 해당 값의 음수를 pow의 지수로 둠 ... pow(base, -weight); 즉 거리가 멀수록 0에 가까운 값 반환
+    // - 고정 커널 크기(Orthogonal로 Transform했으므로 ..)로 컨볼루션 적용, 로컬 맥시멈 추출 ... 공 candidate
+
+    // NOTE: 경계선 평가는 기존의 방법을 사용하되, 이진 이미지가 아닌 HSV 색공간의 Value 표현으로부터 경계선을 검출합니다. Value 표현에 gradient를 먹이고 증폭하면 경계선 이미지를 얻을 수 있을듯? 이후 contour를 사용하는 대신, 원 인덱스 픽셀에 대해 검사하여 가장 높은 가중치를 획득합니다.
+    // NOTE: 커널 연산 개선, 정사각형 범위에서 iterate 하되, 반지름 안에 들어가는 픽셀만 가중치를 유효하게 계산합니다.
+    // NOTE: 커널 가중치 계산 시 거리가 가까운 픽셀이 우세하므로, 계산된 픽셀 개수로 나눠줍니다.
+
+    // 기존 방법을 근소하게 개선하는 방향으로 ..
+    // ROI 획득
+    ELAPSE_SCOPE(ball_track_total);
+    auto b = p["ball"];
+
+    auto debug = varget(cv::Mat, Img_Debug);
+    cv::UMat u_rgb;
+    cv::UMat u_hsv;
+
+    // 이 ROI는 항상 안전!
+    auto ROI = boundingRect(table_contour);
+    get_safe_ROI_rect(debug, ROI);
+    auto area_mask = varget(cv::Mat, Img_TableAreaMask)(ROI);
+    u_rgb = varget(cv::UMat, UImg_RGB)(ROI);
+    u_hsv = varget(cv::UMat, UImg_HSV)(ROI);
+
+    vector<cv::UMat> channels;
+    cv::UMat u_delta_hype;
+
+    split(u_hsv, channels);
+    auto [u_h, u_s, u_v] = (cv::UMat(&)[3])(*channels.data());
+
+    ELAPSE_BLOCK(hype_calc)
+    {
+        {
+            cv::UMat view;
+            hconcat(channels, view);
+            show("ROI HSV view", view);
+        }
+
+        {
+            cv::UMat u_v32;
+            u_v.convertTo(u_v32, CV_32F, 1 / 255.f);
+            Laplacian(u_v32, u_delta_hype, CV_32F, 3);
+        }
+
+        show("Value Range Laplacian", u_delta_hype);
+    }
+
+    // 색상 매칭을 수행합니다.
+    // - 공의 기준 색상을 빼고(h, s 채널만), 각 채널에 가중치를 두어 유클리드 거리 d_n를 계산합니다.
+    // - base^(-d_n)를 각 픽셀에 대해 계산합니다. (e^(-d_n*ln(base) 로 계산)
+    // - 테이블의 가장 가까운 점으로부터 공의 최대 반경을 계산합니다.
+    // - 문턱값 이상의 인덱스를 선별합니다(findNoneZero + mask)
+    // - 선별된 인덱스와 value 채널로부터 강조된 경계선 이미지를 통해 각각의 점에 대해 경계 적합도를 검사합니다.
+    ELAPSE_BLOCK(matching)
+    {
+        auto& bm = b["common"];
+        cv::UMat u_match_map[3]; // 공의 각 색상에 대한 매치 맵입니다.
+        cv::UMat u0, u1;         // 임시 변수 리스트
+
+        // h, s 채널만 사용합니다.
+        // 값 형식은 32F이어야 합니다.
+        merge(vector{{u_h, u_s}}, u0);
+        u0.convertTo(u_match_map[0], CV_32FC2, 1 / 255.f);
+        for (int i = 1; i < 3; ++i) { u_match_map[0].copyTo(u_match_map[i]); }
+
+        // 각각의 색상에 대해 매칭을 수행합니다.
+        auto depth = (cv::Mat1f&)varget(cv::Mat, Img_Depth);
+        auto imdesc = varget(img_t, Imgdesc);
+        auto intr__balls__ = {b["red"], b["orange"], b["white"]};
+        auto balls = intr__balls__.begin();
+        char const* ball_names[] = {"Red", "Orange", "White"};
+        auto ln_base = log((double)bm["error-base"]);
+        float ball_radius = bm["radius"];
+
+        // 테이블 평면 획득
+        auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, 1, 0});
+        plane_to_camera(imdesc, table_plane, table_plane);
+
+        // 컬러 스케일
+        cv::Scalar weight = (cv::Vec2f)bm["weight-hue-sat"];
+        weight /= norm(weight);
+
+        ELAPSE_BLOCK(field_generate)
+        for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
+            auto& m = u_match_map[ball_idx];
+            cv::Scalar color = (cv::Vec2f)balls[ball_idx]["color"] / 255;
+
+            cv::subtract(m, color, u0);
+            multiply(u0, u0, u1);
+            cv::multiply(u1, weight, u0);
+
+            cv::reduce(u0.reshape(1, u0.rows * u0.cols), u1, 1, cv::REDUCE_SUM);
+            u1 = u1.reshape(1, u0.rows);
+            sqrt(u1, u0);
+
+            multiply(u0, -ln_base, u1);
+            exp(u1, m);
+
+            show("Ball Match Field Raw: "s + ball_names[ball_idx], m);
+        }
+
+        cv::UMat output_color{ROI.size(), CV_8UC3};
+        output_color.setTo(0);
+        cv::Scalar color_ROW[] = {{0, 0, 255}, {0, 127, 255}, {255, 255, 255}};
+
+        // 정규화된 랜덤 샘플의 목록을 만듭니다.
+        // 일반적으로 샘플의 아래쪽 반원은 음영에 의해 가려지게 되므로, 위쪽 반원의 샘플을 추출합니다.
+        // 이는 정규화된 목록으로, 실제 샘플을 추출할때는 추정 중점 위치에서 계산된 반지름을 곱한 뒤 적용합니다.
+        vector<cv::Vec2f> normal_random_samples;
+        auto& rs = bm["random-sample"];
+        ELAPSE_BLOCK(random_sample_gen)
+        {
+            mt19937 rg{};
+            uniform_real_distribution<float> distr{};
+            if (int rand_seed = (int)rs["seed"]; rand_seed != -1) { rg.seed(rand_seed); }
+            int circle_radius = rs["radius"];
+            float r0 = -(double)rs["rotate-angle"] * CV_PI / 180;
+            cv::Matx22f rotator{cos(r0), -sin(r0), sin(r0), cos(r0)};
+
+            circle_op(0, 0, circle_radius, [&](int xi, int yi) {
+                float x = xi, y = yi > 0 ? -yi : yi;
+
+                cv::Vec2f v{x, y};
+                v = rotator * normalize(v) * sqrt(distr(rg));
+
+                normal_random_samples.emplace_back(v);
+            });
+
+            // 샘플을 시각화합니다.
+            cv::Mat1b random_sample_visualize(200, 200);
+            random_sample_visualize.setTo(0);
+            for (auto& pt : normal_random_samples) {
+                random_sample_visualize(cv::Point(pt * 75) + cv::Point{100, 100}) = 255;
+            }
+            show("Random samples", random_sample_visualize);
+        }
+
+        cv::Mat1f suitability_field{ROI.size()};
+        suitability_field.setTo(0);
+        pair<vector<cv::Point>, vector<float>> ball_candidates[3];
+
+        ELAPSE_BLOCK(color_matching)
+        for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
+            auto& m = u_match_map[ball_idx];
+            cv::Mat1f match;
+            m.copyTo(match);
+
+            auto& bp = balls[ball_idx];
+
+            // color match값이 threshold보다 큰 모든 인덱스를 선택하고, 인덱스 집합을 생성합니다.
+            compare(m, (float)bp["suitability-threshold"s], u0, cv::CMP_GT);
+            bitwise_and(u0, area_mask, u1);
+            output_color.setTo(color_ROW[ball_idx], u1);
+
+            // 모든 valid한 인덱스를 추출합니다.
+            auto& cand_indexes = ball_candidates[ball_idx].first;
+            cand_indexes.reserve(1000);
+            findNonZero(u1, cand_indexes);
+
+            // 인덱스를 임의로 골라냅니다.
+            int discard = rs["mask-sample-discard-rate"];
+            int min_pixel_radius = bm["min-pixel-radius"];
+            size_t num_left = cand_indexes.size() * (100 - clamp(discard, 0, 100)) / 100;
+            discard_random_args(cand_indexes, num_left, mt19937{});
+
+            // 매치 맵의 적합도 합산치입니다.
+            auto& cand_suitabilities = ball_candidates[ball_idx].second;
+            cand_suitabilities.resize(cand_indexes.size(), 0);
+
+            // 골라낸 인덱스 내에서 색상 값의 샘플 합을 수행합니다.
+            auto calculate_suitability = [&](cv::Point& pt) {
+                auto index = &pt - cand_indexes.data();
+
+                // 현재 추정 위치에서 공의 픽셀 반경 계산
+                int ball_pxl_rad = get_pixel_length_on_contact(imdesc, table_plane, pt + ROI.tl(), ball_radius);
+                if (ball_pxl_rad < min_pixel_radius) { return; }
+
+                // if 픽셀 반경이 이미지 경계선을 넘어가면 discard
+                cv::Point offset{ball_pxl_rad + 1, ball_pxl_rad + 1};
+                cv::Rect image_bound{offset, ROI.size() - (Size)(offset + offset)};
+
+                if (!image_bound.contains(pt)) {
+                    return;
+                }
+
+                // TODO: 원하는 색상 이외의 색이 잡히는 것을 방지하기 위해, 1~1.3 정도 사이의 범위에 negative mask를 설정 ... 공의 범위에서 벗어난 영역에 일치하는 픽셀이 잡힐 경우 공이 아닌 것으로 판단하고, 가중치를 역으로 부여합니다.
+
+                // 각 인덱스에 픽셀 반경을 곱해 매치 맵의 적합도를 합산, 저장
+                float suitability = 0;
+                for (auto roundpt : normal_random_samples) {
+                    cv::Point sample_index = pt + cv::Point(roundpt * ball_pxl_rad);
+                    suitability += match(sample_index);
+                }
+
+                suitability /= normal_random_samples.size();
+                suitability_field(pt) = suitability;
+                cand_suitabilities[index] = suitability;
+            };
+
+            // 병렬로 launch
+            if (static_cast<bool>(bm["random-sample"]["do-parallel"])) {
+                for_each(execution::par_unseq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
+            }
+            else {
+                for_each(execution::seq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
+            }
+
+            // 특수: 색상이 RED라면 마스크에서 찾아낸 볼에 해당하는 위치를 모두 지우고 위 과정을 다시 수행합니다.
+        }
+
+        // 경계선 매칭을 수행합니다.
+        // 라플라시안 연산을 통해 계산한 경계선의 유효 픽셀을 구하고, ransac 방법으로 유효한 elipse를 찾습니다.
+        for (int bidx = 0; bidx < 3; ++bidx) {
+            auto& indexes = ball_candidates[bidx].first;
+            auto& color_weights = ball_candidates[bidx].second;
+            auto best = max_element(color_weights.begin(), color_weights.end());
+            if (best == color_weights.end()) {
+                continue;
+            }
+
+            auto best_idx = best - color_weights.begin();
+            auto center = indexes[best_idx];
+            auto rad_px = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
+
+            circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], -1);
+        }
+
+        show("Ball Match Suitability Field"s, suitability_field);
+        show("Ball Match Field Mask"s, output_color);
+    }
+}
+
 recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 {
     using namespace names;
@@ -1486,245 +1763,12 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
                 break;
             }
         }
+
+        // 공 탐색을 위한 로직입니다.
     }
 
-    // 공 탐색을 위한 로직입니다.
-    if (auto table_contour = varget(vector<Vec2f>, Var_TableContour); !table_contour.empty()) {
-        // -- 테이블 영역을 Perspective에서 Orthogonal하게 투영합니다.
-        // (방법은 아직 연구가 필요 ..)
-        // - 이미지는 이미 rectify된 상태이므로, 카메라 파라미터는 따로 고려하지 않음
-        // - 테이블의 perspective point로부터 당구대 이미지 획득
-        // - 해당 이미지를 테이블을 orthogonal로 투영한 이미지 영역으로 트랜스폼
-        // (참고로, Orthogonal하게 투영된 이미지는 원근 X)
-
-        // -- 각 색상의 가장 우수한 후보를 선정
-        // - 위에서 Orthogonal Transform을 통해 얻은 이미지 사용
-        // - 필드에서 빨강, 오렌지, 흰색 각 색상의 HSV 값을 뺌
-        // - 뺀 값 각각에 가중치를 주어 합산(reduce) (H가 가장 크게, V를 가장 작게)
-        // - 해당 값의 음수를 pow의 지수로 둠 ... pow(base, -weight); 즉 거리가 멀수록 0에 가까운 값 반환
-        // - 고정 커널 크기(Orthogonal로 Transform했으므로 ..)로 컨볼루션 적용, 로컬 맥시멈 추출 ... 공 candidate
-
-        // NOTE: 경계선 평가는 기존의 방법을 사용하되, 이진 이미지가 아닌 HSV 색공간의 Value 표현으로부터 경계선을 검출합니다. Value 표현에 gradient를 먹이고 증폭하면 경계선 이미지를 얻을 수 있을듯? 이후 contour를 사용하는 대신, 원 인덱스 픽셀에 대해 검사하여 가장 높은 가중치를 획득합니다.
-        // NOTE: 커널 연산 개선, 정사각형 범위에서 iterate 하되, 반지름 안에 들어가는 픽셀만 가중치를 유효하게 계산합니다.
-        // NOTE: 커널 가중치 계산 시 거리가 가까운 픽셀이 우세하므로, 계산된 픽셀 개수로 나눠줍니다.
-
-        // 기존 방법을 근소하게 개선하는 방향으로 ..
-        // ROI 획득
-        ELAPSE_SCOPE(ball_track_total);
-        auto b = p["ball"];
-
-        auto debug = varget(Mat, Img_Debug);
-        UMat u_rgb;
-        UMat u_hsv;
-
-        // 이 ROI는 항상 안전!
-        auto ROI = boundingRect(table_contour);
-        get_safe_ROI_rect(debug, ROI);
-        auto area_mask = varget(Mat, Img_TableAreaMask)(ROI);
-        u_rgb = varget(UMat, UImg_RGB)(ROI);
-        u_hsv = varget(UMat, UImg_HSV)(ROI);
-
-        vector<UMat> channels;
-        UMat u_delta_hype;
-
-        split(u_hsv, channels);
-        auto [u_h, u_s, u_v] = (UMat(&)[3])(*channels.data());
-
-        ELAPSE_BLOCK(hype_calc)
-        {
-            {
-                UMat view;
-                hconcat(channels, view);
-                show("ROI HSV view", view);
-            }
-
-            {
-                UMat u_v32;
-                u_v.convertTo(u_v32, CV_32F, 1 / 255.f);
-                Laplacian(u_v32, u_delta_hype, CV_32F, 3);
-            }
-
-            show("Value Range Laplacian", u_delta_hype);
-        }
-
-        // 색상 매칭을 수행합니다.
-        // - 공의 기준 색상을 빼고(h, s 채널만), 각 채널에 가중치를 두어 유클리드 거리 d_n를 계산합니다.
-        // - base^(-d_n)를 각 픽셀에 대해 계산합니다. (e^(-d_n*ln(base) 로 계산)
-        // - 테이블의 가장 가까운 점으로부터 공의 최대 반경을 계산합니다.
-        // - 문턱값 이상의 인덱스를 선별합니다(findNoneZero + mask)
-        // - 선별된 인덱스와 value 채널로부터 강조된 경계선 이미지를 통해 각각의 점에 대해 경계 적합도를 검사합니다.
-        ELAPSE_BLOCK(matching)
-        {
-            auto& bm = b["common"];
-            UMat u_match_map[3]; // 공의 각 색상에 대한 매치 맵입니다.
-            UMat u0, u1;         // 임시 변수 리스트
-
-            // h, s 채널만 사용합니다.
-            // 값 형식은 32F이어야 합니다.
-            merge(vector{{u_h, u_s}}, u0);
-            u0.convertTo(u_match_map[0], CV_32FC2, 1 / 255.f);
-            for (int i = 1; i < 3; ++i) { u_match_map[0].copyTo(u_match_map[i]); }
-
-            // 각각의 색상에 대해 매칭을 수행합니다.
-            auto depth = (Mat1f&)varget(Mat, Img_Depth);
-            auto imdesc = varget(img_t, Imgdesc);
-            auto intr__balls__ = {b["red"], b["orange"], b["white"]};
-            auto balls = intr__balls__.begin();
-            char const* ball_names[] = {"Red", "Orange", "White"};
-            auto ln_base = log((double)bm["error-base"]);
-            float ball_radius = bm["radius"];
-
-            // 테이블 평면 획득
-            auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, -1, 0});
-            plane_to_camera(imdesc, table_plane, table_plane);
-
-            // 컬러 스케일
-            Scalar weight = (Vec2f)bm["weight-hue-sat"];
-            weight /= norm(weight);
-
-            ELAPSE_BLOCK(field_generate)
-            for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
-                auto& m = u_match_map[ball_idx];
-                Scalar color = (Vec2f)balls[ball_idx]["color"] / 255;
-
-                subtract(m, color, u0);
-                multiply(u0, u0, u1);
-                multiply(u1, weight, u0);
-
-                cv::reduce(u0.reshape(1, u0.rows * u0.cols), u1, 1, REDUCE_SUM);
-                u1 = u1.reshape(1, u0.rows);
-                sqrt(u1, u0);
-
-                multiply(u0, -ln_base, u1);
-                exp(u1, m);
-
-                show("Ball Match Field Raw: "s + ball_names[ball_idx], m);
-            }
-
-            UMat output_color{ROI.size(), CV_8UC3};
-            output_color.setTo(0);
-            Scalar color_ROW[] = {{0, 0, 255}, {0, 127, 255}, {255, 255, 255}};
-
-            // 정규화된 랜덤 샘플의 목록을 만듭니다.
-            // 일반적으로 샘플의 아래쪽 반원은 음영에 의해 가려지게 되므로, 위쪽 반원의 샘플을 추출합니다.
-            // 이는 정규화된 목록으로, 실제 샘플을 추출할때는 추정 중점 위치에서 계산된 반지름을 곱한 뒤 적용합니다.
-            vector<Vec2f> normal_random_samples;
-            auto& rs = bm["random-sample"];
-            ELAPSE_BLOCK(random_sample_gen)
-            {
-                mt19937 rg{};
-                uniform_real_distribution<float> distr{};
-                if (int rand_seed = (int)rs["seed"]; rand_seed != -1) { rg.seed(rand_seed); }
-                int circle_radius = rs["radius"];
-                float r0 = -(double)rs["rotate-angle"] * CV_PI / 180;
-                Matx22f rotator{cos(r0), -sin(r0), sin(r0), cos(r0)};
-
-                circle_op(0, 0, circle_radius, [&](int xi, int yi) {
-                    float x = xi, y = yi > 0 ? -yi : yi;
-
-                    Vec2f v{x, y};
-                    v = rotator * normalize(v) * sqrt(distr(rg));
-
-                    normal_random_samples.emplace_back(v);
-                });
-
-                // 샘플을 시각화합니다.
-                Mat1b random_sample_visualize(200, 200);
-                random_sample_visualize.setTo(0);
-                for (auto& pt : normal_random_samples) {
-                    random_sample_visualize(Point(pt * 75) + Point{100, 100}) = 255;
-                }
-                show("Random samples", random_sample_visualize);
-            }
-
-            Mat1f suitability_field{ROI.size()};
-            suitability_field.setTo(0);
-
-            ELAPSE_BLOCK(edge_match)
-            for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
-                auto& m = u_match_map[ball_idx];
-                Mat1f match;
-                m.copyTo(match);
-
-                auto& bp = balls[ball_idx];
-
-                // color match값이 threshold보다 큰 모든 인덱스를 선택하고, 인덱스 집합을 생성합니다.
-                compare(m, (float)bp["suitability-threshold"s], u0, CMP_GT);
-                bitwise_and(u0, area_mask, u1);
-                output_color.setTo(color_ROW[ball_idx], u1);
-
-                // 모든 valid한 인덱스를 추출합니다.
-                vector<Point> cand_indexes;
-                cand_indexes.reserve(1000);
-                findNonZero(u1, cand_indexes);
-
-                // 인덱스를 임의로 골라냅니다.
-                int discard = rs["mask-sample-discard-rate"];
-                int min_pixel_radius = bm["min-pixel-radius"];
-                size_t num_left = cand_indexes.size() * (100 - clamp(discard, 0, 100)) / 100;
-                discard_random_args(cand_indexes, num_left, mt19937{});
-
-                // 매치 맵의 적합도 합산치입니다.
-                vector<float> cand_suitabilities;
-                cand_suitabilities.resize(cand_indexes.size(), 0);
-
-                // 골라낸 인덱스 내에서 색상 값의 샘플 합을 수행합니다.
-                auto calculate_suitability = [&](Point& pt) {
-                    auto index = &pt - cand_indexes.data();
-
-                    // 현재 추정 위치에서 공의 픽셀 반경 계산
-                    int ball_pxl_rad;
-                    {
-                        Vec3f far(pt.x + ROI.x, pt.y + ROI.y, 1);
-                        get_point_coord_3d(imdesc, far[0], far[1], 1);
-                        if (
-                          auto distance = table_plane.calc_u({}, far);
-                          distance && *distance > 0) {
-                            ball_pxl_rad = get_pixel_length(imdesc, ball_radius, *distance);
-
-                            if (ball_pxl_rad < min_pixel_radius) {
-                                return;
-                            }
-                        }
-                        else {
-                            return; // 만약 테이블 평면이 잘못 판단된 경우, 테이블과 평행할 수 있습니다.
-                        }
-                    }
-
-                    // if 픽셀 반경이 이미지 경계선을 넘어가면 discard
-                    Point offset{ball_pxl_rad + 1, ball_pxl_rad + 1};
-                    Rect image_bound{offset, ROI.size() - (Size)(offset + offset)};
-
-                    if (!image_bound.contains(pt)) {
-                        return;
-                    }
-
-                    // 각 인덱스에 픽셀 반경을 곱해 매치 맵의 적합도를 합산, 저장
-                    float suitability = 0;
-                    for (auto roundpt : normal_random_samples) {
-                        Point sample_index = pt + Point(roundpt * ball_pxl_rad);
-                        suitability += match(sample_index);
-                    }
-
-                    suitability /= normal_random_samples.size();
-                    suitability_field(pt) = suitability;
-                    cand_suitabilities[index] = suitability;
-                };
-
-                // 병렬로 launch
-                if (static_cast<bool>(bm["random-sample"]["do-parallel"])) {
-                    for_each(execution::par_unseq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
-                }
-                else {
-                    for_each(execution::seq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
-                }
-
-                // 특수: 색상이 RED라면 마스크에서 찾아낸 볼에 해당하는 위치를 모두 지우고 위 과정을 다시 수행합니다.
-            }
-
-            show("Ball Match Suitability Field"s, suitability_field);
-            show("Ball Match Field Mask"s, output_color);
-        }
+    if (auto& table_contour = varget(vector<Vec2f>, Var_TableContour); !table_contour.empty()) {
+        find_balls(desc);
     }
 
     // ShowImage에 모든 임시 매트릭스 추가

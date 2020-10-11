@@ -214,6 +214,7 @@ public:
      * 소멸자 호출 전까지 내부 루프를 반복합니다.
      */
     void async_worker_thread();
+    void find_balls(recognition_desc& desc);
 
     /**
      * 주된 이미지 처리를 수행합니다.
