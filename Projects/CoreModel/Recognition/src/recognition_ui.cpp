@@ -354,11 +354,22 @@ void exec_ui()
     tickmeters.append_header("Name", 160);
     tickmeters.append_header("Elapsed", 240);
 
-    tickmeters.set_sort_compare(0, [](const string& str1, any* a, const string& str2, any* b, bool reverse) {
+    tickmeters.set_sort_compare(0, [](string str1, any* a, string str2, any* b, bool reverse) {
+        if (reverse) {
+            swap(str1, str2);
+        }
+
+        if (str1 == "-") {
+            return false;
+        }
+        if (str2 == "-") {
+            return true;
+        }
+
         int s1 = stoi(str1);
         int s2 = stoi(str2);
 
-        return reverse != s1 < s2;
+        return s1 < s2;
     });
 
     // -- Waitkey 폴링 타이머
@@ -423,6 +434,7 @@ void exec_ui()
             {
                 int order = 1;
                 for (auto& items : tickmeters.at(0)) {
+                    items.text(0, "-");
                     items.text(2, "-");
                 }
 
