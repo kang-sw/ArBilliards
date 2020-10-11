@@ -1575,7 +1575,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             float ball_radius = bm["radius"];
 
             // 테이블 평면 획득
-            auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, 1, 0});
+            auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, -1, 0});
             plane_to_camera(imdesc, table_plane, table_plane);
 
             // 컬러 스케일
@@ -1674,7 +1674,6 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
                     // 현재 추정 위치에서 공의 픽셀 반경 계산
                     int ball_pxl_rad;
-                    suitability_field(pt) = 0.1f;
                     {
                         Vec3f far(pt.x + ROI.x, pt.y + ROI.y, 1);
                         get_point_coord_3d(imdesc, far[0], far[1], 1);
@@ -1693,7 +1692,6 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
                     }
 
                     // if 픽셀 반경이 이미지 경계선을 넘어가면 discard
-                    suitability_field(pt) = 0.5f;
                     Point offset{ball_pxl_rad + 1, ball_pxl_rad + 1};
                     Rect image_bound{offset, ROI.size() - (Size)(offset + offset)};
 
@@ -1708,8 +1706,8 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
                         suitability += match(sample_index);
                     }
 
-                    suitability_field(pt) = suitability;
                     suitability /= normal_random_samples.size();
+                    suitability_field(pt) = suitability;
                     cand_suitabilities[index] = suitability;
                 };
 
