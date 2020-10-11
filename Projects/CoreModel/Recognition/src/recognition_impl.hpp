@@ -147,6 +147,7 @@ public:
             bm["random-sample"]["radius"] = 100;
             bm["random-sample"]["rotate-angle"] = 0;
             bm["random-sample"]["mask-sample-discard-rate"] = 0;
+            bm["random-sample"]["negative-area"] = Vec2f{1.1, 1.25};
         }
 
         {
