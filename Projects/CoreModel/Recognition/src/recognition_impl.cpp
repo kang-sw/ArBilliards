@@ -1621,6 +1621,8 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
                     suitability += match(sample_index);
                 }
 
+                // TODO: negative sample 목록을 iterate하여, 가중치를 빼는 식으로 계산.
+
                 suitability /= normal_random_samples.size();
                 suitability_field(pt) = suitability;
                 cand_suitabilities[index] = suitability;
