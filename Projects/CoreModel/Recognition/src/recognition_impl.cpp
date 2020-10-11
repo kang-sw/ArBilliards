@@ -68,8 +68,41 @@ void random_vector(Rand_& rand, cv::Vec<Ty_, Sz_>& vec, Ty_ range)
     vec = cv::normalize(vec) * range;
 }
 
+template <typename Ty_>
+cv::Matx<Ty_, 3, 3> rodrigues(cv::Vec<Ty_, 3> v)
+{
+    // cv::Matx<Ty_, 3, 3> retmat;
+    // cv::Rodrigues(v, retmat);
+    // return retmat;
+
+    using mat_t = cv::Matx<Ty_, 3, 3>;
+
+    auto O = cv::norm(v);
+    auto [vx, vy, vz] = (v = v / O).val;
+    auto cosO = cos(O);
+    auto sinO = sin(O);
+
+    mat_t V{0, -vz, vy, vz, 0, -vx, -vy, vx, 0};
+    mat_t R = cosO * mat_t::eye() + sinO * V + (Ty_(1) - cosO) * v * v.t();
+
+    return R;
+}
+
+template <typename Ty_>
+cv::Vec<Ty_, 3> rodrigues(cv::Matx<Ty_, 3, 3> m)
+{
+    //cv::Vec<Ty_, 3> vec;
+    //cv::Rodrigues(m, vec);
+    //return vec;
+
+    auto O = acos((cv::trace(m) - (Ty_)1) / (Ty_)2);
+    auto v = (Ty_(1) / (Ty_(2) * sin(O))) * cv::Vec<Ty_, 3>(m(2, 1) - m(1, 2), m(0, 2) - m(2, 0), m(1, 0) - m(0, 1));
+
+    return v * O;
+}
+
 template <typename Ty_, int r0, int c0, int r1, int c1>
-void copy_ROI(cv::Matx<Ty_, r0, c0>& to, cv::Matx<Ty_, r1, c1> const& from, int r, int c)
+void copyMatx(cv::Matx<Ty_, r0, c0>& to, cv::Matx<Ty_, r1, c1> const& from, int r, int c)
 {
     static_assert(r0 >= r1);
     static_assert(c0 >= c1);
@@ -78,10 +111,7 @@ void copy_ROI(cv::Matx<Ty_, r0, c0>& to, cv::Matx<Ty_, r1, c1> const& from, int 
 
     for (int i = 0; i < r1; ++i) {
         for (int j = 0; j < c1; ++j) {
-            int to_idx = (i + r) * r0 + (j + c);
-            int from_idx = i * r1 + j;
-
-            to.val[to_idx] = from.val[from_idx];
+            to(i + r, j + c) = from(i, j);
         }
     }
 }
@@ -102,13 +132,11 @@ static cv::Matx44f get_world_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot)
     Matx44f world_transform = {};
     world_transform.val[15] = 1.0f;
     {
-        // Vec3f rot = (Vec3f&)desc.table.orientation;
         world_transform.val[3] = pos[0];
         world_transform.val[7] = pos[1];
         world_transform.val[11] = pos[2];
-        Matx33f rot_mat;
-        Rodrigues(rot, rot_mat);
-        copy_ROI(world_transform, rot_mat, 0, 0);
+        Matx33f rot_mat = rodrigues(rot);
+        copyMatx(world_transform, rot_mat, 0, 0);
     }
     return world_transform;
 }
@@ -859,8 +887,8 @@ void recognizer_impl_t::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::V
     uvw.emplace_back(0, 0, 0.1f);
     uvw.emplace_back(0, 0, 0);
 
-    Matx33f rot;
-    Rodrigues(rvec, rot);
+    Matx33f rot = rodrigues(rvec);
+    // Rodrigues(rvec, rot);
 
     for (auto& pt : uvw) {
         pt = (rot * pt) + tvec;
@@ -870,18 +898,18 @@ void recognizer_impl_t::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::V
         pt4 = img.camera_transform * pt4;
         pt = (Vec3f&)pt4;
     }
-
-    auto u = normalize(uvw[0] - uvw[3]);
-    auto v = normalize(uvw[1] - uvw[3]);
-    auto w = normalize(uvw[2] - uvw[3]);
+     
+    Matx31f u = normalize(uvw[0] - uvw[3]);
+    Matx31f v = normalize(uvw[1] - uvw[3]);
+    Matx31f w = normalize(uvw[2] - uvw[3]);
     tvec = uvw[3];
 
-    Mat1f rotation(3, 3);
-    copyTo(u, rotation.col(0), {});
-    copyTo(v, rotation.col(1), {});
-    copyTo(w, rotation.col(2), {});
+    Matx33f rmat;
+    copyMatx(rmat, u, 0, 0);
+    copyMatx(rmat, v, 0, 1);
+    copyMatx(rmat, w, 0, 2);
 
-    Rodrigues(rotation, rvec);
+    rvec = rodrigues(rmat); 
 }
 
 cv::Vec3f recognizer_impl_t::rotate_local(cv::Vec3f target, cv::Vec3f rvec)
@@ -1399,7 +1427,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
     // 테이블 탐색을 위한 로직입니다.
     {
-        TM(table_find);
+        TM(table_track_total);
         auto& tp = p["table"];
         auto& u_hsv = varget(UMat, UMAT_HSV);
         auto image_size = varget(Size, IMAGE_SIZE);
@@ -1449,6 +1477,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
         // 기존 방법을 근소하게 개선하는 방향으로 ..
         // ROI 획득
+        TM(ball_track_total);
         auto tb = p["ball"];
 
         auto debug = varget(Mat, MAT_DEBUG);
