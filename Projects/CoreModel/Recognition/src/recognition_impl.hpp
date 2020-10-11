@@ -138,8 +138,15 @@ public:
 
             auto& bm = b["common"];
             bm["radius"] = 0.14 / CV_2PI;
+            bm["min-pixel-radius"] = 10;
             bm["weight-hue-sat"] = Vec2f{2, 1};
             bm["error-base"] = 1.15;
+
+            bm["random-sample"]["do-parallel"] = true;
+            bm["random-sample"]["seed"] = 0; 
+            bm["random-sample"]["radius"] = 100;
+            bm["random-sample"]["rotate-angle"] = 0;
+            bm["random-sample"]["mask-sample-discard-rate"] = 0;
         }
 
         {

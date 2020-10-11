@@ -4,13 +4,13 @@
 #include <vector>
 #include <opencv2/highgui.hpp>
 #include <opencv2/core/base.hpp>
+#include <execution>
 #include <random>
 #include <algorithm>
 #include <vector>
-#include <vector>
-#include <vector>
 
 using namespace billiards;
+using namespace std;
 
 template <typename Fn_>
 void circle_op(int cent_x, int cent_y, int radius, Fn_&& op)
@@ -66,6 +66,16 @@ void random_vector(Rand_& rand, cv::Vec<Ty_, Sz_>& vec, Ty_ range)
     vec[1] = distr(rand);
     vec[2] = distr(rand);
     vec = cv::normalize(vec) * range;
+}
+
+template <typename Ty_, typename Rand_>
+void discard_random_args(vector<Ty_>& iovec, size_t target_size, Rand_&& rengine)
+{
+    while (iovec.size() > target_size) {
+        auto ridx = uniform_int_distribution<size_t>{0, iovec.size() - 1}(rengine);
+        iovec[ridx] = move(iovec.back());
+        iovec.pop_back();
+    }
 }
 
 template <typename Ty_>
@@ -1465,6 +1475,19 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         varset(Var_TableContour) = table_contour;
     }
 
+    if (auto& table_contour = varget(vector<Vec2f>, Var_TableContour); table_contour.empty()) {
+        vector<Vec3f> model;
+        get_table_model(model, p["table"]["size"]["fit"]);
+        project_model(varget(img_t, Imgdesc), table_contour, table_pos, table_rot, model, true, p["FOV"][0], p["FOV"][1]);
+
+        for (auto pt : table_contour) {
+            if (isnan(pt[0]) || isnan(pt[1])) {
+                table_contour.clear();
+                break;
+            }
+        }
+    }
+
     // 공 탐색을 위한 로직입니다.
     if (auto table_contour = varget(vector<Vec2f>, Var_TableContour); !table_contour.empty()) {
         // -- 테이블 영역을 Perspective에서 Orthogonal하게 투영합니다.
@@ -1491,12 +1514,13 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         auto b = p["ball"];
 
         auto debug = varget(Mat, Img_Debug);
-        auto area_mask = varget(Mat, Img_TableAreaMask);
         UMat u_rgb;
         UMat u_hsv;
 
         // 이 ROI는 항상 안전!
         auto ROI = boundingRect(table_contour);
+        get_safe_ROI_rect(debug, ROI);
+        auto area_mask = varget(Mat, Img_TableAreaMask)(ROI);
         u_rgb = varget(UMat, UImg_RGB)(ROI);
         u_hsv = varget(UMat, UImg_HSV)(ROI);
 
@@ -1548,6 +1572,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             auto balls = intr__balls__.begin();
             char const* ball_names[] = {"Red", "Orange", "White"};
             auto ln_base = log((double)bm["error-base"]);
+            float ball_radius = bm["radius"];
 
             // 테이블 평면 획득
             auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, 1, 0});
@@ -1572,21 +1597,135 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
                 multiply(u0, -ln_base, u1);
                 exp(u1, m);
+
+                show("Ball Match Field Raw: "s + ball_names[ball_idx], m);
             }
+
+            UMat output_color{ROI.size(), CV_8UC3};
+            output_color.setTo(0);
+            Scalar color_ROW[] = {{0, 0, 255}, {0, 127, 255}, {255, 255, 255}};
+
+            // 정규화된 랜덤 샘플의 목록을 만듭니다.
+            // 일반적으로 샘플의 아래쪽 반원은 음영에 의해 가려지게 되므로, 위쪽 반원의 샘플을 추출합니다.
+            // 이는 정규화된 목록으로, 실제 샘플을 추출할때는 추정 중점 위치에서 계산된 반지름을 곱한 뒤 적용합니다.
+            vector<Vec2f> normal_random_samples;
+            auto& rs = bm["random-sample"];
+            ELAPSE_BLOCK(random_sample_gen)
+            {
+                mt19937 rg{};
+                uniform_real_distribution<float> distr{};
+                if (int rand_seed = (int)rs["seed"]; rand_seed != -1) { rg.seed(rand_seed); }
+                int circle_radius = rs["radius"];
+                float r0 = -(double)rs["rotate-angle"] * CV_PI / 180;
+                Matx22f rotator{cos(r0), -sin(r0), sin(r0), cos(r0)};
+
+                circle_op(0, 0, circle_radius, [&](int xi, int yi) {
+                    float x = xi, y = yi > 0 ? -yi : yi;
+
+                    Vec2f v{x, y};
+                    v = rotator * normalize(v) * sqrt(distr(rg));
+
+                    normal_random_samples.emplace_back(v);
+                });
+
+                // 샘플을 시각화합니다.
+                Mat1b random_sample_visualize(200, 200);
+                random_sample_visualize.setTo(0);
+                for (auto& pt : normal_random_samples) {
+                    random_sample_visualize(Point(pt * 75) + Point{100, 100}) = 255;
+                }
+                show("Random samples", random_sample_visualize);
+            }
+
+            Mat1f suitability_field{ROI.size()};
+            suitability_field.setTo(0);
 
             ELAPSE_BLOCK(edge_match)
             for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
                 auto& m = u_match_map[ball_idx];
+                Mat1f match;
+                m.copyTo(match);
+
                 auto& bp = balls[ball_idx];
 
                 // color match값이 threshold보다 큰 모든 인덱스를 선택하고, 인덱스 집합을 생성합니다.
-                vector<Point> cand_indexes;
                 compare(m, (float)bp["suitability-threshold"s], u0, CMP_GT);
-                bitwise_and(u0, area_mask(ROI), u1);
-                show("Ball Match Field: "s + ball_names[ball_idx], u1);
+                bitwise_and(u0, area_mask, u1);
+                output_color.setTo(color_ROW[ball_idx], u1);
 
+                // 모든 valid한 인덱스를 추출합니다.
+                vector<Point> cand_indexes;
+                cand_indexes.reserve(1000);
                 findNonZero(u1, cand_indexes);
+
+                // 인덱스를 임의로 골라냅니다.
+                int discard = rs["mask-sample-discard-rate"];
+                int min_pixel_radius = bm["min-pixel-radius"];
+                size_t num_left = cand_indexes.size() * (100 - clamp(discard, 0, 100)) / 100;
+                discard_random_args(cand_indexes, num_left, mt19937{});
+
+                // 매치 맵의 적합도 합산치입니다.
+                vector<float> cand_suitabilities;
+                cand_suitabilities.resize(cand_indexes.size(), 0);
+
+                // 골라낸 인덱스 내에서 색상 값의 샘플 합을 수행합니다.
+                auto calculate_suitability = [&](Point& pt) {
+                    auto index = &pt - cand_indexes.data();
+
+                    // 현재 추정 위치에서 공의 픽셀 반경 계산
+                    int ball_pxl_rad;
+                    suitability_field(pt) = 0.1f;
+                    {
+                        Vec3f far(pt.x + ROI.x, pt.y + ROI.y, 1);
+                        get_point_coord_3d(imdesc, far[0], far[1], 1);
+                        if (
+                          auto distance = table_plane.calc_u({}, far);
+                          distance && *distance > 0) {
+                            ball_pxl_rad = get_pixel_length(imdesc, ball_radius, *distance);
+
+                            if (ball_pxl_rad < min_pixel_radius) {
+                                return;
+                            }
+                        }
+                        else {
+                            return; // 만약 테이블 평면이 잘못 판단된 경우, 테이블과 평행할 수 있습니다.
+                        }
+                    }
+
+                    // if 픽셀 반경이 이미지 경계선을 넘어가면 discard
+                    suitability_field(pt) = 0.5f;
+                    Point offset{ball_pxl_rad + 1, ball_pxl_rad + 1};
+                    Rect image_bound{offset, ROI.size() - (Size)(offset + offset)};
+
+                    if (!image_bound.contains(pt)) {
+                        return;
+                    }
+
+                    // 각 인덱스에 픽셀 반경을 곱해 매치 맵의 적합도를 합산, 저장
+                    float suitability = 0;
+                    for (auto roundpt : normal_random_samples) {
+                        Point sample_index = pt + Point(roundpt * ball_pxl_rad);
+                        suitability += match(sample_index);
+                    }
+
+                    suitability_field(pt) = suitability;
+                    suitability /= normal_random_samples.size();
+                    cand_suitabilities[index] = suitability;
+                };
+
+                // 병렬로 launch
+                if (static_cast<bool>(bm["random-sample"]["do-parallel"])) {
+                    for_each(execution::par_unseq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
+                }
+                else {
+                    for_each(execution::seq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
+                }
+
+                // 특수: 색상이 RED라면 마스크에서 찾아낸 볼에 해당하는 위치를 모두 지우고 위 과정을 다시 수행합니다.
             }
+
+            show("Ball Match Suitability Field"s, suitability_field);
+            show("Ball Match Field Mask"s, output_color);
         }
     }
 

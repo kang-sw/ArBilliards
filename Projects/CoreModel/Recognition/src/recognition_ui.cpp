@@ -356,6 +356,7 @@ void exec_ui()
     matlist.append_header("H", 40);
     matlist.append_header("Type", 50);
     matlist.append_header("Updated");
+    matlist.sort_col(0);
 
     // 이벤트 바인딩
     matlist.checkable(true);
@@ -394,6 +395,7 @@ void exec_ui()
     tickmeters.append_header("", 20);
     tickmeters.append_header("Name", 160);
     tickmeters.append_header("Elapsed", 240);
+    tickmeters.sort_col(0);
 
     tickmeters.set_sort_compare(0, [](string str1, any* a, string str2, any* b, bool reverse) {
         if (reverse) {
