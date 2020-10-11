@@ -135,7 +135,7 @@ void exec_ui()
 
     // 변수 목록
     string current_save_path = AUTOSAVE_PATH;
-    bool is_dirty = false;
+    bool is_config_dirty = false;
 
     // -- 상태 창
     queue<string> state_messages;
@@ -145,7 +145,7 @@ void exec_ui()
         auto str = "AR Billiards Image Processing Core - "s;
         auto divide = current_save_path.find_last_of("\\");
         str += divide == npos ? current_save_path : current_save_path.substr(divide + 1);
-        if (is_dirty) {
+        if (is_config_dirty) {
             str += " (*)";
         }
         fm.caption(str);
@@ -166,7 +166,7 @@ void exec_ui()
 
                 json_iterative_substitute(g_recognizer.props, parsed);
                 current_save_path = path;
-                is_dirty = false;
+                is_config_dirty = false;
                 state_messages.emplace("loaded configurations from file "s + path);
                 fm_caption_dirty();
 
@@ -184,7 +184,7 @@ void exec_ui()
         ofstream strm(path);
         strm << g_recognizer.props.dump(4);
 
-        is_dirty = false;
+        is_config_dirty = false;
         state_messages.emplace("saved configurations to file "s + path);
         fm_caption_dirty();
     };
@@ -194,12 +194,8 @@ void exec_ui()
 
     treebox tr(fm);
     textbox param_enter_box(fm);
-
     optional<treebox::item_proxy> selected_proxy;
-
     param_enter_box.multi_lines(false);
-
-    // -- 상태 바
 
     // -- JSON 파라미터 입력 창 핸들
     auto param_enter_query = [&](bool apply_change) {
@@ -231,7 +227,7 @@ void exec_ui()
 
                     drawing(tr).update();
 
-                    is_dirty = true;
+                    is_config_dirty = true;
                     fm_caption_dirty();
                 }
             }
@@ -293,6 +289,7 @@ void exec_ui()
                     param_enter_box.del();
                     param_enter_box.append(selected.second->dump(), true);
                     param_enter_box.select(true);
+                    param_enter_box.clear_undo();
                     param_enter_box.focus();
                     return;
                 }
@@ -583,6 +580,29 @@ void exec_ui()
         }
     });
 
+    // -- 종료 쿼리
+    fm.events().unload([&](arg_unload const& ul) {
+        if (is_config_dirty) {
+            msgbox quitbox(fm, "Quit", msgbox::yes_no_cancel);
+            quitbox.icon(msgbox::icon_question);
+
+            quitbox << "Save changes before exit";
+
+            switch (quitbox.show()) {
+                case msgbox::pick_ok:
+                case msgbox::pick_yes:
+                    save_as(current_save_path);
+                    break;
+                case msgbox::pick_no:
+                    break;
+                case msgbox::pick_cancel:
+                    ul.cancel = true;
+                    break;
+                default:;
+            }
+        }
+    });
+
     // -- 레이아웃 설정
     place layout(fm);
     layout.div(
@@ -620,12 +640,6 @@ void exec_ui()
 
     fm.show();
     exec();
-
-    // Export default configuration
-    {
-        ofstream strm(AUTOSAVE_PATH);
-        strm << g_recognizer.props.dump(4);
-    }
 
     this_thread::sleep_for(100ms);
     cout << "info: GUI Expired" << endl;
