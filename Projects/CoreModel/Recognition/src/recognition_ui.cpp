@@ -324,6 +324,7 @@ void exec_ui()
 
         if (ptr) {
             arg.item.value<mat_desc_row_t>().is_displaying = arg.item.checked();
+            n->dirty = true;
         }
     });
 
