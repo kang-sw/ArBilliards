@@ -357,6 +357,7 @@ struct timer_scope_t {
     timer_scope_t TM_##x##__##y { this, #x }
 #define XTRACE(x, y) YTRACE(x, y)
 #define TM(name)     XTRACE(name, __COUNTER__)
+#define TMB(name)    if (TM(name); true)
 
 #define varset(varname)       ((void)billiards::names::varname, vars[#varname])
 #define varget(type, varname) ((void)billiards::names::varname, any_cast<type&>(vars[#varname]))
@@ -497,7 +498,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
     using namespace cv;
     auto p = m.props;
     auto tp = p["table"];
-    auto image_size = varget(Size, IMAGE_SIZE); // any_cast<Size>(vars["scaled-image-size"]);
+    auto image_size = varget(Size, Size_Image); // any_cast<Size>(vars["scaled-image-size"]);
 
     {
         TM(process_contour);
@@ -648,8 +649,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             drawContours(rgb, contours, -1, {255, 123, 0}, 3);
         }
 
-        desc.table.position = table_pos_flt;
-        desc.table.orientation = (Vec4f&)table_rot_flt;
+        desc.table.position = table_pos;
+        desc.table.orientation = (Vec4f&)table_rot;
     }
 
     // 테이블을 찾는데 실패한 경우 iteration method를 활용해 테이블 위치를 추정합니다.
@@ -659,8 +660,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         vector<Vec3f> model;
         get_table_model(model, m.table.recognition_size);
 
-        auto init_pos = table_pos_flt;
-        auto init_rot = table_rot_flt;
+        auto init_pos = table_pos;
+        auto init_rot = table_rot;
 
         auto tpa = tp["partial"];
 
@@ -693,8 +694,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             desc.table.confidence = res.confidence;
             set_filtered_table_pos(res.position, res.confidence);
             set_filtered_table_rot(res.rotation, res.confidence);
-            desc.table.position = table_pos_flt;
-            desc.table.orientation = (Vec4f&)table_rot_flt;
+            desc.table.position = table_pos;
+            desc.table.orientation = (Vec4f&)table_rot;
         }
     }
 
@@ -706,7 +707,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         pts.assign(table_contours.begin(), table_contours.end());
         drawContours(table_mask, vector{{pts}}, -1, {255}, -1);
 
-        varset(TABLE_AREA_MASK) = (Mat)table_mask;
+        varset(Img_TableAreaMask) = (Mat)table_mask;
     }
     else {
         table_contours.clear();
@@ -719,8 +720,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         get_table_model(model, tp["size"]["inner"]);
 
         Vec2f FOV = p["FOV"];
-        project_model(img, mapped, table_pos_flt, table_rot_flt, model, true, FOV[0], FOV[1]);
-        draw_axes(img, (Mat&)rgb, table_rot_flt, table_pos_flt, 0.08f, 3);
+        project_model(img, mapped, table_pos, table_rot, model, true, FOV[0], FOV[1]);
+        draw_axes(img, (Mat&)rgb, table_rot, table_pos, 0.08f, 3);
 
         if (!mapped.empty()) {
             drawContours(rgb, vector{{mapped}}, -1, {255, 255, 255}, 3);
@@ -731,18 +732,18 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 cv::Vec3f recognizer_impl_t::set_filtered_table_pos(cv::Vec3f new_pos, float confidence)
 {
     float alpha = (float)m.props["table"]["LPF"]["position"] * confidence;
-    return table_pos_flt = (1 - alpha) * table_pos_flt + alpha * new_pos;
+    return table_pos = (1 - alpha) * table_pos + alpha * new_pos;
 }
 
 cv::Vec3f recognizer_impl_t::set_filtered_table_rot(cv::Vec3f new_rot, float confidence)
 {
-    if (norm(table_rot_flt - new_rot) > (170.0f) * CV_PI / 180.0f) {
+    if (norm(table_rot - new_rot) > (170.0f) * CV_PI / 180.0f) {
         // rotation[1] += CV_PI;
         new_rot = rotate_local(new_rot, {0, (float)CV_PI, 0});
     }
 
     float alpha = (float)m.props["table"]["LPF"]["rotation"] * confidence;
-    return table_rot_flt = (1 - alpha) * table_rot_flt + alpha * new_rot;
+    return table_rot = (1 - alpha) * table_rot + alpha * new_rot;
 }
 
 void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform)
@@ -898,7 +899,7 @@ void recognizer_impl_t::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::V
         pt4 = img.camera_transform * pt4;
         pt = (Vec3f&)pt4;
     }
-     
+
     Matx31f u = normalize(uvw[0] - uvw[3]);
     Matx31f v = normalize(uvw[1] - uvw[3]);
     Matx31f w = normalize(uvw[2] - uvw[3]);
@@ -909,7 +910,7 @@ void recognizer_impl_t::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::V
     copyMatx(rmat, v, 0, 1);
     copyMatx(rmat, w, 0, 2);
 
-    rvec = rodrigues(rmat); 
+    rvec = rodrigues(rmat);
 }
 
 cv::Vec3f recognizer_impl_t::rotate_local(cv::Vec3f target, cv::Vec3f rvec)
@@ -978,6 +979,15 @@ plane_t plane_t::from_NP(cv::Vec3f N, cv::Vec3f P)
 
     plane.d = -u;
     return plane;
+}
+
+plane_t plane_t::from_rp(cv::Vec3f rvec, cv::Vec3f tvec, cv::Vec3f up)
+{
+    using namespace cv;
+    auto P = tvec;
+    Matx33f rotator = rodrigues(rvec);
+    auto N = rotator * up;
+    return plane_t::from_NP(N, P);
 }
 
 plane_t& plane_t::transform(cv::Vec3f tvec, cv::Vec3f rvec)
@@ -1361,14 +1371,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             TM(rgb_conversion);
 
             cvtColor(imdesc_source.rgba, img_rgb, COLOR_RGBA2RGB);
-            varset(MAT_RGB_SOURCE) = img_rgb;
+            varset(Img_SrcRGB) = img_rgb;
         }
 
         // 공용 머터리얼 셋업 시퀀스
         Size scaled_image_size((int)p["fast-process-width"], 0);
         float image_scale = scaled_image_size.width / (float)img_rgb.cols;
         scaled_image_size.height = (int)(img_rgb.rows * image_scale);
-        varset(IMAGE_SIZE) = scaled_image_size;
+        varset(Size_Image) = scaled_image_size;
 
         Mat img_rgb_scaled, img_hsv_scaled;
         UMat uimg_rgb_scaled, uimg_hsv_scaled;
@@ -1396,14 +1406,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         // 색공간 변환 수행
         {
             TM(hsv_conversion);
-            varset(MAT_RGB) = img_rgb_scaled;
-            varset(UMAT_RGB) = uimg_rgb_scaled;
+            varset(Img_RGB) = img_rgb_scaled;
+            varset(UImg_RGB) = uimg_rgb_scaled;
 
             cvtColor(uimg_rgb_scaled, uimg_hsv_scaled, COLOR_RGB2HSV);
             uimg_hsv_scaled.copyTo(img_hsv_scaled);
 
-            varset(MAT_HSV) = img_hsv_scaled;
-            varset(UMAT_HSV) = uimg_hsv_scaled;
+            varset(Img_HSV) = img_hsv_scaled;
+            varset(UImg_HSV) = uimg_hsv_scaled;
         }
 
         // 깊이 이미지 크기 변환
@@ -1413,24 +1423,24 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             Mat depth;
             resize(imdesc_scaled.depth, u_depth, scaled_image_size);
             u_depth.copyTo(depth);
-            varset(UMAT_DEPTH) = u_depth;
-            varset(MAT_DEPTH) = depth;
+            varset(UImg_Depth) = u_depth;
+            varset(Img_Depth) = depth;
 
             imdesc_scaled.depth = depth;
         }
 
-        varset(IMDESC) = imdesc_scaled;
+        varset(Imgdesc) = imdesc_scaled;
     }
 
     // 디버깅용 이미지 설정
-    varset(MAT_DEBUG) = varget(Mat, MAT_RGB).clone();
+    varset(Img_Debug) = varget(Mat, Img_RGB).clone();
 
     // 테이블 탐색을 위한 로직입니다.
     {
         TM(table_track_total);
         auto& tp = p["table"];
-        auto& u_hsv = varget(UMat, UMAT_HSV);
-        auto image_size = varget(Size, IMAGE_SIZE);
+        auto& u_hsv = varget(UMat, UImg_HSV);
+        auto image_size = varget(Size, Size_Image);
 
         // -- 테이블 색상으로 필터링 수행
         UMat u_mask;
@@ -1440,7 +1450,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             array<Vec3f, 2> filters = tp["filter"];
             filter_hsv(u_hsv, u_mask, filters[0], filters[1]);
             carve_outermost_pixels(u_mask, {0});
-            varset(MAT_TABLE_FILTERED) = u_mask;
+            varset(UImg_TableFiltered) = u_mask;
 
             // -- 경계선 검출
             erode(u_mask, u_eroded, {});
@@ -1449,14 +1459,13 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
         // -- 테이블 추정 영역 찾기
         vector<Vec2f> table_contour;
-        find_table(varget(img_t, IMDESC), desc, varget(Mat, MAT_DEBUG), varget(UMat, MAT_TABLE_FILTERED), table_contour);
+        find_table(varget(img_t, Imgdesc), desc, varget(Mat, Img_Debug), varget(UMat, UImg_TableFiltered), table_contour);
 
-        varset(CONTOUR_TABLE) = table_contour;
+        varset(Var_TableContour) = table_contour;
     }
 
     // 공 탐색을 위한 로직입니다.
-    if (auto table_contour = varget(vector<Vec2f>, CONTOUR_TABLE);
-        !table_contour.empty()) {
+    if (auto table_contour = varget(vector<Vec2f>, Var_TableContour); !table_contour.empty()) {
         // -- 테이블 영역을 Perspective에서 Orthogonal하게 투영합니다.
         // (방법은 아직 연구가 필요 ..)
         // - 이미지는 이미 rectify된 상태이므로, 카메라 파라미터는 따로 고려하지 않음
@@ -1478,24 +1487,26 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         // 기존 방법을 근소하게 개선하는 방향으로 ..
         // ROI 획득
         TM(ball_track_total);
-        auto tb = p["ball"];
+        auto b = p["ball"];
 
-        auto debug = varget(Mat, MAT_DEBUG);
-        auto area_mask = varget(Mat, TABLE_AREA_MASK);
-        auto u_rgb = varget(UMat, UMAT_RGB);
-        auto u_hsv = varget(UMat, UMAT_HSV);
+        auto debug = varget(Mat, Img_Debug);
+        auto area_mask = varget(Mat, Img_TableAreaMask);
+        UMat u_rgb;
+        UMat u_hsv;
 
         // 이 ROI는 항상 안전!
         auto ROI = boundingRect(table_contour);
-        u_rgb = u_rgb(ROI);
-        u_hsv = u_hsv(ROI);
+        u_rgb = varget(UMat, UImg_RGB)(ROI);
+        u_hsv = varget(UMat, UImg_HSV)(ROI);
 
         vector<UMat> channels;
         UMat u_delta_hype;
 
+        split(u_hsv, channels);
+        auto [u_h, u_s, u_v] = (UMat(&)[3])(*channels.data());
+
+        TMB(hype_calc)
         {
-            TM(hype_calc);
-            split(u_hsv, channels);
             {
                 UMat view;
                 hconcat(channels, view);
@@ -1504,25 +1515,80 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
             {
                 UMat u_v32;
-                channels[2].convertTo(u_v32, CV_32F, 1 / 255.f);
-                Laplacian(u_v32, u_delta_hype, CV_32F, 3);
+                u_v.convertTo(u_v32, CV_32F, 1 / 255.f);
+                Laplacian(u_v32, u_delta_hype, CV_32F, 5);
             }
 
             show("Value Range Laplacian", u_delta_hype);
         }
+
+        // 색상 매칭을 수행합니다.
+        // - 공의 기준 색상을 빼고(h, s 채널만), 각 채널에 가중치를 두어 유클리드 거리 d_n를 계산합니다.
+        // - base^(-d_n)를 각 픽셀에 대해 계산합니다. (e^(-d_n*ln(base) 로 계산)
+        // - 테이블의 가장 가까운 점으로부터 공의 최대 반경을 계산합니다.
+        // - 문턱값 이상의 인덱스를 선별합니다(findNoneZero + mask)
+        // - 선별된 인덱스와 value 채널로부터 강조된 경계선 이미지를 통해 각각의 점에 대해 경계 적합도를 검사합니다.
+        TMB(matching)
+        {
+            auto& bm = b["common"];
+            UMat u_match_map[3]; // 공의 각 색상에 대한 매치 맵입니다.
+            UMat u0, u1;         // 임시 변수 리스트
+
+            // h, s 채널만 사용합니다.
+            // 값 형식은 32F이어야 합니다.
+            merge(vector{{u_h, u_s}}, u0);
+            u0.convertTo(u_match_map[0], CV_32FC2, 1 / 255.f);
+            for (int i = 1; i < 3; ++i) { u_match_map[0].copyTo(u_match_map[i]); }
+
+            // 각각의 색상에 대해 매칭을 수행합니다.
+            auto depth = (Mat1f&)varget(Mat, Img_Depth);
+            Scalar colors[] = {b["red"]["color"], b["orange"]["color"], b["white"]["color"]};
+            Scalar weight = (Vec2f)bm["weight-hue-sat"];
+            auto ln_base = log((double)bm["error-base"]);
+            char const* ball_names[] = {"Red", "Orange", "White"};
+            auto imdesc = varget(img_t, Imgdesc);
+
+            // 테이블 평면 획득
+            auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, 1, 0});
+            plane_to_camera(imdesc, table_plane, table_plane);
+
+            // 컬러 스케일
+            for (auto& sc : colors) { sc = sc * (1 / 255.f); }
+            weight /= norm(weight);
+
+            TMB(field_generate)
+            for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
+                auto& m = u_match_map[ball_idx];
+
+                subtract(m, colors[ball_idx], u0);
+                multiply(u0, u0, u1);
+                multiply(u1, weight, u0);
+
+                cv::reduce(u0.reshape(1, u0.rows * u0.cols), u1, 1, REDUCE_SUM);
+                u1 = u1.reshape(1, u0.rows);
+                sqrt(u1, u0);
+
+                multiply(u0, -ln_base, u1);
+                exp(u1, m);
+
+                show("Ball Match Field: "s + ball_names[ball_idx], m);
+            }
+
+            for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
+            }
+        }
     }
 
     // ShowImage에 모든 임시 매트릭스 추가
-    if (TM(copying); true) {
-        for (auto& pair : vars) {
-            auto& value = pair.second;
+    TMB(item_copy)
+    for (auto& pair : vars) {
+        auto& value = pair.second;
 
-            if (auto ptr = any_cast<Mat>(&value)) {
-                show(move(pair.first), *ptr);
-            }
-            else if (auto ptr = any_cast<UMat>(&value)) {
-                show(move(pair.first), *ptr);
-            }
+        if (auto ptr = any_cast<Mat>(&value)) {
+            show("~Auto: " + move(pair.first), *ptr);
+        }
+        else if (auto uptr = any_cast<UMat>(&value)) {
+            // show(move(pair.first), *uptr);
         }
     }
 
@@ -1559,7 +1625,6 @@ recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
 {
     using namespace cv;
     recognition_desc desc = {};
-
     // Image 리사이즈
     // auto img = img_in;
 #if 0
@@ -1650,8 +1715,8 @@ recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
 
     bool const table_not_detect = table_contours.empty();
     {
-        Vec3f pos = table_pos_flt;
-        Vec3f rot = table_rot_flt;
+        Vec3f pos = table_pos;
+        Vec3f rot = table_rot;
 
         vector<cv::Vec3f> obj_pts;
         get_table_model(obj_pts, m.table.outer_masking_size);
@@ -1762,7 +1827,7 @@ recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
             // 테이블 컨투어를 재조정합니다.
             vector<Vec3f> obj_pts;
             get_table_model(obj_pts, m.table.inner_size);
-            project_model(img, table_contour_partial, table_pos_flt, table_rot_flt, obj_pts, true, m.FOV.width, m.FOV.height);
+            project_model(img, table_contour_partial, table_pos, table_rot, obj_pts, true, m.FOV.width, m.FOV.height);
             ROI_fit = boundingRect(table_contour_partial);
             get_safe_ROI_rect(img.rgba, ROI_fit);
 
@@ -1807,9 +1872,9 @@ recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
             // 월드 당구대 평면을 획득합니다.
             plane_t table_plane, table_plane_camera;
             {
-                auto P = table_pos_flt;
+                auto P = table_pos;
                 Matx33f rotator;
-                Rodrigues(table_rot_flt, rotator);
+                Rodrigues(table_rot, rotator);
                 auto N = rotator * Vec3f{0, 1, 0};
                 table_plane = plane_t::from_NP(N, P);
             }
@@ -1898,7 +1963,7 @@ recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
                 ball_param.memoization_steps = pixel_radius * m.ball.search.memoization_distance_rate;
 
                 // 모든 ball 색상에 대해 필터링 수행
-                Mat color = hsv_all(ROI_ball), filtered, edge;
+                Mat color = hsv_all(ROI_ball), filtered;
                 for (auto& pt : ball_chunk_contours) { pt -= ROI_ball.tl() - ROI_fit.tl(); }
 
                 // 각각의 색상에 대한 에지를 구하고, 합성합니다.

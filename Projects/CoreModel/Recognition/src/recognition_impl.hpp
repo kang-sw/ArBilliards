@@ -10,6 +10,12 @@
 #include <opencv2/core/base.hpp>
 #include <any>
 #include <vector>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
 
 using namespace std;
 
@@ -28,6 +34,20 @@ void from_json(const nlohmann::json& j, Vec<Ty_, Size_>& v)
     v = (cv::Vec<Ty_, Size_>&)arr;
 }
 
+template <typename Ty_>
+void to_json(nlohmann::json& j, const Scalar_<Ty_>& v)
+{
+    j = (std::array<Ty_, 4>&)v;
+}
+
+template <typename Ty_>
+void from_json(const nlohmann::json& j, Scalar_<Ty_>& v)
+{
+    for (int i = 0, num_elem = min(j.size(), 4ull); i < num_elem; ++i) {
+        v.val[i] = j[i];
+    }
+}
+
 } // namespace cv
 
 namespace billiards
@@ -38,6 +58,7 @@ struct plane_t {
     float d;
 
     static plane_t from_NP(cv::Vec3f N, cv::Vec3f P);
+    static plane_t from_rp(cv::Vec3f rvec, cv::Vec3f tvec, cv::Vec3f up);
     plane_t& transform(cv::Vec3f tvec, cv::Vec3f rvec);
     float calc(cv::Vec3f const& pt) const;
     bool has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
@@ -79,8 +100,8 @@ public:
     shared_mutex elapsed_seconds_mtx;
 
     recognition_desc prev_desc;
-    cv::Vec3f table_pos_flt = {};
-    cv::Vec3f table_rot_flt = {};
+    cv::Vec3f table_pos = {};
+    cv::Vec3f table_rot = {};
 
     cv::Vec3f ball_pos_prev[4] = {};
 
@@ -109,10 +130,22 @@ public:
         {
             auto& b = params["ball"];
 
-            b["radius"] = 0.14 / CV_2PI;
-            b["color"]["red"] = {Vec3f{115, 84, 0}, Vec3f{152, 255, 255}};
-            b["color"]["orange"] = {Vec3f{75, 118, 0}, Vec3f{106, 255, 255}};
-            b["color"]["white"] = {Vec3f{0, 0, 0}, Vec3f{81, 108, 255}};
+            b["red"]["color"] = Vec2f{133, 135};
+            b["red"]["color-threshold"] = 0.35;
+            b["red"]["filter"] = {Vec3f{115, 84, 0}, Vec3f{152, 255, 255}};
+
+            b["orange"]["color"] = Vec2f{85, 173};
+            b["orange"]["color-threshold"] = 0.35;
+            b["orange"]["filter"] = {Vec3f{75, 118, 0}, Vec3f{106, 255, 255}};
+
+            b["white"]["color"] = Vec2f{40, 54};
+            b["white"]["color-threshold"] = 0.35;
+            b["white"]["filter"] = {Vec3f{0, 0, 0}, Vec3f{81, 108, 255}};
+
+            auto& bm = b["common"];
+            bm["radius"] = 0.14 / CV_2PI;
+            bm["weight-hue-sat"] = Vec2f{2, 1};
+            bm["error-base"] = 1.15;
         }
 
         {
@@ -382,31 +415,29 @@ enum BALL_INDEX
 
 namespace names
 {
-enum Type{
-    TABLE_AREA_MASK,
+enum Type
+{
+    Size_Image,
 
-    IMAGE_SIZE,
+    Img_Debug,
 
-    MAT_DEBUG,
+    Img_TableAreaMask,
+    Img_SrcRGB,
+    Img_RGB,
+    Img_HSV,
+    Img_Depth,
+    Img_BallEdgeHyped,
 
-    MAT_RGB_SOURCE,
-    MAT_RGB,
-    MAT_HSV,
-    MAT_DEPTH,
+    UImg_RGB,
+    UImg_HSV,
+    UImg_Depth,
+    UImg_TableFiltered,
 
-    UMAT_RGB,
-    UMAT_HSV,
-    UMAT_DEPTH,
+    Var_TableContour,
 
-    MAT_TABLE_FILTERED,
-
-    CONTOUR_TABLE,
-
-    IMDESC_SOURCE,
-    IMDESC,
-
+    Imgdesc_Source,
+    Imgdesc,
 };
 }
-
 
 } // namespace billiards
