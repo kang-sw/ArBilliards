@@ -86,6 +86,16 @@ void copy_ROI(cv::Matx<Ty_, r0, c0>& to, cv::Matx<Ty_, r1, c1> const& from, int 
     }
 }
 
+// 주의: 왜곡 고려 안 함!
+static void project_points(vector<cv::Vec3f> const& points, cv::Matx33f const& camera, cv::Matx41f const& disto, vector<cv::Vec2f>& o_points)
+{
+    for (auto& pt : points) {
+        auto intm = camera * pt;
+        intm /= intm[2];
+        o_points.emplace_back(intm[0], intm[1]);
+    }
+}
+
 static cv::Matx44f get_world_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot)
 {
     using namespace cv;
@@ -221,7 +231,8 @@ static void project_model_fast(img_t const& img, vector<cv::Vec2f>& mapped_conto
         auto [mat_cam, mat_disto] = t::get_camera_matx(img);
 
         // 각 점을 매핑합니다.
-        projectPoints(model_vertexes, cv::Vec3f(0, 0, 0), cv::Vec3f(0, 0, 0), mat_cam, mat_disto, mapped_contour);
+        // projectPoints(model_vertexes, cv::Vec3f(0, 0, 0), cv::Vec3f(0, 0, 0), mat_cam, mat_disto, mapped_contour);
+        project_points(model_vertexes, mat_cam, mat_disto, mapped_contour);
 
         if (do_cull) {
             fit_contour_to_screen(mapped_contour, {img.rgba.cols, img.rgba.rows});
