@@ -346,8 +346,8 @@ public class SimHandler : MonoBehaviour
 
 			if (_latestCandidate != null)
 			{
-				// Vote가 더 클때만 교체
-				if (nearlest.Votes > _latestCandidate.Votes)
+				// Vote가 2배 이상 크지 않은 한, 기존의 선택을 유지.
+				if (false && nearlest.Votes < 2 * _latestCandidate.Votes)
 				{
 					nearlest = _latestCandidate;
 				}

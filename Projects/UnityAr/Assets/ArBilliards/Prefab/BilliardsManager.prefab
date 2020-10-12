@@ -530,7 +530,7 @@ Transform:
   - {fileID: 1999053809086491765}
   - {fileID: 1999053810157826627}
   m_Father: {fileID: 1999053810412700375}
-  m_RootOrder: 3
+  m_RootOrder: 4
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1999053809001278708
 GameObject:
@@ -783,9 +783,8 @@ Transform:
   - {fileID: 1999053810251362575}
   - {fileID: 1999053810311522321}
   - {fileID: 1999053809856864294}
-  - {fileID: 1999053809552222295}
   m_Father: {fileID: 1999053810412700375}
-  m_RootOrder: 0
+  m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1999053809273623335
 GameObject:
@@ -910,7 +909,7 @@ Transform:
   - {fileID: 1999053810839942396}
   - {fileID: 1999053809806322675}
   m_Father: {fileID: 1999053810412700375}
-  m_RootOrder: 2
+  m_RootOrder: 3
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1999053809552222296
 GameObject:
@@ -935,7 +934,7 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1999053809552222296}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
@@ -943,8 +942,8 @@ Transform:
   - {fileID: 1999053810576407003}
   - {fileID: 1999053810430120991}
   - {fileID: 1999053810069175861}
-  m_Father: {fileID: 1999053809170656443}
-  m_RootOrder: 3
+  m_Father: {fileID: 1999053810412700375}
+  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1999053809633456330
 GameObject:
@@ -1348,7 +1347,7 @@ Transform:
   - {fileID: 1999053810884917788}
   - {fileID: 1999053809001278707}
   m_Father: {fileID: 1999053810412700375}
-  m_RootOrder: 4
+  m_RootOrder: 5
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1999053809798403870
 GameObject:
@@ -1845,7 +1844,7 @@ Transform:
   - {fileID: 1999053809649160518}
   - {fileID: 1999053808831023548}
   m_Father: {fileID: 1999053810412700375}
-  m_RootOrder: 1
+  m_RootOrder: 2
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1999053810069175862
 GameObject:
@@ -2276,6 +2275,7 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
+  - {fileID: 1999053809552222295}
   - {fileID: 1999053809170656443}
   - {fileID: 1999053809994466573}
   - {fileID: 1999053809421955023}
@@ -2306,7 +2306,7 @@ MonoBehaviour:
   maxSpeed: 2
   errorCorrectionRate: 0.1
   speedDampingOnInvisibleState: 2
-  stopStanceFilterCoeff: 3
+  stopStanceFilterCoeff: 100
   stopSpeed: 0.15
   Simulator: {fileID: 1999053810412700374}
 --- !u!114 &1999053810412700374
@@ -2326,7 +2326,7 @@ MonoBehaviour:
   SimInterval: 5
   PathRedrawInterval: 0.1
   PathReplayInterval: 3
-  PathForwardAngle: 10
+  PathForwardAngle: 15
   BallRadius: 0.022281691
   TableWidth: 0.895
   TableHeight: 0.447
@@ -2334,12 +2334,12 @@ MonoBehaviour:
   BallDamping: 0.43
   BallRollFriction: 0.01
   BallKineticFriction: 0.3
-  BallStaticFriction: 0.33
+  BallStaticFriction: 0.3
   BallRollTime: 0.5
   TableRestitution: 0.86
-  TableStaticFriction: 0.43
-  TableHorizontalSuppress: 0.06
-  NumRotationDivider: 1080
+  TableStaticFriction: 0.02
+  TableHorizontalSuppress: 0.02
+  NumRotationDivider: 720
   SimDuration: 12
   BallInitialSpeeds:
   - 0.15

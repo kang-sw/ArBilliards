@@ -10,6 +10,14 @@
 #include <opencv2/core/base.hpp>
 #include <any>
 #include <vector>
+#include <vector>
+#include <vector>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
 
 using namespace std;
 
@@ -120,7 +128,6 @@ public:
         params["do-resize"] = false;
 
         params["FOV"] = Vec2f{84.9f, 52.9f};
-
         {
             auto& b = params["ball"];
 
@@ -183,6 +190,8 @@ public:
 
             t["LPF"]["position"] = 0.1666;
             t["LPF"]["rotation"] = 0.33;
+            t["LPF"]["distance-jump-threshold"] = 0.05;
+            t["LPF"]["rotation-jump-threshold"] = 0.05;
         }
     }
 
@@ -314,14 +323,19 @@ public:
     /**
      * 내부적으로 필터링을 수행하는 테이블 위치 및 회전 설정자입니다.
      */
-    cv::Vec3f set_filtered_table_pos(cv::Vec3f new_pos, float confidence = 1.0f);
-    cv::Vec3f set_filtered_table_rot(cv::Vec3f new_rot, float confidence = 1.0f);
+    cv::Vec3f set_filtered_table_pos(cv::Vec3f new_pos, float confidence = 1.0f, bool allow_jump = false);
+    cv::Vec3f set_filtered_table_rot(cv::Vec3f new_rot, float confidence = 1.0f, bool allow_jump = false);
 
     /**
      * from 기준의 인덱스를 to 기준의 인덱스로 매핑합니다.
      * 종횡비는 일치하지 않아도 됩니다.
      */
     cv::Point map_index(cv::InputArray from, cv::InputArray to, cv::Point index);
+
+    /**
+     * 컨투어 목록을 그립니다.
+     */
+    void project_contours(img_t const& img, const cv::Mat& rgb, vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color);
 
     /**
      * 대상 모델 버텍스 목록을 화면 상에 투영합니다.

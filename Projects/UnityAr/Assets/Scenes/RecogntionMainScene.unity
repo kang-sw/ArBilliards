@@ -687,6 +687,11 @@ PrefabInstance:
       propertyPath: NumRotationDivider
       value: 720
       objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: PathForwardAngle
+      value: 15
+      objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700375, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -747,6 +752,16 @@ PrefabInstance:
       propertyPath: AdjustedTransform
       value: 
       objectReference: {fileID: 2064407234}
+    - target: {fileID: 1999053810412700376, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: speedDampingOnInvisibleState
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700376, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: stopStanceFilterCoeff
+      value: 100
+      objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700377, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: m_Name

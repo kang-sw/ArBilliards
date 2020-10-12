@@ -8,6 +8,14 @@
 #include <random>
 #include <algorithm>
 #include <vector>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
 
 using namespace billiards;
 using namespace std;
@@ -524,6 +532,17 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
     return res;
 }
 
+void recognizer_impl_t::project_contours(img_t const& img, const cv::Mat& rgb, vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color)
+{
+    vector<cv::Point> mapped;
+    cv::Vec2f FOV = m.props["FOV"];
+    project_model(img, mapped, pos, rot, model, true, FOV[0], FOV[1]);
+
+    if (!mapped.empty()) {
+        drawContours(rgb, vector{{mapped}}, -1, color, 3);
+    }
+}
+
 void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
 {
     using namespace names;
@@ -674,8 +693,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
             float confidence = pow(tp["error-base"], -sqrt(error_sum));
 
-            set_filtered_table_rot(rvec_world, confidence);
-            set_filtered_table_pos(tvec_world, confidence);
+            set_filtered_table_rot(rvec_world, confidence, true);
+            set_filtered_table_pos(tvec_world, confidence, true);
             desc.table.confidence = confidence;
             draw_axes(img, (Mat&)rgb, rvec_world, tvec_world, 0.08f, 3);
             drawContours(rgb, contours, -1, {255, 123, 0}, 3);
@@ -722,8 +741,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             auto& res = *result;
             draw_axes(img, const_cast<cv::Mat&>(rgb), res.rotation, res.position, 0.07f, 2);
             desc.table.confidence = res.confidence;
-            set_filtered_table_pos(res.position, res.confidence);
-            set_filtered_table_rot(res.rotation, res.confidence);
+            set_filtered_table_pos(res.position, res.confidence, false);
+            set_filtered_table_rot(res.rotation, res.confidence, false);
             desc.table.position = table_pos;
             desc.table.orientation = (Vec4f&)table_rot;
         }
@@ -736,26 +755,30 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
     // 이전 테이블 위치를 렌더
     {
         vector<Vec3f> model;
-        vector<Point> mapped;
+        auto pos = table_pos;
+        auto rot = table_rot;
         get_table_model(model, tp["size"]["inner"]);
+        project_contours(img, rgb, model, pos, rot, {255, 255, 255});
 
-        Vec2f FOV = p["FOV"];
-        project_model(img, mapped, table_pos, table_rot, model, true, FOV[0], FOV[1]);
-        draw_axes(img, (Mat&)rgb, table_rot, table_pos, 0.08f, 3);
+        get_table_model(model, tp["size"]["outer"]);
+        project_contours(img, rgb, model, pos, rot, {0, 255, 0});
 
-        if (!mapped.empty()) {
-            drawContours(rgb, vector{{mapped}}, -1, {255, 255, 255}, 3);
-        }
+        draw_axes(img, (Mat&)rgb, rot, pos, 0.08f, 3);
     }
 }
 
-cv::Vec3f recognizer_impl_t::set_filtered_table_pos(cv::Vec3f new_pos, float confidence)
+cv::Vec3f recognizer_impl_t::set_filtered_table_pos(cv::Vec3f new_pos, float confidence, bool allow_jump)
 {
-    float alpha = (float)m.props["table"]["LPF"]["position"] * confidence;
-    return table_pos = (1 - alpha) * table_pos + alpha * new_pos;
+    if (!allow_jump || norm(new_pos - table_pos) < m.props["table"]["LPF"]["distance-jump-threshold"]) {
+        float alpha = (float)m.props["table"]["LPF"]["position"] * confidence;
+        return table_pos = (1 - alpha) * table_pos + alpha * new_pos;
+    }
+    else {
+        return table_pos = new_pos;
+    }
 }
 
-cv::Vec3f recognizer_impl_t::set_filtered_table_rot(cv::Vec3f new_rot, float confidence)
+cv::Vec3f recognizer_impl_t::set_filtered_table_rot(cv::Vec3f new_rot, float confidence, bool allow_jump)
 {
     // 180도 회전한 경우, 다시 180도 돌려줍니다.
     if (norm(table_rot - new_rot) > (170.0f) * CV_PI / 180.0f) {
@@ -771,8 +794,13 @@ cv::Vec3f recognizer_impl_t::set_filtered_table_rot(cv::Vec3f new_rot, float con
         }
     }
 
-    float alpha = (float)m.props["table"]["LPF"]["rotation"] * confidence;
-    return table_rot = (1 - alpha) * table_rot + alpha * new_rot;
+    if (!allow_jump || norm(new_rot - table_rot) < m.props["table"]["LPF"]["rotation-jump-threshold"]) {
+        float alpha = (float)m.props["table"]["LPF"]["rotation"] * confidence;
+        return table_rot = (1 - alpha) * table_rot + alpha * new_rot;
+    }
+    else {
+        return table_rot = new_rot;
+    }
 }
 
 void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform)
