@@ -14,11 +14,11 @@ using namespace std;
 
 #define YTRACE(x, y) \
     timer_scope_t TM_##x##__##y { this, #x }
-#define XTRACE(x, y)       YTRACE(x, y)
+#define XTRACE(x, y) YTRACE(x, y)
 
 #define YTRACE_2(x, y, z) \
     timer_scope_t TM_##x##__##y { this, z }
-#define XTRACE_2(x, y, z)  YTRACE_2(x, y, z)
+#define XTRACE_2(x, y, z) YTRACE_2(x, y, z)
 
 #define ELAPSE_SCOPE(name) XTRACE_2(TIMER__, __COUNTER__, (name))
 #define ELAPSE_BLOCK(name) if (ELAPSE_SCOPE((name)); true)
@@ -416,7 +416,8 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         }
 
         // 방향을 구별 가능한 최소 숫자입니다.
-        if (num_in * 2 + num_out < 5) {
+        // 또한, 경계에 걸친 점이 적어도 2개 있어야 합니다.
+        if (num_in * 2 + num_out < 5 || num_out < 2) {
             return {};
         }
     }
@@ -534,7 +535,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
     auto image_size = varget(Size, Size_Image); // any_cast<Size>(vars["scaled-image-size"]);
 
     {
-        ELAPSE_SCOPE("Cotour Processing");
+        ELAPSE_SCOPE("Cotour Approximation & Selection");
         auto tc = tp["contour"];
 
         vector<vector<Point>> candidates;
@@ -596,7 +597,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
     }
 
     if (table_contours.size() == 4 && !is_any_border_point) {
-        ELAPSE_SCOPE("CASE 0 - PNP Solver");
+        ELAPSE_SCOPE("CASE 1 - PNP Solver");
         vector<Vec3f> obj_pts;
         Vec3d tvec;
         Vec3d rvec;
@@ -688,7 +689,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
     // 테이블을 찾는데 실패한 경우 iteration method를 활용해 테이블 위치를 추정합니다.
     if (!table_contours.empty() && desc.table.confidence == 0) {
-        ELAPSE_SCOPE("CASE 1 - Iterative Projection");
+        ELAPSE_SCOPE("CASE 2 - Iterative Projection");
 
         vector<Vec3f> model;
         get_table_model(model, m.table.recognition_size);
@@ -1431,6 +1432,7 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
     auto area_mask = varget(cv::Mat, Img_TableAreaMask)(ROI);
     u_rgb = varget(cv::UMat, UImg_RGB)(ROI);
     u_hsv = varget(cv::UMat, UImg_HSV)(ROI);
+    show("Ball ROI Area Mask", area_mask);
 
     vector<cv::UMat> channels;
 
@@ -1549,8 +1551,8 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
         pair<vector<cv::Point>, vector<float>> ball_candidates[3];
 
         cv::UMat u_delta_hype;
-        ELAPSE_BLOCK("Value Edge Calculation")
-        {
+        if (false) {
+            ELAPSE_SCOPE("Value Edge Calculation");
             {
                 cv::UMat view;
                 hconcat(channels, view);
@@ -1566,8 +1568,11 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
             show("Value Range Laplacian", u_delta_hype);
         }
 
+        Point ball_positions[4];
+
         ELAPSE_BLOCK("Color/Edge Matching")
-        for (int bidx = 0; bidx < 3; ++bidx) {
+        for (int iter = 0; iter < 4; ++iter) {
+            auto bidx = max(0, iter - 1); // 0, 1 인덱스는 빨간 공 전용
             auto& m = u_match_map[bidx];
             cv::Mat1f match;
             m.copyTo(match);
@@ -1604,24 +1609,34 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
                 if (ball_pxl_rad < min_pixel_radius) { return; }
 
                 // if 픽셀 반경이 이미지 경계선을 넘어가면 discard
-                cv::Point offset{ball_pxl_rad + 1, ball_pxl_rad + 1};
-                cv::Rect image_bound{offset, ROI.size() - (Size)(offset + offset)};
+                {
+                    cv::Point offset{ball_pxl_rad + 1, ball_pxl_rad + 1};
+                    cv::Rect image_bound{offset, ROI.size() - (Size)(offset + offset)};
 
-                if (!image_bound.contains(pt)) {
-                    return;
+                    if (!image_bound.contains(pt)) {
+                        return;
+                    }
                 }
-
-                // TODO: 원하는 색상 이외의 색이 잡히는 것을 방지하기 위해, 1~1.3 정도 사이의 범위에 negative mask를 설정 ... 공의 범위에서 벗어난 영역에 일치하는 픽셀이 잡힐 경우 공이 아닌 것으로 판단하고, 가중치를 역으로 부여합니다.
 
                 // 각 인덱스에 픽셀 반경을 곱해 매치 맵의 적합도를 합산, 저장
                 float suitability = 0;
-                float ball_pxl_radf = ball_pxl_rad;
-                for (auto roundpt : normal_random_samples) {
-                    cv::Point sample_index = pt + cv::Point(roundpt * ball_pxl_radf);
-                    suitability += match(sample_index);
-                }
+                {
+                    float ball_pxl_radf = ball_pxl_rad;
 
-                // TODO: negative sample 목록을 iterate하여, 가중치를 빼는 식으로 계산.
+                    for (auto roundpt : normal_random_samples) {
+                        auto sample_index = pt + cv::Point(roundpt * ball_pxl_radf);
+                        suitability += match(sample_index);
+                    }
+
+                    auto bound = ROI;
+                    bound.x = bound.y = 0;
+                    for (auto& roundpt : normal_negative_samples) {
+                        auto sample_index = pt + Point(roundpt * ball_pxl_radf);
+                        if (bound.contains(sample_index)) {
+                            suitability -= match(sample_index);
+                        }
+                    }
+                }
 
                 suitability /= normal_random_samples.size();
                 suitability_field(pt) = suitability;
@@ -1638,7 +1653,6 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
             }
 
             // 특수: 색상이 RED라면 마스크에서 찾아낸 볼에 해당하는 위치를 모두 지우고 위 과정을 다시 수행합니다.
-
             ELAPSE_SCOPE("Edge Matching: "s + ball_names[bidx]);
             auto best = max_element(cand_suitabilities.begin(), cand_suitabilities.end());
             if (best == cand_suitabilities.end()) {
@@ -1647,9 +1661,17 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
 
             auto best_idx = best - cand_suitabilities.begin();
             auto center = cand_indexes[best_idx];
-            auto rad_px = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
 
+            auto rad_px = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
             circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], -1);
+
+            ball_positions[iter] = center;
+
+            // 빨간 공인 경우 ...
+            if (iter == 0) {
+                // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
+                circle(m, center, rad_px, 0, -1);
+            }
         }
 
         show("Ball Match Suitability Field"s, suitability_field);
