@@ -315,7 +315,7 @@ public class SimHandler : MonoBehaviour
 			&& _latestResult.Candidates.Count > 0
 			&& !_isAnyBallMoving) // 계산된 결과가 존재하는지?
 		{
-			var fwd = TableAnchor.localToWorldMatrix.MultiplyPoint(getPlayerBallPosition()) - LookTransform.position;
+			var fwd = LookTransform.forward;/*TableAnchor.localToWorldMatrix.MultiplyPoint(getPlayerBallPosition()) - LookTransform.position;*/
 			var r = _latestResult;
 
 			// 시뮬레이션이 갱신된 경우, 칠 라인을 갱신합니다.
@@ -347,7 +347,13 @@ public class SimHandler : MonoBehaviour
 			if (_latestCandidate != null)
 			{
 				// Vote가 2배 이상 크지 않은 한, 기존의 선택을 유지.
-				if (false && nearlest.Votes < 2 * _latestCandidate.Votes)
+				// if (nearlest.Votes < 2 * _latestCandidate.Votes)
+				// {
+				// 	nearlest = _latestCandidate;
+				// }
+
+				// 각도 차이가 
+				if (Vector3.Angle(nearlest.InitVelocity, _latestCandidate.InitVelocity) < PathForwardAngle)
 				{
 					nearlest = _latestCandidate;
 				}
@@ -385,8 +391,8 @@ public class SimHandler : MonoBehaviour
 					// var dir = nodes[1].Position - nodes[0].Position;
 					// var end = dir.normalized * CandidateMarkerLength + begin;
 
-					begin.y -= 0.05f;
-					end.y -= 0.05f;
+					begin.y -= BallRadius * 1.01f;
+					end.y -= BallRadius * 1.01f;
 					render.SetPosition(0, begin);
 					render.SetPosition(1, end);
 				}
@@ -443,7 +449,7 @@ public class SimHandler : MonoBehaviour
 		{
 			// 라인을 그립니다.
 			var pos = nodes[index].Position;
-			pos.y -= BallRadius;
+			// pos.y -= BallRadius;
 
 			target.SetPosition(index, pos);
 
