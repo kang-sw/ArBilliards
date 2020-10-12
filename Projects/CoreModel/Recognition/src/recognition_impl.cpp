@@ -621,7 +621,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         Vec3d tvec;
         Vec3d rvec;
 
-        get_table_model(obj_pts, tp["size"]["fit"]);
+        get_table_model(obj_pts, tp["size"]["fit"], varget(float, Float_TableOffset));
 
         // tvec의 초기값을 지정해주기 위해, 깊이 이미지를 이용하여 당구대 중점 위치를 추정합니다.
         bool estimation_valid = true;
@@ -677,26 +677,33 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         //*/
 
         if (solve_successful) {
-            Vec3f tvec_world = tvec, rvec_world = rvec;
-            camera_to_world(img, rvec_world, tvec_world);
+            // get_table_model(obj_pts, tp["size"]["fit"], varget(float, Float_TableOffset));
+            auto vertexes = obj_pts;
+            for (auto& vtx : vertexes) {
+                vtx = rodrigues(rvec) * vtx + tvec;
+            }
 
-            vector<vector<Point>> contours;
-            project_model(img, contours.emplace_back(), tvec_world, rvec_world, obj_pts, false);
+            vector<vector<Vec2i>> contours;
+            vector<Vec2f> mapped;
+            project_model_local(img, mapped, vertexes, false, {});
+            contours.emplace_back().assign(mapped.begin(), mapped.end());
 
             // 각 점을 비교하여 에러를 계산합니다.
             auto& proj = contours.front();
             double error_sum = 0;
             for (size_t index = 0; index < 4; index++) {
-                Vec2f projpt = (Vec2i)proj[index];
+                Vec2f projpt = proj[index];
                 error_sum += norm(projpt - table_contours[index], NORM_L2SQR);
             }
 
             float confidence = pow(tp["error-base"], -sqrt(error_sum));
 
+            Vec3f tvec_world = tvec, rvec_world = rvec;
+            camera_to_world(img, rvec_world, tvec_world);
             set_filtered_table_rot(rvec_world, confidence, true);
             set_filtered_table_pos(tvec_world, confidence, true);
             desc.table.confidence = confidence;
-            draw_axes(img, (Mat&)rgb, rvec_world, tvec_world, 0.08f, 3);
+            // draw_axes(img, (Mat&)rgb, rvec_world, tvec_world, 0.08f, 3);
             drawContours(rgb, contours, -1, {255, 123, 0}, 3);
         }
 
@@ -709,7 +716,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         ELAPSE_SCOPE("CASE 2 - Iterative Projection");
 
         vector<Vec3f> model;
-        get_table_model(model, m.table.recognition_size);
+        get_table_model(model, m.table.recognition_size, varget(float, Float_TableOffset));
 
         auto init_pos = table_pos;
         auto init_rot = table_rot;
@@ -760,7 +767,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         get_table_model(model, tp["size"]["inner"]);
         project_contours(img, rgb, model, pos, rot, {255, 255, 255});
 
-        get_table_model(model, tp["size"]["outer"]);
+        get_table_model(model, tp["size"]["outer"], varget(float, Float_TableOffset));
         project_contours(img, rgb, model, pos, rot, {0, 255, 0});
 
         draw_axes(img, (Mat&)rgb, rot, pos, 0.08f, 3);
@@ -789,7 +796,7 @@ cv::Vec3f recognizer_impl_t::set_filtered_table_rot(cv::Vec3f new_rot, float con
     {
         cv::Vec3f up{0, 1, 0};
         up = rodrigues(new_rot) * up;
-        if (up[1] < 0) {
+        if (up[1] > 0) {
             new_rot = rotate_local(new_rot, {(float)CV_PI, 0, 0});
         }
     }
@@ -835,16 +842,16 @@ std::pair<cv::Matx33d, cv::Matx41d> recognizer_impl_t::get_camera_matx(img_t con
     return {cv::Matx33d(M), cv::Matx41d(disto)};
 }
 
-void recognizer_impl_t::get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size)
+void recognizer_impl_t::get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size, float offset)
 {
     vertexes.clear();
     auto [half_x, half_z] = (model_size * 0.5f).val;
     vertexes.assign(
       {
-        {-half_x, 0, half_z},
-        {-half_x, 0, -half_z},
-        {half_x, 0, -half_z},
-        {half_x, 0, half_z},
+        {-half_x, offset, half_z},
+        {-half_x, offset, -half_z},
+        {half_x, offset, -half_z},
+        {half_x, offset, half_z},
       });
 }
 
@@ -1535,6 +1542,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
     ELAPSE_SCOPE("TOTAL");
 
+    // 각종 파라미터 등 계산
+    {
+        // 테이블 오프셋 계산 ...
+        float height = p["table"]["cushion-height"];
+        float radius = p["ball"]["common"]["radius"];
+        varset(Float_TableOffset) = -(height - radius);
+    }
+
     {
         ELAPSE_SCOPE("Image Preprocessing");
         img_t imdesc_scaled = imdesc_source;
@@ -1640,7 +1655,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
     if (auto& table_contour = varget(vector<Vec2f>, Var_TableContour); table_contour.empty()) {
         vector<Vec3f> model;
-        get_table_model(model, p["table"]["size"]["fit"]);
+        get_table_model(model, p["table"]["size"]["fit"], varget(float, Float_TableOffset));
         project_model(varget(img_t, Imgdesc), table_contour, table_pos, table_rot, model, true, p["FOV"][0], p["FOV"][1]);
 
         for (auto pt : table_contour) {
@@ -1661,6 +1676,13 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         varset(Img_TableAreaMask) = (Mat)table_area;
 
         find_balls(desc);
+    }
+
+    // 후처리 ... 테이블 회전을 180도 뒤집습니다.
+    {
+        auto orient = (Vec3f&)desc.table.orientation;
+        orient = rotate_local(orient, {CV_PI, 0, 0});
+        (Vec3f&)desc.table.orientation = orient;
     }
 
     // ShowImage에 모든 임시 매트릭스 추가

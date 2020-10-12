@@ -9,7 +9,7 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/base.hpp>
 #include <any>
-#include <vector> 
+#include <vector>
 
 using namespace std;
 
@@ -167,7 +167,7 @@ public:
             tc["approx-epsilon-convexhull"] = 5;
 
             t["filter"] = {Vec3f{165, 150, 0}, Vec3f{15, 255, 255}};
-            t["cushion_height"] = 0.025;
+            t["cushion-height"] = 0.025;
 
             t["error-base"] = 1.02;
             t["minimum-confidence"] = 0.15;
@@ -359,7 +359,7 @@ public:
      * 테이블 크기로부터 모델 공간에서의 테이블에 대한 3D 원점을 획득합니다.
      * Y축이 0인 ZX 평면상에 위치합니다. 
      */
-    static void get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size);
+    static void get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size, float offset = 0.f);
 
     /**
      * ROI를 검증하고, 주어진 mat 영역 내에 맞게 재계산합니다.
@@ -448,6 +448,8 @@ enum Type
     UImg_TableFiltered,
 
     Var_TableContour,
+
+    Float_TableOffset,
 
     Imgdesc_Source,
     Imgdesc,
