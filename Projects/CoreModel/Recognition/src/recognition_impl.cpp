@@ -1245,9 +1245,10 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
     cv::UMat u_rgb;
     cv::UMat u_hsv;
 
-    // 이 ROI는 항상 안전!
     auto ROI = boundingRect(table_contour);
-    get_safe_ROI_rect(debug, ROI);
+    if (!get_safe_ROI_rect(debug, ROI)) {
+        return;
+    }
     auto area_mask = varget(cv::Mat, Img_TableAreaMask)(ROI);
     u_rgb = varget(cv::UMat, UImg_RGB)(ROI);
     u_hsv = varget(cv::UMat, UImg_HSV)(ROI);
