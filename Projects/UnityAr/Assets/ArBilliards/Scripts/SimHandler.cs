@@ -3,11 +3,8 @@ using ArBilliards.Phys;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
-using Debug = UnityEngine.Debug;
-using Random = System.Random;
 
 public enum BilliardsBall
 {
@@ -446,7 +443,7 @@ public class SimHandler : MonoBehaviour
 		{
 			// 라인을 그립니다.
 			var pos = nodes[index].Position;
-			// pos.y -= BallRadius;
+			pos.y -= BallRadius;
 
 			target.SetPosition(index, pos);
 
@@ -508,27 +505,6 @@ public class SimHandler : MonoBehaviour
 		++_cachedNumActiveCollisionMarkers;
 		return ret;
 	}
-
-
-	void debugRenderBallPath(AsyncSimAgent.SimResult.Candidate cand)
-	{
-		var mtrx = TableAnchor.localToWorldMatrix;
-
-		foreach (var ball in cand.Balls)
-		{
-			for (int index = 0; index < ball.Nodes.Count - 1; index++)
-			{
-				var cur = ball.Nodes[index];
-				var nxt = ball.Nodes[index + 1];
-
-				var beginPt = mtrx.MultiplyPoint(cur.Position);
-				var endPt = mtrx.MultiplyPoint(nxt.Position);
-
-				Debug.DrawLine(beginPt, endPt, BallVisualizeColors[(int)ball.Index]);
-			}
-		}
-	}
-
 
 	#endregion
 }
@@ -826,7 +802,6 @@ public class AsyncSimAgent
 						var index = (int)other.Index;
 
 						// 4구 룰 한정
-						// 다른 공을 치기 전 이미 친 공을 다시 치는 경우, vote를 감합니다.
 						int? otherBall = null;
 
 						if (index == 0)
@@ -834,10 +809,13 @@ public class AsyncSimAgent
 						else if (index == 1)
 							otherBall = 0;
 
-						if (otherBall.HasValue && hits[index].bHit != 0 && hits[otherBall.Value].bHit == 0)
-						{
-							weight -= 1f;
-						}
+						// 다른 공을 치기 전 이미 친 공을 다시 치는 경우, vote를 감합니다.
+						//if (otherBall.HasValue && hits[index].bHit != 0 && hits[otherBall.Value].bHit == 0)
+						//{
+						//	weight -= 1f;
+						//} 
+
+						// 만약 공을 때릴 때, 이미 
 
 						if (hits[index].bHit == 0  // 처음 치는 공인 경우
 							&& otherBall.HasValue) // otherBall이 있다는 것은 빨간 공을 때렸다는 뜻
@@ -847,6 +825,15 @@ public class AsyncSimAgent
 							var angleWeight = Vector3.Dot(contactDir, node.Velocity.normalized);
 							angleWeight = 2f * Mathf.Pow(angleWeight, 0.633f); // 내적이 0에 가까울수록 = 얇게 부딪칠수록 낮은 가중치
 							weight += Math.Max(angleWeight, 1f);
+
+
+							// 때린 공의 타임라인을 쫓아, 때리는 공이 다른 공과 몇번 충돌했는지 검사합니다.
+							var prevHits = from timestamp in balls[index].Nodes
+										   where timestamp.Time < node.Time && timestamp.Other != null
+										   select timestamp;
+
+							int numHitsPrev = prevHits.Count();
+							weight -= 1f;
 						}
 
 						hits[index] = (1, numCushionHit);
