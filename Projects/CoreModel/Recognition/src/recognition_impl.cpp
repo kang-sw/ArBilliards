@@ -1066,7 +1066,7 @@ optional<float> plane_t::calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const
 
 optional<cv::Vec3f> plane_t::find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
 {
-    if (auto uo = calc_u(P1, P2); uo && calc(P1) * calc(P2) < 0) {
+    if (auto uo = calc_u(P1, P2); uo /*&& calc(P1) * calc(P2) < 0*/) {
         auto u = *uo;
 
         if (u <= 1.f && u > 0.f) {
@@ -1352,38 +1352,44 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
             show("Value Range Laplacian", u_delta_hype);
         }
 
-        Point ball_positions[4];
+        array<Point, 4> ball_positions = {};
+        array<float, 4> ball_weights = {};
 
         ELAPSE_BLOCK("Color/Edge Matching")
-        for (int iter = 0; iter < 4; ++iter) {
+        for (int iter = 3; iter >= 0; --iter) {
             auto bidx = max(0, iter - 1); // 0, 1 인덱스는 빨간 공 전용
             auto& m = u_match_map[bidx];
             cv::Mat1f match;
-            m.copyTo(match);
 
             auto& bp = balls[bidx];
-
-            // color match값이 threshold보다 큰 모든 인덱스를 선택하고, 인덱스 집합을 생성합니다.
-            compare(m, (float)bp["suitability-threshold"s], u0, cv::CMP_GT);
-            bitwise_and(u0, area_mask, u1);
-            output_color.setTo(color_ROW[bidx], u1);
-
-            // 모든 valid한 인덱스를 추출합니다.
-            auto& cand_indexes = ball_candidates[bidx].first;
-            cand_indexes.reserve(1000);
-            findNonZero(u1, cand_indexes);
-
-            // 인덱스를 임의로 골라냅니다.
-            int discard = rs["mask-sample-discard-rate"];
-            int min_pixel_radius = bm["min-pixel-radius"];
-            size_t num_left = cand_indexes.size() * (100 - clamp(discard, 0, 100)) / 100;
-            discard_random_args(cand_indexes, num_left, mt19937{});
-
-            // 매치 맵의 적합도 합산치입니다.
             auto& cand_suitabilities = ball_candidates[bidx].second;
-            cand_suitabilities.resize(cand_indexes.size(), 0);
+            auto& cand_indexes = ball_candidates[bidx].first;
+            int min_pixel_radius = max<int>(1, bm["min-pixel-radius"]);
+
+            ELAPSE_BLOCK("Preprocess: "s + ball_names[bidx])
+            {
+                m.copyTo(match);
+
+                // color match값이 threshold보다 큰 모든 인덱스를 선택하고, 인덱스 집합을 생성합니다.
+                compare(m, (float)bp["suitability-threshold"s], u0, cv::CMP_GT);
+                bitwise_and(u0, area_mask, u1);
+                output_color.setTo(color_ROW[bidx], u1);
+
+                // 모든 valid한 인덱스를 추출합니다.
+                cand_indexes.reserve(1000);
+                findNonZero(u1, cand_indexes);
+
+                // 인덱스를 임의로 골라냅니다.
+                auto num_left = rs["sample-max-cases"];
+                // size_t num_left = cand_indexes.size() * (100 - clamp(discard, 0, 100)) / 100;
+                discard_random_args(cand_indexes, num_left, mt19937{});
+
+                // 매치 맵의 적합도 합산치입니다.
+                cand_suitabilities.resize(cand_indexes.size(), 0);
+            }
 
             // 골라낸 인덱스 내에서 색상 값의 샘플 합을 수행합니다.
+            ELAPSE_SCOPE("Parallel Launch: "s + ball_names[bidx]);
             auto calculate_suitability = [&](cv::Point const& ptref) {
                 auto index = &ptref - cand_indexes.data();
                 auto pt = ptref;
@@ -1429,7 +1435,6 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
             };
 
             // 병렬로 launch
-            ELAPSE_BLOCK("Parallel Launch: "s + ball_names[bidx])
             if (static_cast<bool>(bm["random-sample"]["do-parallel"])) {
                 for_each(execution::par_unseq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
             }
@@ -1438,31 +1443,53 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
             }
 
             // 특수: 색상이 RED라면 마스크에서 찾아낸 볼에 해당하는 위치를 모두 지우고 위 과정을 다시 수행합니다.
-            ELAPSE_SCOPE("Edge Matching: "s + ball_names[bidx]);
             auto best = max_element(cand_suitabilities.begin(), cand_suitabilities.end());
             if (best == cand_suitabilities.end()) {
                 continue;
             }
 
-            auto best_idx = best - cand_suitabilities.begin();
-            auto center = cand_indexes[best_idx];
+            if (*best > (float)bm["confidence-threshold"]) {
+                auto best_idx = best - cand_suitabilities.begin();
+                auto center = cand_indexes[best_idx];
 
-            auto rad_px = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
+                auto rad_px = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
 
-            // 공이 정상적으로 찾아진 경우에만 ...
-            circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], -1);
+                // 공이 정상적으로 찾아진 경우에만 ...
+                circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], -1);
 
-            ball_positions[iter] = center;
+                ball_positions[iter] = center;
+                ball_weights[iter] = *best;
 
-            // 빨간 공인 경우 ...
-            if (iter == 0) {
-                // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
-                circle(m, center, rad_px, 0, -1);
+                // 빨간 공인 경우 ...
+                if (iter == 1) {
+                    // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
+                    circle(m, center, rad_px, 0, -1);
+                }
             }
         }
 
         show("Ball Match Suitability Field"s, suitability_field);
         show("Ball Match Field Mask"s, output_color);
+        for (auto& v : ball_weights) { v *= (float)bm["confidence-weight"]; }
+
+        // 각 공의 위치를 월드 기준으로 변환합니다.
+        for (int i = 0; i < 4; ++i) {
+            if (ball_weights[i] == 0) {
+                continue;
+            }
+            auto pt = ball_positions[i] + ROI.tl();
+            Vec3f dst;
+
+            // 공의 중점 방향으로 광선을 투사해 공의 카메라 기준 위치 획득
+            dst[0] = pt.x, dst[1] = pt.y, dst[2] = 10;
+            get_point_coord_3d(imdesc, dst[0], dst[1], dst[2]);
+            auto contact = table_plane.find_contact({}, dst).value();
+
+            Vec3f dummy = {0, 1, 0};
+            camera_to_world(imdesc, dummy, contact);
+            (Vec3f&)desc.balls[i].position = contact;
+            desc.balls[i].confidence = ball_weights[i];
+        }
     }
 }
 

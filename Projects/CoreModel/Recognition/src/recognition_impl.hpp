@@ -146,9 +146,12 @@ public:
             bm["random-sample"]["seed"] = 0;
             bm["random-sample"]["radius"] = 100;
             bm["random-sample"]["rotate-angle"] = 0;
-            bm["random-sample"]["mask-sample-discard-rate"] = 0;
+            bm["random-sample"]["sample-max-cases"] = 1000;
             bm["random-sample"]["negative-area"] = Vec2f{1.1, 1.25};
             bm["random-sample"]["negative-weight"] = 1.25;
+
+            bm["confidence-weight"] = 2.0f;
+            bm["confidence-threshold"] = 0.15f;
         }
 
         {
