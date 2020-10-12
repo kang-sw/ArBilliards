@@ -136,6 +136,16 @@ void exec_ui()
 
     // 변수 목록
     string current_save_path = AUTOSAVE_PATH;
+    string curtime_prefix;
+    {
+        time_t rtime;
+        tm t;
+        char buff[128];
+        time(&rtime);
+        localtime_s(&t, &rtime);
+        strftime(buff, sizeof buff, "%Y-%m-%d %H %M %S", &t);
+        curtime_prefix = buff;
+    }
     bool is_config_dirty = false;
 
     // -- 상태 창
@@ -536,6 +546,18 @@ void exec_ui()
     btn_snapshot.events().click([&](auto) {
         auto snap = g_recognizer.get_image_snapshot();
         filebox fb(fm, false);
+
+        for (int i = 0; i < 100; ++i) {
+            auto start_path_str = fb.path().string();
+            start_path_str.pop_back();
+            auto file_name = curtime_prefix + " ("s + to_string(i) + ").arbsnap"s;
+            auto start_path = start_path_str / filesystem::path(file_name);
+            if (!filesystem::exists(start_path)) {
+                fb.init_file(file_name);
+                break;
+            }
+        }
+
         fb.add_filter("Ar Billiards Snapshot Format", "*.arbsnap");
         fb.allow_multi_select(false);
 
