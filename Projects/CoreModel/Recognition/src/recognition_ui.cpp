@@ -28,7 +28,7 @@ struct n_type {
     atomic_bool dirty;
 };
 
-static unique_ptr<n_type> n;
+static weak_ptr<n_type> n_weak;
 
 static string getImgType(int imgTypeInt)
 {
@@ -130,7 +130,8 @@ static void json_iterative_substitute(json& to, json const& from)
 void exec_ui()
 {
     using namespace nana;
-    n = make_unique<n_type>();
+    auto n = make_shared<n_type>();
+    n_weak = n;
     form& fm = n->fm; // 주 폼
 
     // 변수 목록
@@ -249,6 +250,7 @@ void exec_ui()
     struct node_iterative_constr_t {
         static void exec(treebox& tree, treebox::item_proxy root, json const& elem)
         {
+            auto n = n_weak.lock();
             for (auto& prop : elem.items()) {
                 string value_text = prop.key();
                 string key = root.key() + prop.key();
@@ -386,7 +388,7 @@ void exec_ui()
         matlist.auto_draw(true);
     });
     list_update_timer.start();
-    
+
     // -- 틱 미터 박스
     listbox tickmeters(fm);
     tickmeters.append_header("", 20);
@@ -651,7 +653,7 @@ void exec_ui()
 
 void ui_on_refresh()
 {
-    if (n) {
+    if (auto n = n_weak.lock(); n) {
         {
             lock_guard<mutex> lock{n->shows_lock};
             n->shows.clear();
