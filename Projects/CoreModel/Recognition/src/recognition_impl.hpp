@@ -9,7 +9,7 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/base.hpp>
 #include <any>
-#include <vector> 
+#include <vector>
 
 using namespace std;
 
@@ -102,7 +102,7 @@ public:
     // cv::Vec3f table_points[4];
     double table_yaw_flt = 0;
 
-    unordered_map<string, any> vars, statics;
+    unordered_map<string, any> vars;
 
 public:
     recognizer_impl_t(recognizer_t& owner)
@@ -143,11 +143,12 @@ public:
             bm["error-base"] = 1.15;
 
             bm["random-sample"]["do-parallel"] = true;
-            bm["random-sample"]["seed"] = 0; 
+            bm["random-sample"]["seed"] = 0;
             bm["random-sample"]["radius"] = 100;
             bm["random-sample"]["rotate-angle"] = 0;
             bm["random-sample"]["mask-sample-discard-rate"] = 0;
             bm["random-sample"]["negative-area"] = Vec2f{1.1, 1.25};
+            bm["random-sample"]["negative-weight"] = 1.25;
         }
 
         {
@@ -156,6 +157,7 @@ public:
             t["size"]["fit"] = Vec2f{0.96f, 0.51f};
             t["size"]["outer"] = Vec2f(1.31f, 0.76f);
             t["size"]["inner"] = Vec2f(0.895f, 0.447f);
+            t["confidence-threshold"] = 0.115;
 
             auto& tc = t["contour"];
             tc["area-threshold-ratio"] = 0.03;

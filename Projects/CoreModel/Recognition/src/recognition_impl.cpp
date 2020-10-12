@@ -1414,10 +1414,11 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
 
                     auto bound = ROI;
                     bound.x = bound.y = 0;
+                    float negative_weight = rs["negative-weight"];
                     for (auto& roundpt : normal_negative_samples) {
                         auto sample_index = pt + Point(roundpt * ball_pxl_radf);
                         if (bound.contains(sample_index)) {
-                            suitability -= match(sample_index);
+                            suitability -= match(sample_index) * negative_weight;
                         }
                     }
                 }
@@ -1449,16 +1450,14 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
             auto rad_px = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
 
             // 공이 정상적으로 찾아진 경우에만 ...
-            if (rad_px > 0) {
-                circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], -1);
+            circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], -1);
 
-                ball_positions[iter] = center;
+            ball_positions[iter] = center;
 
-                // 빨간 공인 경우 ...
-                if (iter == 0) {
-                    // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
-                    circle(m, center, rad_px, 0, -1);
-                }
+            // 빨간 공인 경우 ...
+            if (iter == 0) {
+                // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
+                circle(m, center, rad_px, 0, -1);
             }
         }
 
@@ -1472,13 +1471,10 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
     using namespace names;
     using namespace names;
     using namespace cv;
+    auto const& p = m.props;
     recognition_desc desc = {};
 
     ELAPSE_SCOPE("TOTAL");
-    if (statics.empty()) {
-    }
-
-    auto const& p = m.props;
 
     {
         ELAPSE_SCOPE("Image Preprocessing");
