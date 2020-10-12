@@ -1266,8 +1266,12 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
         // h, s 채널만 사용합니다.
         // 값 형식은 32F이어야 합니다.
         merge(vector{{u_h, u_s}}, u0);
-        u0.convertTo(u_match_map[0], CV_32FC2, 1 / 255.f);
-        for (int i = 1; i < 3; ++i) { u_match_map[0].copyTo(u_match_map[i]); }
+        u0.convertTo(u1, CV_32FC2, 1 / 255.f);
+        for (int i = 0; i < 3; ++i) {
+            u_match_map[i] = UMat(ROI.size(), CV_32FC2);
+            u_match_map[i].setTo(0);
+            u1.copyTo(u_match_map[i], area_mask);
+        }
 
         // 각각의 색상에 대해 매칭을 수행합니다.
         auto depth = (cv::Mat1f&)varget(cv::Mat, Img_Depth);
