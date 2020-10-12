@@ -614,7 +614,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             auto& c = img.camera;
 
             // 당구대의 네 점의 좌표를 적절한 3D 좌표로 변환합니다.
-            for (auto& uv : table_contours) {
+            for (auto const& uv : table_contours) {
                 auto u = uv[0];
                 auto v = uv[1];
                 auto z_metric = depth.at<float>(v, u);
@@ -654,8 +654,6 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             auto [mat_cam, mat_disto] = get_camera_matx(img);
 
             solve_successful = solvePnP(obj_pts, table_contours, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_ITERATIVE);
-
-            //            auto error_estimate = norm(tvec_estimate - tvec);
         }
         //*/
 
@@ -707,13 +705,11 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
         int border_margin = tpa["border-margin"];
 
-        vector<Point> points;
-        for (auto& pt : table_contours) { points.push_back((Vec2i)pt); }
+        vector<Vec2i> points;
+        points.assign(table_contours.begin(), table_contours.end());
         drawContours(rgb, vector{{points}}, -1, {255, 0, 0}, 3);
 
-        // 테이블 컨투어의 방향을 뒤집어줍니다.
         vector<Vec2f> input = table_contours;
-
         transform_estimation_param_t param = {num_iteration, num_candidates, rot_axis_variant, rot_variant, pos_initial_distance, border_margin};
         Vec2f FOV = p["FOV"];
         param.FOV = {FOV[0], FOV[1]};
@@ -733,17 +729,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         }
     }
 
-    if (desc.table.confidence > 0.115f) {
-        Mat1b table_mask(image_size);
-        table_mask.setTo(0);
-
-        vector<Vec2i> pts;
-        pts.assign(table_contours.begin(), table_contours.end());
-        drawContours(table_mask, vector{{pts}}, -1, {255}, -1);
-
-        varset(Img_TableAreaMask) = (Mat)table_mask;
-    }
-    else {
+    if (desc.table.confidence < tp["confidence-threshold"]) {
         table_contours.clear();
     }
 
@@ -1461,14 +1447,18 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
             auto center = cand_indexes[best_idx];
 
             auto rad_px = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
-            circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], -1);
 
-            ball_positions[iter] = center;
+            // 공이 정상적으로 찾아진 경우에만 ...
+            if (rad_px > 0) {
+                circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], -1);
 
-            // 빨간 공인 경우 ...
-            if (iter == 0) {
-                // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
-                circle(m, center, rad_px, 0, -1);
+                ball_positions[iter] = center;
+
+                // 빨간 공인 경우 ...
+                if (iter == 0) {
+                    // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
+                    circle(m, center, rad_px, 0, -1);
+                }
             }
         }
 
@@ -1604,11 +1594,17 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
                 break;
             }
         }
-
-        // 공 탐색을 위한 로직입니다.
     }
 
     if (auto& table_contour = varget(vector<Vec2f>, Var_TableContour); !table_contour.empty()) {
+        // 컨투어 마스크를 그립니다.
+        Mat1b table_area(varget(Size, Size_Image));
+        table_area.setTo(0);
+        vector<Vec2i> pts;
+        pts.assign(table_contour.begin(), table_contour.end());
+        drawContours(table_area, vector{{pts}}, -1, 255, -1);
+        varset(Img_TableAreaMask) = (Mat)table_area;
+
         find_balls(desc);
     }
 
