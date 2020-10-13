@@ -711,6 +711,7 @@ void exec_ui()
     btn_video_playpause.caption("Play");
     video_slider.seek(slider::seekdir::bilateral);
     video_slider.vertical(false);
+    video_slider.bgcolor(colors::light_blue);
     timer video_player;
 
     btn_video_record.events().click([&](auto) {
@@ -756,7 +757,6 @@ void exec_ui()
         if (auto paths = fb.show(); !paths.empty()) {
             auto path = paths.front().string();
             frame_chunks.clear();
-            video_slider.borderless(false);
 
             ifstream in{path, ios::in | ios::binary};
             while (!in.eof()) {
@@ -826,6 +826,7 @@ void exec_ui()
     fm.register_shortkey(L'e');
     fm.register_shortkey(L'q');
     fm.register_shortkey(L'c');
+    fm.register_shortkey(L'a');
     fm.events().shortkey([&](arg_keyboard key) {
         switch (key.key) {
             case L'q':
@@ -842,6 +843,9 @@ void exec_ui()
                 break;
             case L'c':
                 btn_snapshot.events().click.emit({}, fm);
+                break;
+            case L'a':
+                btn_video_playpause.events().click.emit({}, fm);
                 break;
         }
     });
@@ -871,18 +875,30 @@ void exec_ui()
 
     // -- 레이아웃 설정
     place layout(fm);
-    layout.div(
-      "<vert"
-      "    <mat_lists>"
-      "    <timings>>"
-      "<vert"
-      "    weight=400"
-      "    <margin=[5,5,2,5] gap=5 weight=30 <btn_reset weight=15%><btn_export><btn_import>>"
-      // "    <margin=[0,5,5,5] gap=5 weight=30 <btn_snap_load><btn_snapshot><btn_snap_abort weight=25%>>"
-      "    <margin=[0,5,5,5] gap=5 weight=30 <btn_video_load><btn_video_record><btn_video_playpause>>"
-      "    <margin=[0,5,5,5] gap=5 weight=30 <video_slider>>"
-      "    <enter weight=30 margin=5>"
-      "    <center margin=5>>");
+    auto layout_divider_string = R"(
+      <vert
+        <
+          <vert
+            <mat_lists>
+            <timings>
+          >
+          <vert
+            weight=400
+            <margin=[5,5,2,5] gap=5 weight=30 <btn_export><weight=10><btn_import>>
+            <enter weight=30 margin=5>
+            <center margin=5>
+            <margin=[0,5,5,5] gap=5 weight=30 <btn_video_load><btn_video_record><btn_video_playpause>>
+          >
+        >
+        <
+          weight=60 margin=[15,5,10,5]
+          <video_slider>
+        >
+      >)";
+    layout.div(layout_divider_string);
+
+    // DISCARDED
+    // "    <margin=[0,5,5,5] gap=5 weight=30 <btn_snap_load><btn_snapshot><btn_snap_abort weight=25%>>"
 
     layout["center"] << tr;
     layout["enter"] << param_enter_box;

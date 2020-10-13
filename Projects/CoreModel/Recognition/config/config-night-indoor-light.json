@@ -20,8 +20,8 @@
                     1.33
                 ],
                 "positive-area": [
-                    0.33000001311302185,
-                    1.0
+                    0.4,
+                    1
                 ],
                 "radius": 25,
                 "rotate-angle": 0,
@@ -57,12 +57,12 @@
         },
         "white": {
             "color": [
-                30,
-                25
+                25,
+                26.5
             ],
             "error-function-base": 30000,
-            "negative-weight": 1.75,
-            "suitability-threshold": 0.2,
+            "negative-weight": 5,
+            "suitability-threshold": 0.5,
             "weight-hue-sat": [
                 2.0,
                 1.0
@@ -76,10 +76,10 @@
     "fast-process-width": 960,
     "table": {
         "LPF": {
-            "distance-jump-threshold": 0.06,
+            "distance-jump-threshold": 0.02,
             "position": 0.1,
             "rotation": 0.1,
-            "rotation-jump-threshold": 0.06
+            "rotation-jump-threshold": 0.02
         },
         "confidence-threshold": 0.33,
         "contour": {
@@ -124,5 +124,11 @@
                 0.63
             ]
         }
-    }
+    },
+    "window-position": [
+        1041,
+        263,
+        800,
+        600
+    ]
 }
