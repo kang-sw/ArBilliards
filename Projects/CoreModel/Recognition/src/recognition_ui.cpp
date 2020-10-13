@@ -125,7 +125,7 @@ static void json_iterative_substitute(json& to, json const& from)
     }
 }
 
-#define AUTOSAVE_PATH "auto-config.json"
+#define AUTOSAVE_PATH "arbilliards-autoconfig.json"
 void exec_ui()
 {
     using namespace nana;
@@ -662,6 +662,8 @@ void exec_ui()
 
     fm.show();
     exec();
+
+    save_as(AUTOSAVE_PATH);
 
     this_thread::sleep_for(100ms);
     cout << "info: GUI Expired" << endl;
