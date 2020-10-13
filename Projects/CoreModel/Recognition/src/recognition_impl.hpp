@@ -11,8 +11,6 @@
 #include <any>
 #include <vector>
 
-using namespace std;
-
 namespace cv
 {
 template <int Size_, typename Ty_>
@@ -56,15 +54,15 @@ struct plane_t {
     plane_t& transform(cv::Vec3f tvec, cv::Vec3f rvec);
     float calc(cv::Vec3f const& pt) const;
     bool has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
-    optional<float> calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
-    optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
+    std::optional<float> calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
+    std::optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
 };
 
 using img_t = recognizer_t::parameter_type;
 using img_cb_t = recognizer_t::process_finish_callback_type;
-using opt_img_t = optional<img_t>;
-using read_lock = shared_lock<shared_mutex>;
-using write_lock = unique_lock<shared_mutex>;
+using opt_img_t = std::optional<img_t>;
+using read_lock = std::shared_lock<std::shared_mutex>;
+using write_lock = std::unique_lock<std::shared_mutex>;
 
 /**
  * @note 클래스 내부에서 사용하는 월드 좌표계는 모두 Unity 좌표계로 통일합니다. 단, 카메라 좌표계는 opencv 좌표계입니다.
@@ -74,24 +72,24 @@ class recognizer_impl_t
 public:
     recognizer_t& m;
 
-    thread worker;
-    atomic_bool worker_is_alive;
-    condition_variable_any worker_event_wait;
-    mutex worker_event_wait_mtx;
+    std::thread worker;
+    std::atomic_bool worker_is_alive;
+    std::condition_variable_any worker_event_wait;
+    std::mutex worker_event_wait_mtx;
 
     opt_img_t img_cue;
-    shared_mutex img_cue_mtx;
+    std::shared_mutex img_cue_mtx;
     img_cb_t img_cue_cb;
-    shared_mutex img_snapshot_mtx;
+    std::shared_mutex img_snapshot_mtx;
     img_t img_prev;
 
-    unordered_map<string, cv::Mat> img_show;
-    unordered_map<string, cv::Mat> img_show_queue;
-    shared_mutex img_show_mtx;
+    std::unordered_map<std::string, cv::Mat> img_show;
+    std::unordered_map<std::string, cv::Mat> img_show_queue;
+    std::shared_mutex img_show_mtx;
 
-    vector<pair<string, std::chrono::microseconds>> elapsed_seconds;
-    vector<pair<string, std::chrono::microseconds>> elapsed_seconds_prev;
-    shared_mutex elapsed_seconds_mtx;
+    std::vector<std::pair<std::string, std::chrono::microseconds>> elapsed_seconds;
+    std::vector<std::pair<std::string, std::chrono::microseconds>> elapsed_seconds_prev;
+    std::shared_mutex elapsed_seconds_mtx;
 
     recognition_desc prev_desc;
     cv::Vec3f table_pos = {};
@@ -102,14 +100,14 @@ public:
     // cv::Vec3f table_points[4];
     double table_yaw_flt = 0;
 
-    unordered_map<string, any> vars;
+    std::unordered_map<std::string, std::any> vars;
 
 public:
     recognizer_impl_t(recognizer_t& owner)
         : m(owner)
     {
         worker_is_alive = true;
-        worker = thread(&recognizer_impl_t::async_worker_thread, this);
+        worker = std::thread(&recognizer_impl_t::async_worker_thread, this);
 
         using nlohmann::json;
         using namespace cv;
@@ -196,17 +194,17 @@ public:
         }
     }
 
-    void show(string wnd_name, cv::UMat img)
+    void show(std::string wnd_name, cv::UMat img)
     {
-        show(move(wnd_name), img.getMat(cv::ACCESS_FAST));
+        show(std::move(wnd_name), img.getMat(cv::ACCESS_FAST));
     }
 
-    void show(string wnd_name, cv::Mat img)
+    void show(std::string wnd_name, cv::Mat img)
     {
         if (img.empty()) {
             return;
         }
-        img_show_queue[move(wnd_name)] = img.clone();
+        img_show_queue[std::move(wnd_name)] = img.clone();
     }
 
     /**
@@ -237,7 +235,7 @@ public:
       recognition_desc& desc,
       const cv::Mat& rgb,
       const cv::UMat& filtered,
-      vector<cv::Vec2f>& table_contours);
+      std::vector<cv::Vec2f>& table_contours);
 
     /**
      * 주로 테이블에 활용 ...
@@ -265,7 +263,7 @@ public:
         float confidence;
     };
 
-    static optional<transform_estimation_result_t> estimate_matching_transform(img_t const& img, vector<cv::Vec2f> const& input, vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& param);
+    static std::optional<transform_estimation_result_t> estimate_matching_transform(img_t const& img, std::vector<cv::Vec2f> const& input, std::vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& param);
 
     /**
      * 마커로부터 테이블 위치를 보정합니다.
@@ -276,7 +274,7 @@ public:
       cv::Mat rgb,
       cv::Rect ROI,
       cv::Mat3b roi_rgb,
-      vector<cv::Point> table_contour_partial);
+      std::vector<cv::Point> table_contour_partial);
 
     struct ball_find_result_t {
         cv::Point img_center;
@@ -301,7 +299,7 @@ public:
      */
     void find_ball_center(
       img_t const& img,
-      vector<cv::Point> const& contours_src,
+     std:: vector<cv::Point> const& contours_src,
       struct ball_find_parameter_t const& params,
       struct ball_find_result_t& result);
     /** @} */
@@ -327,22 +325,22 @@ public:
     /**
      * 컨투어 목록을 그립니다.
      */
-    void project_contours(img_t const& img, const cv::Mat& rgb, vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color);
+    void project_contours(img_t const& img, const cv::Mat& rgb, std::vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color);
 
     /**
      * 대상 모델 버텍스 목록을 화면 상에 투영합니다.
      */
-    static void project_model(img_t const& img, vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90, float FOV_v = 60);
+    static void project_model(img_t const& img, std::vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot,std:: vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90, float FOV_v = 60);
 
     /**
      * 대상 모델 버텍스 목록을 화면 상에 투영합니다. Point 벡터를 반환하는 편의 함수 버전입니다.
      */
-    static void project_model(img_t const& img, vector<cv::Point>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90, float FOV_v = 60);
+    static void project_model(img_t const& img,std:: vector<cv::Point>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90, float FOV_v = 60);
 
     /**
      * 대상 모델 버텍스 목록을 카메라 좌표계로 투영합니다.
      */
-    static void transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, vector<cv::Vec3f>& model_vertexes);
+    static void transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot,std:: vector<cv::Vec3f>& model_vertexes);
 
     /**
      * 위치 벡터 및 로드리게스 회전 벡터로부터 월드 트랜스폼을 획득하는 헬퍼 함수입니다.
@@ -379,7 +377,7 @@ public:
     /**
      * 카메라 좌표계 기준 3d 좌표에서 u, v를 계산합니다.
      */
-    static array<float, 2> get_uv_from_3d(img_t const& img, cv::Point3f const& coord_3d);
+    static std::array<float, 2> get_uv_from_3d(img_t const& img, cv::Point3f const& coord_3d);
 
     /**
      * Hue의 circular한 특성을 고려하여 HSV 필터링을 수행합니다.
@@ -448,6 +446,7 @@ enum Type
     UImg_TableFiltered,
 
     Var_TableContour,
+    Var_PrevBallPos,
 
     Float_TableOffset,
 
