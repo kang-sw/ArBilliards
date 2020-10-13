@@ -7,6 +7,8 @@
 #include <random>
 #include <algorithm>
 #include <vector>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
 
 using namespace billiards;
 using namespace std;
@@ -167,7 +169,7 @@ static cv::Matx44f get_world_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot)
 {
     using namespace cv;
     Matx44f world_transform = {};
-    world_transform.val[15] = 1.0f;
+    world_transform(3, 3) = 1.0f;
     {
         world_transform.val[3] = pos[0];
         world_transform.val[7] = pos[1];
@@ -1034,7 +1036,7 @@ void recognizer_impl_t::draw_axes(img_t const& img, cv::Mat& dest, cv::Vec3f rve
     }
 }
 
-void recognizer_impl_t::draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color) const
+void recognizer_impl_t::draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness) const
 {
     using namespace cv;
     vector<Vec3f> pos{{0, 0, 0}};
@@ -1044,7 +1046,7 @@ void recognizer_impl_t::draw_circle(img_t const& img, cv::Mat& dest, float base_
 
     float size = get_pixel_length(img, base_size, pos[0][2]);
     if (size > 1) {
-        circle(dest, Point(pt[0][0], pt[0][1]), size, color, -1);
+        circle(dest, Point(pt[0][0], pt[0][1]), size, color, thickness);
     }
 }
 
@@ -1336,7 +1338,7 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
 
         cv::UMat output_color{ROI.size(), CV_8UC3};
         output_color.setTo(0);
-        cv::Scalar color_ROW[] = {{0, 0, 255}, {0, 127, 255}, {255, 255, 255}};
+        cv::Scalar color_ROW[] = {{41, 41, 255}, {0, 213, 255}, {255, 255, 255}};
 
         // 정규화된 랜덤 샘플의 목록을 만듭니다.
         // 일반적으로 샘플의 아래쪽 반원은 음영에 의해 가려지게 되므로, 위쪽 반원의 샘플을 추출합니다.
@@ -1377,13 +1379,14 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
             });
 
             // 샘플을 시각화합니다.
-            cv::Mat3b random_sample_visualize(200, 200);
+            int scale = p["others"]["random-sample-view-scale"];
+            cv::Mat3b random_sample_visualize(scale, scale);
             random_sample_visualize.setTo(0);
             for (auto& pt : normal_random_samples) {
-                random_sample_visualize(cv::Point(pt * 50) + cv::Point{100, 100}) = {0, 255, 0};
+                random_sample_visualize(cv::Point(pt * scale / 4) + cv::Point{scale / 2, scale / 2}) = {0, 255, 0};
             }
             for (auto& pt : normal_negative_samples) {
-                auto at = Point(pt * 50) + cv::Point{100, 100};
+                auto at = Point(pt * scale / 4) + cv::Point{scale / 2, scale / 2};
                 if (Rect{{}, random_sample_visualize.size()}.contains(at)) {
                     random_sample_visualize(at) = {0, 0, 255};
                 }
@@ -1501,6 +1504,16 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
             }
             else {
                 for_each(execution::seq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
+            }
+
+            {
+                Mat3b debug_ROI = debug(ROI);
+                Mat3b adder;
+                Mat1b suitability;
+                suitability_field.convertTo(suitability, CV_8U, 255);
+                //  cv::merge(vector<Mat>{Mat1b::zeros(ROI.size()), suitability, Mat1b::zeros(ROI.size())}, adder);
+                cv::merge(vector{suitability, suitability, suitability}, adder);
+                debug_ROI -= adder;
             }
 
             // 특수: 색상이 RED라면 마스크에서 찾아낸 볼에 해당하는 위치를 모두 지우고 위 과정을 다시 수행합니다.
@@ -1628,12 +1641,45 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
             result.balls[i].confidence = ball_weights[i];
 
             if (ball_weights[i]) {
-                draw_circle(imdesc, debug, ball_radius, descs[i].pos, color_ROW[max(i - 1, 0)]);
+                draw_circle(imdesc, debug, ball_radius, descs[i].pos, color_ROW[max(i - 1, 0)], 1);
                 auto center = project_single_point(imdesc, descs[i].pos);
                 auto pxl_rad = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
 
-                putText(debug, to_string(i), center + Point(-pxl_rad / 2, pxl_rad / 2), FONT_HERSHEY_PLAIN, 1.3, {0, 0, 0}, 2);
+                putText(debug, to_string(i + 1), center + Point(-7, -pxl_rad), FONT_HERSHEY_PLAIN, 1.3, {0, 0, 0}, 2);
             }
+        }
+
+        // 테이블에 대한 상대 좌표로 변환
+        {
+            Vec2f table = p["table"]["size"]["inner"];
+            float scale = p["others"]["top-view-scale"];
+
+            int ball_rad_pxl = ball_radius * scale;
+            Size table_topview_size = (Point)(Vec2i)(table * scale);
+
+            Mat3b top_view_mat(table_topview_size);
+            top_view_mat.setTo(Scalar{243, 16, 37});
+
+            auto inv_tr = get_world_transform_matx_fast(table_pos, table_rot).inv();
+            for (int iter = 0; auto& b : descs) {
+                int index = iter++;
+                int bidx = max(0, index - 1);
+
+                if (ball_weights[index] == 0) {
+                    continue;
+                }
+
+                Vec4f pos4 = (Vec4f&)b.pos;
+                pos4(3) = 1;
+
+                pos4 = inv_tr * pos4;
+                auto pt = Point(pos4[0] * scale, -pos4[2] * scale) + (Point)table_topview_size / 2;
+
+                circle(top_view_mat, pt, ball_rad_pxl, color_ROW[bidx], -1);
+                putText(top_view_mat, to_string(iter), pt + Point(-6, 11), FONT_HERSHEY_PLAIN, scale * 0.002, {0, 0, 0}, 2);
+            }
+
+            show("Table Top Projection", top_view_mat);
         }
     }
 }

@@ -116,6 +116,9 @@ public:
         params["fast-process-width"] = 540;
         params["do-resize"] = false;
 
+        params["others"]["top-view-scale"] = 540;
+        params["others"]["random-sample-view-scale"] = 200;
+
         params["FOV"] = Vec2f{84.9f, 52.9f};
         {
             auto& b = params["ball"];
@@ -166,6 +169,8 @@ public:
             t["size"]["outer"] = Vec2f(1.31f, 0.76f);
             t["size"]["inner"] = Vec2f(0.895f, 0.447f);
             t["confidence-threshold"] = 0.115;
+
+            t["preprocess"]["dilate-erode-noise-remove"] = 25;
 
             auto& tc = t["contour"];
             tc["area-threshold-ratio"] = 0.03;
@@ -418,7 +423,7 @@ public:
     /**
      * 3D 위치의 원을 화면에 투영합니다. 거리에 따라 화면 상에 나타나는 반경이 달라집니다.
      */
-    void draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color) const;
+    void draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness) const;
 
     /**
      * 테이블 평면을 카메라 좌표계로 변환합니다.
