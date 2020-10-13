@@ -523,15 +523,31 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
     return res;
 }
 
-void recognizer_impl_t::project_contours(img_t const& img, const cv::Mat& rgb, vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color)
+void recognizer_impl_t::project_contours(img_t const& img, const cv::Mat& rgb, vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color, int thickness)
 {
     vector<cv::Point> mapped;
     cv::Vec2f FOV = m.props["FOV"];
     project_model(img, mapped, pos, rot, model, true, FOV[0], FOV[1]);
 
     if (!mapped.empty()) {
-        drawContours(rgb, vector{{mapped}}, -1, color, 3);
+        drawContours(rgb, vector{{mapped}}, -1, color, thickness);
     }
+}
+
+cv::Point recognizer_impl_t::project_single_point(img_t const& img, cv::Vec3f vertex, bool is_world)
+{
+    using namespace cv;
+    vector<Vec3f> pos{{0, 0, 0}};
+    vector<Vec2f> pt;
+
+    if (is_world) {
+        project_model(img, pt, vertex, {0, 1, 0}, pos, false);
+    }
+    else {
+        project_model_local(img, pt, pos, false, {});
+    }
+
+    return static_cast<Vec<int, 2>>(pt.front());
 }
 
 void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& debug, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
@@ -766,10 +782,10 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         auto pos = table_pos;
         auto rot = table_rot;
         get_table_model(model, tp["size"]["inner"]);
-        project_contours(img, debug, model, pos, rot, {255, 255, 255});
+        project_contours(img, debug, model, pos, rot, {255, 255, 255}, 1);
 
         get_table_model(model, tp["size"]["outer"], varget(float, Float_TableOffset));
-        project_contours(img, debug, model, pos, rot, {0, 255, 0});
+        project_contours(img, debug, model, pos, rot, {0, 255, 0}, 1);
 
         draw_axes(img, (Mat&)debug, rot, pos, 0.08f, 3);
     }
@@ -1024,10 +1040,12 @@ void recognizer_impl_t::draw_circle(img_t const& img, cv::Mat& dest, float base_
     vector<Vec3f> pos{{0, 0, 0}};
     vector<Vec2f> pt;
 
-    project_model(img, pt, tvec_world, Vec3f(), pos, false);
+    project_model(img, pt, tvec_world, {0, 1, 0}, pos, false);
 
-    float size = base_size / norm(pos);
-    circle(dest, Point(pt[0][0], pt[0][1]), size, color, -1);
+    float size = get_pixel_length(img, base_size, pos[0][2]);
+    if (size > 1) {
+        circle(dest, Point(pt[0][0], pt[0][1]), size, color, -1);
+    }
 }
 
 plane_t plane_t::from_NP(cv::Vec3f N, cv::Vec3f P)
@@ -1286,7 +1304,6 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
         auto intr__balls__ = {b["red"], b["orange"], b["white"]};
         auto balls = intr__balls__.begin();
         char const* ball_names[] = {"Red", "Orange", "White"};
-        auto ln_base = log((double)bm["error-base"]);
         float ball_radius = bm["radius"];
 
         // 테이블 평면 획득
@@ -1294,13 +1311,14 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
         plane_to_camera(imdesc, table_plane, table_plane);
 
         // 컬러 스케일
-        cv::Scalar weight = (cv::Vec2f)bm["weight-hue-sat"];
-        weight /= norm(weight);
 
         ELAPSE_BLOCK("Matching Field Generation")
         for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
             auto& m = u_match_map[ball_idx];
             cv::Scalar color = (cv::Vec2f)balls[ball_idx]["color"] / 255;
+            cv::Scalar weight = (cv::Vec2f)balls[ball_idx]["weight-hue-sat"];
+            weight /= norm(weight);
+            auto ln_base = log((double)balls[ball_idx]["error-function-base"]);
 
             cv::subtract(m, color, u0);
             multiply(u0, u0, u1);
@@ -1426,6 +1444,7 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
                 // 매치 맵의 적합도 합산치입니다.
                 cand_suitabilities.resize(cand_indexes.size(), 0);
             }
+            float negative_weight = balls[bidx]["negative-weight"];
 
             // 골라낸 인덱스 내에서 색상 값의 샘플 합을 수행합니다.
             ELAPSE_SCOPE("Parallel Launch: "s + ball_names[bidx]);
@@ -1459,7 +1478,6 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
 
                     auto bound = ROI;
                     bound.x = bound.y = 0;
-                    float negative_weight = rs["negative-weight"];
                     for (auto& roundpt : normal_negative_samples) {
                         auto sample_index = pt + Point(roundpt * ball_pxl_radf);
                         if (bound.contains(sample_index)) {
@@ -1495,7 +1513,7 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
 
                 if (rad_px > 0) {
                     // 공이 정상적으로 찾아진 경우에만 ...
-                    circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], -1);
+                    circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], 1);
 
                     ball_positions[iter] = center;
                     ball_weights[iter] = *best;
@@ -1588,6 +1606,9 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
                 if (norm(vel_elapsed - d.vel) < max_error_speed) {
                     d = ball_position_desc_t{.pos = ballpos[i], .vel = vel_elapsed, .tp = now};
                 }
+                else {
+                    ball_weights[i] = 0;
+                }
             }
         }
         else {
@@ -1601,6 +1622,14 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
         for (int i = 0; i < 4; ++i) {
             (Vec3f&)result.balls[i].position = descs[i].pos;
             result.balls[i].confidence = ball_weights[i];
+
+            if (ball_weights[i]) {
+                draw_circle(imdesc, debug, ball_radius, descs[i].pos, color_ROW[max(i - 1, 0)]);
+                auto center = project_single_point(imdesc, descs[i].pos);
+                auto pxl_rad = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
+
+                putText(debug, to_string(i), center + Point(-pxl_rad / 2, pxl_rad / 2), FONT_HERSHEY_PLAIN, 1.3, {0, 0, 0}, 2);
+            }
         }
     }
 }

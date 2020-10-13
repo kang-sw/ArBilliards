@@ -9,7 +9,6 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/base.hpp>
 #include <any>
-#include <vector>
 
 namespace cv
 {
@@ -123,20 +122,26 @@ public:
 
             b["red"]["color"] = Vec2f{133, 135};
             b["red"]["suitability-threshold"] = 0.35;
-            b["red"]["filter"] = {Vec3f{115, 84, 0}, Vec3f{152, 255, 255}};
+            b["red"]["suitability-threshold"] = 0.35;
+            b["red"]["negative-weight"] = 1;
+            b["red"]["weight-hue-sat"] = Vec2f{2, 1};
+            b["red"]["error-function-base"] = 1.15;
 
             b["orange"]["color"] = Vec2f{85, 173};
             b["orange"]["suitability-threshold"] = 0.35;
-            b["orange"]["filter"] = {Vec3f{75, 118, 0}, Vec3f{106, 255, 255}};
+            b["orange"]["negative-weight"] = 1;
+            b["orange"]["weight-hue-sat"] = Vec2f{2, 1};
+            b["orange"]["error-function-base"] = 1.15;
 
             b["white"]["color"] = Vec2f{40, 54};
             b["white"]["suitability-threshold"] = 0.35;
-            b["white"]["filter"] = {Vec3f{0, 0, 0}, Vec3f{81, 108, 255}};
+            b["white"]["negative-weight"] = 1;
+            b["white"]["weight-hue-sat"] = Vec2f{2, 1};
+            b["white"]["error-function-base"] = 1.15;
 
             auto& bm = b["common"];
             bm["radius"] = 0.14 / CV_2PI;
             bm["min-pixel-radius"] = 10;
-            bm["weight-hue-sat"] = Vec2f{2, 1};
             bm["error-base"] = 1.15;
 
             bm["random-sample"]["do-parallel"] = true;
@@ -145,7 +150,6 @@ public:
             bm["random-sample"]["rotate-angle"] = 0;
             bm["random-sample"]["sample-max-cases"] = 1000;
             bm["random-sample"]["negative-area"] = Vec2f{1.1, 1.25};
-            bm["random-sample"]["negative-weight"] = 1.25;
 
             bm["confidence-weight"] = 2.0f;
             bm["confidence-threshold"] = 0.15f;
@@ -328,7 +332,12 @@ public:
     /**
      * 컨투어 목록을 그립니다.
      */
-    void project_contours(img_t const& img, const cv::Mat& rgb, std::vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color);
+    void project_contours(img_t const& img, const cv::Mat& rgb, std::vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color, int thickness);
+
+    /**
+     * 점을 화면에 투영
+     */
+    static cv::Point project_single_point(img_t const& img, cv::Vec3f vertex, bool is_world = true);
 
     /**
      * 대상 모델 버텍스 목록을 화면 상에 투영합니다.
