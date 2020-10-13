@@ -444,8 +444,8 @@ void exec_ui()
     // -- 리셋, 익스포트, 임포트 버튼 구현
     button btn_reset(fm), btn_export(fm), btn_import(fm);
     btn_reset.caption("Reset");
-    btn_export.caption("Export As...(Alt+Q)");
-    btn_import.caption("Import From...(Alt+O)");
+    btn_export.caption("Export Config ...(Alt+Q)");
+    btn_import.caption("Import Config ...(Alt+O)");
 
     btn_reset.bgcolor(colors::gray);
     btn_reset.events().click([&](arg_click const& arg) {
@@ -740,8 +740,12 @@ void exec_ui()
         }
     });
     btn_video_load.events().click([&](auto) {
-        if (is_playing_video) {
-            msgbox("Please stop currently playing video first before load.");
+        if (frame_chunks.empty() == false) {
+            is_playing_video = true;
+            btn_video_playpause.events().click.emit({}, fm);
+            frame_chunks.clear();
+            btn_video_load.bgcolor(colors::light_gray);
+            btn_video_load.caption("Load Video");
             return;
         }
 
@@ -753,7 +757,6 @@ void exec_ui()
             auto path = paths.front().string();
             frame_chunks.clear();
             video_slider.borderless(false);
-            btn_video_load.bgcolor(colors::forest_green);
 
             ifstream in{path, ios::in | ios::binary};
             while (!in.eof()) {
@@ -761,6 +764,9 @@ void exec_ui()
             }
             video_player.interval(10ms);
             video_player.start();
+
+            btn_video_load.bgcolor(colors::forest_green);
+            btn_video_load.caption("Unload Video");
         }
     });
     btn_video_playpause.events().click([&](auto) {
@@ -872,7 +878,7 @@ void exec_ui()
       "<vert"
       "    weight=400"
       "    <margin=[5,5,2,5] gap=5 weight=30 <btn_reset weight=15%><btn_export><btn_import>>"
-      "    <margin=[0,5,5,5] gap=5 weight=30 <btn_snap_load><btn_snapshot><btn_snap_abort weight=25%>>"
+      // "    <margin=[0,5,5,5] gap=5 weight=30 <btn_snap_load><btn_snapshot><btn_snap_abort weight=25%>>"
       "    <margin=[0,5,5,5] gap=5 weight=30 <btn_video_load><btn_video_record><btn_video_playpause>>"
       "    <margin=[0,5,5,5] gap=5 weight=30 <video_slider>>"
       "    <enter weight=30 margin=5>"
