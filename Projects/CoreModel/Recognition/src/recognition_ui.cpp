@@ -7,6 +7,8 @@
 #include <opencv2/opencv.hpp>
 #include <span>
 
+#include "nana/gui/widgets/slider.hpp"
+
 extern billiards::recognizer_t g_recognizer;
 
 using namespace std;
@@ -701,12 +703,14 @@ void exec_ui()
     button btn_video_load(fm), btn_video_record(fm), btn_video_playpause(fm);
     vector<video_frame_chunk> frame_chunks;
     optional<video_frame> previous;
-    size_t frame_index = 0;
+    slider video_slider(fm);
     bool is_playing_video = false;
+
     btn_video_load.caption("Load Video");
     btn_video_record.caption("Record Video");
     btn_video_playpause.caption("Play");
-
+    video_slider.seek(slider::seekdir::bilateral);
+    video_slider.vertical(false);
     timer video_player;
 
     btn_video_record.events().click([&](auto) {
@@ -748,12 +752,15 @@ void exec_ui()
         if (auto paths = fb.show(); !paths.empty()) {
             auto path = paths.front().string();
             frame_chunks.clear();
-            frame_index = 0;
+            video_slider.borderless(false);
+            btn_video_load.bgcolor(colors::forest_green);
 
             ifstream in{path, ios::in | ios::binary};
             while (!in.eof()) {
                 in >> frame_chunks.emplace_back();
             }
+            video_player.interval(10ms);
+            video_player.start();
         }
     });
     btn_video_playpause.events().click([&](auto) {
@@ -765,9 +772,6 @@ void exec_ui()
         if (is_playing_video) {
             btn_video_playpause.bgcolor(colors::red);
             btn_video_playpause.caption("Pause");
-
-            video_player.interval(10ms);
-            video_player.start();
         }
         else {
             btn_video_playpause.bgcolor(colors::light_gray);
@@ -780,7 +784,21 @@ void exec_ui()
                 return;
             }
 
-            auto& vid_chnk = frame_chunks[frame_index++ % frame_chunks.size()];
+            video_slider.value((video_slider.value() + 1) % video_slider.maximum());
+            video_slider.events().value_changed.emit(video_slider, fm);
+        }
+        else {
+            video_slider.borderless(true);
+            video_player.stop();
+            previous.reset();
+        }
+    });
+    video_slider.events().value_changed([&](arg_slider v) {
+        if (!frame_chunks.empty()) {
+            if (video_slider.maximum() != frame_chunks.size()) {
+                video_slider.maximum(frame_chunks.size());
+            }
+            auto& vid_chnk = frame_chunks[video_slider.value() % frame_chunks.size()];
             auto vid = parse(vid_chnk);
             if (previous) {
                 auto tm = max(0.01f, vid.time_point - previous->time_point);
@@ -789,10 +807,6 @@ void exec_ui()
                 n->video.is_busy = true;
             }
             previous = vid;
-        }
-        else {
-            video_player.stop();
-            previous.reset();
         }
     });
 
@@ -856,6 +870,7 @@ void exec_ui()
       "    <margin=[5,5,2,5] gap=5 weight=30 <btn_reset weight=15%><btn_export><btn_import>>"
       "    <margin=[0,5,5,5] gap=5 weight=30 <btn_snap_load><btn_snapshot><btn_snap_abort weight=25%>>"
       "    <margin=[0,5,5,5] gap=5 weight=30 <btn_video_load><btn_video_record><btn_video_playpause>>"
+      "    <margin=[0,5,5,5] gap=5 weight=30 <video_slider>>"
       "    <enter weight=30 margin=5>"
       "    <center margin=5>>");
 
@@ -872,6 +887,7 @@ void exec_ui()
     layout["btn_video_load"] << btn_video_load;
     layout["btn_video_record"] << btn_video_record;
     layout["btn_video_playpause"] << btn_video_playpause;
+    layout["video_slider"] << video_slider;
     layout.collocate();
 
     fm.events().move([&](auto) {
