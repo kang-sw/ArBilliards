@@ -1347,13 +1347,17 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
         ELAPSE_BLOCK("Random Sample Generation")
         {
             mt19937 rg{};
+            Vec2f positive_area_range = rs["positive-area"];
             Vec2f negative_area_range = rs["negative-area"];
-            negative_area_range = negative_area_range.mul(negative_area_range);
-            if (negative_area_range[1] < negative_area_range[0]) {
-                swap(negative_area_range[1], negative_area_range[0]);
+            for (auto& parea : {&positive_area_range, &negative_area_range}) {
+                auto& area = *parea;
+                area = area.mul(area);
+                if (area[1] < area[0]) {
+                    swap(area[1], area[0]);
+                }
             }
 
-            uniform_real_distribution<float> distr_positive{0, 1};
+            uniform_real_distribution<float> distr_positive{positive_area_range[0], positive_area_range[1]};
             uniform_real_distribution<float> distr_negative{negative_area_range[0], negative_area_range[1]};
 
             if (int rand_seed = (int)rs["seed"]; rand_seed != -1) { rg.seed(rand_seed); }
