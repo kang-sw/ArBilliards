@@ -780,12 +780,16 @@ void exec_ui()
     });
     video_player.elapse([&]() {
         if (frame_chunks.empty() == false) {
-            if (!is_playing_video || n->video.is_busy) {
+            if (n->video.is_busy) {
                 return;
             }
 
-            video_slider.value((video_slider.value() + 1) % video_slider.maximum());
-            video_slider.events().value_changed.emit(video_slider, fm);
+            if (is_playing_video) {
+                video_slider.move_step(false);
+            }
+            else {
+                video_slider.events().value_changed.emit({video_slider}, fm);
+            }
         }
         else {
             video_slider.borderless(true);
@@ -801,10 +805,10 @@ void exec_ui()
             auto& vid_chnk = frame_chunks[video_slider.value() % frame_chunks.size()];
             auto vid = parse(vid_chnk);
             if (previous) {
-                auto tm = max(0.01f, vid.time_point - previous->time_point);
-                g_recognizer.refresh_image(previous->img, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); });
-                video_player.interval(chrono::milliseconds((int)(tm * 1000.f)));
                 n->video.is_busy = true;
+                auto tm = clamp(vid.time_point - previous->time_point, 0.01f, 0.1f);
+                g_recognizer.refresh_image(previous->img, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); });
+                video_player.interval(chrono::milliseconds((int)(is_playing_video ? tm * 1000.f : 100)));
             }
             previous = vid;
         }
