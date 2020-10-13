@@ -39,14 +39,12 @@ struct video_frame {
     billiards::recognizer_t::parameter_type img;
 };
 
-#define DEPTH_RATE 32
-
 static ostream& operator<<(ostream& o, video_frame const& v)
 {
     cv::Mat depth;
     cv::Mat rgb;
     cv::cvtColor(v.img.rgba, rgb, cv::COLOR_RGBA2RGB);
-    v.img.depth.convertTo(depth, CV_8U, DEPTH_RATE);
+    v.img.depth.convertTo(depth, CV_8U, g_recognizer.props["explorer"]["depth-alpha"]);
 
     auto wr = [&o](auto ty) { o.write((char*)&ty, sizeof ty); };
     wr(v.time_point);
@@ -90,7 +88,7 @@ static istream& operator>>(istream& i, video_frame& v)
 
     rd(sz), buf.resize(sz);
     i.read((char*)buf.data(), sz);
-    cv::imdecode(buf, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / DEPTH_RATE);
+    cv::imdecode(buf, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / (float)g_recognizer.props["explorer"]["depth-alpha"]);
 
     return i;
 }
@@ -141,7 +139,7 @@ static video_frame parse(video_frame_chunk const& va)
     v.time_point = va.time_point;
 
     cv::cvtColor(cv::imdecode(va.chnk_rgb, cv::IMREAD_COLOR), v.img.rgba, cv::COLOR_RGB2RGBA);
-    cv::imdecode(va.chnk_depth, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / DEPTH_RATE);
+    cv::imdecode(va.chnk_depth, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / (float)g_recognizer.props["explorer"]["depth-alpha"]);
 
     return v;
 }
@@ -291,9 +289,14 @@ void exec_ui()
                 json parsed = json::parse((stringstream() << strm.rdbuf()).str());
 
                 // 윈도우 위치도 로드
-                if (auto it = parsed.find("window-position"); it != parsed.end()) {
-                    array<int, 4> wndPos = *it;
-                    fm.move((rectangle&)wndPos);
+                // 에디터 설정 목록
+                {
+                    if (auto it = parsed.find("window-position"); it != parsed.end()) {
+                        array<int, 4> wndPos = *it;
+                        fm.move((rectangle&)wndPos);
+                    }
+
+                    g_recognizer.props["explorer"]["depth-alpha"] = 32;
                 }
 
                 json_iterative_substitute(g_recognizer.props, parsed);
