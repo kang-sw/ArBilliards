@@ -1,6 +1,5 @@
 #include "recognition_impl.hpp"
 #include <iostream>
-#include <numeric>
 #include <vector>
 #include <opencv2/highgui.hpp>
 #include <opencv2/core/base.hpp>
@@ -8,14 +7,6 @@
 #include <random>
 #include <algorithm>
 #include <vector>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
 
 using namespace billiards;
 using namespace std;
@@ -32,7 +23,7 @@ using namespace std;
 #define ELAPSE_BLOCK(name) if (ELAPSE_SCOPE((name)); true)
 
 #define varset(varname)       ((void)billiards::names::varname, vars[#varname])
-#define varget(type, varname) ((void)billiards::names::varname, any_cast<type&>(vars[#varname]))
+#define varget(type, varname) ((void)billiards::names::varname, any_cast<remove_reference_t<type>&>(vars[#varname]))
 
 template <typename Fn_>
 void circle_op(int cent_x, int cent_y, int radius, Fn_&& op)
@@ -1212,7 +1203,7 @@ void recognizer_impl_t::async_worker_thread()
     }
 }
 
-void recognizer_impl_t::find_balls(recognition_desc& desc)
+void recognizer_impl_t::find_balls(recognition_desc& result)
 {
     using namespace cv;
     auto& p = m.props;
@@ -1513,6 +1504,7 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
         for (auto& v : ball_weights) { v *= (float)bm["confidence-weight"]; }
 
         // 각 공의 위치를 월드 기준으로 변환합니다.
+        array<Vec3f, 4> ballpos;
         for (int i = 0; i < 4; ++i) {
             if (ball_weights[i] == 0) {
                 continue;
@@ -1527,8 +1519,75 @@ void recognizer_impl_t::find_balls(recognition_desc& desc)
 
             Vec3f dummy = {0, 1, 0};
             camera_to_world(imdesc, dummy, contact);
-            (Vec3f&)desc.balls[i].position = contact;
-            desc.balls[i].confidence = ball_weights[i];
+            ballpos[i] = contact;
+        }
+
+        // 공의 위치를 이전과 비교합니다.
+        struct ball_position_desc_t {
+            Vec3f pos;
+            Vec3f vel;
+            chrono::system_clock::time_point tp;
+            double dt(chrono::system_clock::time_point now) const { return chrono::duration<double>(now - tp).count(); }
+            Vec3f ps(chrono::system_clock::time_point now) const { return dt(now) * vel + pos; }
+        };
+
+        using ball_desc_set_t = array<ball_position_desc_t, 4>;
+        ball_desc_set_t descs;
+
+        if (varset(Var_PrevBallPos).has_value()) {
+            auto prev = varget(ball_desc_set_t, Var_PrevBallPos);
+            auto now = chrono::system_clock::now();
+            double max_error_speed = b["classification"]["max-error-speed"];
+
+            // 빨간 공 두 개에 대해 ...
+            // 예상 위치가 더 적게 차이나는 요소를 우선 선택합니다.
+            {
+                // 각각 검출 위치와 시뮬레이션 위치
+                auto p1 = ballpos[0], p2 = ballpos[1];
+                auto ps1 = prev[0].ps(now), ps2 = prev[1].ps(now);
+
+                auto err_a1 = norm(ps1 - p1), err_a2 = norm(ps2 - p1);
+                auto err_b1 = norm(ps1 - p2), err_b2 = norm(ps2 - p1);
+
+                auto errs = {err_a1, err_a2, err_b1, err_b2};
+                auto it = min_element(errs.begin(), errs.end());
+
+                if (bool should_swap = (it - errs.begin()) >= 2; should_swap) {
+                    swap(ballpos[0], ballpos[1]);
+                    swap(ball_weights[0], ball_weights[1]);
+                }
+            }
+
+            for (int i = 0; i < 4; ++i) {
+                auto& d = descs[i];
+
+                if (ball_weights[i] < bm["confidence-threshold"]) {
+                    continue;
+                }
+
+                auto dt = d.dt(now);
+                auto dp = ballpos[i] - d.pos;
+                auto vel_elapsed = dp / dt;
+
+                // 속도 차이가 오차 범위 이내일때만 이를 반영합니다.
+                // 속도가 오차 범위를 벗어난 경우 현재 위치와 속도를 갱신하지 않습니다.
+                //
+                if (norm(vel_elapsed - d.vel) < max_error_speed) {
+                    d = ball_position_desc_t{.pos = ballpos[i], .vel = vel_elapsed, .tp = now};
+                }
+            }
+        }
+        else {
+            for (int i = 0; auto& d : descs) {
+                auto pos = ballpos[i++];
+                d = ball_position_desc_t{.pos = pos, .vel = {}, .tp = chrono::system_clock::now()};
+            }
+        }
+        varset(Var_PrevBallPos) = descs;
+
+        for (int i = 0; i < 4; ++i) {
+            (Vec3f&)result.balls[i].position = descs[i].pos;
+            result.balls[i].confidence = ball_weights[i];
         }
     }
 }

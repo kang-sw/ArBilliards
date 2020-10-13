@@ -149,6 +149,9 @@ public:
 
             bm["confidence-weight"] = 2.0f;
             bm["confidence-threshold"] = 0.15f;
+
+            auto& bc = b["classification"];
+            bc["max-error-speed"] = 2.2f;
         }
 
         {
@@ -219,7 +222,7 @@ public:
      * 소멸자 호출 전까지 내부 루프를 반복합니다.
      */
     void async_worker_thread();
-    void find_balls(recognition_desc& desc);
+    void find_balls(recognition_desc& result);
 
     /**
      * 주된 이미지 처리를 수행합니다.
@@ -299,7 +302,7 @@ public:
      */
     void find_ball_center(
       img_t const& img,
-     std:: vector<cv::Point> const& contours_src,
+      std::vector<cv::Point> const& contours_src,
       struct ball_find_parameter_t const& params,
       struct ball_find_result_t& result);
     /** @} */
@@ -330,17 +333,17 @@ public:
     /**
      * 대상 모델 버텍스 목록을 화면 상에 투영합니다.
      */
-    static void project_model(img_t const& img, std::vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot,std:: vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90, float FOV_v = 60);
+    static void project_model(img_t const& img, std::vector<cv::Vec2f>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90, float FOV_v = 60);
 
     /**
      * 대상 모델 버텍스 목록을 화면 상에 투영합니다. Point 벡터를 반환하는 편의 함수 버전입니다.
      */
-    static void project_model(img_t const& img,std:: vector<cv::Point>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90, float FOV_v = 60);
+    static void project_model(img_t const& img, std::vector<cv::Point>&, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull = true, float FOV_h = 90, float FOV_v = 60);
 
     /**
      * 대상 모델 버텍스 목록을 카메라 좌표계로 투영합니다.
      */
-    static void transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot,std:: vector<cv::Vec3f>& model_vertexes);
+    static void transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, std::vector<cv::Vec3f>& model_vertexes);
 
     /**
      * 위치 벡터 및 로드리게스 회전 벡터로부터 월드 트랜스폼을 획득하는 헬퍼 함수입니다.

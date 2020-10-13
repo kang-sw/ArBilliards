@@ -93,7 +93,7 @@
     "table": {
         "LPF": {
             "distance-jump-threshold": 0.05,
-            "position": 0.08,
+            "position": 0.7,
             "rotation": 0.08,
             "rotation-jump-threshold": 0.05
         },
@@ -142,8 +142,8 @@
         }
     },
     "window-position": [
-        1444,
-        536,
+        2320,
+        328,
         800,
         600
     ]
