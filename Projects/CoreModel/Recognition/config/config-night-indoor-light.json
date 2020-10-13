@@ -20,7 +20,7 @@
                     1.33
                 ],
                 "positive-area": [
-                    0.4,
+                    0.6,
                     1
                 ],
                 "radius": 25,
@@ -73,7 +73,11 @@
     "explorer": {
         "depth-alpha": 32
     },
-    "fast-process-width": 960,
+    "fast-process-width": 640,
+    "others": {
+        "random-sample-view-scale": 340,
+        "top-view-scale": 894
+    },
     "table": {
         "LPF": {
             "distance-jump-threshold": 0.02,
@@ -91,9 +95,9 @@
         "error-base": 1.06,
         "filter": [
             [
-                165.0,
                 175,
-                55
+                165,
+                5
             ],
             [
                 15.0,
@@ -109,6 +113,9 @@
             "pos-variant": 0.14,
             "rot-amount-variant": 0.06,
             "rot-axis-variant": 0.015
+        },
+        "preprocess": {
+            "dilate-erode-noise-remove": 0
         },
         "size": {
             "fit": [
@@ -126,9 +133,9 @@
         }
     },
     "window-position": [
-        1041,
-        263,
+        2309,
+        473,
         800,
-        600
+        879
     ]
 }

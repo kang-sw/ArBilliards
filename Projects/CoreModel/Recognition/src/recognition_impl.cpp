@@ -1793,6 +1793,19 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             varset(UImg_TableFiltered) = u_mask;
             show("Table Blue Color Mask", u_mask);
 
+            if (int iteration = tp["preprocess"]["dilate-erode-noise-remove"]; (iteration = (iteration & ~1)) > 0) {
+                ELAPSE_SCOPE("Dilate-Erode Noise Remove");
+                UMat u0, u1;
+                auto pre_dilate = iteration / 4;
+                auto post_dilate = iteration - pre_dilate;
+                copyMakeBorder(u_mask, u0, iteration, iteration, iteration, iteration, BORDER_CONSTANT);
+                erode(u0, u1, {}, {-1, -1}, pre_dilate, BORDER_CONSTANT, {});
+                dilate(u1, u0, {}, {-1, -1}, iteration, BORDER_CONSTANT, {});
+                erode(u0, u1, {}, {-1, -1}, post_dilate, BORDER_CONSTANT, {});
+                u_mask = u1(Rect{{iteration, iteration}, u_mask.size()});
+                show("Table Blue Color Mask - Eroded", u_mask);
+            }
+
             // -- 경계선 검출
             erode(u_mask, u_eroded, {});
             subtract(u_mask, u_eroded, u_edge);
