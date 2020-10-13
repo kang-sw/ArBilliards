@@ -4,7 +4,6 @@
 #include <fstream>
 #include <chrono>
 #include <nana/gui.hpp>
-#include <ciso646>
 #include <queue>
 
 extern billiards::recognizer_t g_recognizer;
