@@ -691,8 +691,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
             Vec3f tvec_world = tvec, rvec_world = rvec;
             camera_to_world(img, rvec_world, tvec_world);
-            set_filtered_table_rot(rvec_world, confidence, true);
-            set_filtered_table_pos(tvec_world, confidence, true);
+            set_filtered_table_rot(rvec_world, confidence, confidence > 0.9f);
+            set_filtered_table_pos(tvec_world, confidence, confidence > 0.9f);
             desc.table.confidence = confidence;
             // draw_axes(img, (Mat&)rgb, rvec_world, tvec_world, 0.08f, 3);
             drawContours(rgb, contours, -1, {255, 123, 0}, 3);
