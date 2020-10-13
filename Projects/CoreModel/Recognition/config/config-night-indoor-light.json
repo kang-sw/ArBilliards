@@ -1,0 +1,130 @@
+{
+    "FOV": [
+        84.9000015258789,
+        52.900001525878906
+    ],
+    "ball": {
+        "classification": {
+            "max-error-speed": 2.0
+        },
+        "common": {
+            "confidence-threshold": 0.15000000596046448,
+            "confidence-weight": 2.0,
+            "error-base": 36644,
+            "min-pixel-radius": 1,
+            "radius": 0.02228169203286535,
+            "random-sample": {
+                "do-parallel": true,
+                "negative-area": [
+                    1.03,
+                    1.33
+                ],
+                "radius": 25,
+                "rotate-angle": 0,
+                "sample-max-cases": 50000,
+                "seed": 0
+            }
+        },
+        "orange": {
+            "color": [
+                90,
+                240
+            ],
+            "error-function-base": 30000,
+            "negative-weight": 1.5,
+            "suitability-threshold": 0.35,
+            "weight-hue-sat": [
+                2.0,
+                1.0
+            ]
+        },
+        "red": {
+            "color": [
+                115,
+                220
+            ],
+            "error-function-base": 30000,
+            "negative-weight": 1.5,
+            "suitability-threshold": 0.5,
+            "weight-hue-sat": [
+                2.0,
+                1.0
+            ]
+        },
+        "white": {
+            "color": [
+                30,
+                25
+            ],
+            "error-function-base": 30000,
+            "negative-weight": 1.75,
+            "suitability-threshold": 0.2,
+            "weight-hue-sat": [
+                2.0,
+                1.0
+            ]
+        }
+    },
+    "do-resize": true,
+    "explorer": {
+        "depth-alpha": 32
+    },
+    "fast-process-width": 960,
+    "table": {
+        "LPF": {
+            "distance-jump-threshold": 0.06,
+            "position": 0.3,
+            "rotation": 0.08,
+            "rotation-jump-threshold": 0.06
+        },
+        "confidence-threshold": 0.33,
+        "contour": {
+            "approx-epsilon-convexhull": 5,
+            "approx-epsilon-preprocess": 5,
+            "area-threshold-ratio": 0.03
+        },
+        "cushion-height": 0.025,
+        "error-base": 1.06,
+        "filter": [
+            [
+                165.0,
+                175,
+                55
+            ],
+            [
+                15.0,
+                255.0,
+                255.0
+            ]
+        ],
+        "minimum-confidence": 0.15,
+        "partial": {
+            "border-margin": 3,
+            "candidates": 200,
+            "iteration": 10,
+            "pos-variant": 0.14,
+            "rot-amount-variant": 0.06,
+            "rot-axis-variant": 0.015
+        },
+        "size": {
+            "fit": [
+                0.9599999785423279,
+                0.5099999904632568
+            ],
+            "inner": [
+                0.8949999809265137,
+                0.44699999690055847
+            ],
+            "outer": [
+                1.08,
+                0.63
+            ]
+        }
+    },
+    "window-position": [
+        2158,
+        467,
+        965,
+        600
+    ]
+}
