@@ -17,7 +17,7 @@ struct tcp_connection_desc
     std::weak_ptr<boost::asio::ip::tcp::socket> socket;
     boost::asio::io_context::strand* strand;
 
-    tcp_connection_desc() noexcept = delete;
+    // tcp_connection_desc() noexcept = delete;
 
     template <typename Fn>
     auto operator()(Fn&& f) const

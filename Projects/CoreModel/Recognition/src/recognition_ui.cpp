@@ -570,8 +570,7 @@ void exec_ui()
 
     snapshot_loader.elapse([&]() {
         if (snapshot) {
-            void ui_on_refresh();
-            g_recognizer.refresh_image(*snapshot, [](auto&, auto&) { ui_on_refresh(); });
+            g_recognizer.refresh_image(*snapshot, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); ui_on_refresh(); });
         }
         else {
             snapshot_loader.stop();

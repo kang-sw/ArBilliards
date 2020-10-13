@@ -51,11 +51,9 @@ private:
 
 void channel_type::start(size_t buflen)
 {
-    struct connection_handler_type
-    {
+    struct connection_handler_type {
     public:
-        struct body_type
-        {
+        struct body_type {
             channel_type& channel;
             io_context::strand* strand;
             std::shared_ptr<tcp::socket> socket;
@@ -72,7 +70,7 @@ void channel_type::start(size_t buflen)
         void operator()(system::error_code error, size_t bytes_in)
         {
             auto& m = *body;
-            tcp_connection_desc desc{m.channel.srv_.io, m.socket, m.strand};
+            tcp_connection_desc desc = {.io = m.channel.srv_.io, .socket = m.socket, .strand = m.strand};
 
             if (m.on_read) {
                 m.on_read(error, desc, asio::buffer(m.membuf.data(), bytes_in));
@@ -81,7 +79,8 @@ void channel_type::start(size_t buflen)
             if (!error) {
                 if (m.strand) {
                     m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), m.strand->wrap(*this));
-                } else {
+                }
+                else {
                     m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), *this);
                 }
             }
@@ -109,7 +108,8 @@ void channel_type::start(size_t buflen)
                 }
 
                 m.strand = found_it->second.get();
-            } else {
+            }
+            else {
                 m.strand = nullptr;
             }
 
@@ -121,7 +121,8 @@ void channel_type::start(size_t buflen)
             if (!error && m.on_read) {
                 if (m.strand) {
                     m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), m.strand->wrap(*this));
-                } else {
+                }
+                else {
                     m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), *this);
                 }
             }
@@ -129,11 +130,10 @@ void channel_type::start(size_t buflen)
             m.channel.start(m.membuf.size());
         }
 
-        connection_handler_type() noexcept = delete;
         ~connection_handler_type() noexcept = default;
     };
 
-    connection_handler_type handler{std::make_shared<connection_handler_type::body_type>(connection_handler_type::body_type{*this, nullptr, std::make_shared<tcp::socket>(io()), std::vector<char>()})};
+    connection_handler_type handler = {.body = std::make_shared<connection_handler_type::body_type>(connection_handler_type::body_type{*this, nullptr, std::make_shared<tcp::socket>(io()), std::vector<char>()})};
     handler.body->membuf.resize(buflen);
     acpt_.async_accept(*handler.body->socket, move(handler));
 }

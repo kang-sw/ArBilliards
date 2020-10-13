@@ -28,7 +28,7 @@ add_executable(
 target_compile_features(
 	Recognition
 	PRIVATE
-		cxx_std_17
+		cxx_std_20
 )
 
 add_dependencies(
