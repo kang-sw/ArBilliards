@@ -534,7 +534,7 @@ void recognizer_impl_t::project_contours(img_t const& img, const cv::Mat& rgb, v
     }
 }
 
-void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& rgb, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
+void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& debug, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
 {
     using namespace names;
     ELAPSE_SCOPE("Table Search");
@@ -574,7 +574,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
             convexHull(vector(contour), contour, true);
             approxPolyDP(vector(contour), contour, eps1, true);
-            putText(rgb, (stringstream() << "[" << contour.size() << ", " << area_size << "]").str(), contour[0], FONT_HERSHEY_PLAIN, 1.0, {0, 255, 0});
+            putText(debug, (stringstream() << "[" << contour.size() << ", " << area_size << "]").str(), contour[0], FONT_HERSHEY_PLAIN, 1.0, {0, 255, 0});
 
             bool const table_found = contour.size() == 4;
 
@@ -593,7 +593,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
             vector<Vec2i> pts;
             pts.assign(table_contours.begin(), table_contours.end());
-            drawContours(rgb, vector{{pts}}, -1, {0, 0, 0}, 3);
+            drawContours(debug, vector{{pts}}, -1, {0, 0, 0}, 3);
         }
     }
 
@@ -695,7 +695,16 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             set_filtered_table_pos(tvec_world, confidence, confidence > 0.9f);
             desc.table.confidence = confidence;
             // draw_axes(img, (Mat&)rgb, rvec_world, tvec_world, 0.08f, 3);
-            drawContours(rgb, contours, -1, {255, 123, 0}, 3);
+            {
+                drawContours(debug, contours, -1, {255, 123, 0}, 3);
+                putText(debug, (stringstream() << "table confidence: " << confidence).str(), {0, 24}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
+
+                vector<Point> pts;
+                get_table_model(vertexes, tp["size"]["fit"], varget(float, Float_TableOffset));
+                project_model(varget(img_t, Imgdesc), pts, tvec_world, rvec_world, vertexes, true, 80, 50);
+
+                drawContours(debug, vector{{pts}}, -1, {0, 123, 255}, 3);
+            }
         }
 
         desc.table.position = table_pos;
@@ -724,25 +733,26 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
         vector<Vec2i> points;
         points.assign(table_contours.begin(), table_contours.end());
-        drawContours(rgb, vector{{points}}, -1, {255, 0, 0}, 3);
+        drawContours(debug, vector{{points}}, -1, {255, 0, 0}, 3);
 
         vector<Vec2f> input = table_contours;
         transform_estimation_param_t param = {num_iteration, num_candidates, rot_axis_variant, rot_variant, pos_initial_distance, border_margin};
         Vec2f FOV = p["FOV"];
         param.FOV = {FOV[0], FOV[1]};
-        param.debug_render_mat = rgb;
+        param.debug_render_mat = debug;
         param.render_debug_glyphs = true;
 
         auto result = estimate_matching_transform(img, input, model, init_pos, init_rot, param);
 
         if (result.has_value()) {
             auto& res = *result;
-            draw_axes(img, const_cast<cv::Mat&>(rgb), res.rotation, res.position, 0.07f, 2);
+            draw_axes(img, const_cast<cv::Mat&>(debug), res.rotation, res.position, 0.07f, 2);
             desc.table.confidence = res.confidence;
             set_filtered_table_pos(res.position, res.confidence, false);
             set_filtered_table_rot(res.rotation, res.confidence, false);
             desc.table.position = table_pos;
             desc.table.orientation = (Vec4f&)table_rot;
+            putText(debug, (stringstream() << "partial confidence: " << res.confidence).str(), {0, 24}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
         }
     }
 
@@ -756,12 +766,12 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         auto pos = table_pos;
         auto rot = table_rot;
         get_table_model(model, tp["size"]["inner"]);
-        project_contours(img, rgb, model, pos, rot, {255, 255, 255});
+        project_contours(img, debug, model, pos, rot, {255, 255, 255});
 
         get_table_model(model, tp["size"]["outer"], varget(float, Float_TableOffset));
-        project_contours(img, rgb, model, pos, rot, {0, 255, 0});
+        project_contours(img, debug, model, pos, rot, {0, 255, 0});
 
-        draw_axes(img, (Mat&)rgb, rot, pos, 0.08f, 3);
+        draw_axes(img, (Mat&)debug, rot, pos, 0.08f, 3);
     }
 }
 
@@ -784,13 +794,11 @@ cv::Vec3f recognizer_impl_t::set_filtered_table_rot(cv::Vec3f new_rot, float con
     }
 
     // 노멀이 위를 향하도록 합니다.
-    {
-        cv::Vec3f up{0, 1, 0};
-        up = rodrigues(new_rot) * up;
-        if (up[1] > 0) {
-            new_rot = rotate_local(new_rot, {(float)CV_PI, 0, 0});
-        }
-    }
+    /*cv::Vec3f up{0, 1, 0};
+    up = rodrigues(new_rot) * up;
+    if (up[1] > 0) {
+        new_rot = rotate_local(new_rot, {0, 0, (float)CV_PI});
+    }*/
 
     if (!allow_jump || norm(new_rot - table_rot) < m.props["table"]["LPF"]["rotation-jump-threshold"]) {
         float alpha = (float)m.props["table"]["LPF"]["rotation"] * confidence;
@@ -1485,16 +1493,18 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
 
                 auto rad_px = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
 
-                // 공이 정상적으로 찾아진 경우에만 ...
-                circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], -1);
+                if (rad_px > 0) {
+                    // 공이 정상적으로 찾아진 경우에만 ...
+                    circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], -1);
 
-                ball_positions[iter] = center;
-                ball_weights[iter] = *best;
+                    ball_positions[iter] = center;
+                    ball_weights[iter] = *best;
 
-                // 빨간 공인 경우 ...
-                if (iter == 1) {
-                    // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
-                    circle(m, center, rad_px, 0, -1);
+                    // 빨간 공인 경우 ...
+                    if (iter == 1) {
+                        // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
+                        circle(m, center, rad_px, 0, -1);
+                    }
                 }
             }
         }
@@ -1739,10 +1749,22 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
     }
 
     // 후처리 ... 테이블 회전을 180도 뒤집습니다.
+    if(0) // 취소!
     {
         auto orient = (Vec3f&)desc.table.orientation;
         orient = rotate_local(orient, {CV_PI, 0, 0});
         (Vec3f&)desc.table.orientation = orient;
+    }
+
+    // Debugging glyphs
+    {
+        // 카메라 트랜스폼 그리기
+        Vec3f rot;
+        Rodrigues(Mat(imdesc_source.camera_transform)({0, 3}, {0, 3}), rot);
+
+        auto imdesc = varget(img_t, Imgdesc);
+        auto debug = varget(Mat, Img_Debug);
+        draw_axes(imdesc, debug, rot, table_pos + Vec3f{0, 0.3f, 0}, 0.1f, 8);
     }
 
     // ShowImage에 모든 임시 매트릭스 추가

@@ -236,7 +236,7 @@ public:
     void find_table(
       img_t const& img,
       recognition_desc& desc,
-      const cv::Mat& rgb,
+      const cv::Mat& debug,
       const cv::UMat& filtered,
       std::vector<cv::Vec2f>& table_contours);
 
