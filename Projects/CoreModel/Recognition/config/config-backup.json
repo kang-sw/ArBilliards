@@ -89,6 +89,9 @@
         }
     },
     "do-resize": true,
+    "explorer": {
+        "depth-alpha": 255
+    },
     "fast-process-width": 960,
     "table": {
         "LPF": {
@@ -97,7 +100,7 @@
             "rotation": 0.08,
             "rotation-jump-threshold": 0.05
         },
-        "confidence-threshold": 0.33,
+        "confidence-threshold": 0.67,
         "contour": {
             "approx-epsilon-convexhull": 5,
             "approx-epsilon-preprocess": 5,

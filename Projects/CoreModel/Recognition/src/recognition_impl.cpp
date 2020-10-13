@@ -1503,7 +1503,7 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
                     // 빨간 공인 경우 ...
                     if (iter == 1) {
                         // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
-                        circle(m, center, rad_px, 0, -1);
+                        circle(m, center, rad_px + 1, 0, -1);
                     }
                 }
             }
@@ -1551,7 +1551,7 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
 
             // 빨간 공 두 개에 대해 ...
             // 예상 위치가 더 적게 차이나는 요소를 우선 선택합니다.
-            {
+            if (ball_weights[1] && ball_weights[0]) {
                 // 각각 검출 위치와 시뮬레이션 위치
                 auto p1 = ballpos[0], p2 = ballpos[1];
                 auto ps1 = prev[0].ps(now), ps2 = prev[1].ps(now);
@@ -1562,7 +1562,10 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
                 auto errs = {err_a1, err_a2, err_b1, err_b2};
                 auto it = min_element(errs.begin(), errs.end());
 
-                if (bool should_swap = (it - errs.begin()) >= 2; should_swap) {
+                if (norm(p2 - p1) < ball_radius) {
+                    *min_element(ball_weights.begin(), ball_weights.begin() + 1) = 0;
+                }
+                else if (bool should_swap = (it - errs.begin()) >= 2; should_swap) {
                     swap(ballpos[0], ballpos[1]);
                     swap(ball_weights[0], ball_weights[1]);
                 }
@@ -1749,7 +1752,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
     }
 
     // 후처리 ... 테이블 회전을 180도 뒤집습니다.
-    if(0) // 취소!
+    if (0) // 취소!
     {
         auto orient = (Vec3f&)desc.table.orientation;
         orient = rotate_local(orient, {CV_PI, 0, 0});
