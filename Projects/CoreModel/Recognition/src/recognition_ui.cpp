@@ -1,10 +1,10 @@
 #include "recognition.hpp"
-#include <cvui.h>
 #include <set>
 #include <fstream>
 #include <chrono>
 #include <nana/gui.hpp>
 #include <queue>
+#include <opencv2/opencv.hpp>
 
 extern billiards::recognizer_t g_recognizer;
 
@@ -25,7 +25,72 @@ struct n_type {
     nana::listbox lb{fm};
     map<string, nlohmann::json*> param_mappings;
     atomic_bool dirty;
+    struct {
+        atomic_bool is_recording;
+        shared_ptr<ostream> strm_out;
+        chrono::system_clock::time_point pivot_time;
+        atomic_bool is_busy;
+    } video;
 };
+
+struct video_frame {
+    float time_point;
+    billiards::recognizer_t::parameter_type img;
+};
+
+static ostream& operator<<(ostream& o, video_frame const& v)
+{
+    cv::Mat depth;
+    cv::Mat rgb;
+    cv::cvtColor(v.img.rgba, rgb, cv::COLOR_RGBA2RGB);
+    v.img.depth.convertTo(depth, CV_8U, 256);
+
+    auto wr = [&o](auto ty) { o.write((char*)&ty, sizeof ty); };
+    wr(v.time_point);
+    wr(v.img.camera);
+    wr(v.img.camera_transform);
+    wr(v.img.camera_translation);
+    wr(v.img.camera_orientation);
+
+    vector<uint8_t> buf;
+
+    cv::imencode(".jpg", rgb, buf);
+    wr((size_t)buf.size());
+    o.write((char*)buf.data(), buf.size());
+
+    buf.clear();
+    cv::imencode(".jpg", depth, buf);
+    wr((size_t)buf.size());
+    o.write((char*)buf.data(), buf.size());
+
+    return o;
+}
+
+static istream& operator>>(istream& i, video_frame& v)
+{
+    cv::Mat depth;
+    cv::Mat rgb;
+
+    auto rd = [&i](auto& ty) { i.read((char*)&ty, sizeof ty); };
+    rd(v.time_point);
+    rd(v.img.camera);
+    rd(v.img.camera_transform);
+    rd(v.img.camera_translation);
+    rd(v.img.camera_orientation);
+
+    vector<uint8_t> buf;
+
+    size_t sz;
+    rd(sz), buf.resize(sz);
+    i.read((char*)buf.data(), sz);
+    cv::cvtColor(cv::imdecode(buf, cv::IMREAD_COLOR), v.img.rgba, cv::COLOR_RGB2RGBA);
+
+    rd(sz), buf.resize(sz);
+    i.read((char*)buf.data(), sz);
+    cv::imdecode(buf, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1 / 256.f);
+
+    return i;
+}
 
 static weak_ptr<n_type> n_weak;
 
@@ -331,7 +396,6 @@ void exec_ui()
             reload_tr();
         }
     });
-
     btn_export.events().click([&](arg_click const& arg) {
         filebox fb(fm, false);
         fb.add_filter("Json File", "*.json");
@@ -343,7 +407,6 @@ void exec_ui()
             save_as(path.string());
         }
     });
-
     btn_import.events().click([&](arg_click const& arg) {
         filebox fb(fm, true);
         fb.add_filter("Json File", "*.json");
@@ -541,7 +604,6 @@ void exec_ui()
             }
         }
     });
-
     btn_snapshot.events().click([&](auto) {
         auto snap = g_recognizer.get_image_snapshot();
         filebox fb(fm, false);
@@ -566,13 +628,106 @@ void exec_ui()
             strm << snap;
         }
     });
-
     snapshot_loader.elapse([&]() {
         if (snapshot) {
-            g_recognizer.refresh_image(*snapshot, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); ui_on_refresh(); });
+            g_recognizer.refresh_image(*snapshot, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); });
         }
         else {
             snapshot_loader.stop();
+        }
+    });
+
+    // -- 로딩
+    button btn_video_load(fm), btn_video_record(fm), btn_video_playpause(fm);
+    vector<video_frame> loaded_frames;
+    size_t frame_index = 0;
+    bool is_playing_video = false;
+    btn_video_load.caption("Load Video");
+    btn_video_record.caption("Record Video");
+    btn_video_playpause.caption("Play");
+
+    timer video_player;
+
+    btn_video_record.events().click([&](auto) {
+        if (is_playing_video) {
+            msgbox("Pause playing video before record!");
+            return;
+        }
+
+        if (n->video.is_recording) {
+            n->video.is_recording = false;
+            btn_video_record.caption("Record Video");
+            btn_video_record.bgcolor(colors::light_gray);
+            return;
+        }
+
+        filebox fb(fm, false);
+        fb.add_filter("AR Billiards Video Trace Type", "*.arbtrace");
+        fb.allow_multi_select(false);
+
+        if (auto paths = fb.show(); !paths.empty()) {
+            auto& path = paths.front();
+            n->video.strm_out = make_shared<ofstream>(path.string(), ios::out | ios::binary);
+            n->video.pivot_time = chrono::system_clock::now();
+            n->video.is_recording = true;
+            btn_video_record.caption("Stop Recording");
+            btn_video_record.bgcolor(colors::red);
+        }
+    });
+    btn_video_load.events().click([&](auto) {
+        if (is_playing_video) {
+            msgbox("Please stop currently playing video first before load.");
+            return;
+        }
+
+        filebox fb(fm, true);
+        fb.add_filter("AR Billiards Video Trace Type", "*.arbtrace");
+        fb.allow_multi_select(false);
+
+        if (auto paths = fb.show(); !paths.empty()) {
+            auto& path = paths.front().string();
+            loaded_frames.clear();
+            frame_index = 0;
+
+            ifstream in{path, ios::in | ios::binary};
+            while (!in.eof()) {
+                in >> loaded_frames.emplace_back();
+            }
+        }
+    });
+    btn_video_playpause.events().click([&](auto) {
+        is_playing_video = !is_playing_video;
+        if (is_playing_video && loaded_frames.empty()) {
+            is_playing_video = false;
+        }
+
+        if (is_playing_video) {
+            btn_video_playpause.bgcolor(colors::red);
+            btn_video_playpause.caption("Pause");
+
+            video_player.interval(10ms);
+            video_player.start();
+        }
+        else {
+            btn_video_playpause.bgcolor(colors::light_gray);
+            btn_video_playpause.caption("Play");
+        }
+    });
+    video_player.elapse([&]() {
+        if (loaded_frames.empty() == false) {
+            if (!is_playing_video || n->video.is_busy) {
+                return;
+            }
+            n->video.is_busy = true;
+
+            auto& previous = loaded_frames[frame_index++ % loaded_frames.size()];
+            auto& vid = loaded_frames[frame_index % loaded_frames.size()];
+            auto tm = max(0.01f, vid.time_point - previous.time_point);
+            g_recognizer.refresh_image(previous.img, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); });
+            video_player.interval(chrono::milliseconds((int)(tm * 1000.f)));
+        }
+        else {
+            video_player.stop();
         }
     });
 
@@ -633,8 +788,9 @@ void exec_ui()
       "    <timings>>"
       "<vert"
       "    weight=400"
-      "    <margin=[5,5,2,5] gap=5 weight=40 <btn_reset weight=15%><btn_export><btn_import>>"
+      "    <margin=[5,5,2,5] gap=5 weight=30 <btn_reset weight=15%><btn_export><btn_import>>"
       "    <margin=[0,5,5,5] gap=5 weight=30 <btn_snap_load><btn_snapshot><btn_snap_abort weight=25%>>"
+      "    <margin=[0,5,5,5] gap=5 weight=30 <btn_video_load><btn_video_record><btn_video_playpause>>"
       "    <enter weight=30 margin=5>"
       "    <center margin=5>>");
 
@@ -648,6 +804,9 @@ void exec_ui()
     layout["btn_snap_load"] << btn_snap_load;
     layout["btn_snapshot"] << btn_snapshot;
     layout["btn_snap_abort"] << btn_snap_abort;
+    layout["btn_video_load"] << btn_video_load;
+    layout["btn_video_record"] << btn_video_record;
+    layout["btn_video_playpause"] << btn_video_playpause;
     layout.collocate();
 
     fm.events().move([&](auto) {
@@ -682,6 +841,17 @@ void ui_on_refresh()
             g_recognizer.poll(n->shows);
         }
 
+        if (n->video.is_recording) {
+            assert(n->video.strm_out);
+            auto time = chrono::duration<float>(chrono::system_clock::now() - n->video.pivot_time).count();
+            video_frame f = {.time_point = time, .img = g_recognizer.get_image_snapshot()};
+            *n->video.strm_out << f;
+        }
+        else if (n->video.strm_out) {
+            n->video.strm_out.reset();
+        }
+
+        n->video.is_busy = false;
         n->dirty = true;
     }
 }
