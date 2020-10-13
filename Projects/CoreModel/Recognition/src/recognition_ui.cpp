@@ -5,6 +5,7 @@
 #include <nana/gui.hpp>
 #include <queue>
 #include <opencv2/opencv.hpp>
+#include <span>
 
 extern billiards::recognizer_t g_recognizer;
 
@@ -38,12 +39,14 @@ struct video_frame {
     billiards::recognizer_t::parameter_type img;
 };
 
+#define DEPTH_RATE 32
+
 static ostream& operator<<(ostream& o, video_frame const& v)
 {
     cv::Mat depth;
     cv::Mat rgb;
     cv::cvtColor(v.img.rgba, rgb, cv::COLOR_RGBA2RGB);
-    v.img.depth.convertTo(depth, CV_8U, 256);
+    v.img.depth.convertTo(depth, CV_8U, DEPTH_RATE);
 
     auto wr = [&o](auto ty) { o.write((char*)&ty, sizeof ty); };
     wr(v.time_point);
@@ -87,9 +90,60 @@ static istream& operator>>(istream& i, video_frame& v)
 
     rd(sz), buf.resize(sz);
     i.read((char*)buf.data(), sz);
-    cv::imdecode(buf, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1 / 256.f);
+    cv::imdecode(buf, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / DEPTH_RATE);
 
     return i;
+}
+
+struct video_frame_chunk {
+    float time_point;
+    struct {
+        cv::Matx44f camera_transform;
+        billiards::recognizer_t::camera_param_type camera;
+        cv::Vec3f camera_translation;
+        cv::Vec4f camera_orientation;
+    } img;
+    vector<uint8_t> chnk_rgb;
+    vector<uint8_t> chnk_depth;
+};
+
+static istream& operator>>(istream& i, video_frame_chunk& v)
+{
+    cv::Mat depth;
+    cv::Mat rgb;
+
+    auto rd = [&i](auto& ty) { i.read((char*)&ty, sizeof ty); };
+    rd(v.time_point);
+    rd(v.img.camera);
+    rd(v.img.camera_transform);
+    rd(v.img.camera_translation);
+    rd(v.img.camera_orientation);
+
+    vector<uint8_t> buf;
+
+    size_t sz;
+    rd(sz), v.chnk_rgb.resize(sz);
+    i.read((char*)v.chnk_rgb.data(), sz);
+
+    rd(sz), v.chnk_depth.resize(sz);
+    i.read((char*)v.chnk_depth.data(), sz);
+
+    return i;
+}
+
+static video_frame parse(video_frame_chunk const& va)
+{
+    video_frame v;
+    v.img.camera_orientation = va.img.camera_orientation;
+    v.img.camera = va.img.camera;
+    v.img.camera_transform = va.img.camera_transform;
+    v.img.camera_translation = va.img.camera_translation;
+    v.time_point = va.time_point;
+
+    cv::cvtColor(cv::imdecode(va.chnk_rgb, cv::IMREAD_COLOR), v.img.rgba, cv::COLOR_RGB2RGBA);
+    cv::imdecode(va.chnk_depth, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / DEPTH_RATE);
+
+    return v;
 }
 
 static weak_ptr<n_type> n_weak;
@@ -190,7 +244,6 @@ static void json_iterative_substitute(json& to, json const& from)
     }
 }
 
-#define AUTOSAVE_PATH "arbilliards-autoconfig.json"
 void exec_ui()
 {
     using namespace nana;
@@ -199,6 +252,10 @@ void exec_ui()
     form& fm = n->fm; // 주 폼
 
     // 변수 목록
+    string AUTOSAVE_PATH = "arbilliards-autosave.json";
+    AUTOSAVE_PATH = (filesystem::current_path() / AUTOSAVE_PATH).string();
+    cout << "Autosave path set at " << AUTOSAVE_PATH << endl;
+
     string current_save_path = AUTOSAVE_PATH;
     string curtime_prefix;
     {
@@ -639,7 +696,8 @@ void exec_ui()
 
     // -- 로딩
     button btn_video_load(fm), btn_video_record(fm), btn_video_playpause(fm);
-    vector<video_frame> loaded_frames;
+    vector<video_frame_chunk> frame_chunks;
+    optional<video_frame> previous;
     size_t frame_index = 0;
     bool is_playing_video = false;
     btn_video_load.caption("Load Video");
@@ -685,19 +743,19 @@ void exec_ui()
         fb.allow_multi_select(false);
 
         if (auto paths = fb.show(); !paths.empty()) {
-            auto& path = paths.front().string();
-            loaded_frames.clear();
+            auto path = paths.front().string();
+            frame_chunks.clear();
             frame_index = 0;
 
             ifstream in{path, ios::in | ios::binary};
             while (!in.eof()) {
-                in >> loaded_frames.emplace_back();
+                in >> frame_chunks.emplace_back();
             }
         }
     });
     btn_video_playpause.events().click([&](auto) {
         is_playing_video = !is_playing_video;
-        if (is_playing_video && loaded_frames.empty()) {
+        if (is_playing_video && frame_chunks.empty()) {
             is_playing_video = false;
         }
 
@@ -714,20 +772,24 @@ void exec_ui()
         }
     });
     video_player.elapse([&]() {
-        if (loaded_frames.empty() == false) {
+        if (frame_chunks.empty() == false) {
             if (!is_playing_video || n->video.is_busy) {
                 return;
             }
-            n->video.is_busy = true;
 
-            auto& previous = loaded_frames[frame_index++ % loaded_frames.size()];
-            auto& vid = loaded_frames[frame_index % loaded_frames.size()];
-            auto tm = max(0.01f, vid.time_point - previous.time_point);
-            g_recognizer.refresh_image(previous.img, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); });
-            video_player.interval(chrono::milliseconds((int)(tm * 1000.f)));
+            auto& vid_chnk = frame_chunks[frame_index++ % frame_chunks.size()];
+            auto vid = parse(vid_chnk);
+            if (previous) {
+                auto tm = max(0.01f, vid.time_point - previous->time_point);
+                g_recognizer.refresh_image(previous->img, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); });
+                video_player.interval(chrono::milliseconds((int)(tm * 1000.f)));
+                n->video.is_busy = true;
+            }
+            previous = vid;
         }
         else {
             video_player.stop();
+            previous.reset();
         }
     });
 
