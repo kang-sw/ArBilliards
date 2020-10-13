@@ -2,3 +2,6 @@
 [submodule "Projects/CoreModel/Recognition/third/cpp-base64"]
 	path = Projects/CoreModel/Recognition/third/cpp-base64
 	url = https://github.com/ReneNyffenegger/cpp-base64.git
+[submodule "Projects/CoreModel/Recognition/third/range-v3"]
+	path = Projects/CoreModel/Recognition/third/range-v3
+	url = https://github.com/ericniebler/range-v3.git
