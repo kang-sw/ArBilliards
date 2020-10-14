@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
+using Debug = System.Diagnostics.Debug;
 
 public enum BilliardsBall
 {
@@ -331,7 +332,7 @@ public class SimHandler : MonoBehaviour
 			AsyncSimAgent.SimResult.Candidate nearlest = r.Candidates[0];
 			var distSorted = from elem in r.Candidates
 							 where Vector3.Angle(elem.InitVelocity, fwd) < PathForwardAngle * 0.5f
-							 orderby elem.Votes
+							 orderby elem.InitVelocity.sqrMagnitude
 							 select elem;
 
 			nearlest = distSorted.FirstOrDefault();
@@ -830,16 +831,18 @@ public class AsyncSimAgent
 							var contactDir = (other.Position - node.Position).normalized;
 							var angleWeight = Vector3.Dot(contactDir, node.Velocity.normalized);
 							angleWeight = 2f * Mathf.Pow(angleWeight, 0.633f); // 내적이 0에 가까울수록 = 얇게 부딪칠수록 낮은 가중치
-							weight += Math.Max(angleWeight, 1f);
+							weight += Math.Max(angleWeight, 0.98f);
 
 
 							// 때린 공의 타임라인을 쫓아, 때리는 공이 다른 공과 몇번 충돌했는지 검사합니다.
-							var prevHits = from timestamp in balls[index].Nodes
-										   where timestamp.Time < node.Time && timestamp.Other != null
-										   select timestamp;
-
-							int numHitsPrev = prevHits.Count();
-							weight -= 1f;
+							int otherIdx = otherBall.Value;
+							var prevWallHits = from timestamp in balls[otherIdx].Nodes
+											   where timestamp.Time < node.Time && timestamp.Other == null
+											   select timestamp;
+							var prevBallHits = from timestamp in balls[otherIdx].Nodes
+											   where timestamp.Time < node.Time && timestamp.Other != null
+											   select timestamp;
+							weight -= prevWallHits.Count() * 1f + prevBallHits.Count() * 2f;
 						}
 
 						hits[index] = (1, numCushionHit);

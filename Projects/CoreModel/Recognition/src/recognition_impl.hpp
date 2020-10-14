@@ -128,6 +128,7 @@ public:
             b["red"]["negative-weight"] = 1;
             b["red"]["weight-hue-sat"] = Vec2f{2, 1};
             b["red"]["error-function-base"] = 1.15;
+            b["red"]["second-ball-erase-additional-radius"] = 7;
 
             b["orange"]["color"] = Vec2f{85, 173};
             b["orange"]["suitability-threshold"] = 0.35;
@@ -171,7 +172,8 @@ public:
             t["size"]["inner"] = Vec2f(0.895f, 0.447f);
             t["confidence-threshold"] = 0.115;
 
-            t["preprocess"]["dilate-erode-noise-remove"] = 25;
+            t["preprocess"]["dilate-erode-num-erode-prev"] = 25;
+            t["preprocess"]["dilate-erode-num-erode-post"] = 25;
             t["preprocess"]["AWB-RGB-discard-rate"] = Vec3d{0.02, 0.02, 0.02};
 
             auto& tc = t["contour"];

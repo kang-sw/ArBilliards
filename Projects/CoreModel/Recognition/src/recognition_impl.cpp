@@ -590,7 +590,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         auto ch_model = model;
 
         project_model(img, points, res.position, res.rotation, ch_model, true, p.FOV.width, p.FOV.height);
-        cv::drawContours(p.debug_render_mat, vector{{points}}, -1, {0, 0, 255}, 3);
+        cv::drawContours(p.debug_render_mat, vector{{points}}, -1, {0, 0, 255}, 1);
     }
 
     return res;
@@ -780,8 +780,8 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
             Vec3f tvec_world = tvec, rvec_world = rvec;
             camera_to_world(img, rvec_world, tvec_world);
-            set_filtered_table_rot(rvec_world, confidence, confidence > 0.9f);
-            set_filtered_table_pos(tvec_world, confidence, confidence > 0.9f);
+            set_filtered_table_rot(rvec_world, confidence, confidence > tp["confidence-threshold"]);
+            set_filtered_table_pos(tvec_world, confidence, confidence > tp["confidence-threshold"]);
             desc.table.confidence = confidence;
             // draw_axes(img, (Mat&)rgb, rvec_world, tvec_world, 0.08f, 3);
             {
@@ -1628,7 +1628,7 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
                     // 빨간 공인 경우 ...
                     if (iter == 1) {
                         // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
-                        circle(m, center, rad_px + 4, 0, -1);
+                        circle(m, center, rad_px + (int)balls[0]["second-ball-erase-additional-radius"], 0, -1);
                         show("Ball Match - Red 2 Match Map", m);
                     }
                 }
@@ -1890,16 +1890,18 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             varset(UImg_TableFiltered) = u_mask;
             show("Table Blue Color Mask", u_mask);
 
-            if (int iteration = tp["preprocess"]["dilate-erode-noise-remove"]; (iteration = (iteration & ~1)) > 0) {
+            if (
+              int prev_iter = tp["preprocess"]["dilate-erode-num-erode-prev"],
+              post_iter = tp["preprocess"]["dilate-erode-num-erode-post"];
+              prev_iter > 0 && post_iter > 0) {
                 ELAPSE_SCOPE("Dilate-Erode Noise Remove");
                 UMat u0, u1;
-                auto pre_dilate = iteration / 4;
-                auto post_dilate = iteration - pre_dilate;
-                copyMakeBorder(u_mask, u0, iteration, iteration, iteration, iteration, BORDER_CONSTANT);
-                erode(u0, u1, {}, {-1, -1}, pre_dilate, BORDER_CONSTANT, {});
-                dilate(u1, u0, {}, {-1, -1}, iteration, BORDER_CONSTANT, {});
-                erode(u0, u1, {}, {-1, -1}, post_dilate, BORDER_CONSTANT, {});
-                u_mask = u1(Rect{{iteration, iteration}, u_mask.size()});
+                auto num_dilate = prev_iter + post_iter;
+                copyMakeBorder(u_mask, u0, prev_iter, prev_iter, prev_iter, prev_iter, BORDER_CONSTANT);
+                erode(u0, u1, {}, {-1, -1}, prev_iter, BORDER_CONSTANT, {});
+                dilate(u1, u0, {}, {-1, -1}, num_dilate, BORDER_CONSTANT, {});
+                erode(u0, u1, {}, {-1, -1}, post_iter, BORDER_CONSTANT, {});
+                u_mask = u1(Rect{{prev_iter, prev_iter}, u_mask.size()});
                 show("Table Blue Color Mask - Eroded", u_mask);
             }
 

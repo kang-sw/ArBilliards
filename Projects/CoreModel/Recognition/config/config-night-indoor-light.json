@@ -1,17 +1,21 @@
 {
     "FOV": [
-        84.9000015258789,
-        52.900001525878906
+        84.855,
+        53.27
     ],
     "ball": {
         "classification": {
-            "max-error-speed": 2.0
+            "max-error-speed": 1
         },
         "common": {
-            "confidence-threshold": 0.15000000596046448,
+            "confidence-threshold": 0.15,
             "confidence-weight": 2.0,
             "error-base": 36644,
             "min-pixel-radius": 1,
+            "movement": {
+                "jump-distance": 0.015,
+                "position-LPF-alpha": 0.05
+            },
             "radius": 0.02228169203286535,
             "random-sample": {
                 "do-parallel": true,
@@ -20,7 +24,7 @@
                     1.33
                 ],
                 "positive-area": [
-                    0.6,
+                    0.3,
                     1
                 ],
                 "radius": 25,
@@ -44,25 +48,25 @@
         },
         "red": {
             "color": [
-                115,
-                220
+                125,
+                195
             ],
             "error-function-base": 30000,
-            "negative-weight": 1.5,
-            "suitability-threshold": 0.5,
+            "negative-weight": 1,
+            "suitability-threshold": 0.3,
             "weight-hue-sat": [
-                2.0,
+                3,
                 1.0
             ]
         },
         "white": {
             "color": [
-                25,
-                26.5
+                35,
+                33
             ],
             "error-function-base": 30000,
-            "negative-weight": 5,
-            "suitability-threshold": 0.5,
+            "negative-weight": 3,
+            "suitability-threshold": 0.22,
             "weight-hue-sat": [
                 2.0,
                 1.0
@@ -73,21 +77,21 @@
     "explorer": {
         "depth-alpha": 32
     },
-    "fast-process-width": 640,
+    "fast-process-width": 960,
     "others": {
-        "random-sample-view-scale": 340,
+        "random-sample-view-scale": 125,
         "top-view-scale": 894
     },
     "table": {
         "LPF": {
             "distance-jump-threshold": 0.02,
-            "position": 0.1,
-            "rotation": 0.1,
+            "position": 0.34,
+            "rotation": 0.11,
             "rotation-jump-threshold": 0.02
         },
-        "confidence-threshold": 0.33,
+        "confidence-threshold": 0.93,
         "contour": {
-            "approx-epsilon-convexhull": 5,
+            "approx-epsilon-convexhull": 8,
             "approx-epsilon-preprocess": 5,
             "area-threshold-ratio": 0.03
         },
@@ -96,11 +100,11 @@
         "filter": [
             [
                 175,
-                165,
-                5
+                160,
+                16
             ],
             [
-                15.0,
+                15,
                 255.0,
                 255.0
             ]
@@ -108,13 +112,30 @@
         "minimum-confidence": 0.15,
         "partial": {
             "border-margin": 3,
-            "candidates": 200,
-            "iteration": 10,
-            "pos-variant": 0.14,
-            "rot-amount-variant": 0.06,
-            "rot-axis-variant": 0.015
+            "candidates": 6000,
+            "contour-curll-window": {
+                "offset": [
+                    0.01,
+                    0.01
+                ],
+                "size": [
+                    0.98,
+                    0.75
+                ]
+            },
+            "do-parallel": true,
+            "iteration": 5,
+            "iteration-narrow-coeff": 0.5,
+            "pos-variant": 0.22,
+            "rot-amount-variant": 0.07,
+            "rot-axis-variant": 0.008
         },
         "preprocess": {
+            "AWB-RGB-discard-rate": [
+                0.005,
+                0.005,
+                0.005
+            ],
             "dilate-erode-noise-remove": 0
         },
         "size": {
@@ -133,9 +154,9 @@
         }
     },
     "window-position": [
-        2309,
-        473,
+        1433,
+        406,
         800,
-        879
+        600
     ]
 }

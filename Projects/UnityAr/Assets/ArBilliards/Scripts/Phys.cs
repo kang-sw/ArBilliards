@@ -446,10 +446,10 @@ namespace ArBilliards.Phys
 
 				A.Velocity = (nV1p - V1p) + V1;
 
-				A.AngularVelocity *= PL.Friction.Static;
+				// A.AngularVelocity *= PL.Friction.Static;
 				var rollVec = Vector3.Cross(A.AngularVelocity, A.Context.UpVector);
 				rollVec = Vector3.Project(rollVec, -N);
-				A.Velocity += rollVec;
+				A.Velocity += rollVec * PL.Friction.Static;
 				break;
 			}
 			}
