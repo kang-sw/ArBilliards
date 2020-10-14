@@ -264,9 +264,31 @@ static void cull_frustum_impl(vector<cv::Vec3f>& obj_pts, plane_t const* plane_p
     }
 }
 
-static void fit_contour_to_screen(vector<cv::Vec2f>& pts, cv::Rect screen)
+template <typename Ty_>
+static void fit_contour_to_screen(vector<Ty_>& pts, cv::Rect screen)
 {
-    // 기본적으로 frustum culling과 같지만, 화면에 맞춥니다.
+    // 각 점을 3차원으로 변환합니다. x, y축을 사용
+    thread_local static vector<cv::Vec3f> vertexes;
+    vertexes.clear();
+    for (cv::Vec2i pt : pts) {
+        vertexes.emplace_back(pt[0], pt[1], 0);
+    }
+
+    // 4개의 평면 생성
+    auto tl = screen.tl(), br = screen.br();
+    plane_t planes[] = {
+      {{+1, 0, 0}, -tl.x},
+      {{-1, 0, 0}, +br.x},
+      {{0, +1, 0}, -tl.y},
+      {{0, -1, 0}, +br.y},
+    };
+
+    cull_frustum_impl(vertexes, planes, *(&planes + 1) - planes);
+
+    pts.clear();
+    for (int it = 0; auto vt : vertexes) {
+        pts.emplace_back(cv::Vec2i(vt[0], vt[1]));
+    }
 }
 
 static void cull_frustum(vector<cv::Vec3f>& obj_pts, vector<plane_t> const& planes)
@@ -288,10 +310,6 @@ static void project_model_local(img_t const& img, vector<cv::Vec2f>& mapped_cont
         // 각 점을 매핑합니다.
         // projectPoints(model_vertexes, cv::Vec3f(0, 0, 0), cv::Vec3f(0, 0, 0), mat_cam, mat_disto, mapped_contour);
         project_points(model_vertexes, mat_cam, mat_disto, mapped_contour);
-
-        if (do_cull) {
-            fit_contour_to_screen(mapped_contour, {cv::Point{}, cv::Size{img.rgba.cols, img.rgba.rows}});
-        }
     }
 }
 
@@ -388,29 +406,41 @@ struct timer_scope_t {
     int index_;
 };
 
-static bool is_border_pixel(cv::Size img_size, cv::Vec2f pixel, int margin = 3)
+static bool is_border_pixel(cv::Rect img_size, cv::Vec2i pixel, int margin = 3)
 {
+    pixel = pixel - (cv::Vec2i)img_size.tl();
     bool w = pixel[0] < margin || pixel[0] >= img_size.width - margin;
     bool h = pixel[1] < margin || pixel[1] >= img_size.height - margin;
     return w || h;
 }
 
-optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::estimate_matching_transform(img_t const& img, vector<cv::Vec2f> const& input, vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p)
+optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::estimate_matching_transform(img_t const& img, vector<cv::Vec2f> const& input_param, vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p)
 {
     // 입력을 verify합니다. frustum culliing을 활용하기 때문에, 반드시 컨투어 픽셀 두 개 이상이 이미지의 경계선에 걸쳐 있어야 합니다.
     // 적어도 2개 이상의 정점이 이미지 경계 밖에 있어야 하고, 2개 이상의 정점이 경계 안에 있어야 합니다.
+    auto input = input_param;
     {
         int num_in = 0, num_out = 0;
-        cv::Size size(img.rgba.cols, img.rgba.rows);
+        fit_contour_to_screen(input, p.contour_cull_rect);
+
+        // 컬링 된 컨투어 그리기
+        vector<cv::Vec2i> pts;
+        pts.assign(input_param.begin(), input_param.end());
+        cv::drawContours(p.debug_render_mat, vector{{pts}}, -1, {0, 188, 100}, 2);
+        if (input.size()) {
+            pts.assign(input.begin(), input.end());
+            cv::drawContours(p.debug_render_mat, vector{{pts}}, -1, {0, 113, 181}, 1);
+        }
+
         for (auto& pt : input) {
-            auto is_border = is_border_pixel(size, pt, p.border_margin);
+            auto is_border = is_border_pixel(p.contour_cull_rect, (cv::Vec2i)pt, p.border_margin);
             num_in += !is_border;
             num_out += is_border;
         }
 
         // 방향을 구별 가능한 최소 숫자입니다.
         // 또한, 경계에 걸친 점이 적어도 2개 있어야 합니다.
-        if (num_in * 2 + num_out < 5 || num_out < 2) {
+        if (num_in * 2 + num_out < 6 || num_out < 2) {
             return {};
         }
     }
@@ -442,8 +472,8 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         if (do_parallel) {
             cands.resize(p.num_candidates);
             thread_local mt19937 rand{(unsigned)hash<thread::id>{}(this_thread::get_id())};
-            thread_local static vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
-            thread_local static vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
+            thread_local vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
+            thread_local vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
             for_each(execution::par_unseq, cands.begin(), cands.end(), [&](candidate_t& elem) {
                 candidate_t cand;
 
@@ -471,6 +501,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
                 ch_model.assign(model.begin(), model.end());
 
                 project_model_fast(img, ch_mapped, cand.pos, cand.rot, ch_model, true, planes);
+                fit_contour_to_screen(ch_mapped, p.contour_cull_rect);
                 // project_model(img, ch_mapped, cand.pos, cand.rot, ch_model, true, p.FOV.width, p.FOV.height);
 
                 // 컨투어 개수가 달라도 기각함에 유의!
@@ -561,6 +592,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         auto ch_model = model;
 
         project_model(img, points, res.position, res.rotation, ch_model, true, p.FOV.width, p.FOV.height);
+        fit_contour_to_screen(points, p.contour_cull_rect);
         cv::drawContours(p.debug_render_mat, vector{{points}}, -1, {0, 0, 255}, 3);
     }
 
@@ -660,7 +692,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
     // 가장 높은 confidence ...
     bool is_any_border_point = false;
     for (auto pt : table_contours) {
-        if (is_border_pixel(image_size, pt)) {
+        if (is_border_pixel({{}, image_size}, (Vec2i)pt)) {
             is_any_border_point = true;
             break;
         }
@@ -802,6 +834,22 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         param.debug_render_mat = debug;
         param.render_debug_glyphs = true;
         param.do_parallel = tpa["do-parallel"];
+        param.iterative_narrow_ratio = tpa["iteration-narrow-coeff"];
+
+        // contour 컬링 사각형을 계산합니다.
+        {
+            Vec2d offset = tpa["contour-curll-window"]["offset"];
+            Vec2d size = tpa["contour-curll-window"]["size"];
+            Vec2i img_size = static_cast<Point>(debug.size());
+
+            Rect r{(Point)(Vec2i)offset.mul(img_size), (Size)(Vec2i)size.mul(img_size)};
+            if (get_safe_ROI_rect(debug, r)) {
+                param.contour_cull_rect = r;
+            }
+            else {
+                param.contour_cull_rect = Rect{{}, debug.size()};
+            }
+        }
 
         auto result = estimate_matching_transform(img, input, model, init_pos, init_rot, param);
 
@@ -826,6 +874,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         vector<Vec3f> model;
         auto pos = table_pos;
         auto rot = table_rot;
+
         get_table_model(model, tp["size"]["inner"]);
         project_contours(img, debug, model, pos, rot, {255, 255, 255}, 1);
 
@@ -1166,7 +1215,7 @@ optional<cv::Vec3f> plane_t::find_contact(cv::Vec3f const& P1, cv::Vec3f const& 
     if (auto uo = calc_u(P1, P2); uo /*&& calc(P1) * calc(P2) < 0*/) {
         auto u = *uo;
 
-        if (u <= 1.f && u > 0.f) {
+        if (u <= 1.f && u >= 0.f) {
             return P1 + (P2 - P1) * u;
         }
     }

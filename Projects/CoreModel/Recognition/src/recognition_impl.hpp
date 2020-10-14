@@ -188,12 +188,15 @@ public:
 
             auto& tpa = t["partial"];
             tpa["iteration"] = 5;
+            tpa["iteration-narrow-coeff"] = 0.64;
             tpa["candidates"] = 25;
             tpa["rot-axis-variant"] = 0.015;
             tpa["rot-amount-variant"] = 0.06;
             tpa["pos-variant"] = 0.14;
             tpa["border-margin"] = 3;
             tpa["do-parallel"] = true;
+            tpa["contour-curll-window"]["offset"] = Vec2d{0.0, 0.0};
+            tpa["contour-curll-window"]["size"] = Vec2d{1.0, 2.0 / 3};
 
             t["LPF"]["position"] = 0.1666;
             t["LPF"]["rotation"] = 0.33;
@@ -268,11 +271,13 @@ public:
         int border_margin = 3;
         cv::Size2f FOV = {90, 60};
         float confidence_calc_base = 1.02f; // 에러 계산에 사용
-        float iterative_narrow_ratio = 0.87f;
+        float iterative_narrow_ratio = 0.6f;
 
         cv::Mat debug_render_mat;
         bool render_debug_glyphs = true;
         bool do_parallel = true;
+
+        cv::Rect contour_cull_rect;
     };
 
     struct transform_estimation_result_t {
