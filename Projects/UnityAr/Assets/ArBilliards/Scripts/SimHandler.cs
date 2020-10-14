@@ -450,7 +450,7 @@ public class SimHandler : MonoBehaviour
 		{
 			// 라인을 그립니다.
 			var pos = nodes[index].Position;
-			// pos.y -= BallRadius;
+			pos.y -= BallRadius;
 
 			target.SetPosition(index, pos);
 

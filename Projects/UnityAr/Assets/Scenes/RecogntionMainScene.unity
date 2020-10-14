@@ -537,7 +537,7 @@ PrefabInstance:
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
       propertyPath: setIMUPriorInAR
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
@@ -603,6 +603,11 @@ PrefabInstance:
         type: 3}
       propertyPath: videoContrast
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
+        type: 3}
+      propertyPath: videoSettingsInitMode
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: e13ee7e0790c7d243b7aa67fe604acac, type: 3}
@@ -673,100 +678,30 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 1999053809798403868, guid: 663baa869fdc6a342856b54d68f78961,
+    - target: {fileID: 1999053809273623335, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
-      propertyPath: m_Parameters.colorGradient.key1.a
-      value: 0.12941177
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 1999053809798403868, guid: 663baa869fdc6a342856b54d68f78961,
+    - target: {fileID: 1999053809633456330, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
-      propertyPath: m_Parameters.colorGradient.key2.a
-      value: 0.10980392
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 1999053809798403868, guid: 663baa869fdc6a342856b54d68f78961,
+    - target: {fileID: 1999053809669957024, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
-      propertyPath: m_Parameters.colorGradient.atime1
-      value: 9309
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053809798403868, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.m_NumAlphaKeys
-      value: 3
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1999053809856864291, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: camTransform
       value: 
       objectReference: {fileID: 1359819197}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
+    - target: {fileID: 1999053809915669043, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
-      propertyPath: m_Parameters.colorGradient.key0.r
-      value: 0.051486313
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.key0.g
-      value: 0.8396226
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.key0.b
-      value: 0.091902524
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.key0.a
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.key1.r
-      value: 0.032840855
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.key1.g
-      value: 0.7735849
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.key1.b
-      value: 0.19645306
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.key1.a
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.key2.a
+      propertyPath: m_IsActive
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.atime0
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.atime1
-      value: 32575
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.atime2
-      value: 65535
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.m_NumAlphaKeys
-      value: 3
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810157826626, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.ctime1
-      value: 65310
       objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
@@ -775,43 +710,43 @@ PrefabInstance:
       objectReference: {fileID: 1776626643}
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
-      propertyPath: TableStaticFriction
-      value: 0.04
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: BallStaticFriction
-      value: 0.34
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: BallRollTime
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
       propertyPath: TableRestitution
-      value: 0.63
+      value: 0.94
       objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: BallRestitution
-      value: 0.86
+      value: 0.93
       objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
-      propertyPath: BallDamping
-      value: 0.43
+      propertyPath: TableHorizontalSuppress
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: TableStaticFriction
+      value: 0.03
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: MovementSpeedThreshold
+      value: 0.007
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: BallStaticFriction
+      value: 0.28
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: BallRollTime
+      value: 0.7
       objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: PathForwardAngle
-      value: 3
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: BallRadius
-      value: 0.02208169
+      value: 1.5
       objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700375, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
@@ -873,30 +808,15 @@ PrefabInstance:
       propertyPath: AdjustedTransform
       value: 
       objectReference: {fileID: 2064407234}
+    - target: {fileID: 1999053810412700376, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: stopSpeed
+      value: 0.007
+      objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700377, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: m_Name
       value: BilliardsManager
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810576407002, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.key1.a
-      value: 0.12941177
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810576407002, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.key2.a
-      value: 0.10980392
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810576407002, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.atime1
-      value: 9309
-      objectReference: {fileID: 0}
-    - target: {fileID: 1999053810576407002, guid: 663baa869fdc6a342856b54d68f78961,
-        type: 3}
-      propertyPath: m_Parameters.colorGradient.m_NumAlphaKeys
-      value: 3
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 663baa869fdc6a342856b54d68f78961, type: 3}
