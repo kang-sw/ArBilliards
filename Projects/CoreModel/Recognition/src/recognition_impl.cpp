@@ -1336,8 +1336,8 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
             show("Ball Match Field Raw: "s + ball_names[ball_idx], m);
         }
 
-        cv::UMat output_color{ROI.size(), CV_8UC3};
-        output_color.setTo(0);
+        cv::UMat match_field{ROI.size(), CV_8UC3};
+        match_field.setTo(0);
         cv::Scalar color_ROW[] = {{41, 41, 255}, {0, 213, 255}, {255, 255, 255}};
 
         // 정규화된 랜덤 샘플의 목록을 만듭니다.
@@ -1437,7 +1437,7 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
                 // color match값이 threshold보다 큰 모든 인덱스를 선택하고, 인덱스 집합을 생성합니다.
                 compare(m, (float)bp["suitability-threshold"s], u0, cv::CMP_GT);
                 bitwise_and(u0, area_mask, u1);
-                output_color.setTo(color_ROW[bidx], u1);
+                match_field.setTo(color_ROW[bidx], u1);
 
                 // 모든 valid한 인덱스를 추출합니다.
                 cand_indexes.reserve(1000);
@@ -1530,7 +1530,7 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
 
                 if (rad_px > 0) {
                     // 공이 정상적으로 찾아진 경우에만 ...
-                    circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], 1);
+                    // circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], 1);
 
                     ball_positions[iter] = center;
                     ball_weights[iter] = *best;
@@ -1545,7 +1545,7 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
         }
 
         show("Ball Match Suitability Field"s, suitability_field);
-        show("Ball Match Field Mask"s, output_color);
+        show("Ball Match Field Mask"s, match_field);
         for (auto& v : ball_weights) { v *= (float)bm["confidence-weight"]; }
 
         // 각 공의 위치를 월드 기준으로 변환합니다.
@@ -1572,7 +1572,7 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
             Vec3f pos;
             Vec3f vel;
             chrono::system_clock::time_point tp;
-            double dt(chrono::system_clock::time_point now) const { return chrono::duration<double>(now - tp).count(); }
+            double dt(chrono::system_clock::time_point now) const { return chrono::duration<double, chrono::system_clock::period>(now - tp).count(); }
             Vec3f ps(chrono::system_clock::time_point now) const { return dt(now) * vel + pos; }
         };
 
@@ -1598,7 +1598,9 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
                 auto it = min_element(errs.begin(), errs.end());
 
                 if (norm(p2 - p1) < ball_radius) {
-                    *min_element(ball_weights.begin(), ball_weights.begin() + 1) = 0;
+                    ball_weights[0] = ball_weights[1];
+                    ballpos[0] = ballpos[1];
+                    ball_weights[1] = 0;
                 }
                 else if (bool should_swap = (it - errs.begin()) >= 2; should_swap) {
                     swap(ballpos[0], ballpos[1]);
@@ -1606,8 +1608,10 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
                 }
             }
 
+            double alpha = bm["movement"]["position-LPF-alpha"];
+            double jump_dist = bm["movement"]["jump-distance"];
             for (int i = 0; i < 4; ++i) {
-                auto& d = descs[i];
+                auto& d = prev[i];
 
                 if (ball_weights[i] < bm["confidence-threshold"]) {
                     continue;
@@ -1621,7 +1625,12 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
                 // 속도가 오차 범위를 벗어난 경우 현재 위치와 속도를 갱신하지 않습니다.
                 //
                 if (norm(vel_elapsed - d.vel) < max_error_speed) {
-                    d = ball_position_desc_t{.pos = ballpos[i], .vel = vel_elapsed, .tp = now};
+                    // 만약 jump distance보다 위치 변화가 적다면, LPF로 위치를 누적합니다.
+                    if (norm(dp) < jump_dist) {
+                        ballpos[i] = d.pos + (ballpos[i] - d.pos) * alpha;
+                    }
+
+                    descs[i] = ball_position_desc_t{.pos = ballpos[i], .vel = vel_elapsed, .tp = now};
                 }
                 else {
                     ball_weights[i] = 0;
@@ -1640,6 +1649,7 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
             (Vec3f&)result.balls[i].position = descs[i].pos;
             result.balls[i].confidence = ball_weights[i];
 
+            // 화면에 디버그용 그림을 그립니다.
             if (ball_weights[i]) {
                 draw_circle(imdesc, debug, ball_radius, descs[i].pos, color_ROW[max(i - 1, 0)], 1);
                 auto center = project_single_point(imdesc, descs[i].pos);

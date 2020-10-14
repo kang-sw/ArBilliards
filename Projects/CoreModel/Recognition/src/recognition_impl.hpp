@@ -146,6 +146,8 @@ public:
             bm["radius"] = 0.14 / CV_2PI;
             bm["min-pixel-radius"] = 10;
             bm["error-base"] = 1.15;
+            bm["movement"]["jump-distance"] = 0.05;
+            bm["movement"]["position-LPF-alpha"] = 0.04;
 
             bm["random-sample"]["do-parallel"] = true;
             bm["random-sample"]["seed"] = 0;
