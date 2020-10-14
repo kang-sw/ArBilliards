@@ -425,11 +425,9 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
 
         // 컬링 된 컨투어 그리기
         vector<cv::Vec2i> pts;
-        pts.assign(input_param.begin(), input_param.end());
-        cv::drawContours(p.debug_render_mat, vector{{pts}}, -1, {0, 188, 100}, 2);
         if (input.size()) {
             pts.assign(input.begin(), input.end());
-            cv::drawContours(p.debug_render_mat, vector{{pts}}, -1, {0, 113, 181}, 1);
+            cv::drawContours(p.debug_render_mat, vector{{pts}}, -1, {0, 255, 112}, 1);
         }
 
         for (auto& pt : input) {
@@ -592,7 +590,6 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         auto ch_model = model;
 
         project_model(img, points, res.position, res.rotation, ch_model, true, p.FOV.width, p.FOV.height);
-        fit_contour_to_screen(points, p.contour_cull_rect);
         cv::drawContours(p.debug_render_mat, vector{{points}}, -1, {0, 0, 255}, 3);
     }
 
