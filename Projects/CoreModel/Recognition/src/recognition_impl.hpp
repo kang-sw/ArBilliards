@@ -125,7 +125,6 @@ public:
 
             b["red"]["color"] = Vec2f{133, 135};
             b["red"]["suitability-threshold"] = 0.35;
-            b["red"]["suitability-threshold"] = 0.35;
             b["red"]["negative-weight"] = 1;
             b["red"]["weight-hue-sat"] = Vec2f{2, 1};
             b["red"]["error-function-base"] = 1.15;

@@ -1675,25 +1675,13 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
             auto now = chrono::system_clock::now();
             double max_error_speed = b["classification"]["max-error-speed"];
 
-            // 빨간 공 두 개에 대해 ...
-            // 예상 위치가 더 적게 차이나는 요소를 우선 선택합니다.
+            // 이전 위치와 비교해, 자리가 바뀐 경우를 처리합니다.
             if (ball_weights[1] && ball_weights[0]) {
-                // 각각 검출 위치와 시뮬레이션 위치
-                auto p1 = ballpos[0], p2 = ballpos[1];
-                auto ps1 = prev[0].ps(now), ps2 = prev[1].ps(now);
+                auto p = ballpos[0],
+                     ps0 = prev[0].ps(now),
+                     ps1 = prev[1].ps(now);
 
-                auto err_a1 = norm(ps1 - p1), err_a2 = norm(ps2 - p1);
-                auto err_b1 = norm(ps1 - p2), err_b2 = norm(ps2 - p1);
-
-                auto errs = {err_a1, err_a2, err_b1, err_b2};
-                auto it = min_element(errs.begin(), errs.end());
-
-                if (norm(p2 - p1) < ball_radius) {
-                    ball_weights[0] = ball_weights[1];
-                    ballpos[0] = ballpos[1];
-                    ball_weights[1] = 0;
-                }
-                else if (bool should_swap = (it - errs.begin()) >= 2; should_swap) {
+                if (norm(ps1 - p) < norm(ps0 - p)) {
                     swap(ballpos[0], ballpos[1]);
                     swap(ball_weights[0], ball_weights[1]);
                 }
