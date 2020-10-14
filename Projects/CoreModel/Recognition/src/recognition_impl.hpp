@@ -193,6 +193,7 @@ public:
             tpa["rot-amount-variant"] = 0.06;
             tpa["pos-variant"] = 0.14;
             tpa["border-margin"] = 3;
+            tpa["do-parallel"] = true;
 
             t["LPF"]["position"] = 0.1666;
             t["LPF"]["rotation"] = 0.33;
@@ -271,6 +272,7 @@ public:
 
         cv::Mat debug_render_mat;
         bool render_debug_glyphs = true;
+        bool do_parallel = true;
     };
 
     struct transform_estimation_result_t {
@@ -439,8 +441,7 @@ public:
     static float get_pixel_length(img_t const& img, float len_metric, float Z_metric);
 };
 
-enum BALL_INDEX
-{
+enum BALL_INDEX {
     BALL_RED,
     BALL_ORANGE,
     BALL_WHITE
@@ -448,8 +449,7 @@ enum BALL_INDEX
 
 namespace names
 {
-enum Type
-{
+enum Type {
     Size_Image,
 
     Img_Debug,

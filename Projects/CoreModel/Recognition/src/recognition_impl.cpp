@@ -421,17 +421,17 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
     };
 
     using distr_t = uniform_real_distribution<float>;
-    mt19937 rand(random_device{}());
+
     distr_t distr_rot_axis{0, p.rot_axis_variant}; // 회전 축의 방향에 다양성 부여
 
     float pos_variant = p.pos_initial_distance;
     float rot_variant = p.rot_variant;
 
     vector cands = {candidate_t{numeric_limits<float>::max(), init_pos, init_rot}};
-    vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
-    vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
 
     auto planes = generate_frustum(p.FOV.width * CV_PI / 180.f, p.FOV.height * CV_PI / 180.f);
+
+    bool do_parallel = p.do_parallel;
 
     for (int iteration = 0; iteration < p.num_iteration; ++iteration) {
         distr_t distr_pos(0, pos_variant);
@@ -439,48 +439,98 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
 
         auto pivot_normal = normalize(init_rot);
 
-        // 후보 생성을 위한 로직
-        // 임의의 위치 및 회전 벡터 생성
-        while (cands.size() < p.num_candidates) {
-            candidate_t cand;
-            auto& p = cand.pos;
-            auto& r = cand.rot;
+        if (do_parallel) {
+            cands.resize(p.num_candidates);
+            thread_local mt19937 rand{(unsigned)hash<thread::id>{}(this_thread::get_id())};
+            thread_local static vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
+            thread_local static vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
+            for_each(execution::par_unseq, cands.begin(), cands.end(), [&](candidate_t& elem) {
+                candidate_t cand;
 
-            random_vector(rand, p, distr_pos(rand));
-            p += init_pos;
+                // 첫 요소는 항상 기존의 값입니다.
+                if (&elem - cands.data() != 0) {
+                    auto& p = cand.pos;
+                    auto& r = cand.rot;
 
-            // 회전 벡터를 계산합니다.
-            // 회전은 급격하게 변하지 않고, 더 계산하기 까다로우므로 축을 고정하고 회전시킵니다.
-            random_vector(rand, r, distr_rot_axis(rand));
-            r = normalize(r + init_rot); // 회전축에 variant 적용
-            float new_rot_amount = norm(init_rot) + distr_rot(rand);
-            r *= new_rot_amount;
+                    random_vector(rand, p, distr_pos(rand));
+                    p += init_pos;
 
-            cands.emplace_back(cand);
+                    // 회전 벡터를 계산합니다.
+                    // 회전은 급격하게 변하지 않고, 더 계산하기 까다로우므로 축을 고정하고 회전시킵니다.
+                    random_vector(rand, r, distr_rot_axis(rand));
+                    r = normalize(r + init_rot); // 회전축에 variant 적용
+                    float new_rot_amount = norm(init_rot) + distr_rot(rand);
+                    r *= new_rot_amount;
+                }
+                else {
+                    cand = elem;
+                }
+
+                // 해당 후보를 화면에 프로젝트
+                ch_mapped.clear();
+                ch_model.assign(model.begin(), model.end());
+
+                project_model_fast(img, ch_mapped, cand.pos, cand.rot, ch_model, true, planes);
+                // project_model(img, ch_mapped, cand.pos, cand.rot, ch_model, true, p.FOV.width, p.FOV.height);
+
+                // 컨투어 개수가 달라도 기각함에 유의!
+                if (ch_mapped.empty() || ch_mapped.size() != input.size()) {
+                    cand.error = numeric_limits<float>::max();
+                }
+                else {
+                    float dist_min = contour_distance(input, ch_mapped);
+                    cand.error = dist_min;
+                }
+
+                elem = cand;
+            });
         }
+        else {
+            vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
+            vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
+            mt19937 rand(random_device{}());
 
-        // 모든 candidate를 iterate하여 에러를 계산합니다.
-        //  #pragma omp parallel for private(ch_mapped) private(ch_model)
-        for (int index = 0; index < cands.size(); ++index) {
-            auto& cand = cands[index];
+            while (cands.size() < p.num_candidates) {
+                candidate_t cand;
+                auto& p = cand.pos;
+                auto& r = cand.rot;
 
-            // 해당 후보를 화면에 프로젝트
-            ch_mapped.clear();
-            ch_model.assign(model.begin(), model.end());
+                random_vector(rand, p, distr_pos(rand));
+                p += init_pos;
 
-            project_model_fast(img, ch_mapped, cand.pos, cand.rot, ch_model, true, planes);
-            // project_model(img, ch_mapped, cand.pos, cand.rot, ch_model, true, p.FOV.width, p.FOV.height);
+                // 회전 벡터를 계산합니다.
+                // 회전은 급격하게 변하지 않고, 더 계산하기 까다로우므로 축을 고정하고 회전시킵니다.
+                random_vector(rand, r, distr_rot_axis(rand));
+                r = normalize(r + init_rot); // 회전축에 variant 적용
+                float new_rot_amount = norm(init_rot) + distr_rot(rand);
+                r *= new_rot_amount;
 
-            // 컨투어 개수가 달라도 기각함에 유의!
-            if (ch_mapped.empty() || ch_mapped.size() != input.size()) {
-                cands[index] = cands.back();
-                cands.pop_back();
-                --index; // 인덱스 현재 위치에 유지
-                continue;
+                cands.emplace_back(cand);
             }
 
-            float dist_min = contour_distance(input, ch_mapped);
-            cand.error = dist_min;
+            // 모든 candidate를 iterate하여 에러를 계산합니다.
+            //  #pragma omp parallel for private(ch_mapped) private(ch_model)
+            for (int index = 0; index < cands.size(); ++index) {
+                auto& cand = cands[index];
+
+                // 해당 후보를 화면에 프로젝트
+                ch_mapped.clear();
+                ch_model.assign(model.begin(), model.end());
+
+                project_model_fast(img, ch_mapped, cand.pos, cand.rot, ch_model, true, planes);
+                // project_model(img, ch_mapped, cand.pos, cand.rot, ch_model, true, p.FOV.width, p.FOV.height);
+
+                // 컨투어 개수가 달라도 기각함에 유의!
+                if (ch_mapped.empty() || ch_mapped.size() != input.size()) {
+                    cands[index] = cands.back();
+                    cands.pop_back();
+                    --index; // 인덱스 현재 위치에 유지
+                    continue;
+                }
+
+                float dist_min = contour_distance(input, ch_mapped);
+                cand.error = dist_min;
+            }
         }
 
         // 에러가 가장 적은 candidate를 선택하고, 나머지를 기각합니다.
@@ -508,7 +558,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
 
     if (p.render_debug_glyphs && p.debug_render_mat.data) {
         vector<cv::Point> points;
-        ch_model = model;
+        auto ch_model = model;
 
         project_model(img, points, res.position, res.rotation, ch_model, true, p.FOV.width, p.FOV.height);
         cv::drawContours(p.debug_render_mat, vector{{points}}, -1, {0, 0, 255}, 3);
@@ -751,6 +801,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         param.FOV = {FOV[0], FOV[1]};
         param.debug_render_mat = debug;
         param.render_debug_glyphs = true;
+        param.do_parallel = tpa["do-parallel"];
 
         auto result = estimate_matching_transform(img, input, model, init_pos, init_rot, param);
 
