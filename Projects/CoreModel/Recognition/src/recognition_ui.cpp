@@ -467,6 +467,8 @@ void exec_ui()
         if (auto paths = fb(); !paths.empty()) {
             auto path = paths.front();
             save_as(path.string());
+            current_save_path = path.string();
+            fm_caption_dirty();
         }
     });
     btn_import.events().click([&](arg_click const& arg) {

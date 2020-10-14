@@ -1538,7 +1538,8 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
                     // 빨간 공인 경우 ...
                     if (iter == 1) {
                         // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
-                        circle(m, center, rad_px + 1, 0, -1);
+                        circle(m, center, rad_px + 4, 0, -1);
+                        show("Ball Match - Red 2 Match Map", m);
                     }
                 }
             }
@@ -1764,6 +1765,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
             varset(Img_HSV) = img_hsv_scaled;
             varset(UImg_HSV) = uimg_hsv_scaled;
+
+            // UMat uimg_ycbcr_scaled;
+            // Mat img_ycbcr_scaled;
+            // cvtColor(uimg_rgb_scaled, uimg_ycbcr_scaled, COLOR_RGB2HSV);
+            // uimg_ycbcr_scaled.copyTo(img_ycbcr_scaled);
+            //
+            // varset(Img_YCbCr) = img_ycbcr_scaled;
+            // varset(UImg_YCbCr) = uimg_ycbcr_scaled;
         }
 
         // 깊이 이미지 크기 변환
@@ -1849,6 +1858,51 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         pts.assign(table_contour.begin(), table_contour.end());
         drawContours(table_area, vector{{pts}}, -1, 255, -1);
         varset(Img_TableAreaMask) = (Mat)table_area;
+
+        // 테이블 영역의 화이트 밸런스를 조절합니다.
+        if (0) {
+            ELAPSE_SCOPE("Calculate Histogram");
+            vector<Point> indexes;
+            findNonZero(table_area, indexes);
+
+            // RGB 히스토그램에서 가장 바깥쪽 픽셀을 드랍합니다.
+            Vec3d discard_rgb = p["table"]["preprocess"]["AWB-RGB-discard-rate"];
+            Vec3i discard_count = discard_rgb * (double)indexes.size() * 0.5;
+            array<int, 256> histo[3] = {};
+            auto img = (Mat3b&)varget(Mat, Img_RGB);
+
+            enum : int { R,
+                         G,
+                         B };
+
+            // Generate Histogram
+            for (auto index : indexes) {
+                auto color = img(index);
+                ++histo[R][color[R]];
+                ++histo[G][color[G]];
+                ++histo[B][color[B]];
+            }
+
+            // 각각의 채널에 대해 버릴 픽셀 인덱스 계산
+            Vec2i lo_hi_pivot[3] = {};
+            Vec3f mults;
+            Vec3f adds;
+            for (int C : {R, G, B}) {
+                auto& pvt = lo_hi_pivot[C];
+                pvt[0] = 0, pvt[1] = 256;
+                for (int sum = 0; pvt[0] < 128 && sum < discard_count[C]; sum += histo[C][pvt[0]++]) { }
+                for (int sum = 0; pvt[1] > 128 && sum < discard_count[C]; sum += histo[C][--pvt[1]]) { }
+
+                adds[C] = pvt[0];
+                mults[C] = 255 / (float)(pvt[1] - pvt[0]);
+            }
+
+            for (auto index : indexes) {
+                Vec3f pxl = img(index);
+                pxl = (pxl - adds).mul(mults);
+                img(index) = pxl;
+            }
+        }
 
         find_balls(desc);
     }

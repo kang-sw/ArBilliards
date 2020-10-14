@@ -173,6 +173,7 @@ public:
             t["confidence-threshold"] = 0.115;
 
             t["preprocess"]["dilate-erode-noise-remove"] = 25;
+            t["preprocess"]["AWB-RGB-discard-rate"] = Vec3d{0.02, 0.02, 0.02};
 
             auto& tc = t["contour"];
             tc["area-threshold-ratio"] = 0.03;
@@ -457,11 +458,13 @@ enum Type
     Img_SrcRGB,
     Img_RGB,
     Img_HSV,
+    Img_YCbCr,
     Img_Depth,
     Img_BallEdgeHyped,
 
     UImg_RGB,
     UImg_HSV,
+    UImg_YCbCr,
     UImg_Depth,
     UImg_TableFiltered,
 
