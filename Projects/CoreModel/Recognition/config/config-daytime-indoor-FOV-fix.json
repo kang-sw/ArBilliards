@@ -1,7 +1,7 @@
 {
     "FOV": [
-        84.9000015258789,
-        52.900001525878906
+        84.855,
+        53.27
     ],
     "ball": {
         "classification": {
@@ -112,8 +112,8 @@
         "minimum-confidence": 0.15,
         "partial": {
             "border-margin": 3,
-            "candidates": 200,
-            "iteration": 10,
+            "candidates": 1000,
+            "iteration": 11,
             "pos-variant": 0.14,
             "rot-amount-variant": 0.06,
             "rot-axis-variant": 0.015
@@ -124,7 +124,7 @@
                 0.005,
                 0.005
             ],
-            "dilate-erode-noise-remove": 4
+            "dilate-erode-noise-remove": 0
         },
         "size": {
             "fit": [
