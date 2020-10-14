@@ -191,145 +191,74 @@ static void cull_frustum_impl(vector<cv::Vec3f>& obj_pts, plane_t const* plane_p
     auto planes = initializer_list<plane_t>(plane_ptr, plane_ptr + num_planes);
     assert(obj_pts.size() >= 3);
 
-    // 먼저, 절두체 내에 있는 점을 찾고 해당 점을 탐색의 시작점으로 지정합니다.
-    if (0) {
-        bool cull_whole = true;
-        for (size_t idx = 0; idx < obj_pts.size(); idx++) {
-            bool is_inside = true;
-
-            for (auto& plane : planes) {
-                if (plane.calc(obj_pts[idx]) < 0.f) {
-                    is_inside = false;
-                    break;
-                }
-            }
-
-            if (is_inside) {
-                // 절두체 내부에 있는 점이 가장 앞에 오게끔 ...
-                obj_pts.insert(obj_pts.end(), obj_pts.begin(), obj_pts.begin() + idx);
-                obj_pts.erase(obj_pts.begin(), obj_pts.begin() + idx);
-                cull_whole = false;
+    for (auto pl : planes) {
+        auto& o = obj_pts;
+        constexpr auto SMALL_NUMBER = 1e-5f;
+        // 평면 안의 점 찾기 ... 시작점
+        int idx = -1;
+        for (int i = 0; i < o.size(); ++i) {
+            if (pl.calc(o[i]) >= SMALL_NUMBER) {
+                idx = i;
                 break;
             }
         }
 
-        // 평면 내에 있는 점이 하나도 없다면, 드랍합니다.
-        if (cull_whole) {
-            obj_pts.clear();
+        // 평면 안에 점 하나도 없으면 드랍
+        if (idx == -1) {
+            o.clear();
             return;
         }
 
-        for (size_t idx = 0; idx < obj_pts.size(); idx++) {
-            size_t nidx = idx + 1 >= obj_pts.size() ? 0 : idx + 1;
-            auto& o = obj_pts;
+        for (int nidx, incount = 0; incount < o.size();) {
+            nidx = (idx + 1) % o.size();
 
-            // 각 평면에 대해 ...
-            for (auto& plane : planes) {
-                // 이 때, idx는 반드시 평면 안에 있습니다.
-                if (idx >= obj_pts.size()) {
+            // o[idx]는 항상 평면 안
+
+            // o[nidx]도 평면 안에 있다면 스킵
+            if (pl.calc(o[nidx]) >= -SMALL_NUMBER) {
+                ++incount;
+                idx = ++idx % o.size();
+                continue;
+            }
+            incount = 0; // 한 바퀴 더 돌아서 탈출하게 됨
+
+            // o[idx]가 평면 안에 있는 것으로 가정하지만, 애매하게 걸치는 경우 발생
+            // 이 경우 o[idx]를 삽입한 점으로 보고, o[nidx]에서 다음 프로세스 시작
+
+            // o[idx]-o[nidx]는 평면을 위에서 아래로 통과
+            // 접점 위치에 새로운 점 스폰(o[nidx] 위치)
+            // nidx := nidx+1
+            if (pl.calc(o[idx]) > 0) {
+                auto contact = pl.find_contact(o[idx], o[nidx]).value();
+                o.insert(o.begin() + nidx, contact);
+                nidx = ++nidx % o.size();
+            }
+
+            // o[nidx]에서 출발, 다시 평면 위로 돌아올 때까지 반복
+            // A. o[nidx]~o[nidx+1]이 모두 평면 밖에 있다면 o[nidx]는 제거
+            // B. 다시 평면 위로 돌아온다면, 평면에 접점 스폰하고 o[nidx]를 대체
+            for (int nnidx;;) {
+                nnidx = (nidx + 1) % o.size();
+
+                // o[nidx]는 반드시 평면 밖에 있음!
+                // o[nnidx]도 평면 밖인 경우 ...
+                if (pl.calc(o[nnidx]) < SMALL_NUMBER) {
+                    o.erase(o.begin() + nidx);
+                    nidx = nidx % o.size(); // index validate
                     continue;
                 }
 
-                if (plane.has_contact(o[idx], o[nidx]) == false) {
-                    // 이 문맥에서는 반드시 o[idx]가 평면 위에 위치합니다.
-                    continue;
+                // 단, o[nidx]가 평면 상에 있는 점일 수 있음
+                // 이 경우 이미 o[nidx]를 스폰한 것으로 보고 다음 과정 진행
+                if (pl.calc(o[nidx]) < 0) {
+                    // o[nnidx]는 평면 안에 있음
+                    // 접점을 스폰하고 nidx폐기, 탈출
+                    auto contact = pl.find_contact(o[nidx], o[nnidx]).value();
+                    o[nidx] = contact;
                 }
 
-                // 평면 위->아래로 진입하는 문맥
-                // 접점 상에 새 점을 삽입합니다.
-                o.insert(o.begin() + nidx, plane.find_contact(o[idx], o[nidx]).value());
-
-                // nidx부터 0번 인덱스까지, 다시 진입해 들어오는 직선을 찾습니다.
-                for (size_t pivot = nidx + 1; pivot < o.size();) {
-                    auto next_idx = pivot + 1 >= o.size() ? 0 : pivot + 1;
-
-                    if (!plane.has_contact(o[pivot], o[next_idx])) {
-                        // 만약 접점이 없다면, 현재 직선의 시작점은 완전히 평면 밖에 있으므로 삭제합니다.
-                        // nidx2의 엘리먼트가 idx2로 밀려 들어오므로, 인덱스 증감은 따로 일어나지 않음
-                        o.erase(o.begin() + pivot);
-                    }
-                    else {
-                        // 접점이 존재한다면 현재 위치의 점을 접점으로 대체하고 break
-                        o[pivot] = plane.find_contact(o[pivot], o[next_idx]).value();
-                        break;
-                    }
-                }
-
-                // 현재 인덱스를 건드리지 않으므로, 다른 평면은 딱히 변하지 않습니다.
-                // 또한 새로 생성된 점은 반드시 기존 직선 위에서 생성되므로 평면의 순서는 관계 없습니다.
-            }
-        }
-    }
-    else {
-        for (auto pl : planes) {
-            auto& o = obj_pts;
-            constexpr auto SMALL_NUMBER = 1e-5f;
-            // 평면 안의 점 찾기 ... 시작점
-            int idx = -1;
-            for (int i = 0; i < o.size(); ++i) {
-                if (pl.calc(o[i]) >= SMALL_NUMBER) {
-                    idx = i;
-                    break;
-                }
-            }
-
-            // 평면 안에 점 하나도 없으면 드랍
-            if (idx == -1) {
-                o.clear();
-                return;
-            }
-
-            for (int nidx, incount = 0; incount < o.size();) {
-                nidx = (idx + 1) % o.size();
-
-                // o[idx]는 항상 평면 안
-
-                // o[nidx]도 평면 안에 있다면 스킵
-                if (pl.calc(o[nidx]) >= -SMALL_NUMBER) {
-                    ++incount;
-                    idx = ++idx % o.size();
-                    continue;
-                }
-                incount = 0; // 한 바퀴 더 돌아서 탈출하게 됨
-
-                // o[idx]가 평면 안에 있는 것으로 가정하지만, 애매하게 걸치는 경우 발생
-                // 이 경우 o[idx]를 삽입한 점으로 보고, o[nidx]에서 다음 프로세스 시작
-
-                // o[idx]-o[nidx]는 평면을 위에서 아래로 통과
-                // 접점 위치에 새로운 점 스폰(o[nidx] 위치)
-                // nidx := nidx+1
-                if (pl.calc(o[idx]) > 0) {
-                    auto contact = pl.find_contact(o[idx], o[nidx]).value();
-                    o.insert(o.begin() + nidx, contact);
-                    nidx = ++nidx % o.size();
-                }
-
-                // o[nidx]에서 출발, 다시 평면 위로 돌아올 때까지 반복
-                // A. o[nidx]~o[nidx+1]이 모두 평면 밖에 있다면 o[nidx]는 제거
-                // B. 다시 평면 위로 돌아온다면, 평면에 접점 스폰하고 o[nidx]를 대체
-                for (int nnidx;;) {
-                    nnidx = (nidx + 1) % o.size();
-
-                    // o[nidx]는 반드시 평면 밖에 있음!
-                    // o[nnidx]도 평면 밖인 경우 ...
-                    if (pl.calc(o[nnidx]) < SMALL_NUMBER) {
-                        o.erase(o.begin() + nidx);
-                        nidx = nidx % o.size(); // index validate
-                        continue;
-                    }
-
-                    // 단, o[nidx]가 평면 상에 있는 점일 수 있음
-                    // 이 경우 이미 o[nidx]를 스폰한 것으로 보고 다음 과정 진행
-                    if (pl.calc(o[nidx]) < 0) {
-                        // o[nnidx]는 평면 안에 있음
-                        // 접점을 스폰하고 nidx폐기, 탈출
-                        auto contact = pl.find_contact(o[nidx], o[nnidx]).value();
-                        o[nidx] = contact;
-                    }
-
-                    idx = nnidx; // nidx는 검증 완료, nnidx에서 새로 시작
-                    break;
-                }
+                idx = nnidx; // nidx는 검증 완료, nnidx에서 새로 시작
+                break;
             }
         }
     }
