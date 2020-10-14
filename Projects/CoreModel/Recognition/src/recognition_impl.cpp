@@ -1805,15 +1805,16 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         }
 
         // 공용 머터리얼 셋업 시퀀스
-        Size scaled_image_size((int)p["fast-process-width"], 0);
-        float image_scale = scaled_image_size.width / (float)img_rgb.cols;
-        scaled_image_size.height = (int)(img_rgb.rows * image_scale);
-        varset(Size_Image) = scaled_image_size;
+        Size scaled_image_size;
 
-        Mat img_rgb_scaled, img_hsv_scaled;
-        UMat uimg_rgb_scaled, uimg_hsv_scaled;
+        Mat img_rgb_scaled;
+        UMat uimg_rgb_scaled;
         if ((bool)p["do-resize"]) {
             ELAPSE_SCOPE("RGB Downsampling");
+            scaled_image_size = Size((int)p["fast-process-width"], 0);
+            float image_scale = scaled_image_size.width / (float)img_rgb.cols;
+            scaled_image_size.height = (int)(img_rgb.rows * image_scale);
+            varset(Size_Image) = scaled_image_size;
 
             // 스케일된 이미지 준비
             resize(img_rgb.getUMat(ACCESS_FAST), uimg_rgb_scaled, scaled_image_size, 0, 0, INTER_LINEAR);
@@ -1828,9 +1829,14 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
             cvtColor(img_rgb_scaled, imdesc_scaled.rgba, COLOR_RGB2RGBA);
         }
         else {
+            varset(Size_Image) = scaled_image_size = img_rgb.size();
+
             img_rgb_scaled = img_rgb;
             img_rgb_scaled.copyTo(uimg_rgb_scaled);
         }
+
+        Mat img_hsv_scaled;
+        UMat uimg_hsv_scaled;
 
         // 색공간 변환 수행
         {
@@ -1897,11 +1903,11 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
                 ELAPSE_SCOPE("Dilate-Erode Noise Remove");
                 UMat u0, u1;
                 auto num_dilate = prev_iter + post_iter;
-                copyMakeBorder(u_mask, u0, prev_iter, prev_iter, prev_iter, prev_iter, BORDER_CONSTANT);
+                copyMakeBorder(u_mask, u0, num_dilate, num_dilate, num_dilate, num_dilate, BORDER_CONSTANT);
                 erode(u0, u1, {}, {-1, -1}, prev_iter, BORDER_CONSTANT, {});
                 dilate(u1, u0, {}, {-1, -1}, num_dilate, BORDER_CONSTANT, {});
                 erode(u0, u1, {}, {-1, -1}, post_iter, BORDER_CONSTANT, {});
-                u_mask = u1(Rect{{prev_iter, prev_iter}, u_mask.size()});
+                u_mask = u1(Rect{{num_dilate, num_dilate}, u_mask.size()});
                 show("Table Blue Color Mask - Eroded", u_mask);
             }
 
