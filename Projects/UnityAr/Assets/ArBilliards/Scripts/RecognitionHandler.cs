@@ -90,13 +90,13 @@ public class RecognitionHandler : MonoBehaviour
 
 				// 정지 상태의 속도라면 위치를 필터링해 누적합니다.
 
-				var speed = _velocities[index].magnitude;
-				if (speed < stopSpeed)
-				{
-					_positionFilteredOnStop[index] = Vector3.Lerp(_positionFilteredOnStop[index], ballTr.position,
-						 Time.deltaTime * stopStanceFilterCoeff);
-				}
-				else
+				//var speed = _velocities[index].magnitude;
+				//if (speed < stopSpeed)
+				//{
+				//	_positionFilteredOnStop[index] = Vector3.Lerp(_positionFilteredOnStop[index], ballTr.position,
+				//		 Time.deltaTime * stopStanceFilterCoeff);
+				//}
+				//else
 				{
 					_positionFilteredOnStop[index] = ballTr.position;
 				}
