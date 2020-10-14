@@ -1150,9 +1150,10 @@ plane_t plane_t::from_NP(cv::Vec3f N, cv::Vec3f P)
     plane.N = N;
     plane.d = 0.f;
 
-    auto u = plane.calc_u(P, P + N).value();
+    // auto u = plane.calc_u(P, P + N).value();
+    auto d = plane.calc(P);
 
-    plane.d = -u;
+    plane.d = -d;
     return plane;
 }
 
@@ -1160,9 +1161,9 @@ plane_t plane_t::from_rp(cv::Vec3f rvec, cv::Vec3f tvec, cv::Vec3f up)
 {
     using namespace cv;
     auto P = tvec;
-    // Matx33f rotator = rodrigues(rvec);
-    Matx33f rotator;
-    Rodrigues(rvec, rotator);
+    Matx33f rotator = rodrigues(rvec);
+    // Matx33f rotator;
+    // Rodrigues(rvec, rotator);
     auto N = rotator * up;
     return plane_t::from_NP(N, P);
 }
@@ -1171,7 +1172,7 @@ plane_t& plane_t::transform(cv::Vec3f tvec, cv::Vec3f rvec)
 {
     using namespace cv;
 
-    auto P = N * d;
+    auto P = -N * d;
     Matx33f rotator;
     Rodrigues(rvec, rotator);
 
@@ -1196,7 +1197,7 @@ bool plane_t::has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
 
 optional<float> plane_t::calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const
 {
-    auto P3 = N * d;
+    auto P3 = -N * d;
 
     auto upper = N.dot(P3 - P1);
     auto lower = N.dot(P2 - P1);
@@ -2037,7 +2038,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 void recognizer_impl_t::plane_to_camera(img_t const& img, plane_t const& table_plane, plane_t& table_plane_camera)
 {
     cv::Vec4f N = (cv::Vec4f&)table_plane.N;
-    cv::Vec4f P = table_plane.d * N;
+    cv::Vec4f P = -table_plane.d * N;
     N[3] = 0.f, P[3] = 1.f;
 
     cv::Matx44f camera_inv = img.camera_transform.inv();
