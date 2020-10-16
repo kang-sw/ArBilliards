@@ -1578,13 +1578,14 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
             };
 
             // 병렬로 launch
+            using templates::counter_base;
             if (static_cast<bool>(bm["random-sample"]["do-parallel"])) {
                 // for_each(execution::par_unseq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
-                for_each(execution::par_unseq, counter<size_t>{}, counter<size_t>{cand_indexes.size()}, calculate_suitability);
+                for_each(execution::par_unseq, counter_base<size_t>{}, counter_base<size_t>{cand_indexes.size()}, calculate_suitability);
             }
             else {
                 // for_each(execution::seq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
-                for_each(execution::seq, counter<size_t>{}, counter<size_t>{cand_indexes.size()}, calculate_suitability);
+                for_each(execution::seq, counter_base<size_t>{}, counter_base<size_t>{cand_indexes.size()}, calculate_suitability);
             }
 
             {

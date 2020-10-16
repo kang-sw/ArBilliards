@@ -5,13 +5,12 @@
 #include <mutex>
 #include <optional>
 #include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
+#include "templates.hxx"
 
 #define CVUI_IMPLEMENTATION
 
 #include <nana/gui.hpp>
 
-#include "cvui.h"
 #include "tcp_server.hpp"
 #include "recognition.hpp"
 
@@ -110,7 +109,6 @@ private:
             image.camera = odesc->camera;
             auto improc_callback = [sock = odesc->connection](billiards::recognizer_t::parameter_type const& image, json const& to_send) {
                 if (auto conn = sock.lock()) {
-
                     // 보낼 JSON 정리
                     auto p_str = make_shared<string>();
                     *p_str = to_send.dump();
