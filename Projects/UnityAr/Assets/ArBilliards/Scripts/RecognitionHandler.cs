@@ -13,6 +13,11 @@ public class RecognitionHandler : MonoBehaviour
 	public Transform Orange;
 	public Transform White;
 
+	public Transform Red1FeltContact;
+	public Transform Red2FeltContact;
+	public Transform OrnageFeltContact;
+	public Transform WhiteFeltContact;
+
 	// 테이블을 기준으로 정정될 트랜스폼 목록입니다.
 	public Transform AdjustedTransform;
 
@@ -105,21 +110,27 @@ public class RecognitionHandler : MonoBehaviour
 				var ballTr = ballTrs[index];
 				ballTr.position += _velocities[index] * Time.deltaTime;
 
-				// 정지 상태의 속도라면 위치를 필터링해 누적합니다.
-
-				//var speed = _velocities[index].magnitude;
-				//if (speed < stopSpeed)
-				//{
-				//	_positionFilteredOnStop[index] = Vector3.Lerp(_positionFilteredOnStop[index], ballTr.position,
-				//		 Time.deltaTime * stopStanceFilterCoeff);
-				//}
-				//else
 				{
 					_positionFilteredOnStop[index] = ballTr.position;
 				}
 			}
 
 			Simulator.ReportedBallPositions = BallTransformWorldToLocal(_positionFilteredOnStop);
+		}
+
+		{
+			var worldPositions = new Vector3[] { Red1.position, Red2.position, Orange.position, White.position };
+			var pos = BallTransformWorldToLocal(worldPositions);
+			var localPositions = new Vector3[] { pos.red1, pos.red2, pos.orange, pos.white };
+			var trs = new Transform[] { Red1FeltContact, Red2FeltContact, OrnageFeltContact, WhiteFeltContact };
+
+			for (int i = 0; i < 4; i++)
+			{
+				if (trs[i])
+				{
+					trs[i].localPosition = localPositions[i] + new Vector3(0, -Simulator.BallRadius, 0);
+				}
+			}
 		}
 	}
 
@@ -218,6 +229,7 @@ public class RecognitionHandler : MonoBehaviour
 		}
 
 		var balls = new[] { Red1, Red2, Orange, White };
+		var ballContacts = new[] { Red1FeltContact, Red2FeltContact, OrnageFeltContact, WhiteFeltContact };
 		var actualIndex = new[] { 0, 1, 2, 3 };
 		bool bRedSwap = false;
 
@@ -302,7 +314,9 @@ public class RecognitionHandler : MonoBehaviour
 				_latestUpdates[index] = null;
 				_prevPositions[index] = null;
 			}
+
 		}
+
 	}
 
 	private void UpdateTableTransform(ref RecognitionResult result)

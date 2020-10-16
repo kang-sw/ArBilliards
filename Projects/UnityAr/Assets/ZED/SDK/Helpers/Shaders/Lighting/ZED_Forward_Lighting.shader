@@ -161,7 +161,7 @@ Shader "ZED/ZED Forward Lighting"
                 if ( _EnableTableDepthOverride ) {
                 float3 hsv = rgb_to_hsv_no_clip(color.zyx);
                 if ( _TableHSV_H.x > _TableHSV_H.y ) {
-                if ( ( hsv.x < _TableHSV_H.x || hsv.x > _TableHSV_H.y )
+                if ( ( hsv.x > _TableHSV_H.x || hsv.x < _TableHSV_H.y )
                     && ( hsv.y > _TableHSV_S.x && hsv.y < _TableHSV_S.y ) ) outDepth = 0;
                 }
                 else {

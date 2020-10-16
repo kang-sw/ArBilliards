@@ -757,7 +757,7 @@ PrefabInstance:
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: BallRestitution
-      value: 0.93
+      value: 0.74
       objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
@@ -777,7 +777,7 @@ PrefabInstance:
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: BallStaticFriction
-      value: 0.28
+      value: 0.2
       objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
@@ -793,6 +793,11 @@ PrefabInstance:
         type: 3}
       propertyPath: BallRadius
       value: 0.02208169
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: BallDamping
+      value: 0.33
       objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700375, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}

@@ -1674,6 +1674,16 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
             auto now = chrono::system_clock::now();
             double max_error_speed = b["classification"]["max-error-speed"];
 
+            // 만약 0번 공의 weight가 0인 경우, 즉 공이 하나만 감지된 경우
+            // 1번 공의 감지된 위치와 캐시된 0, 1번 공 위치를 비교하고, 1번 공과 더 동떨어진 것을 선택합니다.
+            if (ball_weights[0] == 0 && ball_weights[1]) {
+                auto p1 = ballpos[1];
+                auto diffs = {norm(p1 - prev[0].pos), norm(p1 - prev[1].pos)};
+                auto farther = distance(diffs.begin(), max_element(diffs.begin(), diffs.end()));
+                ball_weights[0] = 0.51f; // magic number ...
+                ballpos[0] = prev[farther].pos;
+            }
+
             // 이전 위치와 비교해, 자리가 바뀐 경우를 처리합니다.
             if (ball_weights[1] && ball_weights[0]) {
                 auto p = ballpos[0],
@@ -1795,8 +1805,8 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
                V };
 
         desc["Table"]["EnableShaderApplyDepthOverride"] = p["unity"]["enable-table-depth-override"];
-        desc["Table"]["ShaderMinH"] = min[H] * (1 / 255.f);
-        desc["Table"]["ShaderMaxH"] = max[H] * (1 / 255.f);
+        desc["Table"]["ShaderMinH"] = min[H] * (1 / 180.f);
+        desc["Table"]["ShaderMaxH"] = max[H] * (1 / 180.f);
         desc["Table"]["ShaderMinS"] = min[S] * (1 / 255.f);
         desc["Table"]["ShaderMaxS"] = max[S] * (1 / 255.f);
     }
