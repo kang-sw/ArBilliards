@@ -18,22 +18,14 @@ public:
     counter(counter const& rhs)
         : count_(rhs.count_) { ; }
 
-private:
-    using diff_t = typename super::difference_type;
-
-    friend void t()
-    {
-        return;
-    }
-
 public:
-    friend counter operator+(counter c, diff_t n) { return counter(c.count_ + n); }
-    friend counter operator+(diff_t n, counter c) { return c + n; }
-    friend counter operator-(counter c, diff_t n) { return counter(c.count_ - n); }
-    friend counter operator-(diff_t n, counter c) { return c - n; }
-    diff_t operator-(counter o) { return diff_t(count_ - o.count_); }
-    counter& operator+=(diff_t n) { return ++count_, *this; }
-    counter& operator-=(diff_t n) { return --count_, *this; }
+    friend counter operator+(counter c, typename super::difference_type n) { return counter(c.count_ + n); }
+    friend counter operator+(typename super::difference_type n, counter c) { return c + n; }
+    friend counter operator-(counter c, typename super::difference_type n) { return counter(c.count_ - n); }
+    friend counter operator-(typename super::difference_type n, counter c) { return c - n; }
+    typename super::difference_type operator-(counter o) { return count_ - o.count_; }
+    counter& operator+=(typename super::difference_type n) { return ++count_, *this; }
+    counter& operator-=(typename super::difference_type n) { return --count_, *this; }
     counter& operator++() { return ++count_, *this; }
     counter operator++(int) { return ++count_, counter(count_ - 1); }
     counter& operator--() { return --count_, *this; }
