@@ -46,7 +46,7 @@ public class RecognitionHandler : MonoBehaviour
 	public struct RecognitionResult
 	{
 		[Serializable]
-		public struct TableRecognitionDesc
+		public class TableRecognitionDesc
 		{
 			public float[] Translation;
 			public float[] Orientation;
@@ -56,7 +56,7 @@ public class RecognitionHandler : MonoBehaviour
 		public TableRecognitionDesc Table;
 
 		[Serializable]
-		public struct BallRecognitionDesc
+		public class BallRecognitionDesc
 		{
 			public float[] Position;
 			public float Confidence;
@@ -119,7 +119,7 @@ public class RecognitionHandler : MonoBehaviour
 		// 시뮬레이션을 수행 가능 여부를 질의합니다.
 		// 모든 엘리먼트가 멈춰 있고, 위치가 제대로 인식된 경우입니다.
 		bool bSimulationAvailable = true;
-		while (result.Table.Translation != null && result.Red1.Position != null)
+		while (result.Table != null && result.Red1 != null)
 		{
 			var confidenceArray = new[]
 			{
@@ -180,7 +180,7 @@ public class RecognitionHandler : MonoBehaviour
 
 	private void UpdateBallTransforms(ref RecognitionResult result)
 	{
-		if (result.Red1.Position == null)
+		if (result.Red1 == null || result.Red1.Position == null)
 		{
 			return;
 		}
@@ -275,7 +275,7 @@ public class RecognitionHandler : MonoBehaviour
 
 	private void UpdateTableTransform(ref RecognitionResult result)
 	{
-		if (result.Table.Translation != null && result.Table.Confidence > 0.5f)
+		if (result.Table != null && result.Table.Confidence > 0.5f)
 		{
 			var vec = new Vector3();
 			vec.x = result.Table.Translation[0];

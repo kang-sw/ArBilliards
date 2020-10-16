@@ -1505,24 +1505,6 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
         suitability_field.setTo(0);
         pair<vector<cv::Point>, vector<float>> ball_candidates[3];
 
-        cv::UMat u_delta_hype;
-        if (false) {
-            ELAPSE_SCOPE("Value Edge Calculation");
-            {
-                cv::UMat view;
-                hconcat(channels, view);
-                show("ROI HSV view", view);
-            }
-
-            {
-                cv::UMat u_v32;
-                u_v.convertTo(u_v32, CV_32F, 1 / 255.f);
-                Laplacian(u_v32, u_delta_hype, CV_32F, 3);
-            }
-
-            show("Value Range Laplacian", u_delta_hype);
-        }
-
         array<Point, 4> ball_positions = {};
         array<float, 4> ball_weights = {};
 
@@ -1646,7 +1628,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
                     if (iter == 1) {
                         // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
                         circle(m, center, rad_px + (int)balls[0]["second-ball-erase-additional-radius"], 0, -1);
-                        show("Ball Match - Red 2 Match Map", m);
+                        show("Ball Match Field Raw: Red 2", m);
                     }
                 }
             }
@@ -1799,7 +1781,25 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
     auto const& p = m.props;
     nlohmann::json desc = {};
 
-    if (p["enable"] == false) {
+    // -- 시작 파라미터 전송
+    desc["Table"]["Inner-Width"] = p["table"]["size"]["inner"][0];
+    desc["Table"]["Inner-Height"] = p["table"]["size"]["inner"][1];
+    desc["Ball"]["Radius"] = p["ball"]["common"]["radius"];
+
+    // 깊이를 잘라내기 위한
+    {
+        array<Vec2f, 2> tf = p["table"]["filter"];
+        auto [min, max] = tf;
+        enum { H,
+               S,
+               V };
+
+
+
+
+    }
+
+    if (p["__enable"] == false) {
         return desc;
     }
 
@@ -2026,18 +2026,20 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
         draw_axes(imdesc, debug, rot, table_pos + Vec3f{0, 0.3f, 0}, 0.1f, 8);
     }
 
-    // ShowImage에 모든 임시 매트릭스 추가
-    ELAPSE_BLOCK("Debugging Mat Copy")
-    for (auto& pair : vars) {
-        auto& value = pair.second;
+    show("AAA_RecognitionState", varget(Mat, Img_Debug));
 
-        if (auto ptr = any_cast<Mat>(&value)) {
-            show("~Auto: " + move(pair.first), *ptr);
-        }
-        else if (auto uptr = any_cast<UMat>(&value)) {
-            // show(move(pair.first), *uptr);
-        }
-    }
+    // ShowImage에 모든 임시 매트릭스 추가
+    //ELAPSE_BLOCK("Debugging Mat Copy")
+    //for (auto& pair : vars) {
+    //    auto& value = pair.second;
+
+    //    if (auto ptr = any_cast<Mat>(&value)) {
+    //        show("~Auto: " + move(pair.first), *ptr);
+    //    }
+    //    else if (auto uptr = any_cast<UMat>(&value)) {
+    //        // show(move(pair.first), *uptr);
+    //    }
+    //}
 
     return desc;
 } // namespace billiards

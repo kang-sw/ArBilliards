@@ -169,9 +169,9 @@ public:
         {
             auto& t = params["table"];
 
-            t["size"]["fit"] = Vec2f{0.96f, 0.51f};
-            t["size"]["outer"] = Vec2f(1.31f, 0.76f);
-            t["size"]["inner"] = Vec2f(0.895f, 0.447f);
+            t["size"]["fit"] = Vec2d{0.96, 0.51};
+            t["size"]["outer"] = Vec2d(1.31, 0.76);
+            t["size"]["inner"] = Vec2d(0.895, 0.447);
             t["confidence-threshold"] = 0.115;
 
             t["preprocess"]["dilate-erode-num-erode-prev"] = 25;
