@@ -1526,6 +1526,10 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
                 // color match값이 threshold보다 큰 모든 인덱스를 선택하고, 인덱스 집합을 생성합니다.
                 compare(m, (float)bp["suitability-threshold"s], u0, cv::CMP_GT);
                 bitwise_and(u0, area_mask, u1);
+
+                // 몇 회의 erode 및 dilate 연산을 통해, 중심에 가까운 픽셀을 골라냅니다.
+                dilate(u1, u0, {}, Point(-1, -1), bm["candidate-dilate-count"]);
+                erode(u0, u1, {}, Point(-1, -1), bm["candidate-erode-count"]);
                 match_field.setTo(color_ROW[bidx], u1);
 
                 // 모든 valid한 인덱스를 추출합니다.

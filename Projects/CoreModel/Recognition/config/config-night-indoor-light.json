@@ -3,6 +3,7 @@
         84.855,
         53.27
     ],
+    "__enable": true,
     "ball": {
         "classification": {
             "max-error-speed": 1
@@ -10,6 +11,7 @@
         "common": {
             "confidence-threshold": 0.15,
             "confidence-weight": 2.0,
+            "dilate-erode-count": 6,
             "error-base": 36644,
             "min-pixel-radius": 1,
             "movement": {
@@ -78,7 +80,7 @@
     "explorer": {
         "depth-alpha": 32
     },
-    "fast-process-width": 1024,
+    "fast-process-width": 800,
     "others": {
         "random-sample-view-scale": 125,
         "top-view-scale": 894
@@ -86,11 +88,12 @@
     "table": {
         "LPF": {
             "distance-jump-threshold": 0.02,
-            "position": 0.2,
-            "rotation": 0.2,
+            "jump-confidence-threshold": 0.8,
+            "position": 0.26,
+            "rotation": 0.26,
             "rotation-jump-threshold": 0.02
         },
-        "confidence-threshold": 0.89,
+        "confidence-threshold": 0.77,
         "contour": {
             "approx-epsilon-convexhull": 8,
             "approx-epsilon-preprocess": 5,
@@ -155,9 +158,12 @@
             ]
         }
     },
+    "unity": {
+        "enable-table-depth-override": true
+    },
     "window-position": [
-        1367,
-        310,
+        1258,
+        586,
         800,
         600
     ]

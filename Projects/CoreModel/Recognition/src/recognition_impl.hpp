@@ -158,6 +158,8 @@ public:
             bm["random-sample"]["sample-max-cases"] = 1000;
             bm["random-sample"]["positive-area"] = Vec2f{0.33, 1.0};
             bm["random-sample"]["negative-area"] = Vec2f{1.1, 1.25};
+            bm["candidate-dilate-count"] = 6;
+            bm["candidate-erode-count"] = 11;
 
             bm["confidence-weight"] = 2.0f;
             bm["confidence-threshold"] = 0.15f;
