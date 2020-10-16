@@ -7,21 +7,8 @@
 #include <random>
 #include <algorithm>
 #include <vector>
-#include <vector>
-#include <vector>
-#include <vector>
-#include <vector>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-
-#include "nlohmann/json.hpp"
-#include "nlohmann/json.hpp"
-#include "nlohmann/json.hpp"
-#include "nlohmann/json.hpp"
+#include <nlohmann/json.hpp>
+#include "templates.hxx"
 
 using namespace billiards;
 using namespace std;
@@ -1548,9 +1535,8 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
 
             // 골라낸 인덱스 내에서 색상 값의 샘플 합을 수행합니다.
             ELAPSE_SCOPE("Parallel Launch: "s + ball_names[bidx]);
-            auto calculate_suitability = [&](cv::Point const& ptref) {
-                auto index = &ptref - cand_indexes.data();
-                auto pt = ptref;
+            auto calculate_suitability = [&](size_t index) {
+                auto pt = cand_indexes[index];
 
                 // 현재 추정 위치에서 공의 픽셀 반경 계산
                 int ball_pxl_rad = get_pixel_length_on_contact(imdesc, table_plane, pt + ROI.tl(), ball_radius);
@@ -1593,10 +1579,12 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
 
             // 병렬로 launch
             if (static_cast<bool>(bm["random-sample"]["do-parallel"])) {
-                for_each(execution::par_unseq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
+                // for_each(execution::par_unseq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
+                for_each(execution::par_unseq, counter<size_t>{}, counter<size_t>{cand_indexes.size()}, calculate_suitability);
             }
             else {
-                for_each(execution::seq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
+                // for_each(execution::seq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
+                for_each(execution::seq, counter<size_t>{}, counter<size_t>{cand_indexes.size()}, calculate_suitability);
             }
 
             {
