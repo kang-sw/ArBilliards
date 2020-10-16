@@ -639,6 +639,12 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 1359819195}
   m_PrefabAsset: {fileID: 0}
+--- !u!23 &1567330851 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 23931263026373856, guid: e13ee7e0790c7d243b7aa67fe604acac,
+    type: 3}
+  m_PrefabInstance: {fileID: 1359819195}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &1776626643 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4327115905062700, guid: e13ee7e0790c7d243b7aa67fe604acac,
@@ -853,6 +859,11 @@ PrefabInstance:
       propertyPath: stopSpeed
       value: 0.007
       objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700376, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: eyeframeMatRenderer
+      value: 
+      objectReference: {fileID: 1567330851}
     - target: {fileID: 1999053810412700377, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: m_Name

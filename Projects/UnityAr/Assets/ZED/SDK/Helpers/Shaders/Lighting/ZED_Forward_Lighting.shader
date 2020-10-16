@@ -8,6 +8,7 @@ Shader "ZED/ZED Forward Lighting"
         _MaxDepth("Max Depth Range", Range(1,40)) = 40
         _TableHSV_H("Table Filter HSV Hue Range", Vector) = ( 0.9, 0.1, 0, 0 )
         _TableHSV_S("Table Filter HSV Saturation Range", Vector) = ( 0.77, 1, 0, 0 )
+        [MaterialToggle] _EnableTableDepthOverride("Enable Table Depth Override", Int) = 1
 
     }
         SubShader
@@ -77,6 +78,7 @@ Shader "ZED/ZED Forward Lighting"
             float _ZEDFactorAffectReal;
             float _MaxDepth;
 
+            int _EnableTableDepthOverride;
             float2 _TableHSV_H;
             float2 _TableHSV_S;
 
@@ -156,17 +158,17 @@ Shader "ZED/ZED Forward Lighting"
                 float4 color = tex2D(_MainTex, uv.xy).bgra;
                 float3 normals = tex2D(_NormalsTex, uv.zw).rgb;
 
+                if ( _EnableTableDepthOverride ) {
                 float3 hsv = rgb_to_hsv_no_clip(color.zyx);
-                if ( _TableHSV_H.x > _TableHSV_H.y )
-                {
+                if ( _TableHSV_H.x > _TableHSV_H.y ) {
                 if ( ( hsv.x < _TableHSV_H.x || hsv.x > _TableHSV_H.y )
                     && ( hsv.y > _TableHSV_S.x && hsv.y < _TableHSV_S.y ) ) outDepth = 0;
                 }
-            	else
-            	{ 
+                else {
                 if ( ( hsv.x > _TableHSV_H.x && hsv.x < _TableHSV_H.y )
                     && ( hsv.y > _TableHSV_S.x && hsv.y < _TableHSV_S.y ) ) outDepth = 0;
-            	}
+                }
+                }
 
                 //Apply directional light
                 color *= _ZEDFactorAffectReal;

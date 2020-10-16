@@ -1782,9 +1782,9 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
     nlohmann::json desc = {};
 
     // -- 시작 파라미터 전송
-    desc["Table"]["Inner-Width"] = p["table"]["size"]["inner"][0];
-    desc["Table"]["Inner-Height"] = p["table"]["size"]["inner"][1];
-    desc["Ball"]["Radius"] = p["ball"]["common"]["radius"];
+    desc["Table"]["InnerWidth"] = p["table"]["size"]["inner"][0];
+    desc["Table"]["InnerHeight"] = p["table"]["size"]["inner"][1];
+    desc["BallRadius"] = p["ball"]["common"]["radius"];
 
     // 깊이를 잘라내기 위한
     {
@@ -1794,9 +1794,11 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
                S,
                V };
 
-
-
-
+        desc["Table"]["EnableShaderApplyDepthOverride"] = p["unity"]["enable-table-depth-override"];
+        desc["Table"]["ShaderMinH"] = min[H] * (1 / 255.f);
+        desc["Table"]["ShaderMaxH"] = max[H] * (1 / 255.f);
+        desc["Table"]["ShaderMinS"] = min[S] * (1 / 255.f);
+        desc["Table"]["ShaderMaxS"] = max[S] * (1 / 255.f);
     }
 
     if (p["__enable"] == false) {
@@ -1807,10 +1809,10 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
     // 각종 파라미터 등 계산
     {
-        // 테이블 오프셋 계산 ...
-        float height = p["table"]["cushion-height"];
-        float radius = p["ball"]["common"]["radius"];
-        varset(Float_TableOffset) = -(height - radius);
+        // // 테이블 오프셋 계산 ...
+        // float height = p["table"]["cushion-height"];
+        // float radius = p["ball"]["common"]["radius"];
+        varset(Float_TableOffset) = 0.f; // -(height - radius);
     }
 
     {

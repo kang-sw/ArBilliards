@@ -207,6 +207,11 @@ public:
             t["LPF"]["rotation-jump-threshold"] = 0.05;
             t["LPF"]["jump-confidence-threshold"] = 0.94;
         }
+
+        {
+            auto& u = params["unity"];
+            u["enable-table-depth-override"] = true;
+        }
     }
 
     ~recognizer_impl_t()

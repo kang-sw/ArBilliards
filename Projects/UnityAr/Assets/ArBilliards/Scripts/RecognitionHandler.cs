@@ -31,6 +31,9 @@ public class RecognitionHandler : MonoBehaviour
 	// 시뮬레이터 레퍼런스
 	public SimHandler Simulator;
 
+	[Header("Environment Parameter Apply Target")]
+	public Renderer eyeframeMatRenderer;
+
 	#endregion
 
 	#region Internal Fields
@@ -39,6 +42,8 @@ public class RecognitionHandler : MonoBehaviour
 	private Vector3[] _velocities = new Vector3[4];
 	private Vector3?[] _prevPositions = new Vector3?[4];
 	private Vector3[] _positionFilteredOnStop = new Vector3[4];
+	private static readonly int TableHSVH = Shader.PropertyToID("_TableHSV_H");
+	private static readonly int TableHSVS = Shader.PropertyToID("_TableHSV_S");
 
 	#endregion
 
@@ -51,6 +56,16 @@ public class RecognitionHandler : MonoBehaviour
 			public float[] Translation;
 			public float[] Orientation;
 			public float Confidence;
+
+			public float InnerWidth;
+			public float InnerHeight;
+
+			public float ShaderMinH;
+			public float ShaderMaxH;
+			public float ShaderMinS;
+			public float ShaderMaxS;
+
+			public bool EnableShaderApplyDepthOverride;
 		}
 
 		public TableRecognitionDesc Table;
@@ -66,6 +81,8 @@ public class RecognitionHandler : MonoBehaviour
 		public BallRecognitionDesc Red2;
 		public BallRecognitionDesc Orange;
 		public BallRecognitionDesc White;
+
+		public float BallRadius;
 	}
 
 	// Start is called before the first frame update
@@ -82,7 +99,7 @@ public class RecognitionHandler : MonoBehaviour
 		{
 			if (!_latestUpdates[index].HasValue)
 			{
-				_velocities[index] -= _velocities[index] * speedDampingOnInvisibleState * Time.deltaTime;
+				_velocities[index] -= _velocities[index] * (speedDampingOnInvisibleState * Time.deltaTime);
 			}
 			{
 				var ballTr = ballTrs[index];
@@ -111,20 +128,20 @@ public class RecognitionHandler : MonoBehaviour
 		return new Vector3(Desc.Position[0], Desc.Position[1], Desc.Position[2]);
 	}
 
-	public void UpdateRecognition(RecognitionResult result)
+	public void UpdateRecognition(RecognitionResult recog)
 	{
-		UpdateTableTransform(ref result);
-		UpdateBallTransforms(ref result);
+		UpdateTableTransform(ref recog);
+		UpdateBallTransforms(ref recog);
 
 		// 시뮬레이션을 수행 가능 여부를 질의합니다.
 		// 모든 엘리먼트가 멈춰 있고, 위치가 제대로 인식된 경우입니다.
 		bool bSimulationAvailable = true;
-		while (result.Table != null && result.Red1 != null)
+		while (recog.Table != null && recog.Red1 != null)
 		{
 			var confidenceArray = new[]
 			{
-				result.Table.Confidence, (result.Red1.Confidence +  result.Red2.Confidence) * 0.7f, result.Orange.Confidence,
-				result.White.Confidence
+				recog.Table.Confidence, (recog.Red1.Confidence +  recog.Red2.Confidence) * 0.7f, recog.Orange.Confidence,
+				recog.White.Confidence
 			};
 
 			// 모든 필드 요소가 제대로 인식되었을 때에만 시뮬레이션 수행 가능
@@ -153,6 +170,21 @@ public class RecognitionHandler : MonoBehaviour
 			var res = BallTransformWorldToLocal(_positionFilteredOnStop);
 
 			Simulator.SimulationBallPositions = res;
+		}
+
+		// 설정 등을 복사해옵니다.
+		if (recog.Table != null)
+		{
+			Simulator.BallRadius = recog.BallRadius;
+			Simulator.TableWidth = recog.Table.InnerWidth;
+			Simulator.TableHeight = recog.Table.InnerHeight;
+
+			if (eyeframeMatRenderer != null)
+			{
+				eyeframeMatRenderer.sharedMaterial.SetInt("_EnableTableDepthOverride", recog.Table.EnableShaderApplyDepthOverride ? 1 : 0);
+				eyeframeMatRenderer.sharedMaterial.SetVector(TableHSVH, new Vector4(recog.Table.ShaderMinH, recog.Table.ShaderMaxH));
+				eyeframeMatRenderer.sharedMaterial.SetVector(TableHSVS, new Vector4(recog.Table.ShaderMinS, recog.Table.ShaderMaxS));
+			}
 		}
 	}
 
