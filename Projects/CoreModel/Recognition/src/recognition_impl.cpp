@@ -7,8 +7,21 @@
 #include <random>
 #include <algorithm>
 #include <vector>
+#include <vector>
+#include <vector>
+#include <vector>
+#include <vector>
 #include <opencv2/core/base.hpp>
 #include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+
+#include "nlohmann/json.hpp"
+#include "nlohmann/json.hpp"
+#include "nlohmann/json.hpp"
+#include "nlohmann/json.hpp"
 
 using namespace billiards;
 using namespace std;
@@ -623,7 +636,7 @@ cv::Point recognizer_impl_t::project_single_point(img_t const& img, cv::Vec3f ve
     return static_cast<Vec<int, 2>>(pt.front());
 }
 
-void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, const cv::Mat& debug, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours)
+void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours, nlohmann::json& desc)
 {
     using namespace names;
     ELAPSE_SCOPE("Table Search");
@@ -694,6 +707,7 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
             break;
         }
     }
+    float confidence = 0.f;
 
     if (table_contours.size() == 4 && !is_any_border_point) {
         ELAPSE_SCOPE("CASE 1 - PNP Solver");
@@ -776,13 +790,12 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
                 error_sum += norm(projpt - table_contours[index], NORM_L2SQR);
             }
 
-            float confidence = pow(tp["error-base"], -sqrt(error_sum));
+            confidence = pow(tp["error-base"], -sqrt(error_sum));
 
             Vec3f tvec_world = tvec, rvec_world = rvec;
             camera_to_world(img, rvec_world, tvec_world);
-            set_filtered_table_rot(rvec_world, confidence, confidence > tp["confidence-threshold"]);
-            set_filtered_table_pos(tvec_world, confidence, confidence > tp["confidence-threshold"]);
-            desc.table.confidence = confidence;
+            set_filtered_table_rot(rvec_world, confidence, confidence > tp["LPF"]["jump-confidence-threshold"]);
+            set_filtered_table_pos(tvec_world, confidence, confidence > tp["LPF"]["jump-confidence-threshold"]);
             // draw_axes(img, (Mat&)rgb, rvec_world, tvec_world, 0.08f, 3);
             {
                 drawContours(debug, contours, -1, {255, 123, 0}, 3);
@@ -794,14 +807,15 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
                 drawContours(debug, vector{{pts}}, -1, {0, 123, 255}, 3);
             }
-        }
 
-        desc.table.position = table_pos;
-        desc.table.orientation = (Vec4f&)table_rot;
+            if (confidence < tp["confidence-threshold"]) {
+                confidence = 0;
+            }
+        }
     }
 
     // 테이블을 찾는데 실패한 경우 iteration method를 활용해 테이블 위치를 추정합니다.
-    if (!table_contours.empty() && desc.table.confidence == 0) {
+    if (!table_contours.empty() && confidence == 0) {
         ELAPSE_SCOPE("CASE 2 - Iterative Projection");
 
         vector<Vec3f> model;
@@ -853,17 +867,16 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
         if (result.has_value()) {
             auto& res = *result;
             draw_axes(img, const_cast<cv::Mat&>(debug), res.rotation, res.position, 0.07f, 2);
-            desc.table.confidence = res.confidence;
             set_filtered_table_pos(res.position, res.confidence, false);
             set_filtered_table_rot(res.rotation, res.confidence, false);
-            desc.table.position = table_pos;
-            desc.table.orientation = (Vec4f&)table_rot;
+            confidence = res.confidence;
             putText(debug, (stringstream() << "partial confidence: " << res.confidence).str(), {0, 24}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
         }
     }
 
-    if (desc.table.confidence < tp["confidence-threshold"]) {
+    if (confidence < tp["confidence-threshold"]) {
         table_contours.clear();
+        confidence = 0;
     }
 
     // 이전 테이블 위치를 렌더
@@ -880,6 +893,10 @@ void recognizer_impl_t::find_table(img_t const& img, recognition_desc& desc, con
 
         draw_axes(img, (Mat&)debug, rot, pos, 0.08f, 3);
     }
+
+    desc["Table"]["Translation"] = table_pos;
+    desc["Table"]["Orientation"] = (Vec4f&)table_rot;
+    desc["Table"]["Confidence"] = confidence;
 }
 
 cv::Vec3f recognizer_impl_t::set_filtered_table_pos(cv::Vec3f new_pos, float confidence, bool allow_jump)
@@ -1321,7 +1338,7 @@ void recognizer_impl_t::async_worker_thread()
     }
 }
 
-void recognizer_impl_t::find_balls(recognition_desc& result)
+void recognizer_impl_t::find_balls(nlohmann::json& desc)
 {
     using namespace cv;
     auto& p = m.props;
@@ -1723,10 +1740,11 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
             }
         }
         varset(Var_PrevBallPos) = descs;
-
+        char const* ball_name_dst[] = {"Red1", "Red2", "Orange", "White"};
         for (int i = 0; i < 4; ++i) {
-            (Vec3f&)result.balls[i].position = descs[i].pos;
-            result.balls[i].confidence = ball_weights[i];
+            auto& dst = desc[ball_name_dst[i]];
+            dst["Position"] = descs[i].pos;
+            dst["Confidence"] = ball_weights[i];
 
             // 화면에 디버그용 그림을 그립니다.
             if (ball_weights[i]) {
@@ -1773,13 +1791,17 @@ void recognizer_impl_t::find_balls(recognition_desc& result)
     }
 }
 
-recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
+nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
 {
     using namespace names;
     using namespace names;
     using namespace cv;
     auto const& p = m.props;
-    recognition_desc desc = {};
+    nlohmann::json desc = {};
+
+    if (p["enable"] == false) {
+        return desc;
+    }
 
     ELAPSE_SCOPE("TOTAL");
 
@@ -1918,7 +1940,7 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
         // -- 테이블 추정 영역 찾기
         vector<Vec2f> table_contour;
-        find_table(varget(img_t, Imgdesc), desc, varget(Mat, Img_Debug), varget(UMat, UImg_TableFiltered), table_contour);
+        find_table(varget(img_t, Imgdesc), varget(Mat, Img_Debug), varget(UMat, UImg_TableFiltered), table_contour, desc);
 
         varset(Var_TableContour) = table_contour;
     }
@@ -1993,14 +2015,6 @@ recognition_desc recognizer_impl_t::proc_img(img_t const& imdesc_source)
         find_balls(desc);
     }
 
-    // 후처리 ... 테이블 회전을 180도 뒤집습니다.
-    if (0) // 취소!
-    {
-        auto orient = (Vec3f&)desc.table.orientation;
-        orient = rotate_local(orient, {CV_PI, 0, 0});
-        (Vec3f&)desc.table.orientation = orient;
-    }
-
     // Debugging glyphs
     {
         // 카메라 트랜스폼 그리기
@@ -2052,11 +2066,6 @@ float recognizer_impl_t::get_pixel_length(img_t const& img, float len_metric, fl
     auto [u2, v2] = get_uv_from_3d(img, Vec3f(len_metric, 0, Z_metric));
 
     return u2 - u1;
-}
-
-recognition_desc recognizer_impl_t::proc_img2(img_t const& img)
-{
-    return {};
 }
 
 recognizer_t::recognizer_t()

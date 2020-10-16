@@ -133,7 +133,7 @@ public:
         camera_param_type camera;
     };
 
-    using process_finish_callback_type = std::function<void(struct parameter_type const& image, struct recognition_desc const& result)>;
+    using process_finish_callback_type = std::function<void(struct parameter_type const& image, nlohmann::json const& result)>;
 
     /**
      * 인스턴스에 새 이미지를 공급합니다.
@@ -165,44 +165,6 @@ public:
 
 private:
     std::unique_ptr<class recognizer_impl_t> impl_;
-};
-
-/**
- * 당구 게임의 인식 결과를 나타내는 구조체입니다.
- */
-struct recognition_desc {
-    /**
-     * 각 당구공의 인식 결과를, 확실한 정도와 함께 저장합니다.
-     */
-    struct ball_recognition_result {
-        float position[3];
-        float confidence;
-    };
-
-    union
-    {
-        ball_recognition_result balls[4];
-        struct
-        {
-            ball_recognition_result red1;
-            ball_recognition_result red2;
-            ball_recognition_result orange;
-            ball_recognition_result white;
-        } ball;
-    };
-
-    /**
-     * 테이블의 인식 결과입니다.
-     */
-    struct table_result {
-        cv::Vec3f position;    // X Y Z in unity
-        cv::Vec4f orientation; // Quaternion representation in unity coord
-        float confidence;
-    } table;
-
-    /**
-     * TODO: 큐대 인식 결과입니다.
-     */
 };
 
 } // namespace billiards

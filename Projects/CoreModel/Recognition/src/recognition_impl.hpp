@@ -90,7 +90,7 @@ public:
     std::vector<std::pair<std::string, std::chrono::microseconds>> elapsed_seconds_prev;
     std::shared_mutex elapsed_seconds_mtx;
 
-    recognition_desc prev_desc;
+    nlohmann::json prev_desc;
     cv::Vec3f table_pos = {};
     cv::Vec3f table_rot = {};
 
@@ -113,6 +113,8 @@ public:
         using namespace std;
 
         json& params = m.props;
+        params["__enable"] = true;
+
         params["fast-process-width"] = 540;
         params["do-resize"] = false;
 
@@ -203,6 +205,7 @@ public:
             t["LPF"]["rotation"] = 0.33;
             t["LPF"]["distance-jump-threshold"] = 0.05;
             t["LPF"]["rotation-jump-threshold"] = 0.05;
+            t["LPF"]["jump-confidence-threshold"] = 0.94;
         }
     }
 
@@ -240,12 +243,12 @@ public:
      * 소멸자 호출 전까지 내부 루프를 반복합니다.
      */
     void async_worker_thread();
-    void find_balls(recognition_desc& result);
+    void find_balls(nlohmann::json& desc);
 
     /**
      * 주된 이미지 처리를 수행합니다.
      */
-    recognition_desc proc_img(img_t const& imdesc_source);
+    nlohmann::json proc_img(img_t const& imdesc_source);
     recognition_desc proc_img2(img_t const& img);
 
     /**
@@ -253,10 +256,10 @@ public:
      */
     void find_table(
       img_t const& img,
-      recognition_desc& desc,
       const cv::Mat& debug,
       const cv::UMat& filtered,
-      std::vector<cv::Vec2f>& table_contours);
+      std::vector<cv::Vec2f>& table_contours,
+      nlohmann::json&);
 
     /**
      * 주로 테이블에 활용 ...

@@ -119,7 +119,7 @@ public class RecognitionHandler : MonoBehaviour
 		// 시뮬레이션을 수행 가능 여부를 질의합니다.
 		// 모든 엘리먼트가 멈춰 있고, 위치가 제대로 인식된 경우입니다.
 		bool bSimulationAvailable = true;
-		do
+		while (result.Table.Translation != null && result.Red1.Position != null)
 		{
 			var confidenceArray = new[]
 			{
@@ -143,7 +143,8 @@ public class RecognitionHandler : MonoBehaviour
 				}
 			}
 
-		} while (false);
+			break;
+		}
 
 		// if (true && bSimulationAvailable && Simulator)
 		{
@@ -179,6 +180,11 @@ public class RecognitionHandler : MonoBehaviour
 
 	private void UpdateBallTransforms(ref RecognitionResult result)
 	{
+		if (result.Red1.Position == null)
+		{
+			return;
+		}
+
 		var balls = new[] { Red1, Red2, Orange, White };
 		var actualIndex = new[] { 0, 1, 2, 3 };
 		bool bRedSwap = false;
@@ -269,7 +275,7 @@ public class RecognitionHandler : MonoBehaviour
 
 	private void UpdateTableTransform(ref RecognitionResult result)
 	{
-		if (result.Table.Confidence > 0.5f)
+		if (result.Table.Translation != null && result.Table.Confidence > 0.5f)
 		{
 			var vec = new Vector3();
 			vec.x = result.Table.Translation[0];
