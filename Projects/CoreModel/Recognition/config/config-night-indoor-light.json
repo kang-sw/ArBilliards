@@ -9,9 +9,10 @@
             "max-error-speed": 1
         },
         "common": {
+            "candidate-dilate-count": 6,
+            "candidate-erode-count": 8,
             "confidence-threshold": 0.15,
             "confidence-weight": 2.0,
-            "dilate-erode-count": 6,
             "error-base": 36644,
             "min-pixel-radius": 1,
             "movement": {
@@ -82,7 +83,7 @@
     },
     "fast-process-width": 800,
     "others": {
-        "random-sample-view-scale": 125,
+        "random-sample-view-scale": 1600,
         "top-view-scale": 894
     },
     "table": {
@@ -162,8 +163,8 @@
         "enable-table-depth-override": true
     },
     "window-position": [
-        1258,
-        586,
+        1614,
+        489,
         800,
         600
     ]

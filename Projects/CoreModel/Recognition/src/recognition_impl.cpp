@@ -1804,6 +1804,8 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
         desc["Table"]["ShaderMaxS"] = max[S] * (1 / 255.f);
     }
 
+    show("Source image", imdesc_source.rgba);
+
     if (p["__enable"] == false) {
         return desc;
     }
