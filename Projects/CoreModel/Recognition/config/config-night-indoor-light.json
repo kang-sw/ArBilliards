@@ -10,7 +10,7 @@
         },
         "common": {
             "candidate-dilate-count": 6,
-            "candidate-erode-count": 8,
+            "candidate-erode-count": 6,
             "confidence-threshold": 0.15,
             "confidence-weight": 2.0,
             "error-base": 36644,
@@ -19,7 +19,7 @@
                 "jump-distance": 0.015,
                 "position-LPF-alpha": 0.1
             },
-            "radius": 0.02228169203286535,
+            "radius": 0.0228,
             "random-sample": {
                 "do-parallel": true,
                 "negative-area": [
@@ -90,8 +90,8 @@
         "LPF": {
             "distance-jump-threshold": 0.02,
             "jump-confidence-threshold": 0.8,
-            "position": 0.26,
-            "rotation": 0.26,
+            "position": 0.15,
+            "rotation": 0.15,
             "rotation-jump-threshold": 0.02
         },
         "confidence-threshold": 0.77,
@@ -161,11 +161,5 @@
     },
     "unity": {
         "enable-table-depth-override": true
-    },
-    "window-position": [
-        1614,
-        489,
-        800,
-        600
-    ]
+    }
 }

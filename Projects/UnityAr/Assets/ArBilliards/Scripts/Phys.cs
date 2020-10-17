@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Net;
 using UnityEngine;
 
 namespace ArBilliards.Phys
@@ -424,32 +425,32 @@ namespace ArBilliards.Phys
 			}
 			case PhysType.StaticPlane:
 			{
-				// Plane의 
+				// 반발 계수에 기반해 단순한 충돌을 계산합니다.
 				var PL = (PhysStaticPlane)B;
 				var N = PL.Normal;
 
 				var V1p = Vector3.Project(V1, N);
 				var nV1p = -e * V1p;
 
-				// 횡축의 속도를 조절하는 휴리스틱입니다.
-				// 속도가 높으면 영향을 미치지 않지만, 속도가 적을수록 횡축 속도를 감소시킵니다.
-				// 입사각 40도 이내에서만 적용
-				// TODO
-				// if (Vector3.Angle(V1, -N) < 40)
-				var V1f = V1 - V1p;
-				if (V1f.sqrMagnitude > 0)
-				{
-					var frictionCoeff = PL.Damping * Math.Pow(V1p.magnitude / V1f.magnitude, 2.5);
-					V1f = (float)Math.Exp(-frictionCoeff) * V1f + V1p;
-					V1 = V1f;
-				}
-
 				A.Velocity = (nV1p - V1p) + V1;
 
-				// A.AngularVelocity *= PL.Friction.Static;
-				var rollVec = Vector3.Cross(A.AngularVelocity, A.Context.UpVector);
-				rollVec = Vector3.Project(rollVec, -N);
-				A.Velocity += rollVec * PL.Friction.Static;
+				// 공이 노멀과 마주보게끔 합니다.
+				if (Vector3.Angle(A.Velocity, N) > 90f)
+					N = -N;
+
+				// 공의 현재 회전 정도를 속도에 반영하고, 현재 속도와 평면의 관계로부터 회전에 이를 다시 반영합니다.
+				var fs = PL.Friction.Static;
+				var contactVel = Vector3.Cross(A.AngularVelocity * A.Radius, N) * fs;
+				contactVel -= Vector3.Scale(contactVel, Context.UpVector);
+				A.Velocity += contactVel;
+				// A.AngularVelocity *= 1 - fs;
+
+				var fv = (float)PL.Damping;
+				var horiVec = V1 - V1p;
+				var fricVec = -horiVec;
+				var angDeltaOrigin = Vector3.Cross(fricVec, N);
+				A.AngularVelocity += angDeltaOrigin * fv / A.Radius;
+
 				break;
 			}
 			}

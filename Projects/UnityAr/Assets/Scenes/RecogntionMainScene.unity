@@ -704,6 +704,31 @@ PrefabInstance:
       propertyPath: LookTransform
       value: 
       objectReference: {fileID: 1776626643}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: TableVelocityFriction
+      value: 0.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: TableRollFriction
+      value: 0.67
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: TableRestitution
+      value: 0.73
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: BallRestitution
+      value: 0.77
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: BallStaticFriction
+      value: 0.23
+      objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700375, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: m_LocalPosition.x

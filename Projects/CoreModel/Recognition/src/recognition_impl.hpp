@@ -396,7 +396,7 @@ public:
      * 테이블 크기로부터 모델 공간에서의 테이블에 대한 3D 원점을 획득합니다.
      * Y축이 0인 ZX 평면상에 위치합니다. 
      */
-    static void get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size, float offset = 0.f);
+    static void get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size);
 
     /**
      * ROI를 검증하고, 주어진 mat 영역 내에 맞게 재계산합니다.

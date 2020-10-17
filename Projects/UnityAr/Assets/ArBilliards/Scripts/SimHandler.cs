@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
-using Debug = System.Diagnostics.Debug;
+using Debug = UnityEngine.Debug;
 
 public enum BilliardsBall
 {
@@ -47,8 +47,8 @@ public class SimHandler : MonoBehaviour
 	public float BallStaticFriction = 0.12f;
 	public float BallRollTime = 0.5f;
 	public float TableRestitution = 0.53f;
-	public float TableStaticFriction = 0.22f;
-	public float TableHorizontalSuppress = 0.03f;
+	public float TableRollFriction = 0.22f;
+	public float TableVelocityFriction = 0.03f;
 
 	[Header("Optimizations")]
 	public int NumRotationDivider = 360;
@@ -167,13 +167,13 @@ public class SimHandler : MonoBehaviour
 		p.SimDuration = SimDuration;
 		p.Ball = (BallRestitution, BallDamping, BallRadius);
 		p.PlayerBall = PlayerBall;
-		p.Table = (TableRestitution, TableWidth, TableHeight, TableStaticFriction);
+		p.Table = (TableRestitution, TableWidth, TableHeight, TableRollFriction);
 		p.BallFriction = (BallKineticFriction, BallRollFriction, BallStaticFriction);
 		p.NumCandidates = NumRotationDivider;
 		p.Speeds = (float[])BallInitialSpeeds.Clone();
 		p.BallRollTime = BallRollTime;
 		p.NumCushionHits = NumMinCushions;
-		p.TableSuppress = TableHorizontalSuppress;
+		p.TableSuppress = TableVelocityFriction;
 	}
 
 	Vector3 getPlayerBallPosition()
@@ -830,19 +830,15 @@ public class AsyncSimAgent
 							// 충돌 각도가 클수록(접점-중점 방향 벡터와 속도의 내적으로 판단) 더 좋은 충돌입니다.
 							var contactDir = (other.Position - node.Position).normalized;
 							var angleWeight = Vector3.Dot(contactDir, node.Velocity.normalized);
-							angleWeight = 2f * Mathf.Pow(angleWeight, 0.633f); // 내적이 0에 가까울수록 = 얇게 부딪칠수록 낮은 가중치
-							weight += Math.Max(angleWeight, 0.98f);
+							// angleWeight = 2f * Mathf.Pow(angleWeight, 0.633f); // 내적이 0에 가까울수록 = 얇게 부딪칠수록 낮은 가중치
+							weight += angleWeight;// Math.Max(angleWeight, 0.98f);
 
 
 							// 때린 공의 타임라인을 쫓아, 때리는 공이 다른 공과 몇번 충돌했는지 검사합니다.
-							int otherIdx = otherBall.Value;
-							var prevWallHits = from timestamp in balls[otherIdx].Nodes
-											   where timestamp.Time < node.Time && timestamp.Other == null
-											   select timestamp;
-							var prevBallHits = from timestamp in balls[otherIdx].Nodes
-											   where timestamp.Time < node.Time && timestamp.Other != null
-											   select timestamp;
-							weight -= prevWallHits.Count() * 1f + prevBallHits.Count() * 2f;
+							var prevBallHits = from stamp in balls[index].Nodes
+											   where stamp.Time < node.Time && stamp.Other != null
+											   select stamp;
+							weight -= prevBallHits.Count();
 						}
 
 						hits[index] = (1, numCushionHit);
@@ -864,7 +860,7 @@ public class AsyncSimAgent
 				if (_p.bOpponentBallAsScore)
 					maxCushions = Math.Max(maxCushions, hits[(int)otherPlayer].numLastCushion);
 
-				if (maxCushions >= _p.NumCushionHits && hitBalls >= 2)
+				if (maxCushions >= _p.NumCushionHits && hitBalls >= 2 && weight > 0)
 				{
 					bGotScore = true;
 				}

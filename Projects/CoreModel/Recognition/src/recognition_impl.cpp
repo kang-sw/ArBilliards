@@ -7,7 +7,14 @@
 #include <random>
 #include <algorithm>
 #include <vector>
+#include <vector>
+#include <vector>
 #include <nlohmann/json.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+
 #include "templates.hxx"
 
 using namespace billiards;
@@ -702,7 +709,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         Vec3d tvec;
         Vec3d rvec;
 
-        get_table_model(obj_pts, tp["size"]["fit"], varget(float, Float_TableOffset));
+        get_table_model(obj_pts, tp["size"]["fit"]);
 
         // tvec의 초기값을 지정해주기 위해, 깊이 이미지를 이용하여 당구대 중점 위치를 추정합니다.
         bool estimation_valid = true;
@@ -789,7 +796,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 putText(debug, (stringstream() << "table confidence: " << confidence).str(), {0, 24}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
 
                 vector<Point> pts;
-                get_table_model(vertexes, tp["size"]["fit"], varget(float, Float_TableOffset));
+                get_table_model(vertexes, tp["size"]["fit"]);
                 project_model(varget(img_t, Imgdesc), pts, tvec_world, rvec_world, vertexes, true, 80, 50);
 
                 drawContours(debug, vector{{pts}}, -1, {0, 123, 255}, 3);
@@ -806,7 +813,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         ELAPSE_SCOPE("CASE 2 - Iterative Projection");
 
         vector<Vec3f> model;
-        get_table_model(model, m.table.recognition_size, varget(float, Float_TableOffset));
+        get_table_model(model, m.table.recognition_size);
 
         auto init_pos = table_pos;
         auto init_rot = table_rot;
@@ -875,7 +882,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         get_table_model(model, tp["size"]["inner"]);
         project_contours(img, debug, model, pos, rot, {255, 255, 255}, 1);
 
-        get_table_model(model, tp["size"]["outer"], varget(float, Float_TableOffset));
+        get_table_model(model, tp["size"]["outer"]);
         project_contours(img, debug, model, pos, rot, {0, 255, 0}, 1);
 
         draw_axes(img, (Mat&)debug, rot, pos, 0.08f, 3);
@@ -952,16 +959,16 @@ std::pair<cv::Matx33d, cv::Matx41d> recognizer_impl_t::get_camera_matx(img_t con
     return {cv::Matx33d(M), cv::Matx41d(disto)};
 }
 
-void recognizer_impl_t::get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size, float offset)
+void recognizer_impl_t::get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size)
 {
     vertexes.clear();
     auto [half_x, half_z] = (model_size * 0.5f).val;
     vertexes.assign(
       {
-        {-half_x, offset, half_z},
-        {-half_x, offset, -half_z},
-        {half_x, offset, -half_z},
-        {half_x, offset, half_z},
+        {-half_x, 0, half_z},
+        {-half_x, 0, -half_z},
+        {half_x, 0, -half_z},
+        {half_x, 0, half_z},
       });
 }
 
@@ -1405,6 +1412,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
         // 테이블 평면 획득
         auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, 1, 0});
         plane_to_camera(imdesc, table_plane, table_plane);
+        table_plane.d += varget(float, Float_TableOffset);
 
         // 컬러 스케일
 
@@ -1814,10 +1822,10 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
     // 각종 파라미터 등 계산
     {
-        // // 테이블 오프셋 계산 ...
-        // float height = p["table"]["cushion-height"];
-        // float radius = p["ball"]["common"]["radius"];
-        varset(Float_TableOffset) = 0.f; // -(height - radius);
+        // 테이블 오프셋 계산 ...
+        float height = p["table"]["cushion-height"];
+        float radius = p["ball"]["common"]["radius"];
+        varset(Float_TableOffset) = (height - radius);
     }
 
     {
@@ -1954,7 +1962,7 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
     if (auto& table_contour = varget(vector<Vec2f>, Var_TableContour); table_contour.empty()) {
         vector<Vec3f> model;
-        get_table_model(model, p["table"]["size"]["fit"], varget(float, Float_TableOffset));
+        get_table_model(model, p["table"]["size"]["fit"]);
         project_model(varget(img_t, Imgdesc), table_contour, table_pos, table_rot, model, true, p["FOV"][0], p["FOV"][1]);
 
         for (auto pt : table_contour) {
