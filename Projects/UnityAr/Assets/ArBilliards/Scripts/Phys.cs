@@ -373,11 +373,11 @@ namespace ArBilliards.Phys
 
 			// 각속도 업데이트
 			// 각속도의 최대치를 구하고, 시간을 바탕으로 각속도를 예측합니다.
-			var maxAngVel = Vector3.Cross(Velocity, -Context.UpVector);
+			var maxAngVel = Vector3.Cross(Velocity, -Context.UpVector) / Radius;
 			var angVelRatio = Math.Min((float)DeltaSinceLastCollision / RollBeginTime, 1.0f);
 
 			var maxAngVelDelta = maxAngVel - AngularVelocity;
-			AngularVelocity += maxAngVelDelta * angVelRatio;
+			AngularVelocity = _sourceAngularVelocity + maxAngVelDelta * angVelRatio;
 		}
 
 		public override void ApplyCollisionImpl(PhysObject B)
@@ -392,7 +392,7 @@ namespace ArBilliards.Phys
 
 			void ApplyAngularDelta(PhysSphere S, float friction, Vector3 contactDir)
 			{
-				S.Velocity += Vector3.Cross(S.AngularVelocity * friction, S.Context.UpVector);
+				S.Velocity += Radius * Vector3.Cross(S.AngularVelocity * friction, S.Context.UpVector);
 				S.AngularVelocity *= (1.0f - friction);
 			}
 
@@ -442,6 +442,7 @@ namespace ArBilliards.Phys
 				var fs = PL.Friction.Static;
 				var contactVel = Vector3.Cross(A.AngularVelocity * A.Radius, N) * fs;
 				contactVel -= Vector3.Scale(contactVel, Context.UpVector);
+				contactVel -= Vector3.Scale(contactVel, N); // 노멀 방향 성분, 수직 성분을 제거합니다.
 				A.Velocity += contactVel;
 				// A.AngularVelocity *= 1 - fs;
 

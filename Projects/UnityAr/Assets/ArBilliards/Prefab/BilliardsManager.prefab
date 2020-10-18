@@ -2335,15 +2335,15 @@ MonoBehaviour:
   BallRadius: 0.02208169
   TableWidth: 0.895
   TableHeight: 0.447
-  BallRestitution: 0.74
+  BallRestitution: 0.77
   BallDamping: 0.33
   BallRollFriction: 0.01
   BallKineticFriction: 0.3
-  BallStaticFriction: 0.2
+  BallStaticFriction: 0.23
   BallRollTime: 0.7
-  TableRestitution: 0.94
-  TableStaticFriction: 0.03
-  TableHorizontalSuppress: 0
+  TableRestitution: 0.73
+  TableRollFriction: 0.67
+  TableVelocityFriction: 0.2
   NumRotationDivider: 720
   SimDuration: 12
   BallInitialSpeeds:
