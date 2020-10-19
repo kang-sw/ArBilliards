@@ -18,6 +18,8 @@ public class RecognitionHandler : MonoBehaviour
 	public Transform OrnageFeltContact;
 	public Transform WhiteFeltContact;
 
+	public Transform[] TablePillarTransforms;
+
 	// 테이블을 기준으로 정정될 트랜스폼 목록입니다.
 	public Transform AdjustedTransform;
 
@@ -208,6 +210,24 @@ public class RecognitionHandler : MonoBehaviour
 				eyeframeMatRenderer.sharedMaterial.SetInt("_EnableTableDepthOverride", recog.Table.EnableShaderApplyDepthOverride ? 1 : 0);
 				eyeframeMatRenderer.sharedMaterial.SetVector(TableHSVH, new Vector4(recog.Table.ShaderMinH, recog.Table.ShaderMaxH));
 				eyeframeMatRenderer.sharedMaterial.SetVector(TableHSVS, new Vector4(recog.Table.ShaderMinS, recog.Table.ShaderMaxS));
+			}
+
+			if (TablePillarTransforms != null)
+			{
+				var w = recog.Table.InnerWidth * .5f;
+				var h = recog.Table.InnerHeight * .5f;
+				var offsets = new Vector3[]
+				{
+					new Vector3(w, 0, h),
+					new Vector3(-w, 0, h),
+					new Vector3(w, 0, -h),
+					new Vector3(-w, 0, -h),
+				};
+
+				for (int i = 0; i < Math.Min(TablePillarTransforms.Length, offsets.Length); i++)
+				{
+					TablePillarTransforms[i].localPosition = offsets[i];
+				}
 			}
 		}
 

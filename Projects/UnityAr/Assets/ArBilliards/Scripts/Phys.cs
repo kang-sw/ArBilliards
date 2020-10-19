@@ -476,7 +476,6 @@ namespace ArBilliards.Phys
 			Vec3d P1 = Position, P2 = o.Position, V1 = Velocity, V2 = o.Velocity;
 			float r1 = Radius, r2 = o.Radius;
 			double alpha_inv = 1 / Damping;
-			Vec3d A, B;
 
 			// 오버랩 계산
 			var dist0 = ((Vector3)(P1 - P2)).magnitude;
@@ -491,6 +490,7 @@ namespace ArBilliards.Phys
 				return ct;
 			}
 
+			Vec3d A, B;
 			B = alpha_inv * (V2 - V1);
 			A = P2 - P1 + B;
 
