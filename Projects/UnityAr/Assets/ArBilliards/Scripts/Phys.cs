@@ -276,7 +276,7 @@ namespace ArBilliards.Phys
 		public void AdvanceMovement(float delta)
 		{
 			DeltaSinceLastCollision += delta;
-			AdvanceMovementImpl(delta);
+			AdvanceMovementImpl((float)DeltaSinceLastCollision);
 		}
 
 		protected virtual void AdvanceMovementImpl(float delta)
