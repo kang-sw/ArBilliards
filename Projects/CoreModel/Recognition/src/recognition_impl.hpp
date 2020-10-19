@@ -213,6 +213,15 @@ public:
         {
             auto& u = params["unity"];
             u["enable-table-depth-override"] = true;
+            u["phys"]["sim-ball-radius"] = 0.02208169;
+            u["phys"]["ball"]["restitution"] = 0.77;
+            u["phys"]["ball"]["velocity-damping"] = 0.33;
+            u["phys"]["ball"]["roll-coeff-on-contact"] = 0.23;
+            u["phys"]["ball"]["roll-begin-time"] = 0.7;
+            u["phys"]["table"]["restitution"] = 0.73;
+            u["phys"]["table"]["roll-to-velocity-coeff"] = 0.67;
+            u["phys"]["table"]["velocity-to-roll-coeff"] = 0.2;
+
         }
     }
 

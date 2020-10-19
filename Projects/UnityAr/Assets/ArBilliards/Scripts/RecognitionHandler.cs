@@ -81,13 +81,26 @@ public class RecognitionHandler : MonoBehaviour
 			public float[] Position;
 			public float Confidence;
 		}
-
 		public BallRecognitionDesc Red1;
 		public BallRecognitionDesc Red2;
 		public BallRecognitionDesc Orange;
 		public BallRecognitionDesc White;
 
 		public float BallRadius;
+
+		[Serializable]
+		public class PhysDesc
+		{
+			public float BallRestitution;
+			public float BallDamping;
+			public float BallStaticFriction;
+			public float BallRollTime;
+			public float TableRestitution;
+			public float TableRtoVCoeff;
+			public float TableVtoRCoeff;
+		}
+
+		public PhysDesc Phys;
 	}
 
 	// Start is called before the first frame update
@@ -196,6 +209,18 @@ public class RecognitionHandler : MonoBehaviour
 				eyeframeMatRenderer.sharedMaterial.SetVector(TableHSVH, new Vector4(recog.Table.ShaderMinH, recog.Table.ShaderMaxH));
 				eyeframeMatRenderer.sharedMaterial.SetVector(TableHSVS, new Vector4(recog.Table.ShaderMinS, recog.Table.ShaderMaxS));
 			}
+		}
+
+		if (recog.Phys != null)
+		{
+			var phys = recog.Phys;
+			Simulator.BallRestitution = phys.BallRestitution;
+			Simulator.BallDamping = phys.BallDamping;
+			Simulator.BallStaticFriction = phys.BallStaticFriction;
+			Simulator.BallRollTime = phys.BallRollTime;
+			Simulator.TableRestitution = phys.TableRestitution;
+			Simulator.TableRollFriction = phys.TableRtoVCoeff;
+			Simulator.TableVelocityFriction = phys.TableVtoRCoeff;
 		}
 	}
 

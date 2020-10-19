@@ -1795,7 +1795,6 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
     // -- 시작 파라미터 전송
     desc["Table"]["InnerWidth"] = p["table"]["size"]["inner"][0];
     desc["Table"]["InnerHeight"] = p["table"]["size"]["inner"][1];
-    desc["BallRadius"] = p["ball"]["common"]["radius"];
 
     // 깊이를 잘라내기 위한
     {
@@ -1810,15 +1809,24 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
         desc["Table"]["ShaderMaxH"] = max[H] * (1 / 180.f);
         desc["Table"]["ShaderMinS"] = min[S] * (1 / 255.f);
         desc["Table"]["ShaderMaxS"] = max[S] * (1 / 255.f);
+
+        auto& u = p["unity"];
+        desc["BallRadius"] = u["phys"]["sim-ball-radius"];
+        desc["Phys"]["BallRestitution"] = u["phys"]["ball"]["restitution"];
+        desc["Phys"]["BallDamping"] = u["phys"]["ball"]["velocity-damping"];
+        desc["Phys"]["BallStaticFriction"] = u["phys"]["ball"]["roll-coeff-on-contact"];
+        desc["Phys"]["BallRollTime"] = u["phys"]["ball"]["roll-begin-time"];
+        desc["Phys"]["TableRestitution"] = u["phys"]["table"]["restitution"];
+        desc["Phys"]["TableRtoVCoeff"] = u["phys"]["table"]["roll-to-velocity-coeff"];
+        desc["Phys"]["TableVtoRCoeff"] = u["phys"]["table"]["velocity-to-roll-coeff"];
     }
 
+    ELAPSE_SCOPE("TOTAL");
     show("Source image", imdesc_source.rgba);
 
     if (p["__enable"] == false) {
         return desc;
     }
-
-    ELAPSE_SCOPE("TOTAL");
 
     // 각종 파라미터 등 계산
     {
