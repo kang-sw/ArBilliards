@@ -276,26 +276,45 @@ public class SimHandler : MonoBehaviour
 
 	private AsyncSimAgent.SimResult.Candidate _latestCandidate;
 
+	private float _prevBallRadius;
+
 	private void Start_Rendering()
 	{
 		for (int i = 0; i < 4; i++)
 		{
-			var obj = Instantiate(PathFollowMarkerTemplate, TableAnchor);
-			obj.transform.localScale = Vector3.one * BallRadius * 1.9f;
-			_pathFollowMarker[i] = obj.GetComponent<MarkerManipulator>();
-			var color = BallVisualizeColors[i];
-			color.a = 0.66f;
-			_pathFollowMarker[i].MeshColor = color;
-			_pathFollowMarker[i].ParticleColor = color;
+			if (!_pathFollowMarker[i])
+			{
+				var obj = Instantiate(PathFollowMarkerTemplate, TableAnchor);
+
+				_pathFollowMarker[i] = obj.GetComponent<MarkerManipulator>();
+				var color = BallVisualizeColors[i];
+				color.a = 0.66f;
+				_pathFollowMarker[i].MeshColor = color;
+				_pathFollowMarker[i].ParticleColor = color;
+			}
+
+			_pathFollowMarker[i].transform.localScale = Vector3.one * BallRadius * 1.9f;
 
 			// 패스팔로우 파티클 비활성화 (너무 요란함)
 			var emission = _pathFollowMarker[i].ParticleSystem.emission;
 			emission.enabled = false;
 		}
+
+		foreach (var obj in _collisionMarkerPool)
+		{
+			obj.transform.localScale = Vector3.one * BallRadius * 2f;
+		}
 	}
 
 	private void Update_Rendering()
 	{
+		if (_prevBallRadius != BallRadius)
+		{
+			Start_Rendering();
+			_prevBallRadius = BallRadius;
+		}
+
+
 		_renderPeriodCounter += AcceleratedDelta;
 		_pathReplayCounter += Time.deltaTime;
 

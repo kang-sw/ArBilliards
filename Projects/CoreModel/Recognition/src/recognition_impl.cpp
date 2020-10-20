@@ -813,7 +813,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         ELAPSE_SCOPE("CASE 2 - Iterative Projection");
 
         vector<Vec3f> model;
-        get_table_model(model, m.table.recognition_size);
+        get_table_model(model, tp["size"]["fit"]);
 
         auto init_pos = table_pos;
         auto init_rot = table_rot;

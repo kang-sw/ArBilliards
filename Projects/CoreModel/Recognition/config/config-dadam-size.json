@@ -1,0 +1,185 @@
+{
+    "FOV": [
+        84.855,
+        53.27
+    ],
+    "__enable": true,
+    "ball": {
+        "classification": {
+            "max-error-speed": 1
+        },
+        "common": {
+            "candidate-dilate-count": 6,
+            "candidate-erode-count": 6,
+            "confidence-threshold": 0.15,
+            "confidence-weight": 2.0,
+            "error-base": 36644,
+            "min-pixel-radius": 1,
+            "movement": {
+                "jump-distance": 0.015,
+                "position-LPF-alpha": 0.1
+            },
+            "radius": 0.030239439175,
+            "random-sample": {
+                "do-parallel": true,
+                "negative-area": [
+                    1.03,
+                    1.33
+                ],
+                "positive-area": [
+                    0.3,
+                    1
+                ],
+                "radius": 25,
+                "rotate-angle": 0,
+                "sample-max-cases": 50000,
+                "seed": 0
+            }
+        },
+        "orange": {
+            "color": [
+                90,
+                200
+            ],
+            "error-function-base": 30000,
+            "negative-weight": 1.5,
+            "suitability-threshold": 0.35,
+            "weight-hue-sat": [
+                2.0,
+                1.0
+            ]
+        },
+        "red": {
+            "color": [
+                125,
+                195
+            ],
+            "error-function-base": 30000,
+            "negative-weight": 1,
+            "second-ball-erase-additional-radius": 7,
+            "suitability-threshold": 0.3,
+            "weight-hue-sat": [
+                3,
+                1.0
+            ]
+        },
+        "white": {
+            "color": [
+                80,
+                60
+            ],
+            "error-function-base": 30000,
+            "negative-weight": 3,
+            "suitability-threshold": 0.22,
+            "weight-hue-sat": [
+                0.5,
+                1.0
+            ]
+        }
+    },
+    "do-resize": true,
+    "explorer": {
+        "depth-alpha": 32
+    },
+    "fast-process-width": 800,
+    "others": {
+        "random-sample-view-scale": 1600,
+        "top-view-scale": 894
+    },
+    "table": {
+        "LPF": {
+            "distance-jump-threshold": 0.02,
+            "jump-confidence-threshold": 0.8,
+            "position": 0.13,
+            "rotation": 0.13,
+            "rotation-jump-threshold": 0.02
+        },
+        "confidence-threshold": 0.77,
+        "contour": {
+            "approx-epsilon-convexhull": 10,
+            "approx-epsilon-preprocess": 8,
+            "area-threshold-ratio": 0.03
+        },
+        "cushion-height": 0.033,
+        "error-base": 1.06,
+        "filter": [
+            [
+                176,
+                150,
+                110
+            ],
+            [
+                10,
+                255.0,
+                220
+            ]
+        ],
+        "minimum-confidence": 0.15,
+        "partial": {
+            "border-margin": 3,
+            "candidates": 6000,
+            "contour-curll-window": {
+                "offset": [
+                    0.01,
+                    0.01
+                ],
+                "size": [
+                    0.98,
+                    0.75
+                ]
+            },
+            "do-parallel": true,
+            "iteration": 5,
+            "iteration-narrow-coeff": 0.5,
+            "pos-variant": 0.22,
+            "rot-amount-variant": 0.07,
+            "rot-axis-variant": 0.008
+        },
+        "preprocess": {
+            "AWB-RGB-discard-rate": [
+                0.005,
+                0.005,
+                0.005
+            ],
+            "dilate-erode-num-erode-post": 1,
+            "dilate-erode-num-erode-prev": 1
+        },
+        "size": {
+            "fit": [
+                1.735,
+                0.915
+            ],
+            "inner": [
+                1.653,
+                0.823
+            ],
+            "outer": [
+                1.795,
+                0.965
+            ]
+        }
+    },
+    "unity": {
+        "enable-table-depth-override": true,
+        "phys": {
+            "ball": {
+                "restitution": 0.77,
+                "roll-begin-time": 0.7,
+                "roll-coeff-on-contact": 0.23,
+                "velocity-damping": 0.33
+            },
+            "sim-ball-radius": 0.0302,
+            "table": {
+                "restitution": 0.73,
+                "roll-to-velocity-coeff": 0.67,
+                "velocity-to-roll-coeff": 0.2
+            }
+        }
+    },
+    "window-position": [
+        933,
+        693,
+        800,
+        594
+    ]
+}
