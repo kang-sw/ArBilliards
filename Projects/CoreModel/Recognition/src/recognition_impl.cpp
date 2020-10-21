@@ -7,7 +7,12 @@
 #include <random>
 #include <algorithm>
 #include <vector>
+#include <vector>
+#include <vector>
 #include <nlohmann/json.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+
 #include "image_processing.hpp"
 #include "templates.hxx"
 
@@ -323,6 +328,7 @@ static void project_model_points(img_t const& img, vector<cv::Vec2f>& mapped_con
             for (int i = 0; i < model_vertexes.size();) {
                 if (plane.calc(model_vertexes[i]) <= 0) {
                     model_vertexes[i] = model_vertexes.back();
+                    model_vertexes.pop_back();
                     continue;
                 }
 
@@ -680,6 +686,31 @@ cv::Point recognizer_impl_t::project_single_point(img_t const& img, cv::Vec3f ve
     return static_cast<Vec<int, 2>>(pt.front());
 }
 
+void recognizer_impl_t::get_marker_points_model(std::vector<cv::Vec3f>& model)
+{
+    auto& model_param = m.props["table"]["marker"]["model"];
+    int num_x = model_param["count-x"];
+    int num_y = model_param["count-y"];
+    float felt_width = model_param["felt-width"];
+    float felt_height = model_param["felt-height"];
+    float dist_from_felt_long = model_param["dist-from-felt-long"];
+    float dist_from_felt_short = model_param["dist-from-felt-short"];
+    float step = model_param["step"];
+    float width_shift_a = model_param["width-shift-a"];
+    float width_shift_b = model_param["width-shift-b"];
+    float height_shift_a = model_param["height-shift-a"];
+    float height_shift_b = model_param["height-shift-b"];
+
+    for (int i = -num_y / 2; i < num_y / 2 + 1; ++i) {
+        model.emplace_back(-(dist_from_felt_short + felt_width / 2), 0, step * i + height_shift_a);
+        model.emplace_back(+(dist_from_felt_short + felt_width / 2), 0, step * -i + height_shift_b);
+    }
+    for (int i = -num_x / 2; i < num_x / 2 + 1; ++i) {
+        model.emplace_back(step * i + width_shift_a, 0, -(dist_from_felt_long + felt_height / 2));
+        model.emplace_back(step * -i + width_shift_b, 0, +(dist_from_felt_long + felt_height / 2));
+    }
+}
+
 void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const cv::UMat& filtered, vector<cv::Vec2f>& table_contour, nlohmann::json& desc)
 {
     using namespace names;
@@ -858,9 +889,88 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         }
     }
 
-    // 당구대 주변의 점을 검출해 위치 추적에 활용합니다.
+    // 테이블을 찾는데 실패한 경우 iteration method를 활용해 테이블 위치를 추정합니다.
     if (!table_contour.empty() && confidence == 0) {
-        ELAPSE_SCOPE("CASE 2 - Marker Based Estimation");
+        ELAPSE_SCOPE("CASE 2 - Iterative Projection");
+
+        vector<Vec3f> model;
+        get_table_model(model, tp["size"]["fit"]);
+
+        auto init_pos = table_pos;
+        auto init_rot = table_rot;
+
+        auto tpa = tp["partial"];
+
+        int num_iteration = tpa["iteration"];
+        int num_candidates = tpa["candidates"];
+        float rot_axis_variant = tpa["rot-axis-variant"];
+        float rot_variant = tpa["rot-amount-variant"];
+        float pos_initial_distance = tpa["pos-variant"];
+
+        int border_margin = tpa["border-margin"];
+
+        vector<Vec2i> points;
+        points.assign(table_contour.begin(), table_contour.end());
+        drawContours(debug, vector{{points}}, -1, {255, 0, 0}, 3);
+
+        vector<Vec2f> input = table_contour;
+        transform_estimation_param_t param = {num_iteration, num_candidates, rot_axis_variant, rot_variant, pos_initial_distance, border_margin};
+        Vec2f FOV = p["FOV"];
+        param.FOV = {FOV[0], FOV[1]};
+        param.debug_render_mat = debug;
+        param.render_debug_glyphs = true;
+        param.do_parallel = tpa["do-parallel"];
+        param.iterative_narrow_ratio = tpa["iteration-narrow-coeff"];
+
+        // contour 컬링 사각형을 계산합니다.
+        {
+            Vec2d offset = tpa["contour-curll-window"]["offset"];
+            Vec2d size = tpa["contour-curll-window"]["size"];
+            Vec2i img_size = static_cast<Point>(debug.size());
+
+            Rect r{(Point)(Vec2i)offset.mul(img_size), (Size)(Vec2i)size.mul(img_size)};
+            if (get_safe_ROI_rect(debug, r)) {
+                param.contour_cull_rect = r;
+            }
+            else {
+                param.contour_cull_rect = Rect{{}, debug.size()};
+            }
+        }
+
+        auto result = estimate_matching_transform(img, input, model, init_pos, init_rot, param);
+
+        if (result.has_value()) {
+            auto& res = *result;
+            draw_axes(img, const_cast<cv::Mat&>(debug), res.rotation, res.position, 0.07f, 2);
+            float partial_weight = tpa["weight"];
+            set_filtered_table_pos(res.position, partial_weight * res.confidence, false);
+            set_filtered_table_rot(res.rotation, partial_weight * res.confidence, false);
+            confidence = res.confidence;
+            putText(debug, (stringstream() << "partial confidence: " << res.confidence).str(), {0, 24}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
+        }
+    }
+
+    // 마커 위치 투사
+    {
+        Vec2f fov = p["FOV"];
+        constexpr float DtoR = (CV_PI / 180.f);
+        auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
+
+        vector<Vec3f> vertexes;
+        get_marker_points_model(vertexes);
+        vector<Vec2f> projected;
+        transform_to_camera(img, table_pos, table_rot, vertexes);
+        project_model_points(img, projected, vertexes, true, view_planes);
+
+        for (Point2f pt : projected) {
+            line(debug, pt - Point2f(5, 0), pt + Point2f(5, 0), {0, 188, 255}, 2);
+            line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {0, 188, 255}, 2);
+        }
+    }
+
+    // 당구대 주변의 점을 검출해 위치 추적에 활용합니다.
+    if (!table_contour.empty()) {
+        ELAPSE_SCOPE("CASE 3 - Marker Based Estimation");
         // 필요: 점 목록 및 개수
 
         // table contours를 중점에서 멀어지는 방향으로 n픽셀 밀고, 가까워지는 방향으로 n픽셀 당겨 테이블의 주변 영역을 감싸는 링 형태의 마스크를 구합니다.
@@ -943,12 +1053,17 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
             vector<vector<Vec2i>> contours;
             findContours(range_filtered, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
 
+            float rad_min = tp["marker"]["detect-min-radius"];
+            float rad_max = tp["marker"]["detect-max-radius"];
             for (auto& ctr : contours) {
                 Point2f center;
                 float radius;
                 minEnclosingCircle(ctr, center, radius);
 
-                centers.push_back(center);
+                if (rad_min <= radius && radius <= rad_max) {
+                    centers.push_back(center);
+                }
+                // putText(debug, to_string(radius), center, FONT_HERSHEY_PLAIN, 1.0, {0, 0, 255});
             }
         }
 
@@ -957,10 +1072,12 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         //      회면 밖에 있는 점을 모두 discard
         //      화면 안에 있는 점을 화면에 투영, 각 점에 대해 오차 검사
         //
+        ELAPSE_SCOPE("Iterative Search");
         auto& params = m.props;
         auto& table_params = params["table"];
-        vector<Vec3f> model = table_params["marker"]["array"];
-        model.resize(table_params["marker"]["array-num"]);
+        vector<Vec3f> model; //  = table_params["marker"]["array"];
+                             // model.resize(table_params["marker"]["array-num"]);
+        get_marker_points_model(model);
 
         struct candidate_t {
             Vec3f rotation;
@@ -969,13 +1086,15 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         };
 
         vector<candidate_t> candidates;
-        candidates.push_back({table_rot.mul(Vec3f(0, 1, 0)), table_pos, 0});
+        candidates.push_back({table_rot, table_pos, 0});
 
         Vec2f fov = params["FOV"];
-        auto const view_planes = generate_frustum(fov[0], fov[1]);
+        constexpr float DtoR = (CV_PI / 180.f);
+        auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
 
         mt19937 rengine(random_device{}());
         float rotation_variant = table_params["marker-solver"]["var-rotation"];
+        float rotation_axis_variant = table_params["marker-solver"]["var-rotation-axis"];
         float position_variant = table_params["marker-solver"]["var-position"];
         int num_candidates = table_params["marker-solver"]["num-candidates"];
         float error_base = table_params["marker-solver"]["error-base"];
@@ -998,7 +1117,12 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 cand.position += pivot_candidate.position;
 
                 uniform_real_distribution<float> distr{-rotation_variant, rotation_variant};
-                cand.rotation = Vec3f(0, pivot_candidate.rotation[1] + distr(rengine), 0);
+                auto rot_norm = norm(pivot_candidate.rotation);
+                auto rot_amount = rot_norm + distr(rengine);
+                auto rotator = pivot_candidate.rotation / rot_norm;
+                random_vector(rengine, cand.rotation, rotation_axis_variant);
+                cand.rotation += rotator;
+                cand.rotation *= rot_amount;
 
                 candidates.push_back(cand);
             }
@@ -1041,70 +1165,23 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         transform_to_camera(img, best.position, best.rotation, vertexes);
         project_model_points(img, projected, vertexes, true, view_planes);
 
+        for (Point2f pt : detected) {
+            line(debug, pt - Point2f(5, 0), pt + Point2f(5, 0), {0, 0, 255}, 2);
+            line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {0, 0, 255}, 2);
+        }
+
         for (Point2f pt : projected) {
-            line(debug, pt - Point2f(5, 0), pt + Point2f(5, 0), {255, 255, 255}, 2);
-            line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {255, 255, 255}, 2);
-        }
-    }
-
-    // 테이블을 찾는데 실패한 경우 iteration method를 활용해 테이블 위치를 추정합니다.
-    if (false && !table_contour.empty() && confidence == 0) {
-        ELAPSE_SCOPE("CASE 2 - Iterative Projection");
-
-        vector<Vec3f> model;
-        get_table_model(model, tp["size"]["fit"]);
-
-        auto init_pos = table_pos;
-        auto init_rot = table_rot;
-
-        auto tpa = tp["partial"];
-
-        int num_iteration = tpa["iteration"];
-        int num_candidates = tpa["candidates"];
-        float rot_axis_variant = tpa["rot-axis-variant"];
-        float rot_variant = tpa["rot-amount-variant"];
-        float pos_initial_distance = tpa["pos-variant"];
-
-        int border_margin = tpa["border-margin"];
-
-        vector<Vec2i> points;
-        points.assign(table_contour.begin(), table_contour.end());
-        drawContours(debug, vector{{points}}, -1, {255, 0, 0}, 3);
-
-        vector<Vec2f> input = table_contour;
-        transform_estimation_param_t param = {num_iteration, num_candidates, rot_axis_variant, rot_variant, pos_initial_distance, border_margin};
-        Vec2f FOV = p["FOV"];
-        param.FOV = {FOV[0], FOV[1]};
-        param.debug_render_mat = debug;
-        param.render_debug_glyphs = true;
-        param.do_parallel = tpa["do-parallel"];
-        param.iterative_narrow_ratio = tpa["iteration-narrow-coeff"];
-
-        // contour 컬링 사각형을 계산합니다.
-        {
-            Vec2d offset = tpa["contour-curll-window"]["offset"];
-            Vec2d size = tpa["contour-curll-window"]["size"];
-            Vec2i img_size = static_cast<Point>(debug.size());
-
-            Rect r{(Point)(Vec2i)offset.mul(img_size), (Size)(Vec2i)size.mul(img_size)};
-            if (get_safe_ROI_rect(debug, r)) {
-                param.contour_cull_rect = r;
-            }
-            else {
-                param.contour_cull_rect = Rect{{}, debug.size()};
-            }
+            line(debug, pt - Point2f(5, 0), pt + Point2f(5, 0), {255, 255, 0}, 2);
+            line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {255, 255, 0}, 2);
         }
 
-        auto result = estimate_matching_transform(img, input, model, init_pos, init_rot, param);
+        float apply_rate = min(1.0, best.suitability / max<double>(8, detected.size()));
+        set_filtered_table_pos(best.position, apply_rate);
+        set_filtered_table_rot(best.rotation, apply_rate);
 
-        if (result.has_value()) {
-            auto& res = *result;
-            draw_axes(img, const_cast<cv::Mat&>(debug), res.rotation, res.position, 0.07f, 2);
-            set_filtered_table_pos(res.position, res.confidence, false);
-            set_filtered_table_rot(res.rotation, res.confidence, false);
-            confidence = res.confidence;
-            putText(debug, (stringstream() << "partial confidence: " << res.confidence).str(), {0, 24}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
-        }
+        putText(debug, (stringstream() << "marker confidence: " << apply_rate << " (" << best.suitability << ")").str(), {0, 48}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
+
+        confidence = max(apply_rate, confidence);
     }
 
     if (confidence < tp["confidence-threshold"]) {
@@ -1125,6 +1202,8 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         project_contours(img, debug, model, pos, rot, {0, 255, 0}, 1);
 
         draw_axes(img, (Mat&)debug, rot, pos, 0.08f, 3);
+
+        putText(debug, (stringstream() << "confidence: " << confidence).str(), {0, 72}, FONT_HERSHEY_PLAIN, 1.0, {0, 255, 255});
     }
 
     desc["Table"]["Translation"] = table_pos;

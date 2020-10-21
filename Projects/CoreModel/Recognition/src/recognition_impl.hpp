@@ -192,6 +192,7 @@ public:
             t["minimum-confidence"] = 0.15;
 
             auto& tpa = t["partial"];
+            tpa["weight"] = 0.3;
             tpa["iteration"] = 5;
             tpa["iteration-narrow-coeff"] = 0.64;
             tpa["candidates"] = 25;
@@ -247,11 +248,26 @@ public:
             t["marker"]["frame-width-inner"] = 0.02;
             t["marker"]["num-insert-contours"] = 10;
             t["marker"]["num-dilate-iteration"] = 10;
+            t["marker"]["detect-min-radius"] = 1;
+            t["marker"]["detect-max-radius"] = 15;
+            t["marker"]["model"]["count-x"] = 9;
+            t["marker"]["model"]["count-y"] = 5;
+            t["marker"]["model"]["felt-width"] = 1.735;
+            t["marker"]["model"]["felt-height"] = 0.915;
+            t["marker"]["model"]["dist-from-felt-long"] = 0.015;
+            t["marker"]["model"]["dist-from-felt-short"] = 0.015;
+            t["marker"]["model"]["step"] = 0.205;
+            t["marker"]["model"]["width-shift-a"] = 0;
+            t["marker"]["model"]["width-shift-b"] = 0;
+            t["marker"]["model"]["height-shift-a"] = 0;
+            t["marker"]["model"]["height-shift-b"] = 0;
+
             t["marker-solver"]["num-iteration"] = 5;
             t["marker-solver"]["num-candidates"] = 165;
             t["marker-solver"]["do-parallel"] = true;
             t["marker-solver"]["var-position"] = 10.0;
             t["marker-solver"]["var-rotation"] = 0.1;
+            t["marker-solver"]["var-rotation-axis"] = 0.05;
             t["marker-solver"]["error-base"] = 1.14;
             t["marker-solver"]["position-narrow-rate"] = 0.8;
             t["marker-solver"]["rotation-narrow-rate"] = 0.8;
@@ -306,6 +322,8 @@ public:
      */
     void async_worker_thread();
     void find_balls(nlohmann::json& desc);
+
+    void get_marker_points_model(std::vector<cv::Vec3f>& model);
 
     /**
      * 주된 이미지 처리를 수행합니다.
