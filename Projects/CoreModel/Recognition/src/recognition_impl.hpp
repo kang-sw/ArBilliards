@@ -247,6 +247,14 @@ public:
             t["marker"]["frame-width-inner"] = 0.02;
             t["marker"]["num-insert-contours"] = 10;
             t["marker"]["num-dilate-iteration"] = 10;
+            t["marker-solver"]["num-iteration"] = 5;
+            t["marker-solver"]["num-candidates"] = 165;
+            t["marker-solver"]["do-parallel"] = true;
+            t["marker-solver"]["var-position"] = 10.0;
+            t["marker-solver"]["var-rotation"] = 0.1;
+            t["marker-solver"]["error-base"] = 1.14;
+            t["marker-solver"]["position-narrow-rate"] = 0.8;
+            t["marker-solver"]["rotation-narrow-rate"] = 0.8;
         }
 
         {

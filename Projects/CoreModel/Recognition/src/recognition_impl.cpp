@@ -314,6 +314,33 @@ static void project_model_local(img_t const& img, vector<cv::Vec2f>& mapped_cont
     }
 }
 
+static void project_model_points(img_t const& img, vector<cv::Vec2f>& mapped_contour, vector<cv::Vec3f>& model_vertexes, bool do_cull, vector<plane_t> const& planes)
+{
+    // 오브젝트 포인트에 frustum culling 수행
+    if (do_cull) {
+        // 평면 밖의 점을 모두 discard
+        for (auto& plane : planes) {
+            for (int i = 0; i < model_vertexes.size();) {
+                if (plane.calc(model_vertexes[i]) <= 0) {
+                    model_vertexes[i] = model_vertexes.back();
+                    continue;
+                }
+
+                ++i;
+            }
+        }
+    }
+
+    if (!model_vertexes.empty()) {
+        // obj_pts 점을 카메라에 대한 상대 좌표로 치환합니다.
+        auto [mat_cam, mat_disto] = recognizer_impl_t::get_camera_matx(img);
+
+        // 각 점을 매핑합니다.
+        // projectPoints(model_vertexes, cv::Vec3f(0, 0, 0), cv::Vec3f(0, 0, 0), mat_cam, mat_disto, mapped_contour);
+        project_points(model_vertexes, mat_cam, mat_disto, mapped_contour);
+    }
+}
+
 static vector<plane_t> generate_frustum(float hfov_rad, float vfov_rad)
 {
     using namespace cv;
@@ -375,6 +402,35 @@ static float contour_distance(vector<cv::Vec2f> const& ct_a, vector<cv::Vec2f>& 
     }
 
     return sqrt(sum);
+}
+
+/**
+ * 가장 가까운 각각의 컨투어에 대해, 최소 거리에 대해 평가 함수를 적용합니다.
+ */
+template <typename Fn_>
+static float contour_min_dist_for_each(vector<cv::Vec2f> const& ct_a, vector<cv::Vec2f>& ct_b, Fn_&& eval)
+{
+    float sum = 0;
+
+    for (auto& pt : ct_a) {
+        if (ct_b.empty()) { break; }
+
+        float min_dist = numeric_limits<float>::max();
+        int min_idx = 0;
+        for (int i = 0; i < ct_b.size(); ++i) {
+            auto dist = cv::norm(ct_b[i] - pt, cv::NORM_L2SQR);
+            if (dist < min_dist) {
+                min_dist = dist;
+                min_idx = i;
+            }
+        }
+
+        sum += eval(min_dist);
+        ct_b[min_idx] = ct_b.back();
+        ct_b.pop_back();
+    }
+
+    return sum;
 }
 
 namespace billiards
@@ -804,7 +860,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 
     // 당구대 주변의 점을 검출해 위치 추적에 활용합니다.
     if (!table_contour.empty() && confidence == 0) {
-        ELAPSE_SCOPE("Marker Based Estimation");
+        ELAPSE_SCOPE("CASE 2 - Marker Based Estimation");
         // 필요: 점 목록 및 개수
 
         // table contours를 중점에서 멀어지는 방향으로 n픽셀 밀고, 가까워지는 방향으로 n픽셀 당겨 테이블의 주변 영역을 감싸는 링 형태의 마스크를 구합니다.
@@ -892,7 +948,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 float radius;
                 minEnclosingCircle(ctr, center, radius);
 
-                circle(debug, center, 3, {0, 0, 0}, -1);
+                centers.push_back(center);
             }
         }
 
@@ -901,15 +957,98 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         //      회면 밖에 있는 점을 모두 discard
         //      화면 안에 있는 점을 화면에 투영, 각 점에 대해 오차 검사
         //
+        auto& params = m.props;
+        auto& table_params = params["table"];
+        vector<Vec3f> model = table_params["marker"]["array"];
+        model.resize(table_params["marker"]["array-num"]);
 
-        vector<Vec3f> model = tp["marker"]["array"];
-        model.resize(tp["marker"]["array-num"]);
+        struct candidate_t {
+            Vec3f rotation;
+            Vec3f position;
+            double suitability;
+        };
 
+        vector<candidate_t> candidates;
+        candidates.push_back({table_rot.mul(Vec3f(0, 1, 0)), table_pos, 0});
 
+        Vec2f fov = params["FOV"];
+        auto const view_planes = generate_frustum(fov[0], fov[1]);
+
+        mt19937 rengine(random_device{}());
+        float rotation_variant = table_params["marker-solver"]["var-rotation"];
+        float position_variant = table_params["marker-solver"]["var-position"];
+        int num_candidates = table_params["marker-solver"]["num-candidates"];
+        float error_base = table_params["marker-solver"]["error-base"];
+
+        auto const& detected = centers;
+
+        for (int iteration = 0, max_iteration = table_params["marker-solver"]["num-iteration"];
+             iteration < max_iteration;
+             ++iteration) {
+            auto const& pivot_candidate = candidates.front();
+
+            // candidate 목록 작성.
+            // 임의의 방향으로 회전
+            // 회전 축은 Y 고정
+            while (candidates.size() < num_candidates) {
+                candidate_t cand;
+                cand.suitability = 0;
+
+                random_vector(rengine, cand.position, position_variant);
+                cand.position += pivot_candidate.position;
+
+                uniform_real_distribution<float> distr{-rotation_variant, rotation_variant};
+                cand.rotation = Vec3f(0, pivot_candidate.rotation[1] + distr(rengine), 0);
+
+                candidates.push_back(cand);
+            }
+
+            // 평가 병렬 실행
+            thread_local vector<Vec3f> cc_model;
+            thread_local vector<Vec2f> cc_projected;
+            thread_local vector<Vec2f> cc_detected;
+
+            for_each(execution::par_unseq, candidates.begin(), candidates.end(), [&](candidate_t& elem) {
+                Vec3f rot = elem.rotation;
+                Vec3f pos = elem.position;
+
+                cc_model = model;
+                cc_projected.clear();
+                cc_detected = detected;
+                transform_to_camera(img, pos, rot, cc_model);
+                project_model_points(img, cc_projected, cc_model, true, view_planes);
+
+                // 각각의 점에 대해 독립적으로 거리를 계산합니다.
+                auto suitability = contour_min_dist_for_each(cc_projected, cc_detected, [error_base](float min_dist_sqr) { return pow(error_base, -sqrtf(min_dist_sqr)); });
+
+                elem.suitability = suitability;
+            });
+
+            // 가장 confidence가 높은 후보를 선택합니다.
+            auto max_it = max_element(execution::par_unseq, candidates.begin(), candidates.end(), [](candidate_t const& a, candidate_t const& b) { return a.suitability < b.suitability; });
+            assert(max_it != candidates.end());
+
+            candidates.front() = *max_it;
+            candidates.resize(1); // 최적 엘리먼트 제외 모두 삭제
+            position_variant *= (float)tp["marker-solver"]["position-narrow-rate"];
+            rotation_variant *= (float)tp["marker-solver"]["rotation-narrow-rate"];
+        }
+
+        // 디버그 그리기
+        auto best = candidates.front();
+        auto vertexes = model;
+        vector<Vec2f> projected;
+        transform_to_camera(img, best.position, best.rotation, vertexes);
+        project_model_points(img, projected, vertexes, true, view_planes);
+
+        for (Point2f pt : projected) {
+            line(debug, pt - Point2f(5, 0), pt + Point2f(5, 0), {255, 255, 255}, 2);
+            line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {255, 255, 255}, 2);
+        }
     }
 
     // 테이블을 찾는데 실패한 경우 iteration method를 활용해 테이블 위치를 추정합니다.
-    if (!table_contour.empty() && confidence == 0) {
+    if (false && !table_contour.empty() && confidence == 0) {
         ELAPSE_SCOPE("CASE 2 - Iterative Projection");
 
         vector<Vec3f> model;
