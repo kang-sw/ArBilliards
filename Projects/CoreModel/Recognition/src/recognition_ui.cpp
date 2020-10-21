@@ -208,7 +208,7 @@ nana::listbox::oresolver& operator<<(nana::listbox::oresolver& ores, const mat_d
 
 using nlohmann::json;
 
-static void json_iterative_substitute(json& to, json const& from)
+static void json_recursive_substitute(json& to, json const& from)
 {
     int index = 0;
     for (auto& pair : to.items()) {
@@ -225,12 +225,12 @@ static void json_iterative_substitute(json& to, json const& from)
 
         if (src) {
             if (value.type() == json::value_t::object) {
-                json_iterative_substitute(value, *src);
+                json_recursive_substitute(value, *src);
             }
             else if (value.type() == json::value_t::array) {
-                for (int i = 0; i < min(value.size(), src->size()); ++i) {
+                for (int i = 0; i < /*min(value.size(),*/ (src->size()); ++i) {
                     if (value[i].type() == nlohmann::detail::value_t::object) {
-                        json_iterative_substitute(value[i], (*src)[i]);
+                        json_recursive_substitute(value[i], (*src)[i]);
                     }
                     else {
                         value[i] = (*src)[i];
@@ -301,7 +301,7 @@ void exec_ui()
                     g_recognizer.props["explorer"]["depth-alpha"] = 32;
                 }
 
-                json_iterative_substitute(g_recognizer.props, parsed);
+                json_recursive_substitute(g_recognizer.props, parsed);
                 current_save_path = path;
                 is_config_dirty = false;
                 state_messages.emplace("loaded configurations from file "s + path);
