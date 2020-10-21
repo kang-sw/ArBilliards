@@ -150,6 +150,7 @@ public:
             bm["error-base"] = 1.15;
             bm["movement"]["jump-distance"] = 0.05;
             bm["movement"]["position-LPF-alpha"] = 0.04;
+            bm["movement"]["max-error-speed"] = 1.3;
 
             bm["random-sample"]["do-parallel"] = true;
             bm["random-sample"]["seed"] = 0;
@@ -162,10 +163,7 @@ public:
             bm["candidate-erode-count"] = 11;
 
             bm["confidence-weight"] = 2.0f;
-            bm["confidence-threshold"] = 0.15f;
-
-            auto& bc = b["classification"];
-            bc["max-error-speed"] = 2.2f;
+            bm["confidence-threshold"] = 0.15f; 
         }
 
         {

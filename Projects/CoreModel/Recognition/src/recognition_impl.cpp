@@ -2002,6 +2002,22 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
             ballpos[i] = contact;
         }
 
+        // 각 공의 위치를 검토해, 반경보다 작게 검출된 공의 weight를 무효화합니다.
+        for (int i = 0; i < 3; ++i) {
+            for (int k = i + 1; k < 4; ++k) {
+                if (ball_weights[i] == 0) { break; }
+                if (ball_weights[k] == 0) { continue; }
+
+                auto distance = norm(ballpos[i] - ballpos[k]);
+                if (distance < ball_radius) {
+                    int min_elem = ball_weights[i] < ball_weights[k] ? i : k;
+                    ball_weights[min_elem] = 0;
+
+                    cout << ballpos[i] << " : " << ballpos[k] << " = " << distance << endl;
+                }
+            }
+        }
+
         // 공의 위치를 이전과 비교합니다.
         struct ball_position_desc_t {
             Vec3f pos;
@@ -2017,7 +2033,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
         if (varset(Var_PrevBallPos).has_value()) {
             auto prev = varget(ball_desc_set_t, Var_PrevBallPos);
             auto now = chrono::system_clock::now();
-            double max_error_speed = b["classification"]["max-error-speed"];
+            double max_error_speed = bm["movement"]["max-error-speed"];
 
             // 만약 0번 공의 weight가 0인 경우, 즉 공이 하나만 감지된 경우
             // 1번 공의 감지된 위치와 캐시된 0, 1번 공 위치를 비교하고, 1번 공과 더 동떨어진 것을 선택합니다.
