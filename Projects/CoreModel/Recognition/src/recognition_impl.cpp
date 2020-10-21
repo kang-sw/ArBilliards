@@ -963,8 +963,8 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         project_model_points(img, projected, vertexes, true, view_planes);
 
         for (Point2f pt : projected) {
-            line(debug, pt - Point2f(5, 0), pt + Point2f(5, 0), {0, 188, 255}, 2);
-            line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {0, 188, 255}, 2);
+            line(debug, pt - Point2f(8, 0), pt + Point2f(8, 0), {0, 188, 255}, 2);
+            line(debug, pt - Point2f(0, 8), pt + Point2f(0, 8), {0, 188, 255}, 2);
         }
     }
 
@@ -975,9 +975,23 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 
         // table contours를 중점에서 멀어지는 방향으로 n픽셀 밀고, 가까워지는 방향으로 n픽셀 당겨 테이블의 주변 영역을 감싸는 링 형태의 마스크를 구합니다.
         Mat1b mask(debug.size(), 0);
-        {
+        if (0) {
+            vector<Vec3f> model;
+            get_table_model(model, tp["size"]["outer"]);
+            project_contours(img, mask, model, table_pos, table_rot, {255}, -1);
+            vector<Vec2i> pts;
+            pts.assign(table_contour.begin(), table_contour.end());
+            drawContours(mask, vector{{pts}}, -1, {0}, -1);
+
+            bitwise_not(debug, debug, mask);
+        }
+        else {
             ELAPSE_SCOPE("Calculate Table Contour Mask");
             vector<Vec2f> contour;
+
+            // 테이블 평면 획득
+            auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, 1, 0});
+            plane_to_camera(img, table_plane, table_plane);
 
             // contour 개수를 단순 증식합니다.
             for (int i = 0, num_insert = tp["marker"]["num-insert-contours"];
@@ -1005,9 +1019,11 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 auto& inner = inner_contour[index];
 
                 // 거리 획득
-                auto depth = img.depth.at<float>((Point)pt);
-                auto drag_width_outer = min(300.f, get_pixel_length(img, frame_width_outer, depth));
-                auto drag_width_inner = min(300.f, get_pixel_length(img, frame_width_inner, depth));
+                // auto depth = img.depth.at<float>((Point)pt);
+                // auto drag_width_outer = min(300.f, get_pixel_length(img, frame_width_outer, depth));
+                // auto drag_width_inner = min(300.f, get_pixel_length(img, frame_width_inner, depth));
+                auto drag_width_outer = clamp<float>(get_pixel_length_on_contact(img, table_plane, pt, frame_width_outer), 1, 300.f);
+                auto drag_width_inner = clamp<float>(get_pixel_length_on_contact(img, table_plane, pt, frame_width_inner), 0, 300);
 
                 auto direction = normalize(outer - center);
                 outer += direction * drag_width_outer;
@@ -1019,10 +1035,10 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
             vector<Vec2i> drawer;
             drawer.assign(outer_contour.begin(), outer_contour.end());
             drawContours(mask, vector{{drawer}}, -1, 255, -1);
-            drawContours(debug, vector{{drawer}}, -1, {255, 255, 0}, 2);
+            drawContours(debug, vector{{drawer}}, -1, {0, 0, 0}, 2);
             drawer.assign(inner_contour.begin(), inner_contour.end());
             drawContours(mask, vector{{drawer}}, -1, 0, -1);
-            drawContours(debug, vector{{drawer}}, -1, {255, 255, 0}, 2);
+            drawContours(debug, vector{{drawer}}, -1, {0, 0, 0}, 2);
         }
 
         // 화면에 간단한 필터링 적용, 흰색 점으로 추정되는 모든 contour list를 찾습니다.
@@ -1166,8 +1182,8 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         project_model_points(img, projected, vertexes, true, view_planes);
 
         for (Point2f pt : detected) {
-            line(debug, pt - Point2f(5, 0), pt + Point2f(5, 0), {0, 0, 255}, 2);
-            line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {0, 0, 255}, 2);
+            line(debug, pt - Point2f(5, 5), pt + Point2f(5, 5), {0, 0, 255}, 2);
+            line(debug, pt - Point2f(5, -5), pt + Point2f(5, -5), {0, 0, 255}, 2);
         }
 
         for (Point2f pt : projected) {
