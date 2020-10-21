@@ -941,7 +941,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 
         if (result.has_value()) {
             auto& res = *result;
-            draw_axes(img, const_cast<cv::Mat&>(debug), res.rotation, res.position, 0.07f, 2);
+            // draw_axes(img, const_cast<cv::Mat&>(debug), res.rotation, res.position, 0.07f, 2);
             float partial_weight = tpa["weight"];
             set_filtered_table_pos(res.position, partial_weight * res.confidence, false);
             set_filtered_table_rot(res.rotation, partial_weight * res.confidence, false);
@@ -958,13 +958,23 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 
         vector<Vec3f> vertexes;
         get_marker_points_model(vertexes);
-        vector<Vec2f> projected;
+        /*  vector<Vec2f> projected;
         transform_to_camera(img, table_pos, table_rot, vertexes);
         project_model_points(img, projected, vertexes, true, view_planes);
 
         for (Point2f pt : projected) {
             line(debug, pt - Point2f(8, 0), pt + Point2f(8, 0), {0, 188, 255}, 2);
             line(debug, pt - Point2f(0, 8), pt + Point2f(0, 8), {0, 188, 255}, 2);
+        }*/
+
+        auto world_tr = get_world_transform_matx_fast(table_pos, table_rot);
+        for (auto pt : vertexes) {
+            Vec4f pt4;
+            (Vec3f&)pt4 = pt;
+            pt4[3] = 1.0f;
+
+            pt4 = world_tr * pt4;
+            draw_circle(img, (Mat&)debug, 0.01f, (Vec3f&)pt4, {255, 255, 255}, 2);
         }
     }
 
@@ -1187,15 +1197,15 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         }
 
         for (Point2f pt : projected) {
-            line(debug, pt - Point2f(5, 0), pt + Point2f(5, 0), {255, 255, 0}, 2);
-            line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {255, 255, 0}, 2);
+            line(debug, pt - Point2f(5, 0), pt + Point2f(5, 0), {255, 255, 0}, 1);
+            line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {255, 255, 0}, 1);
         }
 
         float apply_rate = min(1.0, best.suitability / max<double>(8, detected.size()));
         set_filtered_table_pos(best.position, apply_rate);
         set_filtered_table_rot(best.rotation, apply_rate);
 
-        putText(debug, (stringstream() << "marker confidence: " << apply_rate << " (" << best.suitability << ")").str(), {0, 48}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
+        putText(debug, (stringstream() << "marker confidence: " << apply_rate << " (" << best.suitability << "/ " << max<double>(8, detected.size()) << ")").str(), {0, 48}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
 
         confidence = max(apply_rate, confidence);
     }
@@ -2373,7 +2383,7 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
     }
 
     // Debugging glyphs
-    {
+    if (0) {
         // 카메라 트랜스폼 그리기
         Vec3f rot;
         Rodrigues(Mat(imdesc_source.camera_transform)({0, 3}, {0, 3}), rot);
