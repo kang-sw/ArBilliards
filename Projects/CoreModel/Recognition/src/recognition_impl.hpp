@@ -208,6 +208,45 @@ public:
             t["LPF"]["distance-jump-threshold"] = 0.05;
             t["LPF"]["rotation-jump-threshold"] = 0.05;
             t["LPF"]["jump-confidence-threshold"] = 0.94;
+
+            t["marker"]["array-num"] = 28;
+            t["marker"]["array"] = vector<Vec3d>{{
+              {-0.8795, 0.0000, 0.4100},
+              {-0.8795, 0.0000, 0.2050},
+              {-0.8795, 0.0000, 0.0000},
+              {-0.8795, 0.0000, -0.2050},
+              {-0.8795, 0.0000, -0.4100},
+              {-0.8200, 0.0000, -0.4695},
+              {-0.6150, 0.0000, -0.4695},
+              {-0.4100, 0.0000, -0.4695},
+              {-0.2050, 0.0000, -0.4695},
+              {0.0000, 0.0000, -0.4695},
+              {0.2050, 0.0000, -0.4695},
+              {0.4100, 0.0000, -0.4695},
+              {0.6150, 0.0000, -0.4695},
+              {0.8200, 0.0000, -0.4695},
+              {0.8795, 0.0000, -0.4100},
+              {0.8795, 0.0000, -0.2050},
+              {0.8795, 0.0000, 0.0000},
+              {0.8795, 0.0000, 0.2050},
+              {0.8795, 0.0000, 0.4100},
+              {0.8200, 0.0000, 0.4695},
+              {0.6150, 0.0000, 0.4695},
+              {0.4100, 0.0000, 0.4695},
+              {0.2050, 0.0000, 0.4695},
+              {0.0000, 0.0000, 0.4695},
+              {-0.2050, 0.0000, 0.4695},
+              {-0.4100, 0.0000, 0.4695},
+              {-0.6150, 0.0000, 0.4695},
+              {-0.8200, 0.0000, 0.4695},
+            }};
+            t["marker"]["color-HS"] = Vec2d{30, 20};
+            t["marker"]["filter"] = vector<Vec3d>{{0, 0, 65}, {30, 60, 255}};
+            t["marker"]["radius"] = 0.006;
+            t["marker"]["frame-width-outer"] = 0.05;
+            t["marker"]["frame-width-inner"] = 0.02;
+            t["marker"]["num-insert-contours"] = 10;
+            t["marker"]["num-dilate-iteration"] = 10;
         }
 
         {
@@ -221,7 +260,6 @@ public:
             u["phys"]["table"]["restitution"] = 0.73;
             u["phys"]["table"]["roll-to-velocity-coeff"] = 0.67;
             u["phys"]["table"]["velocity-to-roll-coeff"] = 0.2;
-
         }
     }
 
@@ -274,7 +312,7 @@ public:
       img_t const& img,
       const cv::Mat& debug,
       const cv::UMat& filtered,
-      std::vector<cv::Vec2f>& table_contours,
+      std::vector<cv::Vec2f>& table_contour,
       nlohmann::json&);
 
     /**

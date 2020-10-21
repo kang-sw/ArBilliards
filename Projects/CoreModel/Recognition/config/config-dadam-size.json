@@ -39,40 +39,40 @@
         "orange": {
             "color": [
                 90,
-                200
+                210
             ],
             "error-function-base": 30000,
-            "negative-weight": 1.5,
+            "negative-weight": 3,
             "suitability-threshold": 0.35,
-            "weight-hue-sat": [
-                2.0,
-                1.0
-            ]
-        },
-        "red": {
-            "color": [
-                125,
-                195
-            ],
-            "error-function-base": 30000,
-            "negative-weight": 1,
-            "second-ball-erase-additional-radius": 7,
-            "suitability-threshold": 0.3,
             "weight-hue-sat": [
                 3,
                 1.0
             ]
         },
+        "red": {
+            "color": [
+                130,
+                205
+            ],
+            "error-function-base": 30000,
+            "negative-weight": 1.2,
+            "second-ball-erase-additional-radius": 3,
+            "suitability-threshold": 0.7,
+            "weight-hue-sat": [
+                3,
+                1
+            ]
+        },
         "white": {
             "color": [
                 80,
-                60
+                40
             ],
             "error-function-base": 30000,
             "negative-weight": 3,
             "suitability-threshold": 0.22,
             "weight-hue-sat": [
-                0.5,
+                0.2,
                 1.0
             ]
         }
@@ -81,7 +81,7 @@
     "explorer": {
         "depth-alpha": 32
     },
-    "fast-process-width": 800,
+    "fast-process-width": 1280,
     "others": {
         "random-sample-view-scale": 1600,
         "top-view-scale": 894
@@ -100,20 +100,172 @@
             "approx-epsilon-preprocess": 8,
             "area-threshold-ratio": 0.03
         },
-        "cushion-height": 0.033,
+        "cushion-height": 0.035,
         "error-base": 1.06,
         "filter": [
             [
                 176,
-                150,
-                110
+                160,
+                80
             ],
             [
                 10,
-                255.0,
-                220
+                255,
+                255
             ]
         ],
+        "marker": {
+            "array": [
+                [
+                    -879.5,
+                    0.0,
+                    410.0
+                ],
+                [
+                    -879.5,
+                    0.0,
+                    205.0
+                ],
+                [
+                    -879.5,
+                    0.0,
+                    0.0
+                ],
+                [
+                    -879.5,
+                    0.0,
+                    -205.0
+                ],
+                [
+                    -879.5,
+                    0.0,
+                    -410.0
+                ],
+                [
+                    -820.0,
+                    0.0,
+                    -469.5
+                ],
+                [
+                    -615.0,
+                    0.0,
+                    -469.5
+                ],
+                [
+                    -410.0,
+                    0.0,
+                    -469.5
+                ],
+                [
+                    -205.0,
+                    0.0,
+                    -469.5
+                ],
+                [
+                    0.0,
+                    0.0,
+                    -469.5
+                ],
+                [
+                    205.0,
+                    0.0,
+                    -469.5
+                ],
+                [
+                    410.0,
+                    0.0,
+                    -469.5
+                ],
+                [
+                    615.0,
+                    0.0,
+                    -469.5
+                ],
+                [
+                    820.0,
+                    0.0,
+                    -469.5
+                ],
+                [
+                    879.5,
+                    0.0,
+                    -410.0
+                ],
+                [
+                    879.5,
+                    0.0,
+                    -205.0
+                ],
+                [
+                    879.5,
+                    0.0,
+                    0.0
+                ],
+                [
+                    879.5,
+                    0.0,
+                    205.0
+                ],
+                [
+                    879.5,
+                    0.0,
+                    410.0
+                ],
+                [
+                    820.0,
+                    0.0,
+                    469.5
+                ],
+                [
+                    615.0,
+                    0.0,
+                    469.5
+                ],
+                [
+                    410.0,
+                    0.0,
+                    469.5
+                ],
+                [
+                    205.0,
+                    0.0,
+                    469.5
+                ],
+                [
+                    0.0,
+                    0.0,
+                    469.5
+                ],
+                [
+                    -205.0,
+                    0.0,
+                    469.5
+                ],
+                [
+                    -410.0,
+                    0.0,
+                    469.5
+                ],
+                [
+                    -615.0,
+                    0.0,
+                    469.5
+                ],
+                [
+                    -820.0,
+                    0.0,
+                    469.5
+                ]
+            ],
+            "array-num": 28,
+            "color-HS": [
+                30.0,
+                20.0
+            ],
+            "frame-width-inner": 0.02,
+            "frame-width-outer": 0.08,
+            "radius": 0.006
+        },
         "minimum-confidence": 0.15,
         "partial": {
             "border-margin": 3,
@@ -141,7 +293,7 @@
                 0.005,
                 0.005
             ],
-            "dilate-erode-num-erode-post": 1,
+            "dilate-erode-num-erode-post": 10,
             "dilate-erode-num-erode-prev": 1
         },
         "size": {
@@ -163,10 +315,10 @@
         "enable-table-depth-override": true,
         "phys": {
             "ball": {
-                "restitution": 0.77,
+                "restitution": 0.67,
                 "roll-begin-time": 0.7,
                 "roll-coeff-on-contact": 0.23,
-                "velocity-damping": 0.33
+                "velocity-damping": 0.18
             },
             "sim-ball-radius": 0.0302,
             "table": {
@@ -177,9 +329,9 @@
         }
     },
     "window-position": [
-        933,
-        693,
-        800,
-        594
+        1584,
+        391,
+        802,
+        610
     ]
 }

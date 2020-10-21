@@ -7,14 +7,8 @@
 #include <random>
 #include <algorithm>
 #include <vector>
-#include <vector>
-#include <vector>
 #include <nlohmann/json.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-
+#include "image_processing.hpp"
 #include "templates.hxx"
 
 using namespace billiards;
@@ -360,11 +354,11 @@ static void project_model_fast(img_t const& img, vector<cv::Vec2f>& mapped_conto
  */
 static float contour_distance(vector<cv::Vec2f> const& ct_a, vector<cv::Vec2f>& ct_b)
 {
-    CV_Assert(ct_a.size() == ct_b.size());
-
     float sum = 0;
 
     for (auto& pt : ct_a) {
+        if (ct_b.empty()) { break; }
+
         float min_dist = numeric_limits<float>::max();
         int min_idx = 0;
         for (int i = 0; i < ct_b.size(); ++i) {
@@ -630,7 +624,7 @@ cv::Point recognizer_impl_t::project_single_point(img_t const& img, cv::Vec3f ve
     return static_cast<Vec<int, 2>>(pt.front());
 }
 
-void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const cv::UMat& filtered, vector<cv::Vec2f>& table_contours, nlohmann::json& desc)
+void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const cv::UMat& filtered, vector<cv::Vec2f>& table_contour, nlohmann::json& desc)
 {
     using namespace names;
     ELAPSE_SCOPE("Table Search");
@@ -677,25 +671,25 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
             if (table_found) {
                 // marshal
                 for (auto& pt : contour) {
-                    table_contours.push_back(Vec2f(pt.x, pt.y));
+                    table_contour.push_back(Vec2f(pt.x, pt.y));
                 }
             }
         }
 
-        if (table_contours.empty() && max_size_arg.first >= 0) {
+        if (table_contour.empty() && max_size_arg.first >= 0) {
             for (auto& pt : candidates[max_size_arg.first]) {
-                table_contours.emplace_back(pt.x, pt.y);
+                table_contour.emplace_back(pt.x, pt.y);
             }
 
             vector<Vec2i> pts;
-            pts.assign(table_contours.begin(), table_contours.end());
+            pts.assign(table_contour.begin(), table_contour.end());
             drawContours(debug, vector{{pts}}, -1, {0, 0, 0}, 3);
         }
     }
 
     // 가장 높은 confidence ...
     bool is_any_border_point = false;
-    for (auto pt : table_contours) {
+    for (auto pt : table_contour) {
         if (is_border_pixel({{}, image_size}, (Vec2i)pt)) {
             is_any_border_point = true;
             break;
@@ -703,7 +697,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
     }
     float confidence = 0.f;
 
-    if (table_contours.size() == 4 && !is_any_border_point) {
+    if (table_contour.size() == 4 && !is_any_border_point) {
         ELAPSE_SCOPE("CASE 1 - PNP Solver");
         vector<Vec3f> obj_pts;
         Vec3d tvec;
@@ -721,7 +715,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
             auto& c = img.camera;
 
             // 당구대의 네 점의 좌표를 적절한 3D 좌표로 변환합니다.
-            for (auto const& uv : table_contours) {
+            for (auto const& uv : table_contour) {
                 auto u = uv[0];
                 auto v = uv[1];
                 auto z_metric = depth.at<float>(v, u);
@@ -743,9 +737,9 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 
             // 오차를 감안해 공간에서 변의 길이가 table size의 mean보다 작은 값을 선정합니다.
             auto thres = sum((Vec2f)tp["size"]["fit"])[0] * 0.5;
-            for (int idx = 0; idx < table_contours.size() - 1; idx++) {
+            for (int idx = 0; idx < table_contour.size() - 1; idx++) {
                 auto& t = table_points_3d;
-                auto& c = table_contours;
+                auto& c = table_contour;
                 auto len = norm(t[idx + 1] - t[idx], NORM_L2);
 
                 // 다음 인덱스까지의 거리가 문턱값보다 짧다면 해당 인덱스를 가장 앞으로 당깁니다(재정렬).
@@ -760,7 +754,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
             }
             auto [mat_cam, mat_disto] = get_camera_matx(img);
 
-            solve_successful = solvePnP(obj_pts, table_contours, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_ITERATIVE);
+            solve_successful = solvePnP(obj_pts, table_contour, mat_cam, mat_disto, rvec, tvec, false, SOLVEPNP_ITERATIVE);
         }
         //*/
 
@@ -781,7 +775,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
             double error_sum = 0;
             for (size_t index = 0; index < 4; index++) {
                 Vec2f projpt = proj[index];
-                error_sum += norm(projpt - table_contours[index], NORM_L2SQR);
+                error_sum += norm(projpt - table_contour[index], NORM_L2SQR);
             }
 
             confidence = pow(tp["error-base"], -sqrt(error_sum));
@@ -808,8 +802,114 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         }
     }
 
+    // 당구대 주변의 점을 검출해 위치 추적에 활용합니다.
+    if (!table_contour.empty() && confidence == 0) {
+        ELAPSE_SCOPE("Marker Based Estimation");
+        // 필요: 점 목록 및 개수
+
+        // table contours를 중점에서 멀어지는 방향으로 n픽셀 밀고, 가까워지는 방향으로 n픽셀 당겨 테이블의 주변 영역을 감싸는 링 형태의 마스크를 구합니다.
+        Mat1b mask(debug.size(), 0);
+        {
+            ELAPSE_SCOPE("Calculate Table Contour Mask");
+            vector<Vec2f> contour;
+
+            // contour 개수를 단순 증식합니다.
+            for (int i = 0, num_insert = tp["marker"]["num-insert-contours"];
+                 i < table_contour.size() - 1;
+                 ++i) {
+                auto p0 = table_contour[i];
+                auto p1 = table_contour[i + 1];
+
+                for (int idx = 0; idx < num_insert + 1; ++idx) {
+                    contour.push_back(p0 + (p1 - p0) * (1.f / num_insert * idx));
+                }
+            }
+
+            auto outer_contour = contour;
+            auto inner_contour = contour;
+            auto m = moments(contour);
+            auto center = Vec2f(m.m10 / m.m00, m.m01 / m.m00);
+            double frame_width_outer = tp["marker"]["frame-width-outer"];
+            double frame_width_inner = tp["marker"]["frame-width-inner"];
+
+            // 각 컨투어의 거리 값에 따라, 차등적으로 밀고 당길 거리를 지정합니다.
+            for (int index = 0; index < contour.size(); ++index) {
+                Vec2i pt = contour[index];
+                auto& outer = outer_contour[index];
+                auto& inner = inner_contour[index];
+
+                // 거리 획득
+                auto depth = img.depth.at<float>((Point)pt);
+                auto drag_width_outer = min(300.f, get_pixel_length(img, frame_width_outer, depth));
+                auto drag_width_inner = min(300.f, get_pixel_length(img, frame_width_inner, depth));
+
+                auto direction = normalize(outer - center);
+                outer += direction * drag_width_outer;
+                if (!is_border_pixel({{}, mask.size()}, inner)) {
+                    inner -= direction * drag_width_inner;
+                }
+            }
+
+            vector<Vec2i> drawer;
+            drawer.assign(outer_contour.begin(), outer_contour.end());
+            drawContours(mask, vector{{drawer}}, -1, 255, -1);
+            drawContours(debug, vector{{drawer}}, -1, {255, 255, 0}, 2);
+            drawer.assign(inner_contour.begin(), inner_contour.end());
+            drawContours(mask, vector{{drawer}}, -1, 0, -1);
+            drawContours(debug, vector{{drawer}}, -1, {255, 255, 0}, 2);
+        }
+
+        // 화면에 간단한 필터링 적용, 흰색 점으로 추정되는 모든 contour list를 찾습니다.
+        // 각 contour list의 중점에 대해 거리에 따른 크기 등을 계산, 빛에 반사되어 희게 보이는 영역을 discard합니다.
+        vector<Vec2f> centers;
+        {
+            ELAPSE_SCOPE("Filter Marker Range");
+
+            array<Vec3d, 2> filter = tp["marker"]["filter"];
+            auto u_hsv = varget(UMat, UImg_HSV);
+            UMat u0, u1;
+            Mat1b range_filtered(u_hsv.size(), 0);
+
+            auto num_dilate = tp["marker"]["num-dilate-iteration"];
+            filter_hsv(u_hsv, u0, (Vec3f)filter[0], (Vec3f)filter[1]);
+            if (num_dilate > 0) {
+                dilate(u0, u1, {}, Point(-1, -1), num_dilate);
+                erode(u1, u0, {}, Point(-1, -1), num_dilate);
+                u1.setTo(0);
+            }
+            u0.copyTo(u1, mask);
+            dilate(u1, u0, {});
+            subtract(u0, u1, range_filtered);
+
+            show("Table - Marker Range Filtered", range_filtered);
+
+            // 컨투어 추출
+            vector<vector<Vec2i>> contours;
+            findContours(range_filtered, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+            for (auto& ctr : contours) {
+                Point2f center;
+                float radius;
+                minEnclosingCircle(ctr, center, radius);
+
+                circle(debug, center, 3, {0, 0, 0}, -1);
+            }
+        }
+
+        // 모델 좌표계의 m개 점을 iterative하게 투사합니다.
+        //      각 점을 추정 좌표 및 화전에 대해 좌표 이동
+        //      회면 밖에 있는 점을 모두 discard
+        //      화면 안에 있는 점을 화면에 투영, 각 점에 대해 오차 검사
+        //
+
+        vector<Vec3f> model = tp["marker"]["array"];
+        model.resize(tp["marker"]["array-num"]);
+
+
+    }
+
     // 테이블을 찾는데 실패한 경우 iteration method를 활용해 테이블 위치를 추정합니다.
-    if (!table_contours.empty() && confidence == 0) {
+    if (!table_contour.empty() && confidence == 0) {
         ELAPSE_SCOPE("CASE 2 - Iterative Projection");
 
         vector<Vec3f> model;
@@ -829,10 +929,10 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         int border_margin = tpa["border-margin"];
 
         vector<Vec2i> points;
-        points.assign(table_contours.begin(), table_contours.end());
+        points.assign(table_contour.begin(), table_contour.end());
         drawContours(debug, vector{{points}}, -1, {255, 0, 0}, 3);
 
-        vector<Vec2f> input = table_contours;
+        vector<Vec2f> input = table_contour;
         transform_estimation_param_t param = {num_iteration, num_candidates, rot_axis_variant, rot_variant, pos_initial_distance, border_margin};
         Vec2f FOV = p["FOV"];
         param.FOV = {FOV[0], FOV[1]};
@@ -869,7 +969,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
     }
 
     if (confidence < tp["confidence-threshold"]) {
-        table_contours.clear();
+        table_contour.clear();
         confidence = 0;
     }
 
