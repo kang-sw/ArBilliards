@@ -1150,6 +1150,10 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 cand.rotation += rotator;
                 cand.rotation *= rot_amount;
 
+                // 임의의 확률로 180도 회전시킵니다.
+                bool rotate180 = uniform_int_distribution<>{0, 1}(rengine);
+                if (rotate180) { cand.rotation = rotate_local(cand.rotation, {0, CV_PI, 0}); }
+
                 candidates.push_back(cand);
             }
 
