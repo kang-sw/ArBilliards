@@ -239,8 +239,6 @@ public:
               {-0.6150, 0.0000, 0.4695},
               {-0.8200, 0.0000, 0.4695},
             }};
-            t["marker"]["color-HS"] = Vec2d{30, 20};
-            t["marker"]["filter"] = vector<Vec3d>{{0, 0, 65}, {30, 60, 255}};
             t["marker"]["radius"] = 0.006;
             t["marker"]["frame-width-outer"] = 0.05;
             t["marker"]["frame-width-inner"] = 0.02;
@@ -248,6 +246,10 @@ public:
             t["marker"]["num-dilate-iteration"] = 10;
             t["marker"]["detect-min-radius"] = 1;
             t["marker"]["detect-max-radius"] = 15;
+            t["marker-filter"]["color"] = vector<Vec3d>{{0, 0, 65}, {30, 60, 255}};
+            t["marker-filter"]["laplacian-threshold"] = 0.07;
+            t["marker-filter"]["sharpen-sigma"] = 0.07;
+            t["marker"]["laplacian-threshold"] = 0.07;
             t["marker"]["model"]["count-x"] = 9;
             t["marker"]["model"]["count-y"] = 5;
             t["marker"]["model"]["felt-width"] = 1.735;

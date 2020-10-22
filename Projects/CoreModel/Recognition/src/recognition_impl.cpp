@@ -984,16 +984,16 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         // 필요: 점 목록 및 개수
 
         // table contours를 중점에서 멀어지는 방향으로 n픽셀 밀고, 가까워지는 방향으로 n픽셀 당겨 테이블의 주변 영역을 감싸는 링 형태의 마스크를 구합니다.
-        Mat1b mask(debug.size(), 0);
+        Mat1b marker_area_mask(debug.size(), 0);
         if (0) {
             vector<Vec3f> model;
             get_table_model(model, tp["size"]["outer"]);
-            project_contours(img, mask, model, table_pos, table_rot, {255}, -1);
+            project_contours(img, marker_area_mask, model, table_pos, table_rot, {255}, -1);
             vector<Vec2i> pts;
             pts.assign(table_contour.begin(), table_contour.end());
-            drawContours(mask, vector{{pts}}, -1, {0}, -1);
+            drawContours(marker_area_mask, vector{{pts}}, -1, {0}, -1);
 
-            bitwise_not(debug, debug, mask);
+            bitwise_not(debug, debug, marker_area_mask);
         }
         else {
             ELAPSE_SCOPE("Calculate Table Contour Mask");
@@ -1032,34 +1032,44 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 // auto depth = img.depth.at<float>((Point)pt);
                 // auto drag_width_outer = min(300.f, get_pixel_length(img, frame_width_outer, depth));
                 // auto drag_width_inner = min(300.f, get_pixel_length(img, frame_width_inner, depth));
-                auto drag_width_outer = clamp<float>(get_pixel_length_on_contact(img, table_plane, pt, frame_width_outer), 1, 300.f);
-                auto drag_width_inner = clamp<float>(get_pixel_length_on_contact(img, table_plane, pt, frame_width_inner), 0, 300);
+                float drag_width_outer = get_pixel_length_on_contact(img, table_plane, pt, frame_width_outer);
+                float drag_width_inner = get_pixel_length_on_contact(img, table_plane, pt, frame_width_inner);
+
+                // 평면과 해당 방향 시야가 이루는 각도 theta를 구하고, cos(theta)를 곱해 화면상의 픽셀 드래그를 구합니다.
+                Vec3f pt_dir(pt[0], pt[1], 1);
+                get_point_coord_3d(img, pt_dir[0], pt_dir[1], 1);
+                pt_dir = normalize(pt_dir);
+                auto cos_theta = abs(pt_dir.dot(table_plane.N));
+                drag_width_outer *= cos_theta;
+                drag_width_inner *= cos_theta;
+                drag_width_outer = clamp<float>(drag_width_outer, 1, 100);
+                drag_width_inner = clamp<float>(drag_width_inner, 1, 100);
 
                 auto direction = normalize(outer - center);
                 outer += direction * drag_width_outer;
-                if (!is_border_pixel({{}, mask.size()}, inner)) {
+                if (!is_border_pixel({{}, marker_area_mask.size()}, inner)) {
                     inner -= direction * drag_width_inner;
                 }
             }
 
             vector<Vec2i> drawer;
             drawer.assign(outer_contour.begin(), outer_contour.end());
-            drawContours(mask, vector{{drawer}}, -1, 255, -1);
+            drawContours(marker_area_mask, vector{{drawer}}, -1, 255, -1);
             drawContours(debug, vector{{drawer}}, -1, {0, 0, 0}, 2);
             drawer.assign(inner_contour.begin(), inner_contour.end());
-            drawContours(mask, vector{{drawer}}, -1, 0, -1);
+            drawContours(marker_area_mask, vector{{drawer}}, -1, 0, -1);
             drawContours(debug, vector{{drawer}}, -1, {0, 0, 0}, 2);
         }
 
         // 화면에 간단한 필터링 적용, 흰색 점으로 추정되는 모든 contour list를 찾습니다.
         // 각 contour list의 중점에 대해 거리에 따른 크기 등을 계산, 빛에 반사되어 희게 보이는 영역을 discard합니다.
         vector<Vec2f> centers;
-        {
+        if (0) {
             ELAPSE_SCOPE("Filter Marker Range");
 
-            array<Vec3d, 2> filter = tp["marker"]["filter"];
             auto u_hsv = varget(UMat, UImg_HSV);
             UMat u0, u1;
+            array<Vec3d, 2> filter = tp["marker"]["filter"];
             Mat1b range_filtered(u_hsv.size(), 0);
 
             auto num_dilate = tp["marker"]["num-dilate-iteration"];
@@ -1069,7 +1079,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 erode(u1, u0, {}, Point(-1, -1), num_dilate);
                 u1.setTo(0);
             }
-            u0.copyTo(u1, mask);
+            u0.copyTo(u1, marker_area_mask);
             dilate(u1, u0, {});
             subtract(u0, u1, range_filtered);
 
@@ -1092,126 +1102,194 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 // putText(debug, to_string(radius), center, FONT_HERSHEY_PLAIN, 1.0, {0, 0, 255});
             }
         }
+        else {
+            ELAPSE_SCOPE("Filter Marker Range");
+            auto u_hsv = varget(UMat, UImg_HSV);
+            vector<UMat> channels;
+            split(u_hsv, channels);
+
+            if (channels.size() >= 3) {
+                auto& u_value = channels[2];
+                UMat u0, u1;
+                UMat laplacian_mask(u_hsv.size(), CV_8U, {0});
+
+                // 샤프닝 적용 후 라플랑시안 적용
+                // GaussianBlur(u_value, u0, {}, double(tp["marker-filter"]["sharpen-sigma"]));
+                // addWeighted(u_value, 1.5, u0, -0.5, 0, u1);
+                Mat1f kernel(3, 3, -1.0 / 255.f);
+                kernel(1, 1) = 8 / 255.f;
+                filter2D(u_value, u1, CV_32F, kernel.getUMat(ACCESS_READ));
+                show("Marker Filter - 1 Sharpen", u1);
+
+                compare(u1, Scalar(static_cast<double>(tp["marker-filter"]["laplacian-threshold"])), u0, CMP_GT);
+                dilate(u0, u1, {});
+                erode(u1, u0, {}, {-1, -1}, 1);
+                u0.copyTo(laplacian_mask, marker_area_mask);
+
+                show("Marker Filter - 2 Laplacian Thresholded", laplacian_mask);
+
+                vector<vector<Vec2i>> contours;
+                findContours(laplacian_mask, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, {});
+
+                float rad_min = tp["marker"]["detect-min-radius"];
+                float rad_max = tp["marker"]["detect-max-radius"];
+                for (auto& ctr : contours) {
+                    // if (ctr.size() < 3) continue;
+
+                    Point2f center;
+                    float radius;
+                    minEnclosingCircle(ctr, center, radius);
+
+                    if (rad_min <= radius && radius <= rad_max) {
+                        centers.push_back(center);
+                        // putText(debug, to_string(radius), center, FONT_HERSHEY_PLAIN, 1.0, {0, 0, 255});
+                    }
+                }
+
+                //array<Vec3d, 2> filter = tp["marker-filter"]["color"];
+                //Mat1b range_filtered(u_hsv.size(), 0);
+
+                //auto num_dilate = tp["marker-filter"]["num-dilate-iteration"];
+                //filter_hsv(u_hsv, u0, (Vec3f)filter[0], (Vec3f)filter[1]);
+                //if (num_dilate > 0) {
+                //    dilate(u0, u1, {}, Point(-1, -1), num_dilate);
+                //    erode(u1, u0, {}, Point(-1, -1), num_dilate);
+                //}
+                //show("Marker Filter - 3 Range Filter", u0);
+
+                //bitwise_and(u0, laplacian_mask, u1);
+                //show("Marker Filter - 4 Output", u1);
+
+                //Laplacian(u1, u0, CV_32F, 1, 1);
+                //compare(u0, Scalar(static_cast<double>(tp["marker-filter"]["laplacian-threshold"])), u1, CMP_GT);
+                //show("Marker Filter - Laplacian", u0);
+                //show("Marker Filter - Laplacian Filtered", u1);
+
+                // 필터링 된 마스크에서 라플라시안 마스크 제거
+            }
+        }
 
         // 모델 좌표계의 m개 점을 iterative하게 투사합니다.
         //      각 점을 추정 좌표 및 화전에 대해 좌표 이동
         //      회면 밖에 있는 점을 모두 discard
         //      화면 안에 있는 점을 화면에 투영, 각 점에 대해 오차 검사
         //
-        ELAPSE_SCOPE("Iterative Search");
-        auto& params = m.props;
-        auto& table_params = params["table"];
-        vector<Vec3f> model; //  = table_params["marker"]["array"];
-                             // model.resize(table_params["marker"]["array-num"]);
-        get_marker_points_model(model);
+        if (centers.empty() == false) {
+            ELAPSE_SCOPE("Iterative Search");
+            auto& params = m.props;
+            auto& table_params = params["table"];
+            vector<Vec3f> model; //  = table_params["marker"]["array"];
+                                 // model.resize(table_params["marker"]["array-num"]);
+            get_marker_points_model(model);
 
-        struct candidate_t {
-            Vec3f rotation;
-            Vec3f position;
-            double suitability;
-        };
+            struct candidate_t {
+                Vec3f rotation;
+                Vec3f position;
+                double suitability;
+            };
 
-        vector<candidate_t> candidates;
-        candidates.push_back({table_rot, table_pos, 0});
+            vector<candidate_t> candidates;
+            candidates.push_back({table_rot, table_pos, 0});
 
-        Vec2f fov = params["FOV"];
-        constexpr float DtoR = (CV_PI / 180.f);
-        auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
+            Vec2f fov = params["FOV"];
+            constexpr float DtoR = (CV_PI / 180.f);
+            auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
 
-        mt19937 rengine(random_device{}());
-        float rotation_variant = table_params["marker-solver"]["var-rotation"];
-        float rotation_axis_variant = table_params["marker-solver"]["var-rotation-axis"];
-        float position_variant = table_params["marker-solver"]["var-position"];
-        int num_candidates = table_params["marker-solver"]["num-candidates"];
-        float error_base = table_params["marker-solver"]["error-base"];
+            mt19937 rengine(random_device{}());
+            float rotation_variant = table_params["marker-solver"]["var-rotation"];
+            float rotation_axis_variant = table_params["marker-solver"]["var-rotation-axis"];
+            float position_variant = table_params["marker-solver"]["var-position"];
+            int num_candidates = table_params["marker-solver"]["num-candidates"];
+            float error_base = table_params["marker-solver"]["error-base"];
 
-        auto const& detected = centers;
+            auto const& detected = centers;
 
-        for (int iteration = 0, max_iteration = table_params["marker-solver"]["num-iteration"];
-             iteration < max_iteration;
-             ++iteration) {
-            auto const& pivot_candidate = candidates.front();
+            for (int iteration = 0, max_iteration = table_params["marker-solver"]["num-iteration"];
+                 iteration < max_iteration;
+                 ++iteration) {
+                auto const& pivot_candidate = candidates.front();
 
-            // candidate 목록 작성.
-            // 임의의 방향으로 회전
-            // 회전 축은 Y 고정
-            while (candidates.size() < num_candidates) {
-                candidate_t cand;
-                cand.suitability = 0;
+                // candidate 목록 작성.
+                // 임의의 방향으로 회전
+                // 회전 축은 Y 고정
+                while (candidates.size() < num_candidates) {
+                    candidate_t cand;
+                    cand.suitability = 0;
 
-                random_vector(rengine, cand.position, position_variant);
-                cand.position += pivot_candidate.position;
+                    random_vector(rengine, cand.position, position_variant);
+                    cand.position += pivot_candidate.position;
 
-                uniform_real_distribution<float> distr{-rotation_variant, rotation_variant};
-                auto rot_norm = norm(pivot_candidate.rotation);
-                auto rot_amount = rot_norm + distr(rengine);
-                auto rotator = pivot_candidate.rotation / rot_norm;
-                random_vector(rengine, cand.rotation, rotation_axis_variant);
-                cand.rotation += rotator;
-                cand.rotation *= rot_amount;
+                    uniform_real_distribution<float> distr{-rotation_variant, rotation_variant};
+                    auto rot_norm = norm(pivot_candidate.rotation);
+                    auto rot_amount = rot_norm + distr(rengine);
+                    auto rotator = pivot_candidate.rotation / rot_norm;
+                    random_vector(rengine, cand.rotation, rotation_axis_variant);
+                    cand.rotation += rotator;
+                    cand.rotation *= rot_amount;
 
-                // 임의의 확률로 180도 회전시킵니다.
-                bool rotate180 = uniform_int_distribution<>{0, 1}(rengine);
-                if (rotate180) { cand.rotation = rotate_local(cand.rotation, {0, CV_PI, 0}); }
+                    // 임의의 확률로 180도 회전시킵니다.
+                    bool rotate180 = uniform_int_distribution<>{0, 1}(rengine);
+                    if (rotate180) { cand.rotation = rotate_local(cand.rotation, {0, CV_PI, 0}); }
 
-                candidates.push_back(cand);
+                    candidates.push_back(cand);
+                }
+
+                // 평가 병렬 실행
+                thread_local vector<Vec3f> cc_model;
+                thread_local vector<Vec2f> cc_projected;
+                thread_local vector<Vec2f> cc_detected;
+
+                for_each(execution::par_unseq, candidates.begin(), candidates.end(), [&](candidate_t& elem) {
+                    Vec3f rot = elem.rotation;
+                    Vec3f pos = elem.position;
+
+                    cc_model = model;
+                    cc_projected.clear();
+                    cc_detected = detected;
+                    transform_to_camera(img, pos, rot, cc_model);
+                    project_model_points(img, cc_projected, cc_model, true, view_planes);
+
+                    // 각각의 점에 대해 독립적으로 거리를 계산합니다.
+                    auto suitability = contour_min_dist_for_each(cc_projected, cc_detected, [error_base](float min_dist_sqr) { return pow(error_base, -sqrtf(min_dist_sqr)); });
+
+                    elem.suitability = suitability;
+                });
+
+                // 가장 confidence가 높은 후보를 선택합니다.
+                auto max_it = max_element(execution::par_unseq, candidates.begin(), candidates.end(), [](candidate_t const& a, candidate_t const& b) { return a.suitability < b.suitability; });
+                assert(max_it != candidates.end());
+
+                candidates.front() = *max_it;
+                candidates.resize(1); // 최적 엘리먼트 제외 모두 삭제
+                position_variant *= (float)tp["marker-solver"]["position-narrow-rate"];
+                rotation_variant *= (float)tp["marker-solver"]["rotation-narrow-rate"];
             }
 
-            // 평가 병렬 실행
-            thread_local vector<Vec3f> cc_model;
-            thread_local vector<Vec2f> cc_projected;
-            thread_local vector<Vec2f> cc_detected;
+            // 디버그 그리기
+            auto best = candidates.front();
+            auto vertexes = model;
+            vector<Vec2f> projected;
+            transform_to_camera(img, best.position, best.rotation, vertexes);
+            project_model_points(img, projected, vertexes, true, view_planes);
 
-            for_each(execution::par_unseq, candidates.begin(), candidates.end(), [&](candidate_t& elem) {
-                Vec3f rot = elem.rotation;
-                Vec3f pos = elem.position;
+            for (Point2f pt : detected) {
+                line(debug, pt - Point2f(5, 5), pt + Point2f(5, 5), {0, 0, 255}, 2);
+                line(debug, pt - Point2f(5, -5), pt + Point2f(5, -5), {0, 0, 255}, 2);
+            }
 
-                cc_model = model;
-                cc_projected.clear();
-                cc_detected = detected;
-                transform_to_camera(img, pos, rot, cc_model);
-                project_model_points(img, cc_projected, cc_model, true, view_planes);
+            for (Point2f pt : projected) {
+                line(debug, pt - Point2f(5, 0), pt + Point2f(5, 0), {255, 255, 0}, 1);
+                line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {255, 255, 0}, 1);
+            }
 
-                // 각각의 점에 대해 독립적으로 거리를 계산합니다.
-                auto suitability = contour_min_dist_for_each(cc_projected, cc_detected, [error_base](float min_dist_sqr) { return pow(error_base, -sqrtf(min_dist_sqr)); });
+            float apply_rate = min(1.0, best.suitability / max<double>(8, detected.size()));
+            set_filtered_table_pos(best.position, apply_rate);
+            set_filtered_table_rot(best.rotation, apply_rate);
 
-                elem.suitability = suitability;
-            });
+            putText(debug, (stringstream() << "marker confidence: " << apply_rate << " (" << best.suitability << "/ " << max<double>(8, detected.size()) << ")").str(), {0, 48}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
 
-            // 가장 confidence가 높은 후보를 선택합니다.
-            auto max_it = max_element(execution::par_unseq, candidates.begin(), candidates.end(), [](candidate_t const& a, candidate_t const& b) { return a.suitability < b.suitability; });
-            assert(max_it != candidates.end());
-
-            candidates.front() = *max_it;
-            candidates.resize(1); // 최적 엘리먼트 제외 모두 삭제
-            position_variant *= (float)tp["marker-solver"]["position-narrow-rate"];
-            rotation_variant *= (float)tp["marker-solver"]["rotation-narrow-rate"];
+            confidence = max(apply_rate, confidence);
         }
-
-        // 디버그 그리기
-        auto best = candidates.front();
-        auto vertexes = model;
-        vector<Vec2f> projected;
-        transform_to_camera(img, best.position, best.rotation, vertexes);
-        project_model_points(img, projected, vertexes, true, view_planes);
-
-        for (Point2f pt : detected) {
-            line(debug, pt - Point2f(5, 5), pt + Point2f(5, 5), {0, 0, 255}, 2);
-            line(debug, pt - Point2f(5, -5), pt + Point2f(5, -5), {0, 0, 255}, 2);
-        }
-
-        for (Point2f pt : projected) {
-            line(debug, pt - Point2f(5, 0), pt + Point2f(5, 0), {255, 255, 0}, 1);
-            line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {255, 255, 0}, 1);
-        }
-
-        float apply_rate = min(1.0, best.suitability / max<double>(8, detected.size()));
-        set_filtered_table_pos(best.position, apply_rate);
-        set_filtered_table_rot(best.rotation, apply_rate);
-
-        putText(debug, (stringstream() << "marker confidence: " << apply_rate << " (" << best.suitability << "/ " << max<double>(8, detected.size()) << ")").str(), {0, 48}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
-
-        confidence = max(apply_rate, confidence);
     }
 
     if (confidence < tp["confidence-threshold"]) {
