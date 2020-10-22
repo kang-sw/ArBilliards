@@ -2406,7 +2406,7 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
             if (
               int prev_iter = tp["preprocess"]["dilate-erode-num-erode-prev"],
               post_iter = tp["preprocess"]["dilate-erode-num-erode-post"];
-              prev_iter > 0 && post_iter > 0) {
+              prev_iter + post_iter > 0 && prev_iter >= 0 && post_iter >= 0) {
                 ELAPSE_SCOPE("Dilate-Erode Noise Remove");
                 UMat u0, u1;
                 auto num_dilate = prev_iter + post_iter;
