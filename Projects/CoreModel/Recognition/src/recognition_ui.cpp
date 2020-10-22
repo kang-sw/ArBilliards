@@ -294,6 +294,7 @@ void exec_ui()
                 // 에디터 설정 목록
                 {
                     if (auto it = parsed.find("window-position"); it != parsed.end()) {
+                        g_recognizer.props["window-position"] = *it;
                         array<int, 4> wndPos = *it;
                         fm.move((rectangle&)wndPos);
                     }
