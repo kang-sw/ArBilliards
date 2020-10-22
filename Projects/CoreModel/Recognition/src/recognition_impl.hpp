@@ -163,7 +163,7 @@ public:
             bm["candidate-erode-count"] = 11;
 
             bm["confidence-weight"] = 2.0f;
-            bm["confidence-threshold"] = 0.15f; 
+            bm["confidence-threshold"] = 0.15f;
         }
 
         {
@@ -208,8 +208,32 @@ public:
             t["LPF"]["rotation-jump-threshold"] = 0.05;
             t["LPF"]["jump-confidence-threshold"] = 0.94;
 
-            t["marker"]["array-num"] = 28;
-            t["marker"]["array"] = vector<Vec3d>{{
+            t["marker"]["radius"] = 0.006;
+            t["marker"]["frame-width-outer"] = 0.05;
+            t["marker"]["frame-width-inner"] = 0.02;
+            t["marker"]["num-insert-contours"] = 10;
+            t["marker"]["num-dilate-iteration"] = 10;
+            t["marker"]["detect-min-radius"] = 1;
+            t["marker"]["detect-max-radius"] = 15;
+            t["marker"]["detect-area-threshold"] = 1;
+            t["marker-filter"]["color"] = vector<Vec3d>{{0, 0, 65}, {30, 60, 255}};
+            t["marker-filter"]["laplacian-threshold"] = 0.07;
+            t["marker-filter"]["sharpen-sigma"] = 0.07;
+            t["marker"]["laplacian-threshold"] = 0.07;
+            t["marker"]["model"]["count-x"] = 9;
+            t["marker"]["model"]["count-y"] = 5;
+            t["marker"]["model"]["felt-width"] = 1.735;
+            t["marker"]["model"]["felt-height"] = 0.915;
+            t["marker"]["model"]["dist-from-felt-long"] = 0.015;
+            t["marker"]["model"]["dist-from-felt-short"] = 0.015;
+            t["marker"]["model"]["step"] = 0.205;
+            t["marker"]["model"]["width-shift-a"] = 0;
+            t["marker"]["model"]["width-shift-b"] = 0;
+            t["marker"]["model"]["height-shift-a"] = 0;
+            t["marker"]["model"]["height-shift-b"] = 0;
+            t["marker"]["model"]["array-enable"] = false;
+            t["marker"]["model"]["array-num"] = 28;
+            t["marker"]["model"]["array"] = vector<Vec3d>{{
               {-0.8795, 0.0000, 0.4100},
               {-0.8795, 0.0000, 0.2050},
               {-0.8795, 0.0000, 0.0000},
@@ -239,29 +263,8 @@ public:
               {-0.6150, 0.0000, 0.4695},
               {-0.8200, 0.0000, 0.4695},
             }};
-            t["marker"]["radius"] = 0.006;
-            t["marker"]["frame-width-outer"] = 0.05;
-            t["marker"]["frame-width-inner"] = 0.02;
-            t["marker"]["num-insert-contours"] = 10;
-            t["marker"]["num-dilate-iteration"] = 10;
-            t["marker"]["detect-min-radius"] = 1;
-            t["marker"]["detect-max-radius"] = 15;
-            t["marker-filter"]["color"] = vector<Vec3d>{{0, 0, 65}, {30, 60, 255}};
-            t["marker-filter"]["laplacian-threshold"] = 0.07;
-            t["marker-filter"]["sharpen-sigma"] = 0.07;
-            t["marker"]["laplacian-threshold"] = 0.07;
-            t["marker"]["model"]["count-x"] = 9;
-            t["marker"]["model"]["count-y"] = 5;
-            t["marker"]["model"]["felt-width"] = 1.735;
-            t["marker"]["model"]["felt-height"] = 0.915;
-            t["marker"]["model"]["dist-from-felt-long"] = 0.015;
-            t["marker"]["model"]["dist-from-felt-short"] = 0.015;
-            t["marker"]["model"]["step"] = 0.205;
-            t["marker"]["model"]["width-shift-a"] = 0;
-            t["marker"]["model"]["width-shift-b"] = 0;
-            t["marker"]["model"]["height-shift-a"] = 0;
-            t["marker"]["model"]["height-shift-b"] = 0;
 
+            t["marker-solver"]["confidence-amplitude"] = 2;
             t["marker-solver"]["num-iteration"] = 5;
             t["marker-solver"]["num-candidates"] = 165;
             t["marker-solver"]["do-parallel"] = true;
@@ -271,6 +274,7 @@ public:
             t["marker-solver"]["error-base"] = 1.14;
             t["marker-solver"]["position-narrow-rate"] = 0.8;
             t["marker-solver"]["rotation-narrow-rate"] = 0.8;
+            t["marker-solver"]["min-valid-marker-size"] = 1.2;
         }
 
         {

@@ -689,25 +689,31 @@ cv::Point recognizer_impl_t::project_single_point(img_t const& img, cv::Vec3f ve
 void recognizer_impl_t::get_marker_points_model(std::vector<cv::Vec3f>& model)
 {
     auto& model_param = m.props["table"]["marker"]["model"];
-    int num_x = model_param["count-x"];
-    int num_y = model_param["count-y"];
-    float felt_width = model_param["felt-width"];
-    float felt_height = model_param["felt-height"];
-    float dist_from_felt_long = model_param["dist-from-felt-long"];
-    float dist_from_felt_short = model_param["dist-from-felt-short"];
-    float step = model_param["step"];
-    float width_shift_a = model_param["width-shift-a"];
-    float width_shift_b = model_param["width-shift-b"];
-    float height_shift_a = model_param["height-shift-a"];
-    float height_shift_b = model_param["height-shift-b"];
-
-    for (int i = -num_y / 2; i < num_y / 2 + 1; ++i) {
-        model.emplace_back(-(dist_from_felt_short + felt_width / 2), 0, step * i + height_shift_a);
-        model.emplace_back(+(dist_from_felt_short + felt_width / 2), 0, step * -i + height_shift_b);
+    if (model_param["array-enable"]) {
+        model = model_param["array"].get<vector<cv::Vec3f>>();
+        model.resize(model_param["array-num"]);
     }
-    for (int i = -num_x / 2; i < num_x / 2 + 1; ++i) {
-        model.emplace_back(step * i + width_shift_a, 0, -(dist_from_felt_long + felt_height / 2));
-        model.emplace_back(step * -i + width_shift_b, 0, +(dist_from_felt_long + felt_height / 2));
+    else {
+        int num_x = model_param["count-x"];
+        int num_y = model_param["count-y"];
+        float felt_width = model_param["felt-width"];
+        float felt_height = model_param["felt-height"];
+        float dist_from_felt_long = model_param["dist-from-felt-long"];
+        float dist_from_felt_short = model_param["dist-from-felt-short"];
+        float step = model_param["step"];
+        float width_shift_a = model_param["width-shift-a"];
+        float width_shift_b = model_param["width-shift-b"];
+        float height_shift_a = model_param["height-shift-a"];
+        float height_shift_b = model_param["height-shift-b"];
+
+        for (int i = -num_y / 2; i < num_y / 2 + 1; ++i) {
+            model.emplace_back(-(dist_from_felt_short + felt_width / 2), 0, step * i + height_shift_a);
+            model.emplace_back(+(dist_from_felt_short + felt_width / 2), 0, step * -i + height_shift_b);
+        }
+        for (int i = -num_x / 2; i < num_x / 2 + 1; ++i) {
+            model.emplace_back(step * i + width_shift_a, 0, -(dist_from_felt_long + felt_height / 2));
+            model.emplace_back(step * -i + width_shift_b, 0, +(dist_from_felt_long + felt_height / 2));
+        }
     }
 }
 
@@ -824,20 +830,26 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 
             // 오차를 감안해 공간에서 변의 길이가 table size의 mean보다 작은 값을 선정합니다.
             auto thres = sum((Vec2f)tp["size"]["fit"])[0] * 0.5;
-            for (int idx = 0; idx < table_contour.size() - 1; idx++) {
-                auto& t = table_points_3d;
-                auto& c = table_contour;
-                auto len = norm(t[idx + 1] - t[idx], NORM_L2);
+            //for (int idx = 0; idx < table_contour.size() - 1; idx++) {
+            //    auto& t = table_points_3d;
+            //    auto& c = table_contour;
+            //    auto len = norm(t[idx + 1] - t[idx], NORM_L2);
 
-                // 다음 인덱스까지의 거리가 문턱값보다 짧다면 해당 인덱스를 가장 앞으로 당깁니다(재정렬).
-                if (len < thres) {
-                    c.insert(c.end(), c.begin(), c.begin() + idx);
-                    t.insert(t.end(), t.begin(), t.begin() + idx);
-                    c.erase(c.begin(), c.begin() + idx);
-                    t.erase(t.begin(), t.begin() + idx);
+            //    // 다음 인덱스까지의 거리가 문턱값보다 짧다면 해당 인덱스를 가장 앞으로 당깁니다(재정렬).
+            //    if (len < thres) {
+            //        c.insert(c.end(), c.begin(), c.begin() + idx);
+            //        t.insert(t.end(), t.begin(), t.begin() + idx);
+            //        c.erase(c.begin(), c.begin() + idx);
+            //        t.erase(t.begin(), t.begin() + idx);
 
-                    break;
-                }
+            //        break;
+            //    }
+            //}
+            auto& t = table_points_3d;
+            auto& c = table_contour;
+            if (norm(t[0] - t[1]) > norm(t[1] - t[2])) {
+                c.push_back(c.front());
+                c.erase(c.begin());
             }
             auto [mat_cam, mat_disto] = get_camera_matx(img);
 
@@ -1042,6 +1054,8 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 auto cos_theta = abs(pt_dir.dot(table_plane.N));
                 drag_width_outer *= cos_theta;
                 drag_width_inner *= cos_theta;
+                drag_width_outer = isnan(drag_width_outer) ? 1 : drag_width_outer;
+                drag_width_inner = isnan(drag_width_inner) ? 1 : drag_width_inner;
                 drag_width_outer = clamp<float>(drag_width_outer, 1, 100);
                 drag_width_inner = clamp<float>(drag_width_inner, 1, 100);
 
@@ -1064,6 +1078,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         // 화면에 간단한 필터링 적용, 흰색 점으로 추정되는 모든 contour list를 찾습니다.
         // 각 contour list의 중점에 대해 거리에 따른 크기 등을 계산, 빛에 반사되어 희게 보이는 영역을 discard합니다.
         vector<Vec2f> centers;
+        vector<float> marker_weights;
         if (0) {
             ELAPSE_SCOPE("Filter Marker Range");
 
@@ -1133,15 +1148,18 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 
                 float rad_min = tp["marker"]["detect-min-radius"];
                 float rad_max = tp["marker"]["detect-max-radius"];
+                float area_min = tp["marker"]["detect-area-threshold"];
                 for (auto& ctr : contours) {
                     // if (ctr.size() < 3) continue;
 
                     Point2f center;
                     float radius;
                     minEnclosingCircle(ctr, center, radius);
+                    float area = contourArea(ctr);
 
-                    if (rad_min <= radius && radius <= rad_max) {
+                    if (area >= area_min && rad_min <= radius && radius <= rad_max) {
                         centers.push_back(center);
+                        marker_weights.push_back(contourArea(ctr));
                         // putText(debug, to_string(radius), center, FONT_HERSHEY_PLAIN, 1.0, {0, 0, 255});
                     }
                 }
@@ -1216,15 +1234,16 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                     candidate_t cand;
                     cand.suitability = 0;
 
-                    random_vector(rengine, cand.position, position_variant);
+                    uniform_real_distribution<float> distr_pos{-position_variant, position_variant};
+                    random_vector(rengine, cand.position, distr_pos(rengine));
                     cand.position += pivot_candidate.position;
 
-                    uniform_real_distribution<float> distr{-rotation_variant, rotation_variant};
+                    uniform_real_distribution<float> distr_rot{-rotation_variant, rotation_variant};
                     auto rot_norm = norm(pivot_candidate.rotation);
-                    auto rot_amount = rot_norm + distr(rengine);
+                    auto rot_amount = rot_norm + distr_rot(rengine);
                     auto rotator = pivot_candidate.rotation / rot_norm;
                     random_vector(rengine, cand.rotation, rotation_axis_variant);
-                    cand.rotation += rotator;
+                    cand.rotation = normalize(cand.rotation + rotator);
                     cand.rotation *= rot_amount;
 
                     // 임의의 확률로 180도 회전시킵니다.
@@ -1282,7 +1301,10 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {255, 255, 0}, 1);
             }
 
-            float apply_rate = min(1.0, best.suitability / max<double>(8, detected.size()));
+            float ampl = tp["marker-solver"]["confidence-amplitude"];
+            float min_size = tp["marker-solver"]["min-valid-marker-size"];
+            float weight_sum = count_if(marker_weights.begin(), marker_weights.end(), [min_size](float v) { return v > min_size; });
+            float apply_rate = min(1.0, ampl * best.suitability / max<double>(1, weight_sum));
             set_filtered_table_pos(best.position, apply_rate);
             set_filtered_table_rot(best.rotation, apply_rate);
 
@@ -2094,8 +2116,6 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
                 if (distance < ball_radius) {
                     int min_elem = ball_weights[i] < ball_weights[k] ? i : k;
                     ball_weights[min_elem] = 0;
-
-                    cout << ballpos[i] << " : " << ballpos[k] << " = " << distance << endl;
                 }
             }
         }
