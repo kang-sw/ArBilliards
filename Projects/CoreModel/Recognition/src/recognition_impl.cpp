@@ -902,7 +902,9 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
     }
 
     // 테이블을 찾는데 실패한 경우 iteration method를 활용해 테이블 위치를 추정합니다.
-    if (!table_contour.empty() && confidence == 0) {
+    bool const pnp_failed = confidence == 0;
+
+    if (!table_contour.empty() && pnp_failed) {
         ELAPSE_SCOPE("CASE 2 - Iterative Projection");
 
         vector<Vec3f> model;
@@ -963,7 +965,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
     }
 
     // 마커 위치 투사
-    {
+    if (pnp_failed) {
         Vec2f fov = p["FOV"];
         constexpr float DtoR = (CV_PI / 180.f);
         auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
@@ -991,7 +993,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
     }
 
     // 당구대 주변의 점을 검출해 위치 추적에 활용합니다.
-    if (!table_contour.empty()) {
+    if (pnp_failed && !table_contour.empty()) {
         ELAPSE_SCOPE("CASE 3 - Marker Based Estimation");
         // 필요: 점 목록 및 개수
 
