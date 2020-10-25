@@ -993,7 +993,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
     }
 
     // 당구대 주변의 점을 검출해 위치 추적에 활용합니다.
-    if (pnp_failed && !table_contour.empty()) {
+    if (pnp_failed && !table_contour.empty() && (int)tp["marker-solver"]["num-iteration"] > 0) {
         ELAPSE_SCOPE("CASE 3 - Marker Based Estimation");
         // 필요: 점 목록 및 개수
 
