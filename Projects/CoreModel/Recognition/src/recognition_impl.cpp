@@ -2283,6 +2283,8 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
         desc["Phys"]["TableRestitution"] = u["phys"]["table"]["restitution"];
         desc["Phys"]["TableRtoVCoeff"] = u["phys"]["table"]["roll-to-velocity-coeff"];
         desc["Phys"]["TableVtoRCoeff"] = u["phys"]["table"]["velocity-to-roll-coeff"];
+
+        desc["CameraAnchorOffset"] = u["camera-anchor-offset-vector"];
     }
 
     ELAPSE_SCOPE("TOTAL");

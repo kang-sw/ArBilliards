@@ -282,6 +282,7 @@ public:
         {
             auto& u = params["unity"];
             u["enable-table-depth-override"] = true;
+            u["camera-anchor-offset-vector"] = Vec3d{};
             u["phys"]["sim-ball-radius"] = 0.02208169;
             u["phys"]["ball"]["restitution"] = 0.77;
             u["phys"]["ball"]["velocity-damping"] = 0.33;
