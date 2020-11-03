@@ -1507,7 +1507,10 @@ MonoBehaviour:
   NumRotationDivider: 720
   SimDuration: 12
   BallInitialSpeeds:
-  - 0.9
+  - 0.2
+  - 0.3
+  - 0.6
+  - 0.8
   ResimulationDistanceThreshold: 0.006
   MovementSpeedThreshold: 0.007
   PlayerBall: 2

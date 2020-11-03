@@ -20,6 +20,8 @@ public class RecognitionHandler : MonoBehaviour
 
 	public Transform[] TablePillarTransforms;
 
+	public Transform CameraAnchorOffset;
+
 	// 테이블을 기준으로 정정될 트랜스폼 목록입니다.
 	public Transform AdjustedTransform;
 
@@ -103,6 +105,7 @@ public class RecognitionHandler : MonoBehaviour
 		}
 
 		public PhysDesc Phys;
+		public float[] CameraAnchorOffset;
 	}
 
 	// Start is called before the first frame update
@@ -241,6 +244,12 @@ public class RecognitionHandler : MonoBehaviour
 			Simulator.TableRestitution = phys.TableRestitution;
 			Simulator.TableRollFriction = phys.TableRtoVCoeff;
 			Simulator.TableVelocityFriction = phys.TableVtoRCoeff;
+		}
+
+		if (recog.CameraAnchorOffset != null && recog.CameraAnchorOffset.Length == 3 && CameraAnchorOffset)
+		{
+			var a = recog.CameraAnchorOffset;
+			CameraAnchorOffset.localPosition = new Vector3(a[0], a[1], a[2]);
 		}
 	}
 
