@@ -13,7 +13,7 @@ find_package(ZED 2 REQUIRED)
 find_package(CUDA REQUIRED)
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
 
-add_subdirectory(third/nana)
+# add_subdirectory(third/nana)
 
 # project settings 
 set(RECOGNITION_SOURCE_DIR "src") 
@@ -34,6 +34,7 @@ target_compile_features(
 add_dependencies(
 	Recognition
 		nana
+		pipepp_gui
 )
 
 target_link_libraries(
@@ -43,6 +44,7 @@ target_link_libraries(
 		${ZED_LIBRARIES}
 		${Boost_LIBRARIES}
 		nana
+		pipepp_gui
 )
 
 target_include_directories(

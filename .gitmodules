@@ -5,3 +5,6 @@
 [submodule "Projects/CoreModel/Recognition/third/range-v3"]
 	path = Projects/CoreModel/Recognition/third/range-v3
 	url = https://github.com/ericniebler/range-v3.git
+[submodule "Projects/CoreModel/third/pipepp"]
+	path = Projects/CoreModel/third/pipepp
+	url = https://github.com/kang-sw/pipepp.git
