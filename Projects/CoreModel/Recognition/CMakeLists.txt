@@ -45,12 +45,12 @@ target_link_libraries(
 		${Boost_LIBRARIES}
 		nana
 		pipepp_gui
+		nlohmann_json
 )
 
 target_include_directories(
 	Recognition
 	PRIVATE
-		"third/nlohmann/include/" 
 		"third/cpp-base64/" 
 		"third/cvui"
 		${OpenCV_INCLUDE_DIRS} 

@@ -464,7 +464,7 @@ public:
     /**
      * 위치 벡터 및 로드리게스 회전 벡터로부터 월드 트랜스폼을 획득하는 헬퍼 함수입니다.
      */
-    static void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform);
+    static void get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, cv::Mat& world_transform);
 
     /**
      * 카메라 매트릭스를 획득합니다.
@@ -529,7 +529,7 @@ public:
     /**
      * 테이블 평면을 카메라 좌표계로 변환합니다.
      */
-    static void recognizer_impl_t::plane_to_camera(img_t const& img, plane_t const& table_plane, plane_t& table_plane_camera);
+    static void plane_to_camera(img_t const& img, plane_t const& table_plane, plane_t& table_plane_camera);
 
     /**
      * metric 길이에 대한 해당 거리에서의 픽셀 크기를 반환합니다.
