@@ -7,19 +7,17 @@
 #include <opencv2/opencv.hpp>
 #include <span>
 
+#include "nana/gui/widgets/form.hpp"
+#include "nana/gui/widgets/treebox.hpp"
+#include "nana/gui/widgets/textbox.hpp"
+#include "nana/gui/widgets/listbox.hpp"
+#include "nana/gui/widgets/button.hpp"
+#include "nana/gui/filebox.hpp"
 #include "nana/gui/widgets/slider.hpp"
 
 extern billiards::recognizer_t g_recognizer;
 
 using namespace std;
-
-#include <nana/gui/widgets/form.hpp>
-#include <nana/gui/widgets/scroll.hpp>
-#include <nana/gui/widgets/treebox.hpp>
-#include <nana/gui/widgets/textbox.hpp>
-#include <nana/gui/widgets/button.hpp>
-#include <nana/gui/widgets/listbox.hpp>
-#include <nana/gui/filebox.hpp>
 
 struct n_type {
     mutex shows_lock;

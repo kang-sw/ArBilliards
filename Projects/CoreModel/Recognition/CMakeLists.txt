@@ -39,7 +39,7 @@ add_dependencies(
 
 target_link_libraries(
 	Recognition
-	PRIVATE
+	PUBLIC
 		${OpenCV_LIBS} 
 		${ZED_LIBRARIES}
 		${Boost_LIBRARIES}

@@ -2558,138 +2558,141 @@ float recognizer_impl_t::get_pixel_length(img_t const& img, float len_metric, fl
 
     return u2 - u1;
 }
-
-recognizer_t::recognizer_t()
-    : impl_(make_unique<recognizer_impl_t>(*this))
-{
-}
-
-recognizer_t::~recognizer_t() = default;
-
-void recognizer_t::initialize()
-{
-    if (!impl_) {
-        impl_ = make_unique<recognizer_impl_t>(*this);
-    }
-}
-
-void recognizer_t::destroy()
-{
-    impl_.reset();
-}
-
-void recognizer_t::refresh_image(parameter_type image, recognizer_t::process_finish_callback_type&& callback)
-{
-    if (!impl_) {
-        return;
-    }
-
-    auto& m = *impl_;
-    bool img_swap_before_prev_img_proc = false;
-
-    if (write_lock lock(m.img_cue_mtx); lock) {
-        img_swap_before_prev_img_proc = !!m.img_cue;
-        m.img_cue = image;
-        m.img_cue_cb = move(callback);
-    }
-
-    if (img_swap_before_prev_img_proc) {
-        cout << "warning: image request cued before previous image processed\n";
-    }
-
-    m.worker_event_wait.notify_all();
-}
-
-void recognizer_t::poll(std::unordered_map<std::string, cv::Mat>& shows)
-{
-    // 비동기적으로 수집된 이미지 목록을 획득합니다.
-    auto& m = *impl_;
-
-    if (read_lock lock(m.img_show_mtx, try_to_lock); lock) {
-        for (auto& pair : m.img_show) {
-            shows[pair.first] = pair.second;
-        }
-    }
-}
-
-recognizer_t::parameter_type recognizer_t::get_image_snapshot() const
-{
-    read_lock lock(impl_->img_snapshot_mtx);
-    return impl_->img_prev;
-}
-
-std::vector<std::pair<std::string, std::chrono::microseconds>> recognizer_t::get_latest_timings() const
-{
-    read_lock lock{impl_->elapsed_seconds_mtx};
-    return impl_->elapsed_seconds_prev;
-}
 } // namespace billiards
 
-namespace std
-{
-ostream& operator<<(ostream& strm, billiards::recognizer_t::parameter_type const& desc)
-{
-    auto write = [&strm](auto val) {
-        strm.write((char*)&val, sizeof val);
-    };
-    write(desc.camera);
-    write(desc.camera_transform);
-    write(desc.camera_translation);
-    write(desc.camera_orientation);
-
-    auto rgba = desc.rgba.clone();
-    auto depth = desc.depth.clone();
-
-    write(rgba.rows);
-    write(rgba.cols);
-    write(rgba.type());
-    write((size_t)rgba.total() * rgba.elemSize());
-
-    write(depth.rows);
-    write(depth.cols);
-    write(depth.type());
-    write((size_t)depth.total() * depth.elemSize());
-
-    strm.write((char*)rgba.data, rgba.total() * rgba.elemSize());
-    strm.write((char*)depth.data, depth.total() * depth.elemSize());
-
-    return strm;
-}
-
-istream& operator>>(istream& strm, billiards::recognizer_t::parameter_type& desc)
-{
-    auto read = [&strm](auto& val) {
-        strm.read((char*)&val, sizeof(remove_reference_t<decltype(val)>));
-    };
-
-    read(desc.camera);
-    read(desc.camera_transform);
-    read(desc.camera_translation);
-    read(desc.camera_orientation);
-
-    int rgba_rows, rgba_cols, rgba_type;
-    size_t rgba_bytes;
-    int depth_rows, depth_cols, depth_type;
-    size_t depth_bytes;
-
-    read(rgba_rows);
-    read(rgba_cols);
-    read(rgba_type);
-    read(rgba_bytes);
-
-    read(depth_rows);
-    read(depth_cols);
-    read(depth_type);
-    read(depth_bytes);
-
-    auto& rgba = desc.rgba;
-    rgba = cv::Mat(rgba_rows, rgba_cols, rgba_type);
-    strm.read((char*)rgba.data, rgba_bytes);
-
-    auto& depth = desc.depth;
-    depth = cv::Mat(depth_rows, depth_cols, depth_type);
-    strm.read((char*)depth.data, depth_bytes);
-
-    return strm;
-}
-} // namespace std
+// namespace billiards
+//
+//recognizer_t::recognizer_t()
+//    : impl_(make_unique<recognizer_impl_t>(*this))
+//{
+//}
+//
+//recognizer_t::~recognizer_t() = default;
+//
+//void recognizer_t::initialize()
+//{
+//    if (!impl_) {
+//        impl_ = make_unique<recognizer_impl_t>(*this);
+//    }
+//}
+//
+//void recognizer_t::destroy()
+//{
+//    impl_.reset();
+//}
+//
+//void recognizer_t::refresh_image(parameter_type image, recognizer_t::process_finish_callback_type&& callback)
+//{
+//    if (!impl_) {
+//        return;
+//    }
+//
+//    auto& m = *impl_;
+//    bool img_swap_before_prev_img_proc = false;
+//
+//    if (write_lock lock(m.img_cue_mtx); lock) {
+//        img_swap_before_prev_img_proc = !!m.img_cue;
+//        m.img_cue = image;
+//        m.img_cue_cb = move(callback);
+//    }
+//
+//    if (img_swap_before_prev_img_proc) {
+//        cout << "warning: image request cued before previous image processed\n";
+//    }
+//
+//    m.worker_event_wait.notify_all();
+//}
+//
+//void recognizer_t::poll(std::unordered_map<std::string, cv::Mat>& shows)
+//{
+//    // 비동기적으로 수집된 이미지 목록을 획득합니다.
+//    auto& m = *impl_;
+//
+//    if (read_lock lock(m.img_show_mtx, try_to_lock); lock) {
+//        for (auto& pair : m.img_show) {
+//            shows[pair.first] = pair.second;
+//        }
+//    }
+//}
+//
+//recognizer_t::parameter_type recognizer_t::get_image_snapshot() const
+//{
+//    read_lock lock(impl_->img_snapshot_mtx);
+//    return impl_->img_prev;
+//}
+//
+//std::vector<std::pair<std::string, std::chrono::microseconds>> recognizer_t::get_latest_timings() const
+//{
+//    read_lock lock{impl_->elapsed_seconds_mtx};
+//    return impl_->elapsed_seconds_prev;
+//}
+//} // namespace billiards
+//
+//namespace std
+//{
+//ostream& operator<<(ostream& strm, billiards::recognizer_t::parameter_type const& desc)
+//{
+//    auto write = [&strm](auto val) {
+//        strm.write((char*)&val, sizeof val);
+//    };
+//    write(desc.camera);
+//    write(desc.camera_transform);
+//    write(desc.camera_translation);
+//    write(desc.camera_orientation);
+//
+//    auto rgba = desc.rgba.clone();
+//    auto depth = desc.depth.clone();
+//
+//    write(rgba.rows);
+//    write(rgba.cols);
+//    write(rgba.type());
+//    write((size_t)rgba.total() * rgba.elemSize());
+//
+//    write(depth.rows);
+//    write(depth.cols);
+//    write(depth.type());
+//    write((size_t)depth.total() * depth.elemSize());
+//
+//    strm.write((char*)rgba.data, rgba.total() * rgba.elemSize());
+//    strm.write((char*)depth.data, depth.total() * depth.elemSize());
+//
+//    return strm;
+//}
+//
+//istream& operator>>(istream& strm, billiards::recognizer_t::parameter_type& desc)
+//{
+//    auto read = [&strm](auto& val) {
+//        strm.read((char*)&val, sizeof(remove_reference_t<decltype(val)>));
+//    };
+//
+//    read(desc.camera);
+//    read(desc.camera_transform);
+//    read(desc.camera_translation);
+//    read(desc.camera_orientation);
+//
+//    int rgba_rows, rgba_cols, rgba_type;
+//    size_t rgba_bytes;
+//    int depth_rows, depth_cols, depth_type;
+//    size_t depth_bytes;
+//
+//    read(rgba_rows);
+//    read(rgba_cols);
+//    read(rgba_type);
+//    read(rgba_bytes);
+//
+//    read(depth_rows);
+//    read(depth_cols);
+//    read(depth_type);
+//    read(depth_bytes);
+//
+//    auto& rgba = desc.rgba;
+//    rgba = cv::Mat(rgba_rows, rgba_cols, rgba_type);
+//    strm.read((char*)rgba.data, rgba_bytes);
+//
+//    auto& depth = desc.depth;
+//    depth = cv::Mat(depth_rows, depth_cols, depth_type);
+//    strm.read((char*)depth.data, depth_bytes);
+//
+//    return strm;
+//}
+//} // namespace std
