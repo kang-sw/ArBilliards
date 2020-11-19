@@ -44,7 +44,10 @@ void billiards::recognizer_t::destroy()
 void billiards::recognizer_t::refresh_image(parameter_type image, process_finish_callback_type&& callback)
 {
     auto& m = *impl_;
-    m.pipeline->suply(std::move(image), [&callback](pipes::shared_data& sty) { sty.callback = std::move(callback); });
+    m.pipeline->suply(image, [&](pipes::shared_data& sty) {
+        sty.callback = std::move(callback);
+        sty.param_bkup = image;
+    });
 }
 
 std::weak_ptr<pipepp::impl__::pipeline_base> billiards::recognizer_t::get_pipeline_instance() const
