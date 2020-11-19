@@ -1650,7 +1650,6 @@ float plane_t::calc(cv::Vec3f const& pt) const
 bool plane_t::has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const
 {
     return !!find_contact(P1, P2);
-    // return calc(P1) * calc(P2) < 0.f;
 }
 
 optional<float> plane_t::calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const
