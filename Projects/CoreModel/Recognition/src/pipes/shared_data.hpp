@@ -14,6 +14,9 @@ struct shared_data : pipepp::base_shared_context {
     // data
     recognizer_t::parameter_type param_bkup;
     recognizer_t::process_finish_callback_type callback;
+
+    cv::Mat rgb, hsv;
+    cv::UMat u_rgb, u_hsv;
 };
 
 } // namespace billiards::pipes

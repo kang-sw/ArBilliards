@@ -7,6 +7,8 @@
 #include <opencv2/opencv.hpp>
 #include <span>
 
+#include "fmt/format.h"
+#include "kangsw/atomic_queue.hxx"
 #include "nana/gui/widgets/form.hpp"
 #include "nana/gui/widgets/treebox.hpp"
 #include "nana/gui/widgets/textbox.hpp"
@@ -552,10 +554,23 @@ void exec_ui()
     });
 
     // -- 파이프라인
+    kangsw::atomic_queue<std::pair<std::string, cv::Mat>> shown_images{1024};
     pipepp::gui::pipeline_board pl_board(fm, {}, true);
     pl_board.reset_pipeline(g_recognizer.get_pipeline_instance().lock());
     pl_board.bgcolor(colors::white);
     pl_board.events().mouse_down([&](arg_mouse const& arg) { if(arg.mid_button) { pl_board.center();} });
+    pl_board.debug_data_subscriber = [&](string const& basic_string, pipepp::execution_context_data::debug_data_entity const& debug_data_entity) {
+        decltype(shown_images)::element_type e;
+        if (auto any_ptr = std::get_if<std::any>(&debug_data_entity.data)) {
+            if (auto mat_ptr = std::any_cast<cv::Mat>(any_ptr)) {
+                e.first = fmt::format("{0}/{1}", basic_string, debug_data_entity.name);
+                e.second = *mat_ptr;
+                shown_images.try_push(std::move(e));
+                return true;
+            }
+        }
+        return false;
+    };
 
     // -- Waitkey 폴링 타이머
     timer tm_waitkey{16ms};
@@ -569,7 +584,7 @@ void exec_ui()
 
         pl_board.update();
 
-        if (n->dirty) {
+        if (false && n->dirty) {
             // 이미지 목록을 업데이트
             decltype(n->shows) shows;
             {
@@ -649,6 +664,11 @@ void exec_ui()
                 }
             }
             tickmeters.auto_draw(true);
+        }
+
+        std::pair<std::string, cv::Mat> fetch_data;
+        while (shown_images.try_pop(fetch_data)) {
+            cv::imshow(fetch_data.first, fetch_data.second);
         }
     });
     tm_waitkey.start();

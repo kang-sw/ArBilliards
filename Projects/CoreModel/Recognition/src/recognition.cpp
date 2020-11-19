@@ -1,14 +1,14 @@
 #include "recognition.hpp"
 #include <memory>
 #include <exception>
-#include "pipes/input.hpp"
+#include "pipes/recognizer.hpp"
 #include "pipepp/pipeline.hpp"
 
 class billiards::recognizer_t::implementation
 {
 public:
     recognizer_t& self;
-    std::shared_ptr<pipepp::pipeline<pipes::shared_data, pipes::input>> pipeline;
+    std::shared_ptr<pipepp::pipeline<pipes::shared_data, pipes::input_resize>> pipeline;
     std::optional<parameter_type> param_pending;
     kangsw::spinlock param_pending_lock;
 };
@@ -26,9 +26,7 @@ void billiards::recognizer_t::initialize()
     if (m.pipeline) { throw pipepp::pipe_exception("Recognizer already initialized"); }
 
     auto& pl = m.pipeline;
-    pl = decltype(m.pipeline)::element_type::create(
-      "input", 1, &pipepp::make_executor<pipes::input>);
-
+    pl = pipes::build_pipe();
     pl->launch();
 }
 
