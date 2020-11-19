@@ -58,7 +58,7 @@ void billiards::recognizer_t::poll(std::unordered_map<std::string, cv::Mat>& sho
 
 nlohmann::json& billiards::recognizer_t::get_props()
 {
-    return impl_->pipeline->options().option();
+    return impl_->pipeline->options().value();
 }
 
 billiards::recognition_desc const* billiards::recognizer_t::get_recognition() const

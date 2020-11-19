@@ -18,6 +18,7 @@
 #include "nana/gui/widgets/slider.hpp"
 #include "pipepp/gui/basic_utility.hpp"
 #include "pipepp/gui/pipeline_board.hpp"
+#include "pipepp/pipeline.hpp"
 
 extern billiards::recognizer_t g_recognizer;
 
@@ -304,7 +305,8 @@ void exec_ui()
                     g_recognizer.get_props()["explorer"]["depth-alpha"] = 32;
                 }
 
-                json_recursive_substitute(g_recognizer.get_props(), parsed);
+                // json_recursive_substitute(g_recognizer.get_props(), parsed);
+                g_recognizer.get_pipeline_instance().lock()->import_options(parsed);
                 current_save_path = path;
                 is_config_dirty = false;
                 state_messages.emplace("loaded configurations from file "s + path);
@@ -322,7 +324,7 @@ void exec_ui()
     // 세이브 함수
     auto save_as = [&](string path) {
         ofstream strm(path);
-        strm << g_recognizer.get_props().dump(4);
+        strm << g_recognizer.get_pipeline_instance().lock()->export_options().dump(4);
 
         is_config_dirty = false;
         state_messages.emplace("saved configurations to file "s + path);
@@ -570,6 +572,10 @@ void exec_ui()
             }
         }
         return false;
+    };
+    pl_board.option_changed = [&](pipepp::pipe_id_t pipe_id, string_view basic_string_view) {
+        is_config_dirty = true;
+        fm_caption_dirty();
     };
 
     // -- Waitkey 폴링 타이머
