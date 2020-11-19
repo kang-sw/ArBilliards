@@ -826,7 +826,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         // 3D 테이블 포인트를 바탕으로 2D 포인트를 정렬합니다.
         // 모델 공간에서 테이블의 인덱스는 짧은 쿠션에서 시작해 긴 쿠션으로 반시계 방향 정렬된 상태입니다. 이미지에서 검출된 컨투어는 테이블의 반시계 방향 정렬만을 보장하므로, 모델 공간에서의 정점과 같은 순서가 되도록 contour를 재정렬합니다.
         {
-            assert(table_contours.size() == table_points_3d.size());
+            // assert(table_contours.size() == table_points_3d.size());
 
             // 오차를 감안해 공간에서 변의 길이가 table size의 mean보다 작은 값을 선정합니다.
             auto thres = sum((Vec2f)tp["size"]["fit"])[0] * 0.5;

@@ -14,6 +14,8 @@
 #include "nana/gui/widgets/button.hpp"
 #include "nana/gui/filebox.hpp"
 #include "nana/gui/widgets/slider.hpp"
+#include "pipepp/gui/basic_utility.hpp"
+#include "pipepp/gui/pipeline_board.hpp"
 
 extern billiards::recognizer_t g_recognizer;
 
@@ -44,7 +46,7 @@ static ostream& operator<<(ostream& o, video_frame const& v)
     cv::Mat depth;
     cv::Mat rgb;
     cv::cvtColor(v.img.rgba, rgb, cv::COLOR_RGBA2RGB);
-    v.img.depth.convertTo(depth, CV_8U, g_recognizer.props["explorer"]["depth-alpha"]);
+    v.img.depth.convertTo(depth, CV_8U, g_recognizer.get_props()["explorer"]["depth-alpha"]);
 
     auto wr = [&o](auto ty) { o.write((char*)&ty, sizeof ty); };
     wr(v.time_point);
@@ -88,7 +90,7 @@ static istream& operator>>(istream& i, video_frame& v)
 
     rd(sz), buf.resize(sz);
     i.read((char*)buf.data(), sz);
-    cv::imdecode(buf, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / (float)g_recognizer.props["explorer"]["depth-alpha"]);
+    cv::imdecode(buf, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / (float)g_recognizer.get_props()["explorer"]["depth-alpha"]);
 
     return i;
 }
@@ -139,7 +141,7 @@ static video_frame parse(video_frame_chunk const& va)
     v.time_point = va.time_point;
 
     cv::cvtColor(cv::imdecode(va.chnk_rgb, cv::IMREAD_COLOR), v.img.rgba, cv::COLOR_RGB2RGBA);
-    cv::imdecode(va.chnk_depth, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / (float)g_recognizer.props["explorer"]["depth-alpha"]);
+    cv::imdecode(va.chnk_depth, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / (float)g_recognizer.get_props()["explorer"]["depth-alpha"]);
 
     return v;
 }
@@ -292,15 +294,15 @@ void exec_ui()
                 // 에디터 설정 목록
                 {
                     if (auto it = parsed.find("window-position"); it != parsed.end()) {
-                        g_recognizer.props["window-position"] = *it;
+                        g_recognizer.get_props()["window-position"] = *it;
                         array<int, 4> wndPos = *it;
                         fm.move((rectangle&)wndPos);
                     }
 
-                    g_recognizer.props["explorer"]["depth-alpha"] = 32;
+                    g_recognizer.get_props()["explorer"]["depth-alpha"] = 32;
                 }
 
-                json_recursive_substitute(g_recognizer.props, parsed);
+                json_recursive_substitute(g_recognizer.get_props(), parsed);
                 current_save_path = path;
                 is_config_dirty = false;
                 state_messages.emplace("loaded configurations from file "s + path);
@@ -318,7 +320,7 @@ void exec_ui()
     // 세이브 함수
     auto save_as = [&](string path) {
         ofstream strm(path);
-        strm << g_recognizer.props.dump(4);
+        strm << g_recognizer.get_props().dump(4);
 
         is_config_dirty = false;
         state_messages.emplace("saved configurations to file "s + path);
@@ -328,7 +330,7 @@ void exec_ui()
     // 설정 로드
     if (load_from_path(AUTOSAVE_PATH)) { }
 
-    treebox tr(fm);
+    treebox options(fm);
     textbox param_enter_box(fm);
     optional<treebox::item_proxy> selected_proxy;
     param_enter_box.multi_lines(false);
@@ -361,7 +363,7 @@ void exec_ui()
                     selected_proxy->text(new_label);
                     param_enter_box.select(true);
 
-                    drawing(tr).update();
+                    drawing(options).update();
 
                     is_config_dirty = true;
                     fm_caption_dirty();
@@ -406,11 +408,11 @@ void exec_ui()
     };
 
     auto reload_tr = [&]() {
-        tr.clear();
-        node_iterative_constr_t::exec(tr, tr.insert("param", "Parameters").expand(true), g_recognizer.props);
+        options.clear();
+        node_iterative_constr_t::exec(options, options.insert("param", "Parameters").expand(true), g_recognizer.get_props());
 
         // -- JSON 파라미터 선택 처리
-        tr.events().selected([&](arg_treebox const& arg) {
+        options.events().selected([&](arg_treebox const& arg) {
             // 말단 노드인 경우에만 입력 창을 활성화합니다.
             if (!arg.operated) {
                 return;
@@ -453,7 +455,7 @@ void exec_ui()
         mb << "Are you sure?";
 
         if (mb.show() == msgbox::pick_yes) {
-            g_recognizer.props = billiards::recognizer_t().props;
+            g_recognizer.get_props() = billiards::recognizer_t().get_props();
             reload_tr();
         }
     });
@@ -531,7 +533,7 @@ void exec_ui()
     tickmeters.append_header("Elapsed", 240);
     tickmeters.sort_col(0);
 
-    tickmeters.set_sort_compare(0, [](string str1, any* a, string str2, any* b, bool reverse) {
+    tickmeters.set_sort_compare(0, [](string str1, nana::any* a, string str2, nana::any* b, bool reverse) {
         if (reverse) {
             swap(str1, str2);
         }
@@ -549,6 +551,12 @@ void exec_ui()
         return s1 < s2;
     });
 
+    // -- 파이프라인
+    pipepp::gui::pipeline_board pl_board(fm, {}, true);
+    pl_board.reset_pipeline(g_recognizer.get_pipeline_instance().lock());
+    pl_board.bgcolor(colors::white);
+    pl_board.events().mouse_down([&](arg_mouse const& arg) { if(arg.mid_button) { pl_board.center();} });
+
     // -- Waitkey 폴링 타이머
     timer tm_waitkey{16ms};
     tm_waitkey.elapse([&]() {
@@ -558,6 +566,8 @@ void exec_ui()
             tm_waitkey.stop();
             return;
         }
+
+        pl_board.update();
 
         if (n->dirty) {
             // 이미지 목록을 업데이트
@@ -876,18 +886,19 @@ void exec_ui()
 
     // -- 레이아웃 설정
     place layout(fm);
+    // <vert
+    //   <mat_lists>
+    //   <timings>
+    // >
     auto layout_divider_string = R"(
       <vert
         <
-          <vert
-            <mat_lists>
-            <timings>
-          >
+          <center margin=5>
           <vert
             weight=400
             <margin=[5,5,2,5] gap=5 weight=30 <btn_export><weight=10><btn_import>>
+            <options margin=5>
             <enter weight=30 margin=5>
-            <center margin=5>
             <margin=[0,5,5,5] gap=5 weight=30 <btn_video_load><btn_video_record><btn_video_playpause>>
           >
         >
@@ -901,7 +912,8 @@ void exec_ui()
     // DISCARDED
     // "    <margin=[0,5,5,5] gap=5 weight=30 <btn_snap_load><btn_snapshot><btn_snap_abort weight=25%>>"
 
-    layout["center"] << tr;
+    layout["center"] << pl_board;
+    layout["options"] << options;
     layout["enter"] << param_enter_box;
     layout["btn_reset"] << btn_reset;
     layout["btn_export"] << btn_export;
@@ -919,11 +931,11 @@ void exec_ui()
 
     fm.events().move([&](auto) {
         auto rect = rectangle(fm.pos(), fm.size());
-        g_recognizer.props["window-position"] = (array<int, 4>&)rect;
+        g_recognizer.get_props()["window-position"] = (array<int, 4>&)rect;
     });
     fm.events().resized([&](auto) {
         auto rect = rectangle(fm.pos(), fm.size());
-        g_recognizer.props["window-position"] = (array<int, 4>&)rect;
+        g_recognizer.get_props()["window-position"] = (array<int, 4>&)rect;
         static_assert(sizeof rect == sizeof(array<int, 4>));
     });
 

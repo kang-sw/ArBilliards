@@ -6,6 +6,44 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/aruco.hpp>
 
+namespace cv
+{
+template <int Size_, typename Ty_>
+void to_json(nlohmann::json& j, const Vec<Ty_, Size_>& v)
+{
+    j = (std::array<Ty_, Size_>&)v;
+}
+
+template <int Size_, typename Ty_>
+void from_json(const nlohmann::json& j, Vec<Ty_, Size_>& v)
+{
+    std::array<Ty_, Size_> const& arr = j;
+    v = (cv::Vec<Ty_, Size_>&)arr;
+}
+
+template <typename Ty_>
+void to_json(nlohmann::json& j, const Scalar_<Ty_>& v)
+{
+    j = (std::array<Ty_, 4>&)v;
+}
+
+template <typename Ty_>
+void from_json(const nlohmann::json& j, Scalar_<Ty_>& v)
+{
+    for (int i = 0, num_elem = min(j.size(), 4ull); i < num_elem; ++i) {
+        v.val[i] = j[i];
+    }
+}
+} // namespace cv
+
+namespace pipepp
+{
+namespace impl__
+{
+class pipeline_base;
+}
+} // namespace pipepp
+
 namespace billiards
 {
 /**
@@ -63,10 +101,20 @@ public:
     void refresh_image(parameter_type image, process_finish_callback_type&& callback = {});
 
     /**
+     * 생성된 파이프라인 인스턴스를 반환합니다.
+     * initialize() 호출 이후에만 valid합니다.
+     */
+    std::weak_ptr<pipepp::impl__::pipeline_base> get_pipeline_instance() const;
+
+    /**
      * 메인 스레드 루프입니다.
-     * GUI를 띄우거나, 
      */
     void poll(std::unordered_map<std::string, cv::Mat>& shows);
+
+    /**
+     * json 파라미터 획득
+     */
+    nlohmann::json& get_props();
 
     /**
      * 내부에 캐시된 이미지 인식 정보를 반환합니다.

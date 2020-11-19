@@ -38,7 +38,7 @@
         },
         {
           "name": "NANA_STATIC_STDLIB",
-          "value": "True",
+          "value": "False",
           "type": "BOOL"
         },
         {

@@ -337,6 +337,7 @@ int main(void)
     cout << "info: initializing recognizer ... \n";
 
     try {
+        g_recognizer.initialize();
         exec_ui();
 
         g_recognizer.destroy();
