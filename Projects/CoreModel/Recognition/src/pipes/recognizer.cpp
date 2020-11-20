@@ -2,6 +2,7 @@
 
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
+#include "fmt/format.h"
 
 #pragma warning(disable : 4244)
 
@@ -185,7 +186,11 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
 
         // 테이블의 방향을 고려하여, 그대로의 인덱스와 시프트한 인덱스 각각에 대해 PnP 알고리즘을 적용, 포즈를 계산합니다.
         for (int iter = 0; iter < 2; ++iter) {
+            PIPEPP_ELAPSE_SCOPE("Solve Iteration");
+
             Vec3d pos, rot;
+
+            PIPEPP_ELAPSE_BLOCK("SolvePnP Time")
             if (!solvePnP(obj_pts, table_contour, mat_cam, mat_disto, rot, pos)) {
                 continue;
             }
@@ -196,6 +201,7 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
                 vtx = rodrigues(rot) * vtx + pos;
             }
 
+            PIPEPP_ELAPSE_SCOPE("Projection");
             vector<vector<Vec2i>> contours;
             vector<Vec2f> mapped;
             project_model_local(img, mapped, vertexes, false, {});
@@ -220,6 +226,8 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
         }
 
         if (max_confidence > pnp_conf_threshold(ec)) {
+            PIPEPP_ELAPSE_SCOPE("Visualization");
+
             o.confidence = max_confidence;
             o.table_pos = tvec;
             o.table_rot = rvec;
@@ -231,7 +239,8 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
             project_contours(img, i.debug_mat, obj_pts, tvec, rvec, {0, 255, 255}, 2, {86, 58});
         }
     }
-    return {};
+
+    return pipepp::pipe_error::ok;
 }
 
 void billiards::pipes::table_edge_solver::link_from_previous(shared_data const& sd, contour_candidate_search::output_type const& i, input_type& o)
