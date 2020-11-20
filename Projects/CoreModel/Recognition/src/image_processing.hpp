@@ -24,25 +24,30 @@ struct plane_t {
 void filter_hsv(cv::InputArray input, cv::OutputArray output, cv::Vec3f min_hsv, cv::Vec3f max_hsv);
 bool is_border_pixel(cv::Rect img_size, cv::Vec2i pixel, int margin = 3);
 void get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size);
-std::pair<cv::Matx33d, cv::Matx41d> get_camera_matx(billiards::recognizer_t::parameter_type const& img);
+auto get_camera_matx(billiards::recognizer_t::parameter_type const& img) -> std::pair<cv::Matx33d, cv::Matx41d>;
 void cull_frustum_impl(std::vector<cv::Vec3f>& obj_pts, plane_t const* plane_ptr, size_t num_planes);
 void cull_frustum(std::vector<cv::Vec3f>& obj_pts, std::vector<plane_t> const& planes);
 void project_model_local(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
 void project_points(std::vector<cv::Vec3f> const& points, cv::Matx33f const& camera, cv::Matx41f const& disto, std::vector<cv::Vec2f>& o_points);
-cv::Matx44f get_world_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot);
+auto get_world_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot) -> cv::Matx44f;
 void transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, std::vector<cv::Vec3f>& model_vertexes);
 void project_model_fast(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
-std::vector<plane_t> generate_frustum(float hfov_rad, float vfov_rad);
+auto generate_frustum(float hfov_rad, float vfov_rad) -> std::vector<plane_t>;
 void project_model(img_t const& img, std::vector<cv::Vec2f>& mapped_contours, cv::Vec3f world_pos, cv::Vec3f world_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, float FOV_h = 88, float FOV_v = 50);
 void draw_axes(img_t const& img, cv::Mat const& dest, cv::Vec3f rvec, cv::Vec3f tvec, float marker_length, int thickness);
 void camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec);
-cv::Vec3f rotate_local(cv::Vec3f target, cv::Vec3f rvec);
-cv::Vec3f set_filtered_table_rot(cv::Vec3f table_rot, cv::Vec3f new_rot, float alpha = 1.0f, float jump_threshold = FLT_MAX);
-cv::Vec3f set_filtered_table_pos(cv::Vec3f table_pos, cv::Vec3f new_pos, float alpha = 1.0f, float jump_threshold = FLT_MAX);
+auto rotate_local(cv::Vec3f target, cv::Vec3f rvec) -> cv::Vec3f;
+auto set_filtered_table_rot(cv::Vec3f table_rot, cv::Vec3f new_rot, float alpha = 1.0f, float jump_threshold = FLT_MAX) -> cv::Vec3f;
+auto set_filtered_table_pos(cv::Vec3f table_pos, cv::Vec3f new_pos, float alpha = 1.0f, float jump_threshold = FLT_MAX) -> cv::Vec3f;
 void project_model(img_t const& img, std::vector<cv::Point>& mapped, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, float FOV_h, float FOV_v);
 void project_contours(img_t const& img, const cv::Mat& rgb, std::vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color, int thickness, cv::Vec2f FOV_deg);
 bool get_safe_ROI_rect(cv::Mat const& mat, cv::Rect& roi);
 float contour_distance(std::vector<cv::Vec2f> const& ct_a, std::vector<cv::Vec2f>& ct_b);
+void plane_to_camera(img_t const& img, plane_t const& table_plane, plane_t& table_plane_camera);
+void get_point_coord_3d(img_t const& img, float& io_x, float& io_y, float z_metric);
+auto get_uv_from_3d(img_t const& img, cv::Point3f const& coord_3d) -> std::array<float, 2>;
+float get_pixel_length(img_t const& img, float len_metric, float Z_metric);
+int get_pixel_length_on_contact(img_t const& imdesc, plane_t plane, cv::Point pt, float length);
 
 struct transform_estimation_param_t {
     int num_iteration = 10;

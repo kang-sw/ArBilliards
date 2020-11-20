@@ -3,6 +3,7 @@
 
 #include "shared_data.hpp"
 #include "../image_processing.hpp"
+#include "kangsw/spinlock.hxx"
 #include "pipepp/pipeline.hpp"
 
 namespace billiards::pipes
@@ -13,9 +14,14 @@ auto build_pipe() -> std::shared_ptr<pipepp::pipeline<struct shared_data, struct
 namespace billiards::pipes
 {
 struct shared_state {
+    auto lock() const { return std::unique_lock{lock_}; }
+
     struct {
         cv::Vec3f pos = {}, rot = cv::Vec3f(1, 0, 0);
     } table;
+
+private:
+    mutable kangsw::spinlock lock_;
 };
 
 struct shared_data : pipepp::base_shared_context {
@@ -73,8 +79,8 @@ struct contour_candidate_search {
     PIPEPP_DEFINE_OPTION_2(table_color_filter_0_lo, cv::Vec3b(0, 0, 0));
     PIPEPP_DEFINE_OPTION_2(table_color_filter_1_hi, cv::Vec3b(180, 255, 255));
 
-    PIPEPP_DEFINE_OPTION_2(debug_show_0_filtered, false, "debug");
-    PIPEPP_DEFINE_OPTION_2(debug_show_1_edge, false, "debug");
+    PIPEPP_DEFINE_OPTION_2(show_0_filtered, false, "debug");
+    PIPEPP_DEFINE_OPTION_2(show_1_edge, false, "debug");
 
     PIPEPP_DEFINE_OPTION_2(area_threshold_ratio, 0.2, "contour", "Minimul pixel size of table candidate area");
     PIPEPP_DEFINE_OPTION_2(approx_epsilon_preprocess, 5.0, "contour", "Epsilon value used for approximate table contours");
@@ -149,6 +155,46 @@ struct table_edge_solver {
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
     static void link_from_previous(shared_data const& sd, contour_candidate_search::output_type const& i, input_type& o);
     static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
+};
+
+struct marker_solver {
+    PIPEPP_DEFINE_OPTION_CLASS(marker_solver);
+    PIPEPP_DEFINE_OPTION_2(enable_debug_glyphs, true, "debug");
+    PIPEPP_DEFINE_OPTION_2(enable_debug_mats, true, "debug");
+    PIPEPP_DEFINE_OPTION_2(show_marker_area_mask, false, "debug");
+
+    PIPEPP_DEFINE_OPTION_2(num_insert_contour_vtx, 5, "preprocess 0: marker range");
+    PIPEPP_DEFINE_OPTION_2(table_border_range_outer, 0.06, "preprocess 0: marker range");
+    PIPEPP_DEFINE_OPTION_2(table_border_range_inner, 0.02, "preprocess 0: marker range");
+
+    PIPEPP_DEFINE_OPTION_2(laplacian_mask_threshold, 0.1, "preprocess 1: marker filtering");
+    PIPEPP_DEFINE_OPTION_2(marker_area_min_rad, 0.5, "preprocess 1: marker filtering");
+    PIPEPP_DEFINE_OPTION_2(marker_area_max_rad, 10.0, "preprocess 1: marker filtering");
+    PIPEPP_DEFINE_OPTION_2(marker_area_min_size, 1, "preprocess 1: marker filtering");
+
+    PIPEPP_DEFINE_OPTION_2(solver_iteration, 5, "solver");
+
+    struct input_type {
+        imgproc::img_t const* img_ptr;
+        cv::Size img_size;
+
+        cv::Vec3f table_pos_init;
+        cv::Vec3f table_rot_init;
+
+        cv::Mat const* debug_mat;
+        std::vector<cv::Vec2f> const* table_contour;
+
+        cv::UMat const* u_hsv;
+    };
+
+    struct output_type {
+        cv::Vec3f table_pos;
+        cv::Vec3f table_rot;
+        float confidence;
+    };
+
+    pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
+    static void link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o);
 };
 
 } // namespace billiards::pipes

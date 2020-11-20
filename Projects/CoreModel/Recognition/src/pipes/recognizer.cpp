@@ -3,6 +3,8 @@
 #include <random>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/core/matx.hpp>
+
 #include "fmt/format.h"
 
 #pragma warning(disable : 4244)
@@ -17,14 +19,16 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     auto pl = decltype(build_pipe())::element_type::create(
       "input", 1, &pipepp::make_executor<pipes::input_resize>);
 
-    auto input = pl->front();
-    input.add_output_handler(&input_resize::output_handler);
+    auto input_proxy = pl->front();
+    input_proxy.add_output_handler(&input_resize::output_handler);
 
-    auto contour_search = input.create_and_link_output("contour search", false, 1, &contour_candidate_search::link_from_previous, &pipepp::make_executor<contour_candidate_search>);
-    contour_search.add_output_handler(&contour_candidate_search::output_handler);
+    auto contour_search_proxy = input_proxy.create_and_link_output("contour search", false, 1, &contour_candidate_search::link_from_previous, &pipepp::make_executor<contour_candidate_search>);
+    contour_search_proxy.add_output_handler(&contour_candidate_search::output_handler);
 
-    auto pnp_solver = contour_search.create_and_link_output("table edge solver", false, 1, &table_edge_solver::link_from_previous, &pipepp::make_executor<table_edge_solver>);
-    pnp_solver.add_output_handler(&table_edge_solver::output_handler);
+    auto pnp_solver_proxy = contour_search_proxy.create_and_link_output("table edge solver", false, 1, &table_edge_solver::link_from_previous, &pipepp::make_executor<table_edge_solver>);
+    pnp_solver_proxy.add_output_handler(&table_edge_solver::output_handler);
+
+    auto marker_solver_proxy = pnp_solver_proxy.create_and_link_output("marker solver", false, 1, &marker_solver::link_from_previous, &pipepp::make_executor<marker_solver>);
 
     return pl;
 }
@@ -90,8 +94,8 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
         cv::erode(filtered, u0, {});
         cv::subtract(filtered, u0, edge);
 
-        PIPEPP_STORE_DEBUG_DATA_COND("Filtered Image", filtered.getMat(cv::ACCESS_FAST).clone(), debug_show_0_filtered(ec));
-        PIPEPP_STORE_DEBUG_DATA_COND("Edge Image", edge.getMat(cv::ACCESS_FAST).clone(), debug_show_1_edge(ec));
+        PIPEPP_STORE_DEBUG_DATA_COND("Filtered Image", filtered.getMat(cv::ACCESS_FAST).clone(), show_0_filtered(ec));
+        PIPEPP_STORE_DEBUG_DATA_COND("Edge Image", edge.getMat(cv::ACCESS_FAST).clone(), show_1_edge(ec));
     }
 
     PIPEPP_ELAPSE_BLOCK("Contour Approx & Select")
@@ -136,9 +140,12 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
         if (table_contour.empty() && max_size_arg.first >= 0) {
             auto& max_size_contour = candidates[max_size_arg.first];
             table_contour.assign(max_size_contour.begin(), max_size_contour.end());
-
-            drawContours(debug, vector{{max_size_contour}}, -1, {0, 0, 0}, 3);
         }
+    }
+
+    if (!table_contour.empty()) {
+        vector<cv::Vec2i> pts{table_contour.begin(), table_contour.end()};
+        drawContours(debug, vector{{pts}}, -1, {0, 0, 255}, 3);
     }
 
     o.table_contour_candidate = move(table_contour);
@@ -278,6 +285,7 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
             }
         }
 
+        PIPEPP_ELAPSE_SCOPE("Partial iterative search");
         auto result = estimate_matching_transform(img, input, model, init_pos, init_rot, param);
 
         if (result.has_value()) {
@@ -302,12 +310,12 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
         project_contours(img, i.debug_mat, obj_pts, tvec, rvec, color, 2, {86, 58});
     }
 
-    PIPEPP_STORE_DEBUG_DATA("Debug Mat", i.debug_mat);
     return pipepp::pipe_error::ok;
 }
 
 void billiards::pipes::table_edge_solver::link_from_previous(shared_data const& sd, contour_candidate_search::output_type const& i, input_type& o)
 {
+    auto _lck = sd.state->lock();
     o = input_type{
       .FOV_degree = sd.camera_FOV(sd),
       .debug_mat = sd.debug_mat,
@@ -322,9 +330,173 @@ void billiards::pipes::table_edge_solver::link_from_previous(shared_data const& 
 void billiards::pipes::table_edge_solver::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
 {
     auto& state = *sd.state;
+    auto _lck = state.lock();
     float pos_alpha = sd.table_filter_alpha_pos(sd);
     float rot_alpha = sd.table_filter_alpha_rot(sd);
     float jump_thr = !o.can_jump * 1e10 + sd.table_filter_jump_threshold_distance(sd);
     state.table.pos = imgproc::set_filtered_table_pos(state.table.pos, o.table_pos, pos_alpha * o.confidence, jump_thr);
     state.table.rot = imgproc::set_filtered_table_rot(state.table.rot, o.table_rot, rot_alpha * o.confidence, jump_thr);
+}
+
+pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
+{
+    PIPEPP_REGISTER_CONTEXT(ec);
+    PIPEPP_STORE_DEBUG_DATA("Debug Mat", *i.debug_mat);
+    using namespace cv;
+    using namespace std;
+    using namespace imgproc;
+
+    auto& img = *i.img_ptr;
+    auto& debug = *i.debug_mat;
+    auto table_rot = i.table_rot_init;
+    auto table_pos = i.table_pos_init;
+    auto& table_contour = *i.table_contour;
+
+    out.confidence = 0;
+
+    if (table_contour.empty()) {
+        return pipepp::pipe_error::ok;
+    }
+
+    Mat1b marker_area_mask(debug.size(), 0);
+    {
+        PIPEPP_ELAPSE_SCOPE("Calculate Table Contour Mask");
+        vector<Vec2f> contour;
+
+        // 테이블 평면 획득
+        auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, 1, 0});
+        plane_to_camera(img, table_plane, table_plane);
+
+        // contour 개수를 단순 증식합니다.
+        for (int i = 0, num_insert = num_insert_contour_vtx(ec);
+             i < table_contour.size() - 1;
+             ++i) {
+            auto p0 = table_contour[i];
+            auto p1 = table_contour[i + 1];
+
+            for (int idx = 0; idx < num_insert + 1; ++idx) {
+                contour.push_back(p0 + (p1 - p0) * (1.f / num_insert * idx));
+            }
+        }
+
+        auto outer_contour = contour;
+        auto inner_contour = contour;
+        auto m = moments(contour);
+        auto center = Vec2f(m.m10 / m.m00, m.m01 / m.m00);
+        double frame_width_outer = table_border_range_outer(ec);
+        double frame_width_inner = table_border_range_inner(ec);
+
+        // 각 컨투어의 거리 값에 따라, 차등적으로 밀고 당길 거리를 지정합니다.
+        for (int index = 0; index < contour.size(); ++index) {
+            Vec2i pt = contour[index];
+            auto& outer = outer_contour[index];
+            auto& inner = inner_contour[index];
+
+            // 거리 획득
+            // auto depth = img.depth.at<float>((Point)pt);
+            // auto drag_width_outer = min(300.f, get_pixel_length(img, frame_width_outer, depth));
+            // auto drag_width_inner = min(300.f, get_pixel_length(img, frame_width_inner, depth));
+            float drag_width_outer = get_pixel_length_on_contact(img, table_plane, pt, frame_width_outer);
+            float drag_width_inner = get_pixel_length_on_contact(img, table_plane, pt, frame_width_inner);
+
+            // 평면과 해당 방향 시야가 이루는 각도 theta를 구하고, cos(theta)를 곱해 화면상의 픽셀 드래그를 구합니다.
+            Vec3f pt_dir(pt[0], pt[1], 1);
+            get_point_coord_3d(img, pt_dir[0], pt_dir[1], 1);
+            pt_dir = normalize(pt_dir);
+            auto cos_theta = abs(pt_dir.dot(table_plane.N));
+            drag_width_outer *= cos_theta;
+            drag_width_inner *= cos_theta;
+            drag_width_outer = isnan(drag_width_outer) ? 1 : drag_width_outer;
+            drag_width_inner = isnan(drag_width_inner) ? 1 : drag_width_inner;
+            drag_width_outer = clamp<float>(drag_width_outer, 1, 100);
+            drag_width_inner = clamp<float>(drag_width_inner, 1, 100);
+
+            auto direction = normalize(outer - center);
+            outer += direction * drag_width_outer;
+            if (!is_border_pixel({{}, marker_area_mask.size()}, inner)) {
+                inner -= direction * drag_width_inner;
+            }
+        }
+
+        vector<Vec2i> drawer;
+        drawer.assign(outer_contour.begin(), outer_contour.end());
+        drawContours(marker_area_mask, vector{{drawer}}, -1, 255, -1);
+        if (enable_debug_glyphs(ec)) {
+            drawContours(debug, vector{{drawer}}, -1, {0, 0, 0}, 2);
+        }
+
+        drawer.assign(inner_contour.begin(), inner_contour.end());
+        drawContours(marker_area_mask, vector{{drawer}}, -1, 0, -1);
+        if (enable_debug_glyphs(ec)) {
+            drawContours(debug, vector{{drawer}}, -1, {0, 0, 0}, 2);
+        }
+    }
+
+    PIPEPP_CAPTURE_DEBUG_DATA_COND(marker_area_mask, show_marker_area_mask(ec));
+    vector<Vec2f> centers;
+    vector<float> marker_weights;
+
+    PIPEPP_ELAPSE_BLOCK("Filter Marker Range")
+    {
+        auto& u_hsv = *i.u_hsv;
+        vector<UMat> channels;
+        split(u_hsv, channels);
+
+        if (channels.size() >= 3) {
+            auto& u_value = channels[2];
+            UMat u0, u1;
+            UMat laplacian_mask(u_hsv.size(), CV_8U, {0});
+            vector<vector<Vec2i>> contours;
+
+            // 샤프닝 적용 후 라플랑시안 적용
+            PIPEPP_ELAPSE_BLOCK("Sequential filtering method")
+            {
+                Mat1f kernel(3, 3, -1.0 / 255.f);
+                kernel(1, 1) = 8 / 255.f;
+                filter2D(u_value, u1, CV_32F, kernel.getUMat(ACCESS_READ));
+                PIPEPP_STORE_DEBUG_DATA_COND("Marker Filter - 1 Sharpen", u1.getMat(ACCESS_FAST).clone(), enable_debug_mats(ec));
+
+                compare(u1, Scalar(laplacian_mask_threshold(ec)), u0, CMP_GT);
+                dilate(u0, u1, {});
+                erode(u1, u0, {}, {-1, -1}, 1);
+                u0.copyTo(laplacian_mask, marker_area_mask);
+
+                PIPEPP_STORE_DEBUG_DATA_COND("Marker Filter - 2 Laplacian Thresholded", laplacian_mask.getMat(ACCESS_FAST).clone(), enable_debug_mats(ec));
+
+                findContours(laplacian_mask, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, {});
+            }
+
+            PIPEPP_ELAPSE_SCOPE("Select valid centers");
+            float rad_min = marker_area_min_rad(ec);
+            float rad_max = marker_area_max_rad(ec);
+            float area_min = marker_area_min_size(ec);
+            for (auto& ctr : contours) {
+                Point2f center;
+                float radius;
+                minEnclosingCircle(ctr, center, radius);
+                float area = contourArea(ctr);
+
+                if (area >= area_min && rad_min <= radius && radius <= rad_max) {
+                    centers.push_back(center);
+                    marker_weights.push_back(contourArea(ctr));
+                }
+            }
+        }
+    }
+
+    return pipepp::pipe_error::ok;
+}
+
+void billiards::pipes::marker_solver::link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o)
+{
+    auto _lck = sd.state->lock();
+    o = input_type{
+      .img_ptr = &sd.param_bkup,
+      .img_size = sd.rgb.size(),
+      .table_pos_init = sd.state->table.pos,
+      .table_rot_init = sd.state->table.rot,
+      .debug_mat = &sd.debug_mat,
+      .table_contour = &sd.table.contour,
+      .u_hsv = &sd.u_hsv,
+    };
 }

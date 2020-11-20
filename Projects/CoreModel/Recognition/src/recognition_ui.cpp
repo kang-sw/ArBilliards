@@ -823,7 +823,7 @@ void exec_ui()
     video_player.elapse([&]() {
         if (frame_chunks.empty() == false) {
             if (n->video.is_busy) {
-                return;
+                //return;
             }
 
             if (is_playing_video) {

@@ -370,6 +370,69 @@ float billiards::imgproc::contour_distance(std::vector<cv::Vec2f> const& ct_a, s
     return sqrt(sum);
 }
 
+void billiards::imgproc::plane_to_camera(img_t const& img, plane_t const& table_plane, plane_t& table_plane_camera)
+{
+    cv::Vec4f N = (cv::Vec4f&)table_plane.N;
+    cv::Vec4f P = -table_plane.d * N;
+    N[3] = 0.f, P[3] = 1.f;
+
+    cv::Matx44f camera_inv = img.camera_transform.inv();
+    N = camera_inv * N;
+    P = camera_inv * P;
+
+    // CV 좌표계로 변환
+    N[1] *= -1.f, P[1] *= -1.f;
+
+    table_plane_camera = plane_t::from_NP((cv::Vec3f&)N, (cv::Vec3f&)P);
+}
+
+void billiards::imgproc::get_point_coord_3d(img_t const& img, float& io_x, float& io_y, float z_metric)
+{
+    auto& c = img.camera;
+    auto u = io_x;
+    auto v = io_y;
+
+    io_x = z_metric * ((u - c.cx) / c.fx);
+    io_y = z_metric * ((v - c.cy) / c.fy);
+}
+
+std::array<float, 2> billiards::imgproc::get_uv_from_3d(img_t const& img, cv::Point3f const& coord_3d)
+{
+    std::array<float, 2> result;
+    auto& [u, v] = result;
+    auto& [x, y, z] = coord_3d;
+    auto c = img.camera;
+
+    u = (c.fx * x) / z + c.cx;
+    v = (c.fy * y) / z + c.cy;
+
+    return result;
+}
+
+float billiards::imgproc::get_pixel_length(img_t const& img, float len_metric, float Z_metric)
+{
+    using namespace cv;
+
+    auto [u1, v1] = get_uv_from_3d(img, Vec3f(0, 0, Z_metric));
+    auto [u2, v2] = get_uv_from_3d(img, Vec3f(len_metric, 0, Z_metric));
+
+    return u2 - u1;
+}
+
+int billiards::imgproc::get_pixel_length_on_contact(img_t const& imdesc, plane_t plane, cv::Point pt, float length)
+{
+    using namespace cv;
+
+    Vec3f far(pt.x, pt.y, 1);
+    get_point_coord_3d(imdesc, far[0], far[1], 1);
+    if (auto distance = plane.calc_u({}, far); distance && *distance > 0) {
+        auto pxl_len = get_pixel_length(imdesc, length, *distance);
+        return pxl_len;
+    }
+
+    return -1;
+}
+
 std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgproc::estimate_matching_transform(img_t const& img, std::vector<cv::Vec2f> const& input_param, std::vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p)
 {
     using namespace std;
