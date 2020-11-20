@@ -1,7 +1,6 @@
 #pragma once
 #include <opencv2/core/matx.hpp>
 
-#include "shared_data.hpp"
 #include "../image_processing.hpp"
 #include "kangsw/spinlock.hxx"
 #include "pipepp/pipeline.hpp"
