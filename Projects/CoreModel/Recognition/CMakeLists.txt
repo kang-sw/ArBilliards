@@ -36,7 +36,6 @@ add_dependencies(
 		nana
 		pipepp_gui
 		fmt
-		gSLICr_lib
 )
 
 target_link_libraries(
@@ -49,7 +48,6 @@ target_link_libraries(
 		pipepp_gui
 		nlohmann_json
 		fmt
-		gSLICr_lib
 )
 
 target_include_directories(

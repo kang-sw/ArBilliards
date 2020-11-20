@@ -5,6 +5,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/core/matx.hpp>
 #include "fmt/format.h"
+#include "table_search.hpp"
 
 #pragma warning(disable : 4244)
 
@@ -20,6 +21,10 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
 
     auto input_proxy = pl->front();
     input_proxy.add_output_handler(&input_resize::output_handler);
+
+    { // Optional SLIC scope
+        auto superpixels = input_proxy.create_and_link_output("Superpixels", true, 1, &clustering::link_from_previous, &pipepp::make_executor<clustering>);
+    }
 
     auto contour_search_proxy = input_proxy.create_and_link_output("contour search", false, 1, &contour_candidate_search::link_from_previous, &pipepp::make_executor<contour_candidate_search>);
     contour_search_proxy.add_output_handler(&contour_candidate_search::output_handler);
