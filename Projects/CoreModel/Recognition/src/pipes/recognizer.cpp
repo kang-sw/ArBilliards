@@ -23,7 +23,7 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     input_proxy.add_output_handler(&input_resize::output_handler);
 
     { // Optional SLIC scope
-        auto superpixels = input_proxy.create_and_link_output("Superpixels", true, 1, &clustering::link_from_previous, &pipepp::make_executor<clustering>);
+        auto superpixels = input_proxy.create_and_link_output("Superpixels", true, std::thread::hardware_concurrency() / 2, &clustering::link_from_previous, &pipepp::make_executor<clustering>);
     }
 
     auto contour_search_proxy = input_proxy.create_and_link_output("contour search", false, 1, &contour_candidate_search::link_from_previous, &pipepp::make_executor<contour_candidate_search>);
@@ -74,10 +74,10 @@ pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_cont
 
 void billiards::pipes::input_resize::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
 {
-    sd.u_hsv = o.u_hsv;
-    sd.u_rgb = o.u_rgb;
-    sd.hsv = o.hsv;
-    sd.rgb = o.rgb;
+    o.u_hsv.copyTo(sd.u_hsv);
+    o.u_rgb.copyTo(sd.u_rgb);
+    o.rgb.copyTo(sd.rgb);
+    o.hsv.copyTo(sd.hsv);
 
     o.rgb.copyTo(sd.debug_mat);
 }
@@ -158,7 +158,7 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
 
 void billiards::pipes::contour_candidate_search::link_from_previous(shared_data const& sd, input_resize::output_type const& i, input_type& o)
 {
-    o.u_hsv = i.u_hsv;
+    o.u_hsv = sd.u_hsv;
     o.debug_display = sd.debug_mat;
 }
 

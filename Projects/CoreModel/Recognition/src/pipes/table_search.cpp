@@ -1,6 +1,7 @@
 #include "table_search.hpp"
 
 #include <opencv2/ximgproc/seeds.hpp>
+#include <opencv2/ximgproc/slic.hpp>
 
 //#include <memory>
 //#include "table_search.hpp"
@@ -116,39 +117,67 @@ struct billiards::pipes::clustering::implmentation {
 pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_context& ec, input_type const& i, output_type& o)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
-    auto& m = *impl_;
 
-    auto size = i.rgb.size();
-    SEEDS_setting setting = {
-      .sz = size,
-      .num_segs = num_segments(ec),
-      .num_levels = num_levels(ec),
-    };
+    if (!true_SLIC_false_SEEDS(ec)) {
+        auto& m = *impl_;
 
-    if (memcmp(&setting, &m.setting_cache, sizeof setting) != 0) {
-        PIPEPP_ELAPSE_SCOPE("Recreate superpixel engine");
-        m.engine = cv::ximgproc::createSuperpixelSEEDS(
-          size.width, size.height, 3, setting.num_segs, setting.num_levels);
+        auto size = i.rgb.size();
+        SEEDS_setting setting = {
+          .sz = size,
+          .num_segs = num_segments(ec),
+          .num_levels = num_levels(ec),
+        };
 
-        m.setting_cache = setting;
+        if (memcmp(&setting, &m.setting_cache, sizeof setting) != 0) {
+            PIPEPP_ELAPSE_SCOPE("Recreate superpixel engine");
+            m.engine = cv::ximgproc::createSuperpixelSEEDS(
+              size.width, size.height, 3, setting.num_segs, setting.num_levels);
+
+            m.setting_cache = setting;
+        }
+
+        PIPEPP_ELAPSE_BLOCK("Apply algorithm")
+        {
+            m.engine->iterate(i.cielab, num_iter(ec));
+        }
+
+        if (show_segmentation_result(ec)) {
+            PIPEPP_ELAPSE_SCOPE("Visualize segmentation result");
+            cv::Mat display;
+            cv::Mat show = i.rgb.clone();
+            m.engine->getLabelContourMask(display);
+            show.setTo(cv::Scalar{0, 255, 0}, display);
+
+            PIPEPP_STORE_DEBUG_DATA("Segmentation Result", show);
+        }
+
+        m.engine->getLabels(o.labels);
+        return pipepp::pipe_error::ok;
     }
+    else {
+        int algos[] = {cv::ximgproc::SLICO, cv::ximgproc::MSLIC, cv::ximgproc::SLIC};
+        auto algo = algos[std::clamp(algo_index_SLICO_MSLIC_SLIC(ec), 0, 2)];
+        cv::Ptr<cv::ximgproc::SuperpixelSLIC> engine;
 
-    PIPEPP_ELAPSE_BLOCK("Apply algorithm")
-    {
-        m.engine->iterate(i.rgb, num_iter(ec));
+        PIPEPP_ELAPSE_BLOCK("Create SLIC instance")
+        engine = cv::ximgproc::createSuperpixelSLIC(i.cielab, algo, region_size(ec), ruler(ec));
+
+        PIPEPP_ELAPSE_BLOCK("Iterate SLIC algorithm")
+        engine->iterate(num_iter(ec));
+
+        if (show_segmentation_result(ec)) {
+            PIPEPP_ELAPSE_SCOPE("Visualize segmentation result");
+            cv::Mat display;
+            cv::Mat show = i.rgb.clone();
+            engine->getLabelContourMask(display);
+            show.setTo(cv::Scalar{0, 255, 0}, display);
+
+            PIPEPP_STORE_DEBUG_DATA("Segmentation Result", show);
+        }
+
+        engine->getLabels(o.labels);
+        return pipepp::pipe_error::ok;
     }
-
-    if (show_segmentation_result(ec)) {
-        PIPEPP_ELAPSE_SCOPE("Visualize segmentation result");
-        cv::Mat display;
-        m.engine->getLabelContourMask(display, true);
-        i.rgb.copyTo(display, 255 - display);
-
-        PIPEPP_STORE_DEBUG_DATA("Segmentation Result", display);
-    }
-
-    m.engine->getLabels(o.labels);
-    return pipepp::pipe_error::ok;
 }
 
 billiards::pipes::clustering::clustering()
@@ -160,5 +189,7 @@ billiards::pipes::clustering::~clustering() = default;
 
 void billiards::pipes::clustering::link_from_previous(shared_data const& sd, input_resize::output_type const& i, input_type& o)
 {
-    o.rgb = i.rgb;
+    o.rgb = sd.rgb;
+    o.hsv = sd.hsv;
+    cv::cvtColor(sd.rgb, o.cielab, cv::COLOR_RGB2Lab);
 }
