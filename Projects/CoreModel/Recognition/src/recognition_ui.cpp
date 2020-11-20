@@ -556,14 +556,15 @@ void exec_ui()
 
     // -- 파이프라인
     kangsw::atomic_queue<std::pair<std::string, cv::Mat>> shown_images{1024};
+    kangsw::atomic_queue<std::string> shutdown_images{1024};
     pipepp::gui::pipeline_board pl_board(fm, {}, true);
     pl_board.reset_pipeline(g_recognizer.get_pipeline_instance().lock());
     pl_board.bgcolor(colors::white);
     pl_board.events().mouse_down([&](arg_mouse const& arg) { if(arg.mid_button) { pl_board.center();} });
     pl_board.debug_data_subscriber = [&](string const& basic_string, pipepp::execution_context_data::debug_data_entity const& debug_data_entity) {
-        decltype(shown_images)::element_type e;
         if (auto any_ptr = std::get_if<std::any>(&debug_data_entity.data)) {
             if (auto mat_ptr = std::any_cast<cv::Mat>(any_ptr)) {
+                decltype(shown_images)::element_type e;
                 e.first = fmt::format("{0}/{1}", basic_string, debug_data_entity.name);
                 e.second = *mat_ptr;
                 shown_images.try_push(std::move(e));
@@ -575,6 +576,14 @@ void exec_ui()
     pl_board.option_changed = [&](pipepp::pipe_id_t pipe_id, string_view basic_string_view) {
         is_config_dirty = true;
         fm_caption_dirty();
+    };
+    pl_board.debug_data_unchecked = [&](string const& basic_string, pipepp::execution_context_data::debug_data_entity const& debug_data_entity) {
+        if (auto any_ptr = std::get_if<std::any>(&debug_data_entity.data)) {
+            if (auto mat_ptr = std::any_cast<cv::Mat>(any_ptr)) {
+                auto name = fmt::format("{0}/{1}", basic_string, debug_data_entity.name);
+                shutdown_images.try_push(move(name));
+            }
+        }
     };
 
     // -- Waitkey 폴링 타이머
@@ -671,9 +680,13 @@ void exec_ui()
             tickmeters.auto_draw(true);
         }
 
-        std::pair<std::string, cv::Mat> fetch_data;
-        while (shown_images.try_pop(fetch_data)) {
+        for (std::pair<std::string, cv::Mat> fetch_data;
+             shown_images.try_pop(fetch_data);) {
             cv::imshow(fetch_data.first, fetch_data.second);
+        }
+
+        for (std::string fetch_str; shutdown_images.try_pop(fetch_str);) {
+            cv::destroyWindow(fetch_str);
         }
     });
     tm_waitkey.start();
