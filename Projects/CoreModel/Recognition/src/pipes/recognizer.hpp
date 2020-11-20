@@ -24,6 +24,9 @@ struct shared_data : pipepp::base_shared_context {
     PIPEPP_DEFINE_OPTION_2(table_size_outer, cv::Vec2d(), "table");
     PIPEPP_DEFINE_OPTION_2(table_size_inner, cv::Vec2d(), "table");
     PIPEPP_DEFINE_OPTION_2(table_size_fit, cv::Vec2d(), "table");
+    PIPEPP_DEFINE_OPTION_2(table_filter_alpha_pos, 0.3, "table");
+    PIPEPP_DEFINE_OPTION_2(table_filter_alpha_rot, 0.3, "table");
+    PIPEPP_DEFINE_OPTION_2(table_filter_jump_threshold_distance, 0.1, "table");
     PIPEPP_DEFINE_OPTION_2(camera_FOV, cv::Vec2d(88, 58), "common");
 
     // data
@@ -114,6 +117,7 @@ struct table_edge_solver {
     PIPEPP_DEFINE_OPTION_2(distance_variant, 0.01f, "partial solver");
     PIPEPP_DEFINE_OPTION_2(border_margin, 3, "partial solver");
     PIPEPP_DEFINE_OPTION_2(iteration_narrow_rate, 0.8f, "partial solver");
+    PIPEPP_DEFINE_OPTION_2(error_function_base, 1.06, "partial");
 
     PIPEPP_DEFINE_OPTION_2(cull_window_top_left, cv::Vec2d(0, 0), "partial cull");
     PIPEPP_DEFINE_OPTION_2(cull_window_bottom_right, cv::Vec2d(1, 1), "partial cull");
@@ -139,10 +143,12 @@ struct table_edge_solver {
         cv::Vec3f table_pos;
         cv::Vec3f table_rot;
         float confidence;
+        bool can_jump;
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
     static void link_from_previous(shared_data const& sd, contour_candidate_search::output_type const& i, input_type& o);
+    static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
 };
 
 } // namespace billiards::pipes

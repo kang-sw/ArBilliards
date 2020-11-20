@@ -292,6 +292,7 @@ void exec_ui()
         if (ifstream strm(path); strm.is_open()) {
             try {
                 json parsed = json::parse((stringstream() << strm.rdbuf()).str());
+                g_recognizer.get_pipeline_instance().lock()->import_options(parsed);
 
                 // 윈도우 위치도 로드
                 // 에디터 설정 목록
@@ -305,8 +306,6 @@ void exec_ui()
                     g_recognizer.get_props()["explorer"]["depth-alpha"] = 32;
                 }
 
-                // json_recursive_substitute(g_recognizer.get_props(), parsed);
-                g_recognizer.get_pipeline_instance().lock()->import_options(parsed);
                 current_save_path = path;
                 is_config_dirty = false;
                 state_messages.emplace("loaded configurations from file "s + path);

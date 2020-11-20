@@ -1,6 +1,8 @@
 #include "image_processing.hpp"
 #include <execution>
 
+#include "kangsw/misc.hxx"
+
 void billiards::imgproc::cull_frustum_impl(std::vector<cv::Vec3f>& obj_pts, plane_t const* plane_ptr, size_t num_planes)
 {
     using namespace cv;
@@ -8,9 +10,9 @@ void billiards::imgproc::cull_frustum_impl(std::vector<cv::Vec3f>& obj_pts, plan
     // 평면은 N.dot(P-P1)=0 꼴인데, 평면 상의 임의의 점 P1은 원점으로 설정해 노멀만으로 평면을 나타냅니다.
     auto planes = std::initializer_list<plane_t>(plane_ptr, plane_ptr + num_planes);
     assert(obj_pts.size() >= 3);
+    auto& o = obj_pts;
 
     for (auto pl : planes) {
-        auto& o = obj_pts;
         constexpr auto SMALL_NUMBER = 1e-5f;
         // 평면 안의 점 찾기 ... 시작점
         int idx = -1;
@@ -382,7 +384,7 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
 
         // 컬링 된 컨투어 그리기
         vector<cv::Vec2i> pts;
-        if (input.size()) {
+        if (input.size() && p.render_debug_glyphs) {
             pts.assign(input.begin(), input.end());
             cv::drawContours(p.debug_render_mat, vector{{pts}}, -1, {0, 255, 112}, 1);
         }
@@ -426,53 +428,64 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
 
         if (do_parallel) {
             cands.resize(p.num_candidates);
-            thread_local mt19937 rand{(unsigned)hash<thread::id>{}(this_thread::get_id())};
-            thread_local vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
-            thread_local vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
-            for_each(execution::par_unseq,
-                     cands.begin(),
-                     cands.end(),
-                     [&](candidate_t& elem) {
-                         candidate_t cand;
+            struct alignas(128) thread_context {
+                mt19937 rand;
+                vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
+                vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
 
-                         // 첫 요소는 항상 기존의 값입니다.
-                         if (&elem - cands.data() != 0) {
-                             auto& p = cand.pos;
-                             auto& r = cand.rot;
+                thread_context()
+                    : rand((unsigned)hash<thread::id>{}(this_thread::get_id())) { }
+            };
+            vector<thread_context> contexts{thread::hardware_concurrency()};
 
-                             random_vector(rand, p, distr_pos(rand));
-                             p += init_pos;
+            kangsw::for_each_partition(
+              execution::par_unseq,
+              cands.begin(),
+              cands.end(),
+              [&](candidate_t& elem, size_t partition_index) {
+                  candidate_t cand;
+                  auto& context = contexts[partition_index];
+                  auto& ch_mapped = context.ch_mapped;
+                  auto& ch_model = context.ch_model;
+                  auto& rand = context.rand;
 
-                             // 회전 벡터를 계산합니다.
-                             // 회전은 급격하게 변하지 않고, 더 계산하기 까다로우므로 축을 고정하고 회전시킵니다.
-                             random_vector(rand, r, distr_rot_axis(rand));
-                             r = normalize(r + init_rot); // 회전축에 variant 적용
-                             float new_rot_amount = norm(init_rot) + distr_rot(rand);
-                             r *= new_rot_amount;
-                         }
-                         else {
-                             cand = elem;
-                         }
+                  // 첫 요소는 항상 기존의 값입니다.
+                  if (&elem - cands.data() != 0) {
+                      auto& p = cand.pos;
+                      auto& r = cand.rot;
 
-                         // 해당 후보를 화면에 프로젝트
-                         ch_mapped.clear();
-                         ch_model.assign(model.begin(), model.end());
+                      random_vector(rand, p, distr_pos(rand));
+                      p += init_pos;
 
-                         project_model_fast(img, ch_mapped, cand.pos, cand.rot, ch_model, true, planes);
-                         fit_contour_to_screen(ch_mapped, p.contour_cull_rect);
-                         // project_model(img, ch_mapped, cand.pos, cand.rot, ch_model, true, p.FOV.width, p.FOV.height);
+                      // 회전 벡터를 계산합니다.
+                      // 회전은 급격하게 변하지 않고, 더 계산하기 까다로우므로 축을 고정하고 회전시킵니다.
+                      random_vector(rand, r, distr_rot_axis(rand));
+                      r = normalize(r + init_rot); // 회전축에 variant 적용
+                      float new_rot_amount = norm(init_rot) + distr_rot(rand);
+                      r *= new_rot_amount;
+                  }
+                  else {
+                      cand = elem;
+                  }
 
-                         // 컨투어 개수가 달라도 기각함에 유의!
-                         if (ch_mapped.empty() || ch_mapped.size() != input.size()) {
-                             cand.error = numeric_limits<float>::max();
-                         }
-                         else {
-                             float dist_min = contour_distance(input, ch_mapped);
-                             cand.error = dist_min;
-                         }
+                  // 해당 후보를 화면에 프로젝트
+                  ch_mapped.clear();
+                  ch_model.assign(model.begin(), model.end());
 
-                         elem = cand;
-                     });
+                  project_model_fast(img, ch_mapped, cand.pos, cand.rot, ch_model, true, planes);
+
+                  // 컨투어 개수가 달라도 기각함에 유의!
+                  if (ch_mapped.empty() || ch_mapped.size() != input.size()) {
+                      cand.error = numeric_limits<float>::max();
+                  }
+                  else {
+                      fit_contour_to_screen(ch_mapped, p.contour_cull_rect);
+                      float dist_min = contour_distance(input, ch_mapped);
+                      cand.error = dist_min;
+                  }
+
+                  elem = cand;
+              });
         }
         else {
             vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지

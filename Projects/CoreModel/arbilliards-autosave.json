@@ -1,0 +1,80 @@
+{
+    "pipes": {
+        "contour search": {
+            "approx_epsilon_convex_hull": 1.0,
+            "approx_epsilon_preprocess": 5.0,
+            "area_threshold_ratio": 0.2,
+            "debug_show_0_filtered": false,
+            "debug_show_1_edge": false,
+            "table_color_filter_0_lo": [
+                170,
+                150,
+                50
+            ],
+            "table_color_filter_1_hi": [
+                10,
+                255,
+                255
+            ]
+        },
+        "input": {
+            "debug_show_hsv": true,
+            "debug_show_source": true,
+            "desired_image_width": 1280
+        },
+        "table edge solver": {
+            "apply_weight": 0.3,
+            "border_margin": 3,
+            "cull_window_bottom_right": [
+                1.0,
+                1.0
+            ],
+            "cull_window_top_left": [
+                0.0,
+                0.0
+            ],
+            "debug_show_partial_glyphs": true,
+            "distance_variant": 0.009999999776482582,
+            "enable_partial_parallel_solve": true,
+            "enable_partial_solver": true,
+            "error_function_base": 1.06,
+            "iteration_narrow_rate": 0.800000011920929,
+            "partial_solver_candidates": 265,
+            "partial_solver_iteration": 10,
+            "pnp_conf_threshold": 0,
+            "pnp_error_exp_fn_base": 1.006,
+            "rotation_amount_variant": 0.014999999664723873,
+            "rotation_axis_variant": 0.014999999664723873
+        }
+    },
+    "shared": {
+        "camera_FOV": [
+            88.0,
+            58.0
+        ],
+        "explorer": {
+            "depth-alpha": 32
+        },
+        "table_filter_alpha_pos": 0.3,
+        "table_filter_alpha_rot": 0.3,
+        "table_filter_jump_threshold_distance": 0.1,
+        "table_size_fit": [
+            0.96,
+            0.51
+        ],
+        "table_size_inner": [
+            1.0,
+            2.0
+        ],
+        "table_size_outer": [
+            1.0,
+            2.0
+        ],
+        "window-position": [
+            1320,
+            420,
+            800,
+            588
+        ]
+    }
+}
