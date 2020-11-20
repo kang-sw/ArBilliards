@@ -11,6 +11,8 @@ public:
     std::shared_ptr<pipepp::pipeline<pipes::shared_data, pipes::input_resize>> pipeline;
     std::optional<parameter_type> param_pending;
     kangsw::spinlock param_pending_lock;
+
+    std::shared_ptr<pipes::shared_state> shared_state = std::make_shared<pipes::shared_state>();
 };
 
 billiards::recognizer_t::recognizer_t()
@@ -47,6 +49,7 @@ void billiards::recognizer_t::refresh_image(parameter_type image, process_finish
     m.pipeline->suply(image, [&](pipes::shared_data& sty) {
         sty.callback = std::move(callback);
         sty.param_bkup = image;
+        sty.state = impl_->shared_state;
     });
 }
 

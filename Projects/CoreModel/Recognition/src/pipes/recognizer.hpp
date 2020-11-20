@@ -31,6 +31,18 @@ void cull_frustum_impl(std::vector<cv::Vec3f>& obj_pts, plane_t const* plane_ptr
 void cull_frustum(std::vector<cv::Vec3f>& obj_pts, std::vector<plane_t> const& planes);
 void project_model_local(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
 void project_points(std::vector<cv::Vec3f> const& points, cv::Matx33f const& camera, cv::Matx41f const& disto, std::vector<cv::Vec2f>& o_points);
+cv::Matx44f get_world_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot);
+void transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, std::vector<cv::Vec3f>& model_vertexes);
+void project_model_fast(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
+std::vector<plane_t> generate_frustum(float hfov_rad, float vfov_rad);
+void project_model(img_t const& img, std::vector<cv::Vec2f>& mapped_contours, cv::Vec3f world_pos, cv::Vec3f world_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, float FOV_h = 88, float FOV_v = 50);
+void draw_axes(img_t const& img, cv::Mat const& dest, cv::Vec3f rvec, cv::Vec3f tvec, float marker_length, int thickness);
+void camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec);
+cv::Vec3f rotate_local(cv::Vec3f target, cv::Vec3f rvec);
+cv::Vec3f set_filtered_table_rot(cv::Vec3f table_rot, cv::Vec3f new_rot, float alpha = 1.0f, float jump_threshold = FLT_MAX);
+cv::Vec3f set_filtered_table_pos(cv::Vec3f table_pos, cv::Vec3f new_pos, float alpha = 1.0f, float jump_threshold = FLT_MAX);
+void project_model(img_t const& img, std::vector<cv::Point>& mapped, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, float FOV_h, float FOV_v);
+void project_contours(img_t const& img, const cv::Mat& rgb, std::vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color, int thickness, cv::Vec2f FOV_deg);
 } // namespace billiards::imgproc
 
 namespace billiards::pipes
@@ -65,6 +77,8 @@ struct shared_data : pipepp::base_shared_context {
     cv::UMat u_rgb, u_hsv;
 
     struct {
+        std::vector<cv::Vec2f> contour;
+
         cv::Vec3f pos, rot;
         float confidence;
     } table;
@@ -112,21 +126,28 @@ struct contour_candidate_search {
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
     static void link_from_previous(shared_data const&, input_resize::output_type const&, input_type&);
+    static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
 };
 
 struct table_edge_solver {
     PIPEPP_DEFINE_OPTION_CLASS(table_edge_solver);
 
-    PIPEPP_DEFINE_OPTION_2(pnp_error_exp_fn_base, 1.06, "PnP", "Base of exponent function which is applied to calculate confidence of full-PNP solver result");
-    PIPEPP_DEFINE_OPTION_2(pnp_conf_threshold, 1.06, "PnP", "Minimum required confidence value of full-PNP solver.");
+    PIPEPP_DEFINE_OPTION_2(pnp_error_exp_fn_base,
+                           1.06,
+                           "PnP",
+                           "Base of exponent function which is applied to calculate confidence of full-PNP solver result");
+    PIPEPP_DEFINE_OPTION_2(pnp_conf_threshold,
+                           1.06,
+                           "PnP",
+                           "Minimum required confidence value of full-PNP solver.");
 
     struct input_type {
-        cv::Mat debug_display;
+        cv::Mat debug_mat;
         recognizer_t::parameter_type const* img_ptr;
 
         cv::Size img_size;
 
-        std::vector<cv::Vec2f>* table_contours;
+        std::vector<cv::Vec2f> const* table_contour;
         cv::Vec2f table_fit_size;
 
         cv::Vec3f table_pos_init;
@@ -140,7 +161,7 @@ struct table_edge_solver {
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
-    static void link_from_previous(shared_data const&, input_resize::output_type const&, input_type&);
+    static void link_from_previous(shared_data const& sd, contour_candidate_search::output_type const& i, input_type& o);
 };
 
 } // namespace billiards::pipes

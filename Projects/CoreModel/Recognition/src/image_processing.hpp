@@ -59,4 +59,18 @@ cv::Vec<Ty_, 3> rodrigues(cv::Matx<Ty_, 3, 3> m)
     return v * O;
 }
 
+template <typename Ty_, int r0, int c0, int r1, int c1>
+void copyMatx(cv::Matx<Ty_, r0, c0>& to, cv::Matx<Ty_, r1, c1> const& from, int r, int c)
+{
+    static_assert(r0 >= r1);
+    static_assert(c0 >= c1);
+    assert(r + r1 <= r0);
+    assert(c + c1 <= c0);
+
+    for (int i = 0; i < r1; ++i) {
+        for (int j = 0; j < c1; ++j) {
+            to(i + r, j + c) = from(i, j);
+        }
+    }
+}
 } // namespace billiards::imgproc
