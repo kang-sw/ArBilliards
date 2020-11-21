@@ -299,9 +299,8 @@ void exec_ui()
                 // 윈도우 위치도 로드
                 // 에디터 설정 목록
                 g_props = parsed["g_props"];
-                if (auto it = parsed.find("window-position"); it != parsed.end()) {
-                    g_props["window-position"] = *it;
-                    array<int, 4> wndPos = *it;
+                if (g_props.contains("window-position")) {
+                    array<int, 4> wndPos = g_props.at("window-position");
                     fm.move((rectangle&)wndPos);
                 }
 
