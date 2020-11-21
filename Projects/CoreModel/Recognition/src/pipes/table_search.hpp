@@ -7,6 +7,7 @@ class clustering
 {
 public:
     PIPEPP_DECLARE_OPTION_CLASS(clustering);
+    PIPEPP_OPTION(target_image_width, 1280, "Common");
     PIPEPP_OPTION(true_SLIC_false_SEEDS, true, "flags");
 
     struct SEEDS {
@@ -25,8 +26,6 @@ public:
     PIPEPP_OPTION(ruler, 20, "SLIC");
 
     struct input_type {
-        cv::Mat rgb;
-        cv::Mat hsv;
         cv::Mat cielab;
     };
 
