@@ -368,7 +368,6 @@ void billiards::pipes::table_edge_solver::output_handler(pipepp::pipe_error, sha
 pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
-    PIPEPP_STORE_DEBUG_DATA("Debug Mat", *i.debug_mat);
     using namespace cv;
     using namespace std;
     using namespace imgproc;
@@ -383,6 +382,26 @@ pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_con
 
     if (table_contour.empty()) {
         return pipepp::pipe_error::ok;
+    }
+
+    PIPEPP_ELAPSE_BLOCK("Render Markers")
+    {
+        Vec2f fov = i.FOV_degree;
+        constexpr float DtoR = CV_PI / 180.f;
+        auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
+
+        vector<Vec3f> vertexes;
+        get_marker_points_model(ec, vertexes);
+
+        auto world_tr = get_world_transform_matx_fast(table_pos, table_rot);
+        for (auto pt : vertexes) {
+            Vec4f pt4;
+            (Vec3f&)pt4 = pt;
+            pt4[3] = 1.0f;
+
+            pt4 = world_tr * pt4;
+            draw_circle(img, (Mat&)debug, 0.01f, (Vec3f&)pt4, {255, 255, 255}, 2);
+        }
     }
 
     Mat1b marker_area_mask(debug.size(), 0);
@@ -511,6 +530,7 @@ pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_con
         }
     }
 
+    PIPEPP_STORE_DEBUG_DATA("Debug Mat", i.debug_mat->clone());
     return pipepp::pipe_error::ok;
 }
 
@@ -525,5 +545,32 @@ void billiards::pipes::marker_solver::link_from_previous(shared_data const& sd, 
       .debug_mat = &sd.debug_mat,
       .table_contour = &sd.table.contour,
       .u_hsv = &sd.u_hsv,
+      .FOV_degree = sd.camera_FOV(sd),
     };
+}
+
+void billiards::pipes::marker_solver::get_marker_points_model(pipepp::execution_context& ec, std::vector<cv::Vec3f>& model)
+{
+    PIPEPP_REGISTER_CONTEXT(ec);
+
+    int num_x = marker::count_x(ec);
+    int num_y = marker::count_y(ec);
+    float felt_width = marker::felt_width(ec);
+    float felt_height = marker::felt_height(ec);
+    float dist_from_felt_long = marker::dist_from_felt_long(ec);
+    float dist_from_felt_short = marker::dist_from_felt_short(ec);
+    float step = marker::step(ec);
+    float width_shift_a = marker::width_shift_a(ec);
+    float width_shift_b = marker::width_shift_b(ec);
+    float height_shift_a = marker::height_shift_a(ec);
+    float height_shift_b = marker::height_shift_b(ec);
+
+    for (int i = -num_y / 2; i < num_y / 2 + 1; ++i) {
+        model.emplace_back(-(dist_from_felt_short + felt_width / 2), 0, step * i + height_shift_a);
+        model.emplace_back(+(dist_from_felt_short + felt_width / 2), 0, step * -i + height_shift_b);
+    }
+    for (int i = -num_x / 2; i < num_x / 2 + 1; ++i) {
+        model.emplace_back(step * i + width_shift_a, 0, -(dist_from_felt_long + felt_height / 2));
+        model.emplace_back(step * -i + width_shift_b, 0, +(dist_from_felt_long + felt_height / 2));
+    }
 }

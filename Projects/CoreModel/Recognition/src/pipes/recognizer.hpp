@@ -3,6 +3,7 @@
 
 #include "../image_processing.hpp"
 #include "kangsw/spinlock.hxx"
+#include "pipepp/execution_context.hpp"
 #include "pipepp/pipeline.hpp"
 
 namespace billiards::pipes
@@ -176,7 +177,23 @@ struct marker_solver {
     PIPEPP_OPTION(marker_area_max_rad, 10.0, "preprocess 1: marker filtering");
     PIPEPP_OPTION(marker_area_min_size, 1, "preprocess 1: marker filtering");
 
-    PIPEPP_OPTION(solver_iteration, 5, "solver");
+    struct marker {
+        PIPEPP_OPTION(count_x, 9, "marker");
+        PIPEPP_OPTION(count_y, 5, "marker");
+        PIPEPP_OPTION(felt_width, 1.735f, "marker");
+        PIPEPP_OPTION(felt_height, 0.915f, "marker");
+        PIPEPP_OPTION(dist_from_felt_long, 0.012f, "marker");
+        PIPEPP_OPTION(dist_from_felt_short, 0.012f, "marker");
+        PIPEPP_OPTION(step, 0.206f, "marker");
+        PIPEPP_OPTION(width_shift_a, 0.0f, "marker");
+        PIPEPP_OPTION(width_shift_b, 0.0f, "marker");
+        PIPEPP_OPTION(height_shift_a, 0.0f, "marker");
+        PIPEPP_OPTION(height_shift_b, 0.01f, "marker");
+    };
+
+    struct solver {
+        PIPEPP_OPTION(iteration, 5, "Solver");
+    };
 
     struct input_type {
         imgproc::img_t const* img_ptr;
@@ -189,6 +206,8 @@ struct marker_solver {
         std::vector<cv::Vec2f> const* table_contour;
 
         cv::UMat const* u_hsv;
+
+        cv::Vec2f FOV_degree;
     };
 
     struct output_type {
@@ -199,6 +218,8 @@ struct marker_solver {
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
     static void link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o);
+
+    static void get_marker_points_model(pipepp::execution_context& ec, std::vector<cv::Vec3f>& model);
 };
 
 } // namespace billiards::pipes

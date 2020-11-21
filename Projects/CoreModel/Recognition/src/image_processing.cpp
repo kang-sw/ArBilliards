@@ -451,6 +451,20 @@ void billiards::imgproc::carve_outermost_pixels(cv::InputOutputArray io, cv::Sca
     }
 }
 
+void billiards::imgproc::draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness)
+{
+    using namespace cv;
+    std::vector<Vec3f> pos{{0, 0, 0}};
+    std::vector<Vec2f> pt;
+
+    project_model(img, pt, tvec_world, {0, 1, 0}, pos, false);
+
+    float size = get_pixel_length(img, base_size, pos[0][2]);
+    if (size > 1) {
+        circle(dest, Point(pt[0][0], pt[0][1]), size, color, thickness);
+    }
+}
+
 std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgproc::estimate_matching_transform(img_t const& img, std::vector<cv::Vec2f> const& input_param, std::vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p)
 {
     using namespace std;

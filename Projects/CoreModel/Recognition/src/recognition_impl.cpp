@@ -972,14 +972,6 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 
         vector<Vec3f> vertexes;
         get_marker_points_model(vertexes);
-        /*  vector<Vec2f> projected;
-        transform_to_camera(img, table_pos, table_rot, vertexes);
-        project_model_points(img, projected, vertexes, true, view_planes);
-
-        for (Point2f pt : projected) {
-            line(debug, pt - Point2f(8, 0), pt + Point2f(8, 0), {0, 188, 255}, 2);
-            line(debug, pt - Point2f(0, 8), pt + Point2f(0, 8), {0, 188, 255}, 2);
-        }*/
 
         auto world_tr = get_world_transform_matx_fast(table_pos, table_rot);
         for (auto pt : vertexes) {
