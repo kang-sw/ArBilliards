@@ -17,6 +17,7 @@ public:
     PIPEPP_OPTION(num_levels, 5, "SEEDS");
 
     PIPEPP_OPTION(show_segmentation_result, true, "debug");
+    PIPEPP_OPTION(segmentation_devider_color, cv::Vec3b(255, 0, 255), "debug");
 
     struct SLIC {
         PIPEPP_OPTION(num_iter, 4, "SLIC");

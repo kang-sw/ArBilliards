@@ -162,7 +162,7 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
             cv::Mat show;
             cv::cvtColor(cielab, show, cv::COLOR_Lab2RGB);
             m.engine->getLabelContourMask(display);
-            show.setTo(cv::Scalar{0, 255, 0}, display);
+            show.setTo(segmentation_devider_color(ec), display);
 
             PIPEPP_STORE_DEBUG_DATA("Segmentation Result", show);
         }
@@ -187,7 +187,7 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
             cv::Mat show;
             cv::cvtColor(cielab, show, cv::COLOR_Lab2RGB);
             engine->getLabelContourMask(display);
-            show.setTo(cv::Scalar{0, 255, 0}, display);
+            show.setTo(segmentation_devider_color(ec), display);
 
             PIPEPP_STORE_DEBUG_DATA("Segmentation Result", show);
         }
