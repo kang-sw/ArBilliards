@@ -6,18 +6,18 @@ namespace billiards::pipes
 class clustering
 {
 public:
-    PIPEPP_DEFINE_OPTION_CLASS(clustering);
-    PIPEPP_DEFINE_OPTION_2(true_SLIC_false_SEEDS, true, "flags");
+    PIPEPP_DECLARE_OPTION_CLASS(clustering);
+    PIPEPP_OPTION(true_SLIC_false_SEEDS, true, "flags");
 
-    PIPEPP_DEFINE_OPTION_2(num_iter, 4, "SEEDS");
-    PIPEPP_DEFINE_OPTION_2(num_segments, 1024, "SEEDS");
-    PIPEPP_DEFINE_OPTION_2(num_levels, 5, "SEEDS");
+    PIPEPP_OPTION(num_iter, 4, "SEEDS");
+    PIPEPP_OPTION(num_segments, 1024, "SEEDS");
+    PIPEPP_OPTION(num_levels, 5, "SEEDS");
 
-    PIPEPP_DEFINE_OPTION_2(show_segmentation_result, true, "debug");
+    PIPEPP_OPTION(show_segmentation_result, true, "debug");
 
-    PIPEPP_DEFINE_OPTION_2(algo_index_SLICO_MSLIC_SLIC, 0, "SLIC");
-    PIPEPP_DEFINE_OPTION_2(region_size, 20, "SLIC");
-    PIPEPP_DEFINE_OPTION_2(ruler, 20, "SLIC");
+    PIPEPP_OPTION(algo_index_SLICO_MSLIC_SLIC, 0, "SLIC");
+    PIPEPP_OPTION(region_size, 20, "SLIC");
+    PIPEPP_OPTION(ruler, 20, "SLIC");
 
     struct input_type {
         cv::Mat rgb;
