@@ -168,14 +168,14 @@ struct marker_solver {
     PIPEPP_OPTION(enable_debug_mats, true, "debug");
     PIPEPP_OPTION(show_marker_area_mask, false, "debug");
 
-    PIPEPP_OPTION(num_insert_contour_vtx, 5, "preprocess 0: marker range");
-    PIPEPP_OPTION(table_border_range_outer, 0.06, "preprocess 0: marker range");
-    PIPEPP_OPTION(table_border_range_inner, 0.02, "preprocess 0: marker range");
+    PIPEPP_OPTION(num_insert_contour_vtx, 5, "PP 0: marker area");
+    PIPEPP_OPTION(table_border_range_outer, 0.06, "PP 0: marker area");
+    PIPEPP_OPTION(table_border_range_inner, 0.02, "PP 0: marker area");
 
-    PIPEPP_OPTION(laplacian_mask_threshold, 0.1, "preprocess 1: marker filtering");
-    PIPEPP_OPTION(marker_area_min_rad, 0.5, "preprocess 1: marker filtering");
-    PIPEPP_OPTION(marker_area_max_rad, 10.0, "preprocess 1: marker filtering");
-    PIPEPP_OPTION(marker_area_min_size, 1, "preprocess 1: marker filtering");
+    PIPEPP_OPTION(laplacian_mask_threshold, 0.1, "PP 1: filtering");
+    PIPEPP_OPTION(marker_area_min_rad, 0.5, "PP 1: filtering");
+    PIPEPP_OPTION(marker_area_max_rad, 10.0, "PP 1: filtering");
+    PIPEPP_OPTION(marker_area_min_size, 1, "PP 1: filtering");
 
     struct marker {
         PIPEPP_OPTION(count_x, 9, "marker");
@@ -193,6 +193,18 @@ struct marker_solver {
 
     struct solver {
         PIPEPP_OPTION(iteration, 5, "Solver");
+
+        PIPEPP_OPTION(error_base, 1.14, "Solver");
+        PIPEPP_OPTION(variant_rot, 0.1, "Solver");
+        PIPEPP_OPTION(variant_pos, 0.1, "Solver");
+        PIPEPP_OPTION(variant_rot_axis, 0.005, "Solver");
+        PIPEPP_OPTION(narrow_rate_pos, 0.5, "Solver");
+        PIPEPP_OPTION(narrow_rate_rot, 0.5, "Solver");
+        PIPEPP_OPTION(num_cands, 600, "Solver");
+        PIPEPP_OPTION(num_iter, 5, "Solver");
+        PIPEPP_OPTION(do_parallel, true, "Solver");
+        PIPEPP_OPTION(confidence_amp, 1.5, "Solver");
+        PIPEPP_OPTION(min_valid_marker_size, 1.2, "Solver");
     };
 
     struct input_type {

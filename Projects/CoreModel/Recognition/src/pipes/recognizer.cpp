@@ -530,6 +530,132 @@ pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_con
         }
     }
 
+    PIPEPP_ELAPSE_BLOCK("Solve")
+    if (centers.empty() == false) {
+        vector<Vec3f> model; //  = table_params["marker"]["array"];
+                             // model.resize(table_params["marker"]["array-num"]);
+        get_marker_points_model(ec, model);
+
+        struct candidate_t {
+            Vec3f rotation;
+            Vec3f position;
+            double suitability;
+        };
+
+        vector<candidate_t> candidates;
+        candidates.push_back({table_rot, table_pos, 0});
+
+        Vec2f fov = i.FOV_degree;
+        constexpr float DtoR = (CV_PI / 180.f);
+        auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
+
+        mt19937 rengine(random_device{}());
+        float rotation_variant = solver::variant_rot(ec);
+        float rotation_axis_variant = solver::variant_rot_axis(ec);
+        float position_variant = solver::variant_pos(ec);
+        int num_candidates = solver::num_cands(ec);
+        float error_base = solver::error_base(ec);
+        auto narrow_rate_pos = solver::narrow_rate_pos(ec);
+        auto narrow_rate_rot = solver::narrow_rate_rot(ec);
+
+        auto const& detected = centers;
+
+        for (int iteration = 0, max_iteration = solver::num_iter(ec);
+             iteration < max_iteration;
+             ++iteration) {
+            PIPEPP_ELAPSE_SCOPE_DYNAMIC(fmt::format("Iteration {0:>2}", iteration).c_str());
+            auto const& pivot_candidate = candidates.front();
+
+            // candidate 목록 작성.
+            // 임의의 방향으로 회전
+            // 회전 축은 Y 고정
+            while (candidates.size() < num_candidates) {
+                candidate_t cand;
+                cand.suitability = 0;
+
+                uniform_real_distribution<float> distr_pos{-position_variant, position_variant};
+                random_vector(rengine, cand.position, distr_pos(rengine));
+                cand.position += pivot_candidate.position;
+
+                uniform_real_distribution<float> distr_rot{-rotation_variant, rotation_variant};
+                auto rot_norm = norm(pivot_candidate.rotation);
+                auto rot_amount = rot_norm + distr_rot(rengine);
+                auto rotator = pivot_candidate.rotation / rot_norm;
+                random_vector(rengine, cand.rotation, rotation_axis_variant);
+                cand.rotation = normalize(cand.rotation + rotator);
+                cand.rotation *= rot_amount;
+
+                // 임의의 확률로 180도 회전시킵니다.
+                bool rotate180 = uniform_int_distribution<>{0, 1}(rengine);
+                if (rotate180) { cand.rotation = rotate_local(cand.rotation, {0, CV_PI, 0}); }
+
+                candidates.push_back(cand);
+            }
+
+            // 평가 병렬 실행
+            for_each(execution::par_unseq, candidates.begin(), candidates.end(), [&](candidate_t& elem) {
+                thread_local static vector<Vec3f> cc_model;
+                thread_local static vector<Vec2f> cc_projected;
+                thread_local static vector<Vec2f> cc_detected;
+
+                Vec3f rot = elem.rotation;
+                Vec3f pos = elem.position;
+
+                cc_model = model;
+                cc_projected.clear();
+                cc_detected = detected;
+                transform_to_camera(img, pos, rot, cc_model);
+                project_model_points(img, cc_projected, cc_model, true, view_planes);
+
+                // 각각의 점에 대해 독립적으로 거리를 계산합니다.
+                auto suitability = contour_min_dist_for_each(cc_projected, cc_detected, [error_base](float min_dist_sqr) { return pow(error_base, -sqrtf(min_dist_sqr)); });
+
+                elem.suitability = suitability;
+            });
+
+            // 가장 confidence가 높은 후보를 선택합니다.
+            auto max_it = max_element(execution::par_unseq, candidates.begin(), candidates.end(), [](candidate_t const& a, candidate_t const& b) { return a.suitability < b.suitability; });
+            assert(max_it != candidates.end());
+
+            candidates.front() = *max_it;
+            candidates.resize(1); // 최적 엘리먼트 제외 모두 삭제
+            position_variant *= narrow_rate_pos;
+            rotation_variant *= narrow_rate_rot;
+        }
+
+        // 디버그 그리기
+        auto best = candidates.front();
+
+        PIPEPP_ELAPSE_BLOCK("Render debug glyphs")
+        {
+            auto vertexes = model;
+            vector<Vec2f> projected;
+            transform_to_camera(img, best.position, best.rotation, vertexes);
+            project_model_points(img, projected, vertexes, true, view_planes);
+
+            for (Point2f pt : detected) {
+                line(debug, pt - Point2f(5, 5), pt + Point2f(5, 5), {0, 0, 255}, 2);
+                line(debug, pt - Point2f(5, -5), pt + Point2f(5, -5), {0, 0, 255}, 2);
+            }
+
+            for (Point2f pt : projected) {
+                line(debug, pt - Point2f(5, 0), pt + Point2f(5, 0), {255, 255, 0}, 1);
+                line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {255, 255, 0}, 1);
+            }
+        }
+
+        float ampl = solver::confidence_amp(ec);
+        float min_size = solver::min_valid_marker_size(ec);
+        float weight_sum = count_if(marker_weights.begin(), marker_weights.end(), [min_size](float v) { return v > min_size; });
+        float apply_rate = min(1.0, ampl * best.suitability / max<double>(1, weight_sum));
+
+        putText(debug, (stringstream() << "marker confidence: " << apply_rate << " (" << best.suitability << "/ " << max<double>(8, detected.size()) << ")").str(), {0, 48}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
+
+        out.confidence = apply_rate;
+        out.table_pos = best.position;
+        out.table_rot = best.rotation;
+    }
+
     PIPEPP_STORE_DEBUG_DATA("Debug Mat", i.debug_mat->clone());
     return pipepp::pipe_error::ok;
 }

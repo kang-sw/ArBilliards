@@ -49,6 +49,7 @@ auto get_uv_from_3d(img_t const& img, cv::Point3f const& coord_3d) -> std::array
 float get_pixel_length(img_t const& img, float len_metric, float Z_metric);
 int get_pixel_length_on_contact(img_t const& imdesc, plane_t plane, cv::Point pt, float length);
 void carve_outermost_pixels(cv::InputOutputArray io, cv::Scalar as);
+void project_model_points(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
 void draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness);
 
 struct transform_estimation_param_t {
@@ -183,5 +184,34 @@ void random_vector(Rand_& rand, cv::Vec<Ty_, Sz_>& vec, Ty_ range)
     vec[1] = distr(rand);
     vec[2] = distr(rand);
     vec = cv::normalize(vec) * range;
+}
+
+/**
+ * 가장 가까운 각각의 컨투어에 대해, 최소 거리에 대해 평가 함수를 적용합니다.
+ */
+template <typename Fn_>
+static float contour_min_dist_for_each(std::vector<cv::Vec2f> const& ct_a, std::vector<cv::Vec2f>& ct_b, Fn_&& eval)
+{
+    float sum = 0;
+
+    for (auto& pt : ct_a) {
+        if (ct_b.empty()) { break; }
+
+        float min_dist = std::numeric_limits<float>::max();
+        int min_idx = 0;
+        for (int i = 0; i < ct_b.size(); ++i) {
+            auto dist = cv::norm(ct_b[i] - pt, cv::NORM_L2SQR);
+            if (dist < min_dist) {
+                min_dist = dist;
+                min_idx = i;
+            }
+        }
+
+        sum += eval(min_dist);
+        ct_b[min_idx] = ct_b.back();
+        ct_b.pop_back();
+    }
+
+    return sum;
 }
 } // namespace billiards::imgproc

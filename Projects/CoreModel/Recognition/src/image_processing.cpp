@@ -451,6 +451,34 @@ void billiards::imgproc::carve_outermost_pixels(cv::InputOutputArray io, cv::Sca
     }
 }
 
+void billiards::imgproc::project_model_points(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes)
+{
+    // 오브젝트 포인트에 frustum culling 수행
+    if (do_cull) {
+        // 평면 밖의 점을 모두 discard
+        for (auto& plane : planes) {
+            for (int i = 0; i < model_vertexes.size();) {
+                if (plane.calc(model_vertexes[i]) <= 0) {
+                    model_vertexes[i] = model_vertexes.back();
+                    model_vertexes.pop_back();
+                    continue;
+                }
+
+                ++i;
+            }
+        }
+    }
+
+    if (!model_vertexes.empty()) {
+        // obj_pts 점을 카메라에 대한 상대 좌표로 치환합니다.
+        auto [mat_cam, mat_disto] = get_camera_matx(img);
+
+        // 각 점을 매핑합니다.
+        // projectPoints(model_vertexes, cv::Vec3f(0, 0, 0), cv::Vec3f(0, 0, 0), mat_cam, mat_disto, mapped_contour);
+        project_points(model_vertexes, mat_cam, mat_disto, mapped_contour);
+    }
+}
+
 void billiards::imgproc::draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness)
 {
     using namespace cv;
