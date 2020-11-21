@@ -323,6 +323,10 @@ struct ball_search {
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
     static void link_from_previous(shared_data const& sd, marker_solver::output_type const& i, input_type& o);
+
+private:
+    std::vector<cv::Vec2f> normal_random_samples;
+    std::vector<cv::Vec2f> normal_negative_samples;
 };
 
 } // namespace billiards::pipes

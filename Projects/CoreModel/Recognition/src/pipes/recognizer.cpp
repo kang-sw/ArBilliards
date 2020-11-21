@@ -815,10 +815,9 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
     // 정규화된 랜덤 샘플의 목록을 만듭니다.
     // 일반적으로 샘플의 아래쪽 반원은 음영에 의해 가려지게 되므로, 위쪽 반원의 샘플을 추출합니다.
     // 이는 정규화된 목록으로, 실제 샘플을 추출할때는 추정 중점 위치에서 계산된 반지름을 곱한 뒤 적용합니다.
-    vector<cv::Vec2f> normal_random_samples;
-    vector<cv::Vec2f> normal_negative_samples;
-    PIPEPP_ELAPSE_BLOCK("Random Sample Generation")
-    {
+
+    if (ec.consume_option_dirty_flag()) {
+        PIPEPP_ELAPSE_SCOPE("Random Sample Generation")
         Vec2f positive_area_range = random_sample::positive_area(ec);
         Vec2f negative_area_range = random_sample::negative_area(ec);
         int rand_seed = random_sample::random_seed(ec), circle_radius = random_sample::integral_radius(ec);

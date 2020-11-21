@@ -128,18 +128,17 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
           .num_levels = num_levels(ec),
         };
 
-        if (ec.is_option_dirty()) {
+        if (ec.consume_option_dirty_flag()) {
             PIPEPP_ELAPSE_SCOPE("Recreate superpixel engine");
             m.engine = cv::ximgproc::createSuperpixelSEEDS(
               size.width, size.height, 3, setting.num_segs, setting.num_levels);
 
             m.setting_cache = setting;
-            ec.clear_option_dirty_flag();
         }
 
         PIPEPP_ELAPSE_BLOCK("Apply algorithm")
         {
-            m.engine->iterate(i.cielab, num_iter(ec));
+            m.engine->iterate(i.cielab, SEEDS::num_iter(ec));
         }
 
         if (show_segmentation_result(ec)) {
@@ -164,7 +163,7 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
         engine = cv::ximgproc::createSuperpixelSLIC(i.cielab, algo, region_size(ec), ruler(ec));
 
         PIPEPP_ELAPSE_BLOCK("Iterate SLIC algorithm")
-        engine->iterate(num_iter(ec));
+        engine->iterate(SLIC::num_iter(ec));
 
         if (show_segmentation_result(ec)) {
             PIPEPP_ELAPSE_SCOPE("Visualize segmentation result");

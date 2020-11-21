@@ -9,12 +9,17 @@ public:
     PIPEPP_DECLARE_OPTION_CLASS(clustering);
     PIPEPP_OPTION(true_SLIC_false_SEEDS, true, "flags");
 
-    PIPEPP_OPTION(num_iter, 4, "SEEDS");
+    struct SEEDS {
+        PIPEPP_OPTION(num_iter, 4, "SEEDS");
+    };
     PIPEPP_OPTION(num_segments, 1024, "SEEDS");
     PIPEPP_OPTION(num_levels, 5, "SEEDS");
 
     PIPEPP_OPTION(show_segmentation_result, true, "debug");
 
+    struct SLIC {
+        PIPEPP_OPTION(num_iter, 4, "SLIC");
+    };
     PIPEPP_OPTION(algo_index_SLICO_MSLIC_SLIC, 0, "SLIC");
     PIPEPP_OPTION(region_size, 20, "SLIC");
     PIPEPP_OPTION(ruler, 20, "SLIC");
