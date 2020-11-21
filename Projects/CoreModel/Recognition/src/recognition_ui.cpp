@@ -559,7 +559,10 @@ void exec_ui()
     kangsw::atomic_queue<std::string> shutdown_images{1024};
     pipepp::gui::pipeline_board pl_board(fm, {}, true);
     pl_board.reset_pipeline(g_recognizer.get_pipeline_instance().lock());
-    pl_board.bgcolor(colors::white);
+    pl_board.bgcolor(colors::antique_white);
+    // pl_board.main_connection_line_color = color(255, 255, 255);
+    // pl_board.optional_connection_line_color = color(0, 255, 255);
+
     pl_board.events().mouse_down([&](arg_mouse const& arg) { if(arg.mid_button) { pl_board.center();} });
     pl_board.debug_data_subscriber = [&](string const& basic_string, pipepp::execution_context_data::debug_data_entity const& debug_data_entity) {
         if (auto any_ptr = std::get_if<std::any>(&debug_data_entity.data)) {
