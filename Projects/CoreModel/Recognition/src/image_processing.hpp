@@ -6,7 +6,7 @@
 
 namespace billiards::imgproc
 {
-using img_t = recognizer_t::parameter_type;
+using img_t = recognizer_t::frame_desc;
 
 struct plane_t {
     cv::Vec3f N;
@@ -24,7 +24,7 @@ struct plane_t {
 void filter_hsv(cv::InputArray input, cv::OutputArray output, cv::Vec3f min_hsv, cv::Vec3f max_hsv);
 bool is_border_pixel(cv::Rect img_size, cv::Vec2i pixel, int margin = 3);
 void get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size);
-auto get_camera_matx(billiards::recognizer_t::parameter_type const& img) -> std::pair<cv::Matx33d, cv::Matx41d>;
+auto get_camera_matx(billiards::recognizer_t::frame_desc const& img) -> std::pair<cv::Matx33d, cv::Matx41d>;
 void cull_frustum_impl(std::vector<cv::Vec3f>& obj_pts, plane_t const* plane_ptr, size_t num_planes);
 void cull_frustum(std::vector<cv::Vec3f>& obj_pts, std::vector<plane_t> const& planes);
 void project_model_local(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);

@@ -753,7 +753,7 @@ void billiards::imgproc::get_table_model(std::vector<cv::Vec3f>& vertexes, cv::V
       });
 }
 
-std::pair<cv::Matx33d, cv::Matx41d> billiards::imgproc::get_camera_matx(billiards::recognizer_t::parameter_type const& img)
+std::pair<cv::Matx33d, cv::Matx41d> billiards::imgproc::get_camera_matx(billiards::recognizer_t::frame_desc const& img)
 {
     auto& p = img.camera;
     double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...

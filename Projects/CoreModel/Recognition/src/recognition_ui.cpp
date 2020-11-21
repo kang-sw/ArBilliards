@@ -41,7 +41,7 @@ struct n_type {
 
 struct video_frame {
     float time_point;
-    billiards::recognizer_t::parameter_type img;
+    billiards::recognizer_t::frame_desc img;
 };
 
 static ostream& operator<<(ostream& o, video_frame const& v)
@@ -692,7 +692,7 @@ void exec_ui()
     tm_waitkey.start();
 
     // -- 스냅샷 관련
-    optional<billiards::recognizer_t::parameter_type> snapshot;
+    optional<billiards::recognizer_t::frame_desc> snapshot;
     timer snapshot_loader{100ms};
     button btn_snap_load(fm), btn_snapshot(fm), btn_snap_abort(fm);
     btn_snap_load.caption("Load Snapshot (Alt+E)");

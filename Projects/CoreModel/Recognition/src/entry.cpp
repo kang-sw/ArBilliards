@@ -94,7 +94,7 @@ private:
                 cout << buf;
             }
 
-            billiards::recognizer_t::parameter_type image;
+            billiards::recognizer_t::frame_desc image;
 
             image.camera_translation = *(cv::Vec3f*)&odesc->translation;
             image.camera_orientation = *(cv::Vec4f*)&odesc->orientation;
@@ -107,7 +107,7 @@ private:
             memcpy(image.depth.data, ochnk->depth_view.data(), ochnk->depth_view.size());
 
             image.camera = odesc->camera;
-            auto improc_callback = [sock = odesc->connection](billiards::recognizer_t::parameter_type const& image, json const& to_send) {
+            auto improc_callback = [sock = odesc->connection](billiards::recognizer_t::frame_desc const& image, json const& to_send) {
                 if (auto conn = sock.lock()) {
                     // 보낼 JSON 정리
                     auto p_str = make_shared<string>();

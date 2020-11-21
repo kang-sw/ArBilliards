@@ -37,7 +37,7 @@ struct shared_data : pipepp::base_shared_context {
     // data
     std::shared_ptr<shared_state> state;
 
-    recognizer_t::parameter_type param_bkup;
+    recognizer_t::frame_desc param_bkup;
     recognizer_t::process_finish_callback_type callback;
 
     cv::Mat debug_mat;
@@ -60,7 +60,7 @@ struct input_resize {
     PIPEPP_DEFINE_OPTION_2(debug_show_source, false);
     PIPEPP_DEFINE_OPTION_2(debug_show_hsv, false);
 
-    using input_type = recognizer_t::parameter_type;
+    using input_type = recognizer_t::frame_desc;
     struct output_type {
         cv::Size img_size;
         cv::Mat rgb;
@@ -133,7 +133,7 @@ struct table_edge_solver {
         cv::Vec2f FOV_degree;
 
         cv::Mat debug_mat;
-        recognizer_t::parameter_type const* img_ptr;
+        recognizer_t::frame_desc const* img_ptr;
 
         cv::Size img_size;
 

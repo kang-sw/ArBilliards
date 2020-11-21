@@ -28,7 +28,7 @@ struct plane_t {
     std::optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
 };
 
-using img_t = recognizer_t::parameter_type;
+using img_t = recognizer_t::frame_desc;
 using img_cb_t = recognizer_t::process_finish_callback_type;
 using opt_img_t = std::optional<img_t>;
 using read_lock = std::shared_lock<std::shared_mutex>;

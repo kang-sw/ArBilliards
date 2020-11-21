@@ -9,7 +9,7 @@ class billiards::recognizer_t::implementation
 public:
     recognizer_t& self;
     std::shared_ptr<pipepp::pipeline<pipes::shared_data, pipes::input_resize>> pipeline;
-    std::optional<parameter_type> param_pending;
+    std::optional<frame_desc> param_pending;
     kangsw::spinlock param_pending_lock;
 
     std::shared_ptr<pipes::shared_state> shared_state = std::make_shared<pipes::shared_state>();
@@ -43,7 +43,7 @@ void billiards::recognizer_t::destroy()
     ref->sync();
 }
 
-void billiards::recognizer_t::refresh_image(parameter_type image, process_finish_callback_type&& callback)
+void billiards::recognizer_t::refresh_image(frame_desc image, process_finish_callback_type&& callback)
 {
     auto& m = *impl_;
     m.pipeline->suply(image, [&](pipes::shared_data& sty) {
@@ -72,7 +72,7 @@ billiards::recognition_desc const* billiards::recognizer_t::get_recognition() co
     return nullptr;
 }
 
-billiards::recognizer_t::parameter_type billiards::recognizer_t::get_image_snapshot() const
+billiards::recognizer_t::frame_desc billiards::recognizer_t::get_image_snapshot() const
 {
     return {};
 }
@@ -84,7 +84,7 @@ std::vector<std::pair<std::string, std::chrono::microseconds>> billiards::recogn
 
 namespace std
 {
-ostream& operator<<(ostream& strm, billiards::recognizer_t::parameter_type const& desc)
+ostream& operator<<(ostream& strm, billiards::recognizer_t::frame_desc const& desc)
 {
     auto write = [&strm](auto val) {
         strm.write((char*)&val, sizeof val);
@@ -113,7 +113,7 @@ ostream& operator<<(ostream& strm, billiards::recognizer_t::parameter_type const
     return strm;
 }
 
-istream& operator>>(istream& strm, billiards::recognizer_t::parameter_type& desc)
+istream& operator>>(istream& strm, billiards::recognizer_t::frame_desc& desc)
 {
     auto read = [&strm](auto& val) {
         strm.read((char*)&val, sizeof(remove_reference_t<decltype(val)>));

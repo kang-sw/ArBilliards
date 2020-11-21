@@ -3,8 +3,6 @@
 #include <functional>
 #include <nlohmann/json.hpp>
 #include <opencv2/core.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/aruco.hpp>
 
 namespace cv
 {
@@ -81,7 +79,7 @@ public:
     /**
      * 공급 이미지 서술 구조체
      */
-    struct parameter_type {
+    struct frame_desc {
         cv::Vec3f camera_translation;
         cv::Vec4f camera_orientation; // In Euler angles ..
         cv::Matx<float, 4, 4> camera_transform;
@@ -91,14 +89,14 @@ public:
         camera_param_type camera;
     };
 
-    using process_finish_callback_type = std::function<void(struct parameter_type const& image, nlohmann::json const& result)>;
+    using process_finish_callback_type = std::function<void(struct frame_desc const& image, nlohmann::json const& result)>;
 
     /**
      * 인스턴스에 새 이미지를 공급합니다.
      * 백그라운드에서 실행 될 수 있으며, 실행 완료 후 재생할 콜백의 지정이 필요합니다.
      * 먼저 공급된 이미지의 처리가 시작되기 전에 새로운 이미지가 공급된 경우, 이전에 공급된 이미지는 버려집니다.
      */
-    void refresh_image(parameter_type image, process_finish_callback_type&& callback = {});
+    void refresh_image(frame_desc image, process_finish_callback_type&& callback = {});
 
     /**
      * 생성된 파이프라인 인스턴스를 반환합니다.
@@ -124,7 +122,7 @@ public:
     /**
      * 내부에 캐시된 이미지를 반환합니다.
      */
-    [[nodiscard]] parameter_type get_image_snapshot() const;
+    [[nodiscard]] frame_desc get_image_snapshot() const;
 
     /**
      * 타이밍 리스트를 반환합니다.
@@ -140,6 +138,6 @@ private:
 
 namespace std
 {
-ostream& operator<<(ostream& strm, billiards::recognizer_t::parameter_type const& desc);
-istream& operator>>(istream& strm, billiards::recognizer_t::parameter_type& desc);
+ostream& operator<<(ostream& strm, billiards::recognizer_t::frame_desc const& desc);
+istream& operator>>(istream& strm, billiards::recognizer_t::frame_desc& desc);
 } // namespace std
