@@ -48,6 +48,7 @@ void get_point_coord_3d(img_t const& img, float& io_x, float& io_y, float z_metr
 auto get_uv_from_3d(img_t const& img, cv::Point3f const& coord_3d) -> std::array<float, 2>;
 float get_pixel_length(img_t const& img, float len_metric, float Z_metric);
 int get_pixel_length_on_contact(img_t const& imdesc, plane_t plane, cv::Point pt, float length);
+void carve_outermost_pixels(cv::InputOutputArray io, cv::Scalar as);
 
 struct transform_estimation_param_t {
     int num_iteration = 10;

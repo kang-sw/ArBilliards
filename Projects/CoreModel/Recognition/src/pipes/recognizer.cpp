@@ -6,6 +6,7 @@
 #include <opencv2/core/matx.hpp>
 #include "fmt/format.h"
 #include "table_search.hpp"
+#include "../image_processing.hpp"
 
 #pragma warning(disable : 4244)
 
@@ -22,14 +23,15 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     auto input_proxy = pl->front();
     input_proxy.add_output_handler(&input_resize::output_handler);
 
-    if (false) { // Optional SLIC scope
-        auto superpixels = input_proxy.create_and_link_output("Superpixels", true, 1, &clustering::link_from_previous, &pipepp::make_executor<clustering>);
+    { // Optional SLIC scope
+        auto superpixels = input_proxy.create_and_link_output("Superpixels", true, std::thread::hardware_concurrency() / 2, &clustering::link_from_previous, &pipepp::make_executor<clustering>);
+        superpixels.pause();
     }
 
     auto contour_search_proxy = input_proxy.create_and_link_output("contour search", false, 1, &contour_candidate_search::link_from_previous, &pipepp::make_executor<contour_candidate_search>);
     contour_search_proxy.add_output_handler(&contour_candidate_search::output_handler);
 
-    auto pnp_solver_proxy = contour_search_proxy.create_and_link_output("table edge solver", false, 1, &table_edge_solver::link_from_previous, &pipepp::make_executor<table_edge_solver>);
+    auto pnp_solver_proxy = contour_search_proxy.create_and_link_output("table edge solver", false, 2, &table_edge_solver::link_from_previous, &pipepp::make_executor<table_edge_solver>);
     pnp_solver_proxy.add_output_handler(&table_edge_solver::output_handler);
 
     auto marker_solver_proxy = pnp_solver_proxy.create_and_link_output("marker solver", false, 1, &marker_solver::link_from_previous, &pipepp::make_executor<marker_solver>);
@@ -86,7 +88,7 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using namespace std;
-    cv::UMat filtered, edge, u0, u1;
+    cv::UMat u_filtered, u_edge, u0, u1;
     cv::Vec3b filter[] = {table_color_filter_0_lo(ec), table_color_filter_1_hi(ec)};
     vector<cv::Vec2f> table_contour;
     auto image_size = i.u_hsv.size();
@@ -94,12 +96,32 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
 
     PIPEPP_ELAPSE_BLOCK("Edge detection")
     {
-        imgproc::filter_hsv(i.u_hsv, filtered, filter[0], filter[1]);
-        cv::erode(filtered, u0, {});
-        cv::subtract(filtered, u0, edge);
+        PIPEPP_ELAPSE_BLOCK("Preprocess: hsv filtering")
+        {
+            imgproc::filter_hsv(i.u_hsv, u_filtered, filter[0], filter[1]);
+            imgproc::carve_outermost_pixels(u_filtered, {0});
+        }
 
-        PIPEPP_STORE_DEBUG_DATA_COND("Filtered Image", filtered.getMat(cv::ACCESS_FAST).clone(), show_0_filtered(ec));
-        PIPEPP_STORE_DEBUG_DATA_COND("Edge Image", edge.getMat(cv::ACCESS_FAST).clone(), show_1_edge(ec));
+        auto prev_iter = max(0, preprocess::num_erode_prev(ec));
+        auto post_iter = max(0, preprocess::num_erode_post(ec));
+        auto num_dilate = prev_iter + post_iter;
+
+        if (num_dilate > 0) {
+            using namespace cv;
+
+            PIPEPP_ELAPSE_SCOPE("Preprocess: erode-dilate-erode operation")
+            copyMakeBorder(u_filtered, u0, num_dilate, num_dilate, num_dilate, num_dilate, BORDER_CONSTANT);
+            if (prev_iter) { erode(u0, u1, {}, {-1, -1}, prev_iter, BORDER_CONSTANT, {}); }
+            dilate(u1, u0, {}, {-1, -1}, num_dilate, BORDER_CONSTANT, {});
+            if (post_iter) { erode(u0, u1, {}, {-1, -1}, post_iter, BORDER_CONSTANT, {}); }
+            u_filtered = u1(Rect{{num_dilate, num_dilate}, u_filtered.size()});
+        }
+
+        cv::erode(u_filtered, u0, {});
+        cv::subtract(u_filtered, u0, u_edge);
+
+        PIPEPP_STORE_DEBUG_DATA_COND("Filtered Image", u_filtered.getMat(cv::ACCESS_FAST).clone(), show_0_filtered(ec));
+        PIPEPP_STORE_DEBUG_DATA_COND("Edge Image", u_edge.getMat(cv::ACCESS_FAST).clone(), show_1_edge(ec));
     }
 
     PIPEPP_ELAPSE_BLOCK("Contour Approx & Select")
@@ -107,7 +129,7 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
         using namespace cv;
         vector<vector<Vec2i>> candidates;
         vector<Vec4i> hierarchy;
-        findContours(filtered, candidates, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_NONE);
+        findContours(u_filtered, candidates, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_NONE);
 
         // 테이블 전체가 시야에 없을 때에도 위치를 추정할 수 있도록, 가장 큰 영역을 기록해둡니다.
         auto max_size_arg = make_pair(-1, 0.0);
@@ -144,6 +166,7 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
         if (table_contour.empty() && max_size_arg.first >= 0) {
             auto& max_size_contour = candidates[max_size_arg.first];
             table_contour.assign(max_size_contour.begin(), max_size_contour.end());
+            PIPEPP_CAPTURE_DEBUG_DATA(max_size_arg.second);
         }
     }
 

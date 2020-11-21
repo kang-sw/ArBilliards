@@ -433,6 +433,24 @@ int billiards::imgproc::get_pixel_length_on_contact(img_t const& imdesc, plane_t
     return -1;
 }
 
+void billiards::imgproc::carve_outermost_pixels(cv::InputOutputArray io, cv::Scalar as)
+{
+    if (io.isUMat()) {
+        auto mat = io.getUMat();
+        mat.row(0).setTo(as);
+        mat.col(0).setTo(as);
+        mat.row(mat.rows - 1).setTo(as);
+        mat.col(mat.cols - 1).setTo(as);
+    }
+    else if (io.isMat()) {
+        auto mat = io.getMat();
+        mat.row(0).setTo(as);
+        mat.col(0).setTo(as);
+        mat.row(mat.rows - 1).setTo(as);
+        mat.col(mat.cols - 1).setTo(as);
+    }
+}
+
 std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgproc::estimate_matching_transform(img_t const& img, std::vector<cv::Vec2f> const& input_param, std::vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p)
 {
     using namespace std;

@@ -85,6 +85,11 @@ struct contour_candidate_search {
     PIPEPP_OPTION(approx_epsilon_preprocess, 5.0, "contour", "Epsilon value used for approximate table contours");
     PIPEPP_OPTION(approx_epsilon_convex_hull, 1.0, "contour", "Epsilon value used for approximate table contours after convex hull operation.");
 
+    struct preprocess {
+        PIPEPP_OPTION(num_erode_prev, 0, "preprocess", "Number of erode operation before apply dilate. Dilate count determined automatically. ");
+        PIPEPP_OPTION(num_erode_post, 0, "preprocess", "Number of dilate operation after apply dilate. Dilate count is determined automatically.");
+    };
+
     struct input_type {
         cv::Mat debug_display;
         cv::UMat u_hsv;
@@ -109,9 +114,6 @@ struct table_edge_solver {
                   1.06,
                   "PnP",
                   "Minimum required confidence value of full-PNP solver.");
-
-    PIPEPP_OPTION(num_erode_prev, 2, "preprocess", "Number of erode operation before apply dilate. Dilate count determined automatically. ");
-    PIPEPP_OPTION(num_erode_post, 4, "preprocess", "Number of dilate operation after apply dilate. Dilate count is determined automatically.");
 
     PIPEPP_OPTION(debug_show_partial_glyphs, true, "debug");
 
