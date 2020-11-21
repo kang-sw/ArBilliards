@@ -19,6 +19,7 @@
 #include "pipepp/gui/basic_utility.hpp"
 #include "pipepp/gui/pipeline_board.hpp"
 #include "pipepp/pipeline.hpp"
+#include "pipepp/gui/option_panel.hpp"
 
 extern billiards::recognizer_t g_recognizer;
 static nlohmann::json g_props;
@@ -274,7 +275,7 @@ void exec_ui()
     bool is_config_dirty = false;
 
     // -- 상태 창
-    queue<string> state_messages;
+    optional<string> state_messages;
 
     // 타이틀바 창 업데이트 함수
     auto fm_caption_dirty = [&]() {
@@ -334,118 +335,14 @@ void exec_ui()
 
     // 설정 로드
     if (load_from_path(AUTOSAVE_PATH)) { }
+    pipepp::gui::option_panel options{fm, true};
+    options.on_dirty = [&](auto&&) { is_config_dirty = true, fm_caption_dirty(); };
+    options.vertical(true);
 
-    treebox options(fm);
-    textbox param_enter_box(fm);
-    optional<treebox::item_proxy> selected_proxy;
-    param_enter_box.multi_lines(false);
-
-    // -- JSON 파라미터 입력 창 핸들
-    auto param_enter_query = [&](bool apply_change) {
-        if (selected_proxy) {
-            if (auto it = n->param_mappings.find(selected_proxy->key()); it != n->param_mappings.end()) {
-                auto text = param_enter_box.text();
-                auto prop = *it->second;
-                auto original_type = prop.type_name();
-                prop = json::parse(text, nullptr, false);
-
-                if (strcmp(original_type, prop.type_name()) != 0) { // 파싱에 실패하면, 아무것도 하지 않습니다.
-                    param_enter_box.bgcolor(colors::light_pink);
-                    cout << "error: type is " << prop.type_name() << endl;
-                    return;
-                }
-
-                // 파싱에 성공했다면 즉시 이를 반영합니다.
-                param_enter_box.bgcolor(colors::light_green);
-
-                if (apply_change) {
-                    *it->second = prop;
-
-                    auto new_label = selected_proxy.value().text();
-                    new_label = new_label.substr(0, new_label.find(' '));
-                    new_label += "  [" + param_enter_box.text() + ']';
-
-                    selected_proxy->text(new_label);
-                    param_enter_box.select(true);
-
-                    drawing(options).update();
-
-                    is_config_dirty = true;
-                    fm_caption_dirty();
-                }
-            }
-        }
-        else {
-            param_enter_box.bgcolor(colors::light_gray);
-        }
+    const auto reload_global_opts = [&]() {
+        options.reload(g_recognizer.get_pipeline_instance(), &g_recognizer.get_pipeline_instance().lock()->options());
     };
-
-    param_enter_box.events().key_char([&](arg_keyboard const& arg) {
-        if (arg.key == 13) {
-            param_enter_query(true);
-        }
-    });
-
-    param_enter_box.events().text_changed([&](arg_textbox const& arg) { param_enter_query(false); });
-
-    // -- JSON 파라미터 트리 빌드
-    struct node_iterative_constr_t {
-        static void exec(treebox& tree, treebox::item_proxy root, json const& elem)
-        {
-            auto n = n_weak.lock();
-            for (auto& prop : elem.items()) {
-                string value_text = prop.key();
-                string key = root.key() + prop.key();
-
-                n->param_mappings[key] = const_cast<json*>(&prop.value());
-
-                if (prop.value().is_object() || prop.value().is_array()) {
-                    auto node = tree.insert(root, key, move(value_text));
-
-                    exec(tree, node, prop.value());
-                }
-                else {
-                    value_text += "  [" + prop.value().dump() + ']';
-                    tree.insert(root, key, move(value_text));
-                }
-            }
-        }
-    };
-
-    auto reload_tr = [&]() {
-        options.clear();
-        node_iterative_constr_t::exec(options, options.insert("param", "Parameters").expand(true), g_props);
-
-        // -- JSON 파라미터 선택 처리
-        options.events().selected([&](arg_treebox const& arg) {
-            // 말단 노드인 경우에만 입력 창을 활성화합니다.
-            if (!arg.operated) {
-                return;
-            }
-
-            if (arg.item.child().empty()) {
-                if (auto it = n->param_mappings.find(arg.item.key());
-                    arg.operated && it != n->param_mappings.end()) {
-                    selected_proxy = arg.item;
-                    auto selected = *it;
-
-                    param_enter_box.select(true);
-                    param_enter_box.del();
-                    param_enter_box.append(selected.second->dump(), true);
-                    param_enter_box.select(true);
-                    param_enter_box.clear_undo();
-                    param_enter_box.focus();
-                    return;
-                }
-            }
-            else { // 말단 노드가 아니라면 expand
-                arg.item.expand(true);
-            }
-            selected_proxy = {};
-            param_enter_box.select(true), param_enter_box.del();
-        });
-    };
-    reload_tr();
+    reload_global_opts();
 
     // -- 리셋, 익스포트, 임포트 버튼 구현
     button btn_reset(fm), btn_export(fm), btn_import(fm);
@@ -461,7 +358,7 @@ void exec_ui()
 
         if (mb.show() == msgbox::pick_yes) {
             //g_props = billiards::recognizer_t().get_props();
-            reload_tr();
+            reload_global_opts();
         }
     });
     btn_export.events().click([&](arg_click const& arg) {
@@ -486,7 +383,7 @@ void exec_ui()
         if (auto paths = fb(); !paths.empty()) {
             auto path = paths.front();
             auto res = load_from_path(path.string());
-            reload_tr();
+            reload_global_opts();
         }
     });
 
@@ -942,6 +839,7 @@ void exec_ui()
           <vert
             weight=400
             <margin=[5,5,2,5] gap=5 weight=30 <btn_export><weight=10><btn_import>>
+            <options margin=[5,5,2,5]>
             <margin=[0,5,5,5] gap=5 weight=30 <btn_video_load><btn_video_record><btn_video_playpause>>
           >
         >
@@ -957,7 +855,6 @@ void exec_ui()
 
     layout["center"] << pl_board;
     layout["options"] << options;
-    layout["enter"] << param_enter_box;
     layout["btn_reset"] << btn_reset;
     layout["btn_export"] << btn_export;
     layout["btn_import"] << btn_import;
