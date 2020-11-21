@@ -493,6 +493,38 @@ void billiards::imgproc::draw_circle(img_t const& img, cv::Mat& dest, float base
     }
 }
 
+void billiards::imgproc::generate_normalized_sparse_kernel(std::vector<cv::Vec<float, 2>>& normal_random_samples, std::vector<cv::Vec<float, 2>>& normal_negative_samples, cv::Vec2f positive_area_range, cv::Vec2f negative_area_range, int rand_seed, int circle_radius, double rotate_angle)
+{
+    using namespace std;
+
+    for (auto& parea : {&positive_area_range, &negative_area_range}) {
+        auto& area = *parea;
+        area = area.mul(area);
+        if (area[1] < area[0]) {
+            swap(area[1], area[0]);
+        }
+    }
+
+    std::mt19937 rg{};
+    std::uniform_real_distribution<float> distr_positive{positive_area_range[0], positive_area_range[1]};
+    std::uniform_real_distribution<float> distr_negative{negative_area_range[0], negative_area_range[1]};
+
+    if (rand_seed != -1) { rg.seed(rand_seed); }
+    float r0 = -rotate_angle * CV_PI / 180;
+    cv::Matx22f rotator{cos(r0), -sin(r0), sin(r0), cos(r0)};
+
+    circle_op(0, 0, circle_radius, [&](int xi, int yi) {
+        cv::Vec2f vec(xi, yi);
+        vec = normalize(vec);
+
+        normal_negative_samples.emplace_back(vec * sqrt(distr_negative(rg)));
+
+        vec[1] = vec[1] > 0 ? -vec[1] : vec[1];
+        vec = rotator * vec * sqrt(distr_positive(rg));
+        normal_random_samples.emplace_back(vec);
+    });
+}
+
 std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgproc::estimate_matching_transform(img_t const& img, std::vector<cv::Vec2f> const& input_param, std::vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p)
 {
     using namespace std;

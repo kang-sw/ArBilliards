@@ -128,12 +128,13 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
           .num_levels = num_levels(ec),
         };
 
-        if (memcmp(&setting, &m.setting_cache, sizeof setting) != 0) {
+        if (ec.is_option_dirty()) {
             PIPEPP_ELAPSE_SCOPE("Recreate superpixel engine");
             m.engine = cv::ximgproc::createSuperpixelSEEDS(
               size.width, size.height, 3, setting.num_segs, setting.num_levels);
 
             m.setting_cache = setting;
+            ec.clear_option_dirty_flag();
         }
 
         PIPEPP_ELAPSE_BLOCK("Apply algorithm")

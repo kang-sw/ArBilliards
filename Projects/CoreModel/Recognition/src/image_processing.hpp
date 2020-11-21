@@ -51,6 +51,7 @@ int get_pixel_length_on_contact(img_t const& imdesc, plane_t plane, cv::Point pt
 void carve_outermost_pixels(cv::InputOutputArray io, cv::Scalar as);
 void project_model_points(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
 void draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness);
+void generate_normalized_sparse_kernel(std::vector<cv::Vec<float, 2>>& normal_random_samples, std::vector<cv::Vec<float, 2>>& normal_negative_samples, cv::Vec2f positive_area_range, cv::Vec2f negative_area_range, int rand_seed, int circle_radius, double rotate_angle);
 
 struct transform_estimation_param_t {
     int num_iteration = 10;
@@ -213,5 +214,51 @@ static float contour_min_dist_for_each(std::vector<cv::Vec2f> const& ct_a, std::
     }
 
     return sum;
+}
+
+template <typename Fn_>
+void circle_op(int cent_x, int cent_y, int radius, Fn_&& op)
+{
+    int x = 0, y = radius;
+    int d = 1 - radius;             // 결정변수를 int로 변환
+    int delta_e = 3;                // E가 선택됐을 때 증분값
+    int delta_se = -2 * radius + 5; // SE가 선탣됐을 때 증분값
+
+    op(cent_x + x, cent_y + y);
+    op(cent_x - x, cent_y + y);
+    op(cent_x + x, cent_y - y);
+    op(cent_x - x, cent_y - y);
+    op(cent_x + y, cent_y + x);
+    op(cent_x - y, cent_y + x);
+    op(cent_x + y, cent_y - x);
+    op(cent_x - y, cent_y - x);
+
+    // 12시 방향에서 시작해서 시계방향으로 회전한다고 했을 때
+    // 45도를 지나면 y값이 x값보다 작아지는걸 이용
+    while (y > x) {
+        // E 선택
+        if (d < 0) {
+            d += delta_e;
+            delta_e += 2;
+            delta_se += 2;
+        }
+        // SE 선택
+        else {
+            d += delta_se;
+            delta_e += 2;
+            delta_se += 4;
+            y--;
+        }
+        x++;
+
+        op(cent_x + x, cent_y + y);
+        op(cent_x - x, cent_y + y);
+        op(cent_x + x, cent_y - y);
+        op(cent_x - x, cent_y - y);
+        op(cent_x + y, cent_y + x);
+        op(cent_x - y, cent_y + x);
+        op(cent_x + y, cent_y - x);
+        op(cent_x - y, cent_y - x);
+    }
 }
 } // namespace billiards::imgproc

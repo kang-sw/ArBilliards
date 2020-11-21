@@ -811,4 +811,36 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
     cv::UMat match_field{ROI.size(), CV_8UC3};
     match_field.setTo(0);
     cv::Scalar color_ROW[] = {{41, 41, 255}, {0, 213, 255}, {255, 255, 255}};
+
+    // 정규화된 랜덤 샘플의 목록을 만듭니다.
+    // 일반적으로 샘플의 아래쪽 반원은 음영에 의해 가려지게 되므로, 위쪽 반원의 샘플을 추출합니다.
+    // 이는 정규화된 목록으로, 실제 샘플을 추출할때는 추정 중점 위치에서 계산된 반지름을 곱한 뒤 적용합니다.
+    vector<cv::Vec2f> normal_random_samples;
+    vector<cv::Vec2f> normal_negative_samples;
+    PIPEPP_ELAPSE_BLOCK("Random Sample Generation")
+    {
+        Vec2f positive_area_range = random_sample::positive_area(ec);
+        Vec2f negative_area_range = random_sample::negative_area(ec);
+        int rand_seed = random_sample::random_seed(ec), circle_radius = random_sample::integral_radius(ec);
+        double rotate_angle = random_sample::rotate_angle(ec);
+
+        generate_normalized_sparse_kernel(normal_random_samples, normal_negative_samples, positive_area_range, negative_area_range, rand_seed, circle_radius, rotate_angle);
+
+        // 샘플을 시각화합니다.
+        if (show_random_sample(ec)) {
+            int scale = random_sample_scale(ec);
+            cv::Mat3b random_sample_visualize(scale, scale);
+            random_sample_visualize.setTo(0);
+            for (auto& pt : normal_random_samples) {
+                random_sample_visualize(cv::Point(pt * scale / 4) + cv::Point{scale / 2, scale / 2}) = {0, 255, 0};
+            }
+            for (auto& pt : normal_negative_samples) {
+                auto at = Point(pt * scale / 4) + cv::Point{scale / 2, scale / 2};
+                if (Rect{{}, random_sample_visualize.size()}.contains(at)) {
+                    random_sample_visualize(at) = {0, 0, 255};
+                }
+            }
+            PIPEPP_CAPTURE_DEBUG_DATA((Mat)random_sample_visualize);
+        }
+    }
 }

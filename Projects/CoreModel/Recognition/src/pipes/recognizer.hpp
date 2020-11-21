@@ -191,9 +191,9 @@ struct marker_solver {
     PIPEPP_OPTION(enable_debug_mats, true, "debug");
     PIPEPP_OPTION(show_marker_area_mask, false, "debug");
 
-    PIPEPP_OPTION(num_insert_contour_vtx, 5, "PP 0. Marker area");
-    PIPEPP_OPTION(table_border_range_outer, 0.06, "PP 0. Marker area");
-    PIPEPP_OPTION(table_border_range_inner, 0.02, "PP 0. Marker area");
+    PIPEPP_OPTION(num_insert_contour_vtx, 5, "PP 0: Marker area");
+    PIPEPP_OPTION(table_border_range_outer, 0.06, "PP 0: Marker area");
+    PIPEPP_OPTION(table_border_range_inner, 0.02, "PP 0: Marker area");
 
     PIPEPP_OPTION(laplacian_mask_threshold, 0.5, "PP 1: filtering");
     PIPEPP_OPTION(marker_area_min_rad, 0.5, "PP 1: filtering");
@@ -201,7 +201,7 @@ struct marker_solver {
     PIPEPP_OPTION(marker_area_min_size, 1, "PP 1: filtering");
 
     struct marker {
-        PIPEPP_DECLARE_OPTION_CATEGORY("marker");
+        PIPEPP_DECLARE_OPTION_CATEGORY("Marker");
 
         PIPEPP_OPTION_CAT(count_x, 9);
         PIPEPP_OPTION_CAT(count_y, 5);
@@ -264,6 +264,8 @@ struct marker_solver {
 struct ball_search {
     PIPEPP_DECLARE_OPTION_CLASS(ball_search);
     PIPEPP_OPTION(show_debug_mat, false, "debug");
+    PIPEPP_OPTION(show_random_sample, false, "debug");
+    PIPEPP_OPTION(random_sample_scale, false, "debug");
 
     struct field {
         inline static const std::string _category = "Step 0: Field.";
@@ -291,6 +293,12 @@ struct ball_search {
     };
 
     struct random_sample {
+        PIPEPP_DECLARE_OPTION_CATEGORY("Random Sample");
+        PIPEPP_OPTION_CAT(positive_area, cv::Vec2f());
+        PIPEPP_OPTION_CAT(negative_area, cv::Vec2f());
+        PIPEPP_OPTION_CAT(random_seed, 42);
+        PIPEPP_OPTION_CAT(integral_radius, 15);
+        PIPEPP_OPTION_CAT(rotate_angle, 30.0);
     };
 
     struct matching {
