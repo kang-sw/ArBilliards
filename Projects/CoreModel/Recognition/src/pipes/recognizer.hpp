@@ -230,8 +230,19 @@ struct marker_solver {
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
     static void link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o);
+    static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
 
     static void get_marker_points_model(pipepp::execution_context& ec, std::vector<cv::Vec3f>& model);
+};
+
+struct ball_search {
+    struct input_type {
+    };
+    struct output_type {
+    };
+
+    pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
+    static void link_from_previous(shared_data const& sd, marker_solver::output_type const& i, input_type& o);
 };
 
 } // namespace billiards::pipes

@@ -34,7 +34,8 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     auto pnp_solver_proxy = contour_search_proxy.create_and_link_output("table edge solver", false, 2, &table_edge_solver::link_from_previous, &pipepp::make_executor<table_edge_solver>);
     pnp_solver_proxy.add_output_handler(&table_edge_solver::output_handler);
 
-    auto marker_solver_proxy = pnp_solver_proxy.create_and_link_output("marker solver", false, 1, &marker_solver::link_from_previous, &pipepp::make_executor<marker_solver>);
+    auto marker_solver_proxy = pnp_solver_proxy.create_and_link_output("marker solver", false, 2, &marker_solver::link_from_previous, &pipepp::make_executor<marker_solver>);
+    marker_solver_proxy.add_output_handler(&marker_solver::output_handler);
 
     return pl;
 }
@@ -358,6 +359,7 @@ void billiards::pipes::table_edge_solver::output_handler(pipepp::pipe_error, sha
 {
     auto& state = *sd.state;
     auto _lck = state.lock();
+
     float pos_alpha = sd.table_filter_alpha_pos(sd);
     float rot_alpha = sd.table_filter_alpha_rot(sd);
     float jump_thr = !o.can_jump * 1e10 + sd.table_filter_jump_threshold_distance(sd);
@@ -586,7 +588,7 @@ pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_con
                 cand.rotation *= rot_amount;
 
                 // 임의의 확률로 180도 회전시킵니다.
-                bool rotate180 = uniform_int_distribution<>{0, 1}(rengine);
+                bool rotate180 = uniform_int_distribution{0, 1}(rengine);
                 if (rotate180) { cand.rotation = rotate_local(cand.rotation, {0, CV_PI, 0}); }
 
                 candidates.push_back(cand);
@@ -673,6 +675,17 @@ void billiards::pipes::marker_solver::link_from_previous(shared_data const& sd, 
       .u_hsv = &sd.u_hsv,
       .FOV_degree = sd.camera_FOV(sd),
     };
+}
+
+void billiards::pipes::marker_solver::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
+{
+    auto& state = *sd.state;
+    auto _lck = state.lock();
+
+    float pos_alpha = sd.table_filter_alpha_pos(sd);
+    float rot_alpha = sd.table_filter_alpha_rot(sd);
+    state.table.pos = imgproc::set_filtered_table_pos(state.table.pos, o.table_pos, pos_alpha * o.confidence);
+    state.table.rot = imgproc::set_filtered_table_rot(state.table.rot, o.table_rot, rot_alpha * o.confidence);
 }
 
 void billiards::pipes::marker_solver::get_marker_points_model(pipepp::execution_context& ec, std::vector<cv::Vec3f>& model)
