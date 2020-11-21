@@ -21,6 +21,7 @@
 #include "pipepp/pipeline.hpp"
 
 extern billiards::recognizer_t g_recognizer;
+static nlohmann::json g_props;
 
 using namespace std;
 
@@ -49,7 +50,7 @@ static ostream& operator<<(ostream& o, video_frame const& v)
     cv::Mat depth;
     cv::Mat rgb;
     cv::cvtColor(v.img.rgba, rgb, cv::COLOR_RGBA2RGB);
-    v.img.depth.convertTo(depth, CV_8U, g_recognizer.get_props()["explorer"]["depth-alpha"]);
+    v.img.depth.convertTo(depth, CV_8U, g_props["explorer"]["depth-alpha"]);
 
     auto wr = [&o](auto ty) { o.write((char*)&ty, sizeof ty); };
     wr(v.time_point);
@@ -93,7 +94,7 @@ static istream& operator>>(istream& i, video_frame& v)
 
     rd(sz), buf.resize(sz);
     i.read((char*)buf.data(), sz);
-    cv::imdecode(buf, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / (float)g_recognizer.get_props()["explorer"]["depth-alpha"]);
+    cv::imdecode(buf, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / (float)g_props["explorer"]["depth-alpha"]);
 
     return i;
 }
@@ -144,7 +145,7 @@ static video_frame parse(video_frame_chunk const& va)
     v.time_point = va.time_point;
 
     cv::cvtColor(cv::imdecode(va.chnk_rgb, cv::IMREAD_COLOR), v.img.rgba, cv::COLOR_RGB2RGBA);
-    cv::imdecode(va.chnk_depth, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / (float)g_recognizer.get_props()["explorer"]["depth-alpha"]);
+    cv::imdecode(va.chnk_depth, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / (float)g_props["explorer"]["depth-alpha"]);
 
     return v;
 }
@@ -296,15 +297,14 @@ void exec_ui()
 
                 // 윈도우 위치도 로드
                 // 에디터 설정 목록
-                {
-                    if (auto it = parsed.find("window-position"); it != parsed.end()) {
-                        g_recognizer.get_props()["window-position"] = *it;
-                        array<int, 4> wndPos = *it;
-                        fm.move((rectangle&)wndPos);
-                    }
-
-                    g_recognizer.get_props()["explorer"]["depth-alpha"] = 32;
+                g_props = parsed["g_props"];
+                if (auto it = parsed.find("window-position"); it != parsed.end()) {
+                    g_props["window-position"] = *it;
+                    array<int, 4> wndPos = *it;
+                    fm.move((rectangle&)wndPos);
                 }
+
+                g_props["explorer"]["depth-alpha"] = 32;
 
                 current_save_path = path;
                 is_config_dirty = false;
@@ -323,7 +323,9 @@ void exec_ui()
     // 세이브 함수
     auto save_as = [&](string path) {
         ofstream strm(path);
-        strm << g_recognizer.get_pipeline_instance().lock()->export_options().dump(4);
+        auto opts = g_recognizer.get_pipeline_instance().lock()->export_options();
+        opts["g_props"] = g_props;
+        strm << opts.dump(4);
 
         is_config_dirty = false;
         state_messages.emplace("saved configurations to file "s + path);
@@ -412,7 +414,7 @@ void exec_ui()
 
     auto reload_tr = [&]() {
         options.clear();
-        node_iterative_constr_t::exec(options, options.insert("param", "Parameters").expand(true), g_recognizer.get_props());
+        node_iterative_constr_t::exec(options, options.insert("param", "Parameters").expand(true), g_props);
 
         // -- JSON 파라미터 선택 처리
         options.events().selected([&](arg_treebox const& arg) {
@@ -458,7 +460,7 @@ void exec_ui()
         mb << "Are you sure?";
 
         if (mb.show() == msgbox::pick_yes) {
-            g_recognizer.get_props() = billiards::recognizer_t().get_props();
+            //g_props = billiards::recognizer_t().get_props();
             reload_tr();
         }
     });
@@ -931,6 +933,8 @@ void exec_ui()
     //   <mat_lists>
     //   <timings>
     // >
+    // <options margin = 5>
+    //   <enter weight = 30 margin = 5>
     auto layout_divider_string = R"(
       <vert
         <
@@ -938,8 +942,6 @@ void exec_ui()
           <vert
             weight=400
             <margin=[5,5,2,5] gap=5 weight=30 <btn_export><weight=10><btn_import>>
-            <options margin=5>
-            <enter weight=30 margin=5>
             <margin=[0,5,5,5] gap=5 weight=30 <btn_video_load><btn_video_record><btn_video_playpause>>
           >
         >
@@ -972,11 +974,11 @@ void exec_ui()
 
     fm.events().move([&](auto) {
         auto rect = rectangle(fm.pos(), fm.size());
-        g_recognizer.get_props()["window-position"] = (array<int, 4>&)rect;
+        g_props["window-position"] = (array<int, 4>&)rect;
     });
     fm.events().resized([&](auto) {
         auto rect = rectangle(fm.pos(), fm.size());
-        g_recognizer.get_props()["window-position"] = (array<int, 4>&)rect;
+        g_props["window-position"] = (array<int, 4>&)rect;
         static_assert(sizeof rect == sizeof(array<int, 4>));
     });
 

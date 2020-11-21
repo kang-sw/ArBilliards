@@ -110,11 +110,6 @@ public:
     void poll(std::unordered_map<std::string, cv::Mat>& shows);
 
     /**
-     * json 파라미터 획득
-     */
-    nlohmann::json& get_props();
-
-    /**
      * 내부에 캐시된 이미지 인식 정보를 반환합니다.
      */
     struct recognition_desc const* get_recognition() const;
