@@ -37,6 +37,8 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     auto marker_solver_proxy = pnp_solver_proxy.create_and_link_output("marker solver", false, 2, &marker_solver::link_from_previous, &pipepp::make_executor<marker_solver>);
     marker_solver_proxy.add_output_handler(&marker_solver::output_handler);
 
+    auto ball_finder_proxy = marker_solver_proxy.create_and_link_output("ball finder", false, 1, &ball_search::link_from_previous, &pipepp::make_executor<ball_search>);
+
     return pl;
 }
 
@@ -347,7 +349,7 @@ void billiards::pipes::table_edge_solver::link_from_previous(shared_data const& 
     o = input_type{
       .FOV_degree = sd.camera_FOV(sd),
       .debug_mat = sd.debug_mat,
-      .img_ptr = &sd.param_bkup,
+      .img_ptr = &sd.imdesc_bkup,
       .img_size = sd.debug_mat.size(),
       .table_contour = &sd.table.contour,
       .table_fit_size = shared_data::table::size::fit(sd),
@@ -381,8 +383,7 @@ pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_con
 
     out.confidence = 0;
 
-    auto debug = i.debug_mat->clone();
-    PIPEPP_STORE_DEBUG_DATA("Debug Mat", debug);
+    auto& debug = *i.debug_mat;
     if (table_contour.empty()) {
         return pipepp::pipe_error::ok;
     }
@@ -666,7 +667,7 @@ void billiards::pipes::marker_solver::link_from_previous(shared_data const& sd, 
 {
     auto _lck = sd.state->lock();
     o = input_type{
-      .img_ptr = &sd.param_bkup,
+      .img_ptr = &sd.imdesc_bkup,
       .img_size = sd.rgb.size(),
       .table_pos_init = sd.state->table.pos,
       .table_rot_init = sd.state->table.rot,
@@ -725,6 +726,9 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
     auto& table_contour = *i.table_contour;
     auto& sd = *i.opt_shared;
 
+    auto debug = i.debug_mat->clone();
+    PIPEPP_CAPTURE_DEBUG_DATA(debug);
+
     PIPEPP_ELAPSE_BLOCK("Table area mask creation")
     {
         if (table_contour.empty()) { return pipepp::pipe_error::error; }
@@ -736,7 +740,6 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
         PIPEPP_CAPTURE_DEBUG_DATA_COND((Mat)table_area, show_debug_mat(ec));
     }
 
-    auto& debug = *i.debug_mat;
     const auto& u_rgb = i.u_rgb;
     const auto& u_hsv = i.u_hsv;
 
@@ -818,6 +821,9 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
 
     if (ec.consume_option_dirty_flag()) {
         PIPEPP_ELAPSE_SCOPE("Random Sample Generation")
+
+        normal_random_samples.clear();
+        normal_negative_samples.clear();
         Vec2f positive_area_range = random_sample::positive_area(ec);
         Vec2f negative_area_range = random_sample::negative_area(ec);
         int rand_seed = random_sample::random_seed(ec), circle_radius = random_sample::integral_radius(ec);
@@ -842,4 +848,21 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
             PIPEPP_CAPTURE_DEBUG_DATA((Mat)random_sample_visualize);
         }
     }
+
+    return pipepp::pipe_error::ok;
+}
+
+void billiards::pipes::ball_search::link_from_previous(shared_data const& sd, marker_solver::output_type const& i, input_type& o)
+{
+    auto _lck = sd.state->lock();
+    o = input_type{
+      .opt_shared = sd.option(),
+      .imdesc = &sd.imdesc_bkup,
+      .debug_mat = &sd.debug_mat,
+      .u_rgb = sd.u_rgb,
+      .u_hsv = sd.u_hsv,
+      .img_size = sd.rgb.size(),
+      .table_contour = &sd.table.contour,
+      .table_pos = sd.state->table.pos,
+      .table_rot = sd.state->table.rot};
 }

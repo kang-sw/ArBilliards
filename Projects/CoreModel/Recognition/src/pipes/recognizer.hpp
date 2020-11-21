@@ -57,7 +57,7 @@ struct shared_data : pipepp::base_shared_context {
     // data
     std::shared_ptr<shared_state> state;
 
-    recognizer_t::frame_desc param_bkup;
+    recognizer_t::frame_desc imdesc_bkup;
     recognizer_t::process_finish_callback_type callback;
 
     cv::Mat debug_mat;
@@ -265,7 +265,7 @@ struct ball_search {
     PIPEPP_DECLARE_OPTION_CLASS(ball_search);
     PIPEPP_OPTION(show_debug_mat, false, "debug");
     PIPEPP_OPTION(show_random_sample, false, "debug");
-    PIPEPP_OPTION(random_sample_scale, false, "debug");
+    PIPEPP_OPTION(random_sample_scale, 14, "debug");
 
     struct field {
         inline static const std::string _category = "Step 0: Field.";
@@ -302,7 +302,8 @@ struct ball_search {
     };
 
     struct matching {
-        PIPEPP_OPTION(cushion_center_gap, 0.0, "2.matching");
+        PIPEPP_DECLARE_OPTION_CATEGORY("Matching");
+        PIPEPP_OPTION_CAT(cushion_center_gap, 0.0);
     };
 
     struct input_type {
