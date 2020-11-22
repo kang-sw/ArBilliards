@@ -218,34 +218,34 @@ struct marker_solver {
     struct marker {
         PIPEPP_DECLARE_OPTION_CATEGORY("Marker");
 
-        PIPEPP_OPTION_CAT(count_x, 9);
-        PIPEPP_OPTION_CAT(count_y, 5);
-        PIPEPP_OPTION_CAT(felt_width, 1.735f);
-        PIPEPP_OPTION_CAT(felt_height, 0.915f);
-        PIPEPP_OPTION_CAT(dist_from_felt_long, 0.012f);
-        PIPEPP_OPTION_CAT(dist_from_felt_short, 0.012f);
-        PIPEPP_OPTION_CAT(step, 0.206f);
-        PIPEPP_OPTION_CAT(width_shift_a, 0.0f);
-        PIPEPP_OPTION_CAT(width_shift_b, 0.0f);
-        PIPEPP_OPTION_CAT(height_shift_a, 0.0f);
-        PIPEPP_OPTION_CAT(height_shift_b, 0.01f);
+        PIPEPP_CATEGORY_OPTION(count_x, 9);
+        PIPEPP_CATEGORY_OPTION(count_y, 5);
+        PIPEPP_CATEGORY_OPTION(felt_width, 1.735f);
+        PIPEPP_CATEGORY_OPTION(felt_height, 0.915f);
+        PIPEPP_CATEGORY_OPTION(dist_from_felt_long, 0.012f);
+        PIPEPP_CATEGORY_OPTION(dist_from_felt_short, 0.012f);
+        PIPEPP_CATEGORY_OPTION(step, 0.206f);
+        PIPEPP_CATEGORY_OPTION(width_shift_a, 0.0f);
+        PIPEPP_CATEGORY_OPTION(width_shift_b, 0.0f);
+        PIPEPP_CATEGORY_OPTION(height_shift_a, 0.0f);
+        PIPEPP_CATEGORY_OPTION(height_shift_b, 0.01f);
     };
 
     struct solver {
         PIPEPP_DECLARE_OPTION_CATEGORY("Solver");
 
-        PIPEPP_OPTION_CAT(iteration, 5);
-        PIPEPP_OPTION_CAT(error_base, 1.14);
-        PIPEPP_OPTION_CAT(variant_rot, 0.1);
-        PIPEPP_OPTION_CAT(variant_pos, 0.1);
-        PIPEPP_OPTION_CAT(variant_rot_axis, 0.005);
-        PIPEPP_OPTION_CAT(narrow_rate_pos, 0.5);
-        PIPEPP_OPTION_CAT(narrow_rate_rot, 0.5);
-        PIPEPP_OPTION_CAT(num_cands, 600);
-        PIPEPP_OPTION_CAT(num_iter, 5);
-        PIPEPP_OPTION_CAT(do_parallel, true);
-        PIPEPP_OPTION_CAT(confidence_amp, 1.5);
-        PIPEPP_OPTION_CAT(min_valid_marker_size, 1.2);
+        PIPEPP_CATEGORY_OPTION(iteration, 5);
+        PIPEPP_CATEGORY_OPTION(error_base, 1.14);
+        PIPEPP_CATEGORY_OPTION(variant_rot, 0.1);
+        PIPEPP_CATEGORY_OPTION(variant_pos, 0.1);
+        PIPEPP_CATEGORY_OPTION(variant_rot_axis, 0.005);
+        PIPEPP_CATEGORY_OPTION(narrow_rate_pos, 0.5);
+        PIPEPP_CATEGORY_OPTION(narrow_rate_rot, 0.5);
+        PIPEPP_CATEGORY_OPTION(num_cands, 600);
+        PIPEPP_CATEGORY_OPTION(num_iter, 5);
+        PIPEPP_CATEGORY_OPTION(do_parallel, true);
+        PIPEPP_CATEGORY_OPTION(confidence_amp, 1.5);
+        PIPEPP_CATEGORY_OPTION(min_valid_marker_size, 1.2);
     };
 
     struct input_type {
@@ -281,40 +281,41 @@ struct ball_search {
     PIPEPP_OPTION(show_debug_mat, false, "Debug");
     PIPEPP_OPTION(show_random_sample, false, "Debug");
     PIPEPP_OPTION(random_sample_scale, 200, "Debug");
+    PIPEPP_OPTION(top_view_scale, 200, "Debug", "Number of pixels per meter");
 
     struct field {
         inline static const std::string _category = "Balls.";
 
         struct red {
             PIPEPP_DECLARE_OPTION_CATEGORY(_category + "Red");
-            PIPEPP_OPTION_CAT(color, cv::Vec2f(130, 205), "Representative Hue, Saturation color");
-            PIPEPP_OPTION_CAT(weight_hs, cv::Vec2f(4, 1), "Weight per channel");
-            PIPEPP_OPTION_CAT(error_fn_base, 1300000.0, "Weight per channel");
-            PIPEPP_OPTION_CAT(suitability_threshold, 0.2);
-            PIPEPP_OPTION_CAT(matching_negative_weight, 1.2);
-            PIPEPP_OPTION_CAT(confidence_threshold, 0.5);
+            PIPEPP_CATEGORY_OPTION(color, cv::Vec2f(130, 205), "Representative Hue, Saturation color");
+            PIPEPP_CATEGORY_OPTION(weight_hs, cv::Vec2f(4, 1), "Weight per channel");
+            PIPEPP_CATEGORY_OPTION(error_fn_base, 1300000.0, "Weight per channel");
+            PIPEPP_CATEGORY_OPTION(suitability_threshold, 0.2);
+            PIPEPP_CATEGORY_OPTION(matching_negative_weight, 1.2);
+            PIPEPP_CATEGORY_OPTION(confidence_threshold, 0.5);
 
-            PIPEPP_OPTION_CAT(second_ball_erase_radius_adder, 5);
+            PIPEPP_CATEGORY_OPTION(second_ball_erase_radius_adder, 5);
         };
 
         struct orange {
             PIPEPP_DECLARE_OPTION_CATEGORY(_category + "Orange");
-            PIPEPP_OPTION_CAT(color, cv::Vec2f(90, 210), "Representative Hue, Saturation color");
-            PIPEPP_OPTION_CAT(weight_hs, cv::Vec2f(2, 3), "Weight per channel");
-            PIPEPP_OPTION_CAT(error_fn_base, 30000.0, "Weight per channel");
-            PIPEPP_OPTION_CAT(suitability_threshold, 0.35);
-            PIPEPP_OPTION_CAT(matching_negative_weight, 3.0);
-            PIPEPP_OPTION_CAT(confidence_threshold, 0.5);
+            PIPEPP_CATEGORY_OPTION(color, cv::Vec2f(90, 210), "Representative Hue, Saturation color");
+            PIPEPP_CATEGORY_OPTION(weight_hs, cv::Vec2f(2, 3), "Weight per channel");
+            PIPEPP_CATEGORY_OPTION(error_fn_base, 30000.0, "Weight per channel");
+            PIPEPP_CATEGORY_OPTION(suitability_threshold, 0.35);
+            PIPEPP_CATEGORY_OPTION(matching_negative_weight, 3.0);
+            PIPEPP_CATEGORY_OPTION(confidence_threshold, 0.5);
         };
 
         struct white {
             PIPEPP_DECLARE_OPTION_CATEGORY(_category + "White");
-            PIPEPP_OPTION_CAT(color, cv::Vec2f(80, 40), "Representative Hue, Saturation color");
-            PIPEPP_OPTION_CAT(weight_hs, cv::Vec2f(0.2f, 1.0f), "Weight per channel");
-            PIPEPP_OPTION_CAT(error_fn_base, 30000.0, "Weight per channel");
-            PIPEPP_OPTION_CAT(suitability_threshold, 0.22);
-            PIPEPP_OPTION_CAT(matching_negative_weight, 3.0);
-            PIPEPP_OPTION_CAT(confidence_threshold, 0.5);
+            PIPEPP_CATEGORY_OPTION(color, cv::Vec2f(80, 40), "Representative Hue, Saturation color");
+            PIPEPP_CATEGORY_OPTION(weight_hs, cv::Vec2f(0.2f, 1.0f), "Weight per channel");
+            PIPEPP_CATEGORY_OPTION(error_fn_base, 30000.0, "Weight per channel");
+            PIPEPP_CATEGORY_OPTION(suitability_threshold, 0.22);
+            PIPEPP_CATEGORY_OPTION(matching_negative_weight, 3.0);
+            PIPEPP_CATEGORY_OPTION(confidence_threshold, 0.5);
         };
     };
 
@@ -330,22 +331,30 @@ struct ball_search {
         }
 
         PIPEPP_DECLARE_OPTION_CATEGORY("Random Sample");
-        PIPEPP_OPTION_CAT(positive_area, cv::Vec2f(0.3, 1), "", &verify_positive_area);
-        PIPEPP_OPTION_CAT(negative_area, cv::Vec2f(1.03, 1.33));
-        PIPEPP_OPTION_CAT(random_seed, 42);
-        PIPEPP_OPTION_CAT(integral_radius, 25);
-        PIPEPP_OPTION_CAT(rotate_angle, 0);
+        PIPEPP_CATEGORY_OPTION(positive_area, cv::Vec2f(0.3, 1), "", &verify_positive_area);
+        PIPEPP_CATEGORY_OPTION(negative_area, cv::Vec2f(1.03, 1.33));
+        PIPEPP_CATEGORY_OPTION(random_seed, 42);
+        PIPEPP_CATEGORY_OPTION(integral_radius, 25);
+        PIPEPP_CATEGORY_OPTION(rotate_angle, 0);
     };
 
     struct matching {
         PIPEPP_DECLARE_OPTION_CATEGORY("Matching");
-        PIPEPP_OPTION_CAT(confidence_weight, 1.0);
-        PIPEPP_OPTION_CAT(cushion_center_gap, 0.0);
-        PIPEPP_OPTION_CAT(min_pixel_radius, 1);
-        PIPEPP_OPTION_CAT(num_candidate_dilate, 6);
-        PIPEPP_OPTION_CAT(num_candidate_erode, 6);
-        PIPEPP_OPTION_CAT(num_maximum_sample, 100000);
-        PIPEPP_OPTION_CAT(enable_parallel, true);
+        PIPEPP_CATEGORY_OPTION(confidence_weight, 1.0);
+        PIPEPP_CATEGORY_OPTION(cushion_center_gap, 0.0);
+        PIPEPP_CATEGORY_OPTION(min_pixel_radius, 1);
+        PIPEPP_CATEGORY_OPTION(num_candidate_dilate, 6);
+        PIPEPP_CATEGORY_OPTION(num_candidate_erode, 6);
+        PIPEPP_CATEGORY_OPTION(num_maximum_sample, 100000);
+        PIPEPP_CATEGORY_OPTION(enable_parallel, true);
+    };
+
+    struct movement {
+        PIPEPP_DECLARE_OPTION_CATEGORY("Movement");
+        PIPEPP_CATEGORY_OPTION(max_error_speed, 0.0);
+        PIPEPP_CATEGORY_OPTION(alpha_position, 0.0);
+        PIPEPP_CATEGORY_OPTION(jump_distance, 0.0);
+        PIPEPP_CATEGORY_OPTION(confidence_threshold, 0.0);
     };
 
     struct input_type {
