@@ -60,6 +60,11 @@
           "name": "CMAKE_CXX_FLAGS",
           "value": "/DWIN32 /D_WINDOWS /W3 /GR /EHsc",
           "type": "STRING"
+        },
+        {
+          "name": "CMAKE_CXX_FLAGS_DEBUG",
+          "value": "/MDd /Zi /Ob2 /Od",
+          "type": "STRING"
         }
       ]
     },
@@ -76,7 +81,7 @@
       "variables": [
         {
           "name": "OpenCV_DIR",
-          "value": "D:/Repositories/OpenCV/4.4.0/out/install/x64-Release",
+          "value": "D:/Repositories/OpenCV/4.4.0/out/install/x64-Release_CUDA",
           "type": "PATH"
         },
         {
@@ -122,6 +127,11 @@
         {
           "name": "CMAKE_CXX_FLAGS",
           "value": "/DWIN32 /D_WINDOWS /W3 /GR /EHsc",
+          "type": "STRING"
+        },
+        {
+          "name": "CMAKE_CXX_FLAGS_DEBUG",
+          "value": "/MDd /Zi /Ob2 /Od",
           "type": "STRING"
         }
       ]

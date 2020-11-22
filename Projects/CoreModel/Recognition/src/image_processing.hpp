@@ -261,4 +261,15 @@ void circle_op(int cent_x, int cent_y, int radius, Fn_&& op)
         op(cent_x - y, cent_y - x);
     }
 }
+
+template <typename Ty_, typename Rand_>
+void discard_random_args(std::vector<Ty_>& iovec, size_t target_size, Rand_&& rengine)
+{
+    using namespace std;
+    while (iovec.size() > target_size) {
+        auto ridx = uniform_int_distribution<size_t>{0, iovec.size() - 1}(rengine);
+        iovec[ridx] = move(iovec.back());
+        iovec.pop_back();
+    }
+}
 } // namespace billiards::imgproc

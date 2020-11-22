@@ -2,24 +2,18 @@
     "g_props": {
         "explorer": {
             "depth-alpha": 32
-        },
-        "window-position": [
-            1442,
-            487,
-            1206,
-            688
-        ]
+        }
     },
     "pipes": {
         "Superpixels": {
-            "Commontarget_image_width": 640,
+            "Commontarget_image_width": 1280,
             "SEEDSnum_iter": 4,
-            "SEEDSnum_levels": 24,
-            "SEEDSnum_segments": 512,
-            "SLICalgo_index_SLICO_MSLIC_SLIC": 2,
-            "SLICnum_iter": 2,
-            "SLICregion_size": 55,
-            "SLICruler": 25,
+            "SEEDSnum_levels": 5,
+            "SEEDSnum_segments": 1024,
+            "SLICalgo_index_SLICO_MSLIC_SLIC": 0,
+            "SLICnum_iter": 4,
+            "SLICregion_size": 20,
+            "SLICruler": 20,
             "debugsegmentation_devider_color": [
                 255,
                 0,
@@ -34,41 +28,41 @@
                 210.0
             ],
             "Balls.Orangeconfidence_threshold": 0.5,
-            "Balls.Orangeerror_fn_base": 30000,
-            "Balls.Orangematching_negative_weight": 1.0,
-            "Balls.Orangesuitability_threshold": 1.04,
+            "Balls.Orangeerror_fn_base": 30000.0,
+            "Balls.Orangematching_negative_weight": 3.0,
+            "Balls.Orangesuitability_threshold": 0.35,
             "Balls.Orangeweight_hs": [
                 2.0,
                 3.0
             ],
             "Balls.Redcolor": [
-                0.0,
-                0.0
+                130.0,
+                205.0
             ],
             "Balls.Redconfidence_threshold": 0.5,
-            "Balls.Rederror_fn_base": 1.04,
-            "Balls.Redmatching_negative_weight": 1.0,
+            "Balls.Rederror_fn_base": 1300000.0,
+            "Balls.Redmatching_negative_weight": 1.2,
             "Balls.Redsecond_ball_erase_radius_adder": 5,
-            "Balls.Redsuitability_threshold": 1.04,
+            "Balls.Redsuitability_threshold": 0.2,
             "Balls.Redweight_hs": [
-                0.0,
-                0.0
+                4.0,
+                1.0
             ],
             "Balls.Whitecolor": [
-                0.0,
-                0.0
+                80.0,
+                40.0
             ],
             "Balls.Whiteconfidence_threshold": 0.5,
-            "Balls.Whiteerror_fn_base": 1.04,
-            "Balls.Whitematching_negative_weight": 1.0,
-            "Balls.Whitesuitability_threshold": 1.04,
+            "Balls.Whiteerror_fn_base": 30000.0,
+            "Balls.Whitematching_negative_weight": 3.0,
+            "Balls.Whitesuitability_threshold": 0.22,
             "Balls.Whiteweight_hs": [
-                0.0,
-                0.0
+                0.20000000298023224,
+                1.0
             ],
             "Debugrandom_sample_scale": 200,
             "Debugshow_debug_mat": true,
-            "Debugshow_random_sample": true,
+            "Debugshow_random_sample": false,
             "Matchingconfidence_weight": 1.0,
             "Matchingcushion_center_gap": 0.0,
             "Matchingenable_parallel": true,
@@ -76,39 +70,39 @@
             "Matchingnum_candidate_dilate": 6,
             "Matchingnum_candidate_erode": 6,
             "Matchingnum_maximum_sample": 100000,
-            "Random Sampleintegral_radius": 40,
+            "Random Sampleintegral_radius": 25,
             "Random Samplenegative_area": [
-                1.03,
-                1.2
+                0.30000001192092896,
+                1.0
             ],
             "Random Samplepositive_area": [
-                0.2,
-                0.9
+                1.0299999713897705,
+                1.3300000429153442
             ],
             "Random Samplerandom_seed": 42,
             "Random Samplerotate_angle": 0
         },
         "contour search": {
-            "contourapprox_epsilon_convex_hull": 1.0,
-            "contourapprox_epsilon_preprocess": 5.0,
+            "contourapprox_epsilon_convex_hull": 8,
+            "contourapprox_epsilon_preprocess": 5,
             "contourarea_threshold_ratio": 0.1,
             "debugshow_0_filtered": true,
-            "debugshow_1_edge": true,
-            "preprocessnum_erode_post": 6,
+            "debugshow_1_edge": false,
+            "preprocessnum_erode_post": 3,
             "preprocessnum_erode_prev": 0,
             "table_color_filter_0_lo": [
-                166,
-                140,
+                175,
+                160,
                 100
             ],
             "table_color_filter_1_hi": [
-                12,
+                10,
                 255,
                 255
             ]
         },
         "input": {
-            "debug_show_hsv": true,
+            "debug_show_hsv": false,
             "debug_show_source": true,
             "desired_image_width": 1280
         },
@@ -148,7 +142,7 @@
             "debugshow_marker_area_mask": false
         },
         "table edge solver": {
-            "PnPpnp_conf_threshold": 0.8,
+            "PnPpnp_conf_threshold": 0.5,
             "PnPpnp_error_exp_fn_base": 1.02,
             "debugdebug_show_partial_glyphs": true,
             "flagsenable_partial_parallel_solve": true,
@@ -174,32 +168,9 @@
     },
     "shared": {
         "ballradius": 0.030239439175,
-        "camera_FOV": [
-            88.0,
-            58.0
-        ],
         "commoncamera_FOV": [
             84.855,
             53.27
-        ],
-        "explorer": {
-            "depth-alpha": 32
-        },
-        "radius": 0.0,
-        "table_filter_alpha_pos": 0.3,
-        "table_filter_alpha_rot": 0.3,
-        "table_filter_jump_threshold_distance": 0.1,
-        "table_size_fit": [
-            1.735,
-            0.915
-        ],
-        "table_size_inner": [
-            1.653,
-            0.823
-        ],
-        "table_size_outer": [
-            1.8,
-            0.98
         ],
         "tablealpha_pos": 0.3,
         "tablealpha_rot": 0.3,
@@ -215,12 +186,6 @@
         "tableouter": [
             1.8,
             0.98
-        ],
-        "window-position": [
-            1733,
-            463,
-            800,
-            600
         ]
     }
 }

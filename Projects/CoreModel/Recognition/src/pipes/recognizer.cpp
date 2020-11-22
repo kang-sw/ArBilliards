@@ -715,18 +715,18 @@ void billiards::pipes::marker_solver::get_marker_points_model(pipepp::execution_
     }
 }
 
-pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
+pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_context& ec, input_type const& input, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using namespace cv;
     using namespace std;
     using namespace imgproc;
 
-    Mat1b table_area(i.img_size, 0);
-    auto& table_contour = *i.table_contour;
-    auto& sd = *i.opt_shared;
+    Mat1b table_area(input.img_size, 0);
+    auto& table_contour = *input.table_contour;
+    auto& sd = *input.opt_shared;
 
-    auto debug = i.debug_mat->clone();
+    auto debug = input.debug_mat->clone();
     PIPEPP_CAPTURE_DEBUG_DATA(debug);
 
     PIPEPP_ELAPSE_BLOCK("Table area mask creation")
@@ -740,18 +740,17 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
         PIPEPP_CAPTURE_DEBUG_DATA_COND((Mat)table_area, show_debug_mat(ec));
     }
 
-    const auto& u_rgb = i.u_rgb;
-    const auto& u_hsv = i.u_hsv;
-
-    auto& table_pos = i.table_pos;
-    auto& table_rot = i.table_rot;
+    auto& table_pos = input.table_pos;
+    auto& table_rot = input.table_rot;
 
     auto ROI = boundingRect(table_contour);
     if (!get_safe_ROI_rect(debug, ROI)) {
         return pipepp::pipe_error::error;
     }
 
-    auto& area_mask = table_area;
+    const auto u_rgb = input.u_rgb(ROI);
+    const auto u_hsv = input.u_hsv(ROI);
+    auto area_mask = table_area(ROI);
 
     vector<cv::UMat> channels;
     split(u_hsv, channels);
@@ -771,7 +770,7 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
     }
 
     // 각각의 색상에 대해 매칭을 수행합니다.
-    auto imdesc = *i.imdesc;
+    auto imdesc = *input.imdesc;
     char const* ball_names[] = {"Red", "Orange", "White"};
     float ball_radius = shared_data::ball::radius(sd);
 
@@ -781,17 +780,36 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
     table_plane.d += matching::cushion_center_gap(ec);
 
     // 컬러 스케일
-    cv::Vec2f colors[] = {field::red::color(ec), field::orange::color(ec), field::white::color(ec)};
-    cv::Vec2f weights[] = {field::red::weight_hs(ec), field::orange::weight_hs(ec), field::white::weight_hs(ec)};
-    double error_fn_bases[] = {field::red::error_fn_base(ec), field::orange::error_fn_base(ec), field::white::error_fn_base(ec)};
+    struct ball_desc {
+        cv::Vec2f color;
+        cv::Vec2f weight;
+        double error_fn_base;
+        double suitability_threshold;
+        double negative_weight;
+        double confidence_threshold;
+    } ball_descs[3];
+
+    kangsw::tuple_for_each(
+      std::make_tuple(field::red(), field::orange(), field::white()),
+      [&]<typename Ty_ = field::red>(Ty_ arg, size_t index) {
+          ball_descs[index] = ball_desc{
+            .color = Ty_::color(ec),
+            .weight = Ty_::weight_hs(ec),
+            .error_fn_base = Ty_::error_fn_base(ec),
+            .suitability_threshold = Ty_::suitability_threshold(ec),
+            .negative_weight = Ty_::matching_negative_weight(ec),
+            .confidence_threshold = Ty_::confidence_threshold(ec),
+          };
+      });
 
     PIPEPP_ELAPSE_BLOCK("Matching Field Generation")
     for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
         auto& m = u_match_map[ball_idx];
-        cv::Scalar color = colors[ball_idx];
-        cv::Scalar weight = weights[ball_idx];
+        auto& bp = ball_descs[ball_idx];
+        cv::Scalar color = bp.color;
+        cv::Scalar weight = bp.weight;
         weight /= norm(weight);
-        auto ln_base = log(error_fn_bases[ball_idx]);
+        auto ln_base = log(bp.error_fn_base);
 
         cv::subtract(m, color, u0);
         multiply(u0, u0, u1);
@@ -848,6 +866,147 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
             PIPEPP_CAPTURE_DEBUG_DATA((Mat)random_sample_visualize);
         }
     }
+
+    cv::Mat1f suitability_field{ROI.size()};
+    suitability_field.setTo(0);
+    pair<vector<cv::Point>, vector<float>> ball_candidates[3];
+
+    array<Point, 4> ball_positions = {};
+    array<float, 4> ball_weights = {};
+
+    PIPEPP_ELAPSE_BLOCK("Color/Edge Matching")
+    for (int iter = 3; iter >= 0; --iter) {
+        auto bidx = max(0, iter - 1); // 0, 1 인덱스는 빨간 공 전용
+        auto& m = u_match_map[bidx];
+        cv::Mat1f match;
+
+        auto& bp = ball_descs[bidx];
+        auto& cand_suitabilities = ball_candidates[bidx].second;
+        auto& cand_indexes = ball_candidates[bidx].first;
+        int min_pixel_radius = max<int>(1, matching::min_pixel_radius(ec));
+
+        {
+            PIPEPP_ELAPSE_SCOPE_DYNAMIC(("Preprocess: "s + ball_names[bidx]).c_str())
+            m.copyTo(match);
+
+            // color match값이 threshold보다 큰 모든 인덱스를 선택하고, 인덱스 집합을 생성합니다.
+            compare(m, (float)bp.suitability_threshold, u0, cv::CMP_GT);
+            bitwise_and(u0, area_mask, u1);
+
+            // 몇 회의 erode 및 dilate 연산을 통해, 중심에 가까운 픽셀을 골라냅니다.
+            dilate(u1, u0, {}, Point(-1, -1), matching::num_candidate_dilate(ec));
+            erode(u0, u1, {}, Point(-1, -1), matching::num_candidate_erode(ec));
+            match_field.setTo(color_ROW[bidx], u1);
+
+            // 모든 valid한 인덱스를 추출합니다.
+            cand_indexes.reserve(1000);
+            findNonZero(u1, cand_indexes);
+
+            // 인덱스를 임의로 골라냅니다.
+            auto num_left = matching::num_maximum_sample(ec);
+            // size_t num_left = cand_indexes.size() * (100 - clamp(discard, 0, 100)) / 100;
+            discard_random_args(cand_indexes, num_left, mt19937{});
+
+            // 매치 맵의 적합도 합산치입니다.
+            cand_suitabilities.resize(cand_indexes.size(), 0);
+        }
+        float negative_weight = bp.negative_weight;
+
+        // 골라낸 인덱스 내에서 색상 값의 샘플 합을 수행합니다.
+        PIPEPP_ELAPSE_SCOPE_DYNAMIC(("Parallel Launch: "s + ball_names[bidx]).c_str());
+        auto calculate_suitability = [&](size_t index) {
+            auto pt = cand_indexes[index];
+
+            // 현재 추정 위치에서 공의 픽셀 반경 계산
+            int ball_pxl_rad = get_pixel_length_on_contact(imdesc, table_plane, pt + ROI.tl(), ball_radius);
+            if (ball_pxl_rad < min_pixel_radius) { return; }
+
+            // if 픽셀 반경이 이미지 경계선을 넘어가면 discard
+            {
+                cv::Point offset{ball_pxl_rad + 1, ball_pxl_rad + 1};
+                cv::Rect image_bound{offset, ROI.size() - (Size)(offset + offset)};
+
+                if (!image_bound.contains(pt)) {
+                    return;
+                }
+            }
+
+            // 각 인덱스에 픽셀 반경을 곱해 매치 맵의 적합도를 합산, 저장
+            float suitability = 0;
+            {
+                float ball_pxl_radf = ball_pxl_rad;
+
+                for (auto roundpt : normal_random_samples) {
+                    auto sample_index = pt + cv::Point(roundpt * ball_pxl_radf);
+                    suitability += match(sample_index);
+                }
+
+                auto bound = ROI;
+                bound.x = bound.y = 0;
+                for (auto& roundpt : normal_negative_samples) {
+                    auto sample_index = pt + Point(roundpt * ball_pxl_radf);
+                    if (bound.contains(sample_index)) {
+                        suitability -= match(sample_index) * negative_weight;
+                    }
+                }
+            }
+
+            suitability /= normal_random_samples.size();
+            suitability_field(pt) = suitability;
+            cand_suitabilities[index] = suitability;
+        };
+
+        // 병렬로 launch
+        kangsw::iota indexes{cand_indexes.size()};
+        if (matching::enable_parallel(ec)) {
+            for_each(execution::par_unseq, indexes.begin(), indexes.end(), calculate_suitability);
+        }
+        else {
+            for_each(execution::seq, indexes.begin(), indexes.end(), calculate_suitability);
+        }
+
+        {
+            Mat3b debug_ROI = debug(ROI);
+            Mat3b adder;
+            Mat1b suitability;
+            suitability_field.convertTo(suitability, CV_8U, 255);
+            //  cv::merge(vector<Mat>{Mat1b::zeros(ROI.size()), suitability, Mat1b::zeros(ROI.size())}, adder);
+            cv::merge(vector{suitability, suitability, suitability}, adder);
+            debug_ROI -= adder;
+        }
+
+        // 특수: 색상이 RED라면 마스크에서 찾아낸 볼에 해당하는 위치를 모두 지우고 위 과정을 다시 수행합니다.
+        auto best = max_element(cand_suitabilities.begin(), cand_suitabilities.end());
+        if (best == cand_suitabilities.end()) {
+            continue;
+        }
+
+        if (*best > bp.confidence_threshold) {
+            auto best_idx = best - cand_suitabilities.begin();
+            auto center = cand_indexes[best_idx];
+
+            auto rad_px = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
+
+            if (rad_px > 0) {
+                // 공이 정상적으로 찾아진 경우에만 ...
+                // circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], 1);
+
+                ball_positions[iter] = center;
+                ball_weights[iter] = *best;
+
+                // 빨간 공인 경우 ...
+                if (iter == 1) {
+                    // Match map에서 검출된 공 위치를 지우고, 위 과정을 반복합니다.
+                    circle(m, center, rad_px + field::red::second_ball_erase_radius_adder(ec), 0, -1);
+                    PIPEPP_STORE_DEBUG_DATA_COND("Ball Match Field Raw: Red 2", m.getMat(ACCESS_FAST).clone(), show_debug_mat(ec));
+                }
+            }
+        }
+    }
+
+    PIPEPP_STORE_DEBUG_DATA("Ball Match Suitability Field", (Mat)suitability_field);
+    PIPEPP_STORE_DEBUG_DATA_COND("Ball Match Field Mask", match_field.getMat(ACCESS_FAST).clone(), show_debug_mat(ec));
+    for (auto& v : ball_weights) { v *= matching::confidence_weight(ec); }
 
     return pipepp::pipe_error::ok;
 }

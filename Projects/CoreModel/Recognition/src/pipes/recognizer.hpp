@@ -263,47 +263,64 @@ struct marker_solver {
 
 struct ball_search {
     PIPEPP_DECLARE_OPTION_CLASS(ball_search);
-    PIPEPP_OPTION(show_debug_mat, false, "debug");
-    PIPEPP_OPTION(show_random_sample, false, "debug");
-    PIPEPP_OPTION(random_sample_scale, 14, "debug");
+    PIPEPP_OPTION(show_debug_mat, false, "Debug");
+    PIPEPP_OPTION(show_random_sample, false, "Debug");
+    PIPEPP_OPTION(random_sample_scale, 200, "Debug");
 
     struct field {
-        inline static const std::string _category = "Step 0: Field.";
+        inline static const std::string _category = "Balls.";
 
         struct red {
             PIPEPP_DECLARE_OPTION_CATEGORY(_category + "Red");
-            PIPEPP_OPTION_CAT(color, cv::Vec2f{}, "Representative Hue, Saturation color");
-            PIPEPP_OPTION_CAT(weight_hs, cv::Vec2f{}, "Weight per channel");
-            PIPEPP_OPTION_CAT(error_fn_base, 1.04, "Weight per channel");
+            PIPEPP_OPTION_CAT(color, cv::Vec2f(130, 205), "Representative Hue, Saturation color");
+            PIPEPP_OPTION_CAT(weight_hs, cv::Vec2f(4, 1), "Weight per channel");
+            PIPEPP_OPTION_CAT(error_fn_base, 1300000.0, "Weight per channel");
+            PIPEPP_OPTION_CAT(suitability_threshold, 0.2);
+            PIPEPP_OPTION_CAT(matching_negative_weight, 1.2);
+            PIPEPP_OPTION_CAT(confidence_threshold, 0.5);
+
+            PIPEPP_OPTION_CAT(second_ball_erase_radius_adder, 5);
         };
 
         struct orange {
             PIPEPP_DECLARE_OPTION_CATEGORY(_category + "Orange");
-            PIPEPP_OPTION_CAT(color, cv::Vec2f{}, "Representative Hue, Saturation color");
-            PIPEPP_OPTION_CAT(weight_hs, cv::Vec2f{}, "Weight per channel");
-            PIPEPP_OPTION_CAT(error_fn_base, 1.04, "Weight per channel");
+            PIPEPP_OPTION_CAT(color, cv::Vec2f(90, 210), "Representative Hue, Saturation color");
+            PIPEPP_OPTION_CAT(weight_hs, cv::Vec2f(2, 3), "Weight per channel");
+            PIPEPP_OPTION_CAT(error_fn_base, 30000.0, "Weight per channel");
+            PIPEPP_OPTION_CAT(suitability_threshold, 0.35);
+            PIPEPP_OPTION_CAT(matching_negative_weight, 3.0);
+            PIPEPP_OPTION_CAT(confidence_threshold, 0.5);
         };
 
         struct white {
             PIPEPP_DECLARE_OPTION_CATEGORY(_category + "White");
-            PIPEPP_OPTION_CAT(color, cv::Vec2f{}, "Representative Hue, Saturation color");
-            PIPEPP_OPTION_CAT(weight_hs, cv::Vec2f{}, "Weight per channel");
-            PIPEPP_OPTION_CAT(error_fn_base, 1.04, "Weight per channel");
+            PIPEPP_OPTION_CAT(color, cv::Vec2f(80, 40), "Representative Hue, Saturation color");
+            PIPEPP_OPTION_CAT(weight_hs, cv::Vec2f(0.2f, 1.0f), "Weight per channel");
+            PIPEPP_OPTION_CAT(error_fn_base, 30000.0, "Weight per channel");
+            PIPEPP_OPTION_CAT(suitability_threshold, 0.22);
+            PIPEPP_OPTION_CAT(matching_negative_weight, 3.0);
+            PIPEPP_OPTION_CAT(confidence_threshold, 0.5);
         };
     };
 
     struct random_sample {
         PIPEPP_DECLARE_OPTION_CATEGORY("Random Sample");
-        PIPEPP_OPTION_CAT(positive_area, cv::Vec2f());
-        PIPEPP_OPTION_CAT(negative_area, cv::Vec2f());
+        PIPEPP_OPTION_CAT(positive_area, cv::Vec2f(1.03, 1.33));
+        PIPEPP_OPTION_CAT(negative_area, cv::Vec2f(0.3, 1));
         PIPEPP_OPTION_CAT(random_seed, 42);
-        PIPEPP_OPTION_CAT(integral_radius, 15);
-        PIPEPP_OPTION_CAT(rotate_angle, 30.0);
+        PIPEPP_OPTION_CAT(integral_radius, 25);
+        PIPEPP_OPTION_CAT(rotate_angle, 0);
     };
 
     struct matching {
         PIPEPP_DECLARE_OPTION_CATEGORY("Matching");
+        PIPEPP_OPTION_CAT(confidence_weight, 1.0);
         PIPEPP_OPTION_CAT(cushion_center_gap, 0.0);
+        PIPEPP_OPTION_CAT(min_pixel_radius, 1);
+        PIPEPP_OPTION_CAT(num_candidate_dilate, 6);
+        PIPEPP_OPTION_CAT(num_candidate_erode, 6);
+        PIPEPP_OPTION_CAT(num_maximum_sample, 100000);
+        PIPEPP_OPTION_CAT(enable_parallel, true);
     };
 
     struct input_type {
@@ -322,7 +339,7 @@ struct ball_search {
     struct output_type {
     };
 
-    pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
+    pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& input, output_type& out);
     static void link_from_previous(shared_data const& sd, marker_solver::output_type const& i, input_type& o);
 
 private:
