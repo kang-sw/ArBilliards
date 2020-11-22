@@ -668,10 +668,6 @@ void exec_ui()
     });
     video_player.elapse([&]() {
         if (frame_chunks.empty() == false) {
-            if (n->video.is_busy) {
-                //return;
-            }
-
             if (is_playing_video) {
                 video_slider.move_step(false);
             }
@@ -694,7 +690,7 @@ void exec_ui()
             auto vid = parse(vid_chnk);
             if (previous) {
                 n->video.is_busy = true;
-                auto tm = clamp(vid.time_point - previous->time_point, 0.01f, 0.1f);
+                auto tm = clamp(vid.time_point - previous->time_point, 0.001f, 0.1f) * 0.75f;
                 g_recognizer.refresh_image(previous->img, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); });
                 video_player.interval(chrono::milliseconds((int)(is_playing_video ? tm * 1000.f : 100)));
             }
