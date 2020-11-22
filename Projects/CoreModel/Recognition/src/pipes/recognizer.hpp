@@ -111,8 +111,8 @@ struct input_resize {
     PIPEPP_DECLARE_OPTION_CLASS(input_resize);
     PIPEPP_OPTION(desired_image_width, 1280);
 
-    PIPEPP_OPTION(debug_show_source, false);
-    PIPEPP_OPTION(debug_show_hsv, false);
+    PIPEPP_OPTION(show_sources, false, "Debug");
+    PIPEPP_OPTION(test_color_spaces, false, "Debug");
 
     using input_type = recognizer_t::frame_desc;
     struct output_type {
@@ -132,8 +132,7 @@ struct contour_candidate_search {
     PIPEPP_OPTION(table_color_filter_0_lo, cv::Vec3b(175, 150, 60), "Filter");
     PIPEPP_OPTION(table_color_filter_1_hi, cv::Vec3b(10, 255, 255), "Filter");
 
-    PIPEPP_OPTION(show_0_filtered, false, "Debug");
-    PIPEPP_OPTION(show_1_edge, false, "Debug");
+    PIPEPP_OPTION(show_debug_mat, false, "Debug");
 
     PIPEPP_OPTION(area_threshold_ratio, 0.1, "Contour", "Minimul pixel size of table candidate area");
     PIPEPP_OPTION(approx_epsilon_preprocess, 5.0, "Contour", "Epsilon value used for approximate table contours");

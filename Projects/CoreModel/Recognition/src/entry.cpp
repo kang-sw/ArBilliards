@@ -300,7 +300,6 @@ void recognition_draw_ui(cv::Mat& frame);
 void exec_ui();
 
 // ================================================================================================
-#include <sl/Camera.hpp>
 int main(void)
 {
     size_t num_thr = thread::hardware_concurrency();

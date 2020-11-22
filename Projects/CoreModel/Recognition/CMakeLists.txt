@@ -8,7 +8,6 @@ project ("Recognition")
 # Third-party libraries 
 find_package(Boost REQUIRED COMPONENTS system thread regex) 
 find_package(OpenCV 4 REQUIRED)
-find_package(ZED 2 REQUIRED)
 
 find_package(CUDA REQUIRED)
 include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
@@ -42,7 +41,6 @@ target_link_libraries(
 	Recognition
 	PUBLIC
 		${OpenCV_LIBS} 
-		${ZED_LIBRARIES}
 		${Boost_LIBRARIES}
 		nana
 		pipepp_gui
@@ -56,6 +54,5 @@ target_include_directories(
 		"third/cpp-base64/" 
 		"third/cvui"
 		${OpenCV_INCLUDE_DIRS} 
-		${ZED_INCLUDE_DIRS}
 		${Boost_INCLUDE_DIRS}
 )

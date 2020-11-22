@@ -27,7 +27,6 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
 
     { // Optional SLIC scope
         auto superpixels = input_proxy.create_and_link_output("clustering", std::thread::hardware_concurrency() / 2, &clustering::link_from_previous, &pipepp::make_executor<clustering>);
-        superpixels.configure_tweaks().is_optional = true;
     }
 
     auto contour_search_proxy
@@ -45,6 +44,8 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         &table_edge_solver::link_from_previous,
         &pipepp::make_executor<table_edge_solver>);
     pnp_solver_proxy.add_output_handler(&table_edge_solver::output_handler);
+    pnp_solver_proxy.configure_tweaks().selective_input = true;
+    pnp_solver_proxy.configure_tweaks().selective_output = true;
 
     auto marker_finder_proxy
       = pnp_solver_proxy.create_and_link_output(
@@ -83,7 +84,7 @@ pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_cont
         cv::UMat rgb;
 
         cv::cvtColor(i.rgba, rgb, cv::COLOR_RGBA2RGB);
-        if (src_size.width != width) {
+        if (width < src_size.width) {
             cv::resize(rgb, out.u_rgb, {width, height});
         }
         else {
@@ -98,8 +99,38 @@ pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_cont
         out.u_hsv.copyTo(out.hsv);
     }
 
-    PIPEPP_STORE_DEBUG_DATA_COND("Source RGB", out.rgb.clone(), debug_show_source(ec));
-    PIPEPP_STORE_DEBUG_DATA_COND("Source HSV", out.hsv.clone(), debug_show_hsv(ec));
+    if (show_sources(ec)) {
+        PIPEPP_ELAPSE_SCOPE("Debug data generation");
+
+        PIPEPP_STORE_DEBUG_DATA("Source RGB", out.rgb.clone());
+        PIPEPP_STORE_DEBUG_DATA("Source HSV", out.hsv.clone());
+
+        cv::Mat ch[3];
+        cv::split(out.hsv, ch);
+        PIPEPP_STORE_DEBUG_DATA("HSV: H", ch[0]);
+        PIPEPP_STORE_DEBUG_DATA("HSV: S", ch[1]);
+        PIPEPP_STORE_DEBUG_DATA("HSV: V", ch[2]);
+    }
+
+    if (test_color_spaces(ec)) {
+        auto testcode = [&](const char* head, const char* tail, int color_space) {
+            PIPEPP_ELAPSE_SCOPE_DYNAMIC(fmt::format("Color Space: {}", head).c_str());
+
+            cv::Mat converted;
+            cv::Mat ch[3];
+            cv::cvtColor(out.rgb, converted, color_space);
+            cv::split(converted, ch);
+
+            PIPEPP_STORE_DEBUG_DATA_DYNAMIC(fmt::format("{}", head).c_str(), converted);
+            for (int idx = 0; tail[idx] && idx < 3; ++idx) {
+                PIPEPP_STORE_DEBUG_DATA_DYNAMIC(fmt::format("{}: {}", head, tail[idx]).c_str(), ch[idx]);
+            }
+        };
+
+        testcode("LAB", "LAB", cv::COLOR_RGB2Lab);
+        testcode("Luv", "Luv", cv::COLOR_RGB2Luv);
+        testcode("YUV", "YUV", cv::COLOR_RGB2YUV);
+    }
 
     out.img_size = cv::Size(width, height);
 
@@ -152,8 +183,9 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
         cv::erode(u_filtered, u0, {});
         cv::subtract(u_filtered, u0, u_edge);
 
-        PIPEPP_STORE_DEBUG_DATA_COND("Filtered Image", u_filtered.getMat(cv::ACCESS_FAST).clone(), show_0_filtered(ec));
-        PIPEPP_STORE_DEBUG_DATA_COND("Edge Image", u_edge.getMat(cv::ACCESS_FAST).clone(), show_1_edge(ec));
+        bool const dbg_show = show_debug_mat(ec);
+        PIPEPP_STORE_DEBUG_DATA_COND("Filtered Image", u_filtered.getMat(cv::ACCESS_FAST).clone(), dbg_show);
+        PIPEPP_STORE_DEBUG_DATA_COND("Edge Image", u_edge.getMat(cv::ACCESS_FAST).clone(), dbg_show);
     }
 
     PIPEPP_ELAPSE_BLOCK("Contour Approx & Select")
@@ -1176,7 +1208,6 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
         }
 
         if (show_debug_mat(ec)) {
-            Vec2f table = input.table_inner_size;
             float scale = top_view_scale(ec);
 
             int ball_rad_pxl = ball_radius * scale;
@@ -1203,7 +1234,7 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
                 pos4(3) = 1;
 
                 pos4 = inv_tr * pos4;
-                auto pt = Point(pos4[0] * scale, -pos4[2] * scale) + (Point)inner_size / 2;
+                auto pt = Point(-pos4[0] * scale, pos4[2] * scale) + (Point)inner_size / 2;
 
                 circle(top_view_mat, pt, ball_rad_pxl, color_ROW[bidx], -1);
                 putText(top_view_mat, to_string(iter), pt + Point(-6, 11), FONT_HERSHEY_PLAIN, scale * 0.002, {0, 0, 0}, 2);
