@@ -787,7 +787,7 @@ void billiards::pipes::marker_solver::output_handler(pipepp::pipe_error, shared_
     state.table.rot = imgproc::set_filtered_table_rot(state.table.rot, o.table_rot, rot_alpha * o.confidence);
 }
 
-void billiards::pipes::shared_data::get_marker_points_model(pipepp::impl__::option_base const& ec, std::vector<cv::Vec3f>& model)
+void billiards::pipes::shared_data::get_marker_points_model(pipepp::detail::option_base const& ec, std::vector<cv::Vec3f>& model)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
 

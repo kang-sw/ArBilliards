@@ -53,7 +53,7 @@ void billiards::recognizer_t::refresh_image(frame_desc image, process_finish_cal
     });
 }
 
-std::weak_ptr<pipepp::impl__::pipeline_base> billiards::recognizer_t::get_pipeline_instance() const
+std::weak_ptr<pipepp::detail::pipeline_base> billiards::recognizer_t::get_pipeline_instance() const
 {
     return impl_->pipeline;
 }

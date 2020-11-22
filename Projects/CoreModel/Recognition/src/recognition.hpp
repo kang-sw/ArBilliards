@@ -36,7 +36,7 @@ void from_json(const nlohmann::json& j, Scalar_<Ty_>& v)
 
 namespace pipepp
 {
-namespace impl__
+namespace detail
 {
 class pipeline_base;
 }
@@ -102,7 +102,7 @@ public:
      * 생성된 파이프라인 인스턴스를 반환합니다.
      * initialize() 호출 이후에만 valid합니다.
      */
-    std::weak_ptr<pipepp::impl__::pipeline_base> get_pipeline_instance() const;
+    std::weak_ptr<pipepp::detail::pipeline_base> get_pipeline_instance() const;
 
     /**
      * 메인 스레드 루프입니다.

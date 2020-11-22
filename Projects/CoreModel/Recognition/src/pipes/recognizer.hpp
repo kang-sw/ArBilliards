@@ -8,7 +8,7 @@
 
 namespace pipepp
 {
-namespace impl__
+namespace detail
 {
 class option_base;
 }
@@ -104,7 +104,7 @@ struct shared_data : pipepp::base_shared_context {
         float confidence;
     } table;
 
-    static void get_marker_points_model(pipepp::impl__::option_base const& ec, std::vector<cv::Vec3f>& model);
+    static void get_marker_points_model(pipepp::detail::option_base const& ec, std::vector<cv::Vec3f>& model);
 };
 
 struct input_resize {
@@ -392,7 +392,7 @@ struct ball_search {
     };
 
     struct input_type {
-        pipepp::impl__::option_base const* opt_shared;
+        pipepp::detail::option_base const* opt_shared;
         imgproc::img_t const* imdesc;
         cv::Mat const* debug_mat;
 
