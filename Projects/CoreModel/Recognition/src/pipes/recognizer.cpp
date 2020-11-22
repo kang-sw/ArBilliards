@@ -22,22 +22,23 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
 
     auto input_proxy = pl->front();
     input_proxy.add_output_handler(&input_resize::output_handler);
+    input_proxy.prelaunch_tweaks().selective_output = true;
 
     { // Optional SLIC scope
-        auto superpixels = input_proxy.create_and_link_output("Superpixels", true, std::thread::hardware_concurrency() / 2, &clustering::link_from_previous, &pipepp::make_executor<clustering>);
-        superpixels.pause();
+        auto superpixels = input_proxy.create_and_link_output("Superpixels", std::thread::hardware_concurrency() / 2, &clustering::link_from_previous, &pipepp::make_executor<clustering>);
+        superpixels.prelaunch_tweaks().is_optional = true;
     }
 
-    auto contour_search_proxy = input_proxy.create_and_link_output("contour search", false, 1, &contour_candidate_search::link_from_previous, &pipepp::make_executor<contour_candidate_search>);
+    auto contour_search_proxy = input_proxy.create_and_link_output("contour search", 1, &contour_candidate_search::link_from_previous, &pipepp::make_executor<contour_candidate_search>);
     contour_search_proxy.add_output_handler(&contour_candidate_search::output_handler);
 
-    auto pnp_solver_proxy = contour_search_proxy.create_and_link_output("table edge solver", false, 2, &table_edge_solver::link_from_previous, &pipepp::make_executor<table_edge_solver>);
+    auto pnp_solver_proxy = contour_search_proxy.create_and_link_output("table edge solver", 2, &table_edge_solver::link_from_previous, &pipepp::make_executor<table_edge_solver>);
     pnp_solver_proxy.add_output_handler(&table_edge_solver::output_handler);
 
-    auto marker_solver_proxy = pnp_solver_proxy.create_and_link_output("marker solver", false, 2, &marker_solver::link_from_previous, &pipepp::make_executor<marker_solver>);
+    auto marker_solver_proxy = pnp_solver_proxy.create_and_link_output("marker solver", 2, &marker_solver::link_from_previous, &pipepp::make_executor<marker_solver>);
     marker_solver_proxy.add_output_handler(&marker_solver::output_handler);
 
-    auto ball_finder_proxy = marker_solver_proxy.create_and_link_output("ball finder", false, 1, &ball_search::link_from_previous, &pipepp::make_executor<ball_search>);
+    auto ball_finder_proxy = marker_solver_proxy.create_and_link_output("ball finder", 1, &ball_search::link_from_previous, &pipepp::make_executor<ball_search>);
 
     return pl;
 }
@@ -1009,6 +1010,43 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
     PIPEPP_STORE_DEBUG_DATA_COND("Ball Match Field Mask", match_field.getMat(ACCESS_FAST).clone(), show_debug_mat(ec));
     for (auto& v : ball_weights) { v *= matching::confidence_weight(ec); }
 
+    // 각 공의 위치를 월드 기준으로 변환합니다.
+    array<Vec3f, 4> ballpos;
+    for (int i = 0; i < 4; ++i) {
+        if (ball_weights[i] == 0) {
+            continue;
+        }
+        auto pt = ball_positions[i] + ROI.tl();
+        Vec3f dst;
+
+        // 공의 중점 방향으로 광선을 투사해 공의 카메라 기준 위치 획득
+        dst[0] = pt.x, dst[1] = pt.y, dst[2] = 10;
+        get_point_coord_3d(imdesc, dst[0], dst[1], dst[2]);
+        auto contact = table_plane.find_contact({}, dst).value();
+
+        Vec3f dummy = {0, 1, 0};
+        camera_to_world(imdesc, dummy, contact);
+        ballpos[i] = contact;
+    }
+
+    // 각 공의 위치를 검토해, 반경보다 작게 검출된 공의 weight를 무효화합니다.
+    for (int i = 0; i < 3; ++i) {
+        for (int k = i + 1; k < 4; ++k) {
+            if (ball_weights[i] == 0) { break; }
+            if (ball_weights[k] == 0) { continue; }
+
+            auto distance = norm(ballpos[i] - ballpos[k]);
+            if (distance < ball_radius) {
+                int min_elem = ball_weights[i] < ball_weights[k] ? i : k;
+                ball_weights[min_elem] = 0;
+            }
+        }
+    }
+
+    // 공의 위치를 이전과 비교합니다.
+    using ball_desc_set_t = array<ball_position_desc, 4>;
+    ball_desc_set_t descs;
+
     return pipepp::pipe_error::ok;
 }
 
@@ -1019,10 +1057,12 @@ void billiards::pipes::ball_search::link_from_previous(shared_data const& sd, ma
       .opt_shared = sd.option(),
       .imdesc = &sd.imdesc_bkup,
       .debug_mat = &sd.debug_mat,
+      .prev_ball_pos = sd.state->balls,
       .u_rgb = sd.u_rgb,
       .u_hsv = sd.u_hsv,
       .img_size = sd.rgb.size(),
       .table_contour = &sd.table.contour,
       .table_pos = sd.state->table.pos,
-      .table_rot = sd.state->table.rot};
+      .table_rot = sd.state->table.rot,
+    };
 }

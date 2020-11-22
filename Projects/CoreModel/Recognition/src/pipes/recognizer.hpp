@@ -21,12 +21,27 @@ auto build_pipe() -> std::shared_ptr<pipepp::pipeline<struct shared_data, struct
 
 namespace billiards::pipes
 {
+struct ball_position_desc {
+    using clock = std::chrono::system_clock;
+
+    cv::Vec3f pos;
+    cv::Vec3f vel;
+
+    clock::time_point tp;
+    double dt(clock::time_point now) const { return std::chrono::duration<double, clock::period>(now - tp).count(); }
+    cv::Vec3f ps(clock::time_point now) const { return dt(now) * vel + pos; }
+};
+
+using ball_position_set = std::array<ball_position_desc, 4>;
+
 struct shared_state {
     auto lock() const { return std::unique_lock{lock_}; }
 
     struct {
         cv::Vec3f pos = {}, rot = cv::Vec3f(1, 0, 0);
     } table;
+
+    ball_position_set balls;
 
 private:
     mutable kangsw::spinlock lock_;
@@ -338,6 +353,8 @@ struct ball_search {
         imgproc::img_t const* imdesc;
         cv::Mat const* debug_mat;
 
+        ball_position_set prev_ball_pos;
+
         cv::UMat u_rgb, u_hsv;
 
         cv::Size img_size;
@@ -347,6 +364,7 @@ struct ball_search {
         cv::Vec3f table_rot;
     };
     struct output_type {
+        ball_position_set new_set;
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& input, output_type& out);

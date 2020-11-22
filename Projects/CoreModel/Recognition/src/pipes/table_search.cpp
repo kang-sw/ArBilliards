@@ -168,7 +168,7 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
         }
 
         m.engine->getLabels(o.labels);
-        return pipepp::pipe_error::ok;
+        return pipepp::pipe_error::abort;
     }
     else {
         int algos[] = {cv::ximgproc::SLICO, cv::ximgproc::MSLIC, cv::ximgproc::SLIC};
