@@ -499,86 +499,18 @@ void exec_ui()
 
         pl_board.update();
 
-        if (false && n->dirty) {
-            // 이미지 목록을 업데이트
-            decltype(n->shows) shows;
-            {
-                lock_guard<mutex> lock{n->shows_lock};
-                shows = move(n->shows);
-            }
-            n->dirty = false;
+        if (false) {
+            std::cout << "\r";
+            auto pipe = g_recognizer.get_pipeline_instance().lock();
+            auto& pool = pipe->_thread_pool();
+            using std::chrono::duration;
 
-            matlist.auto_draw(false);
-            for (auto& pair : shows) {
-                bool existing_key = false;
-
-                for (auto item_proxy : matlist.at(0)) {
-                    auto& val = item_proxy.value<mat_desc_row_t>();
-                    if (pair.first == val.mat_name) {
-                        existing_key = true;
-                        val.mat = pair.second;
-                        val.tp = chrono::system_clock::now();
-                    }
-                }
-
-                if (!existing_key) {
-                    mat_desc_row_t val;
-                    val.mat = pair.second;
-                    val.tp = chrono::system_clock::now();
-                    val.is_displaying = {};
-                    val.mat_name = pair.first;
-                    matlist.at(0).append(val, true);
-                }
-            }
-            matlist.auto_draw(true);
-
-            // 이미지 갱신
-            for (auto& proxy : matlist.at(0)) {
-                auto& val = proxy.value<mat_desc_row_t>();
-                if (val.is_displaying) {
-                    if (val.is_displaying.value()) {
-                        imshow(val.mat_name, val.mat);
-                    }
-                    else {
-                        val.is_displaying = {};
-                        cv::destroyWindow(val.mat_name);
-                    }
-                }
-            }
-
-            // 틱 미터 갱신
-            tickmeters.auto_draw(false);
-            {
-                int order = 1;
-                for (auto& items : tickmeters.at(0)) {
-                    items.text(0, "-");
-                    items.text(2, "-");
-                }
-
-                for (auto& ticks : g_recognizer.get_latest_timings()) {
-                    auto tick = ticks.second.count();
-                    char buf[24];
-                    snprintf(buf, sizeof buf, "%d.%03d ms", tick / 1000, tick % 1000);
-
-                    auto finder = [&]() {
-                        for (auto& row : tickmeters.at(0)) {
-                            if (row.text(1) == ticks.first) {
-                                return optional{row};
-                            }
-                        }
-                        return optional<listbox::item_proxy>{};
-                    };
-
-                    if (auto found = finder()) {
-                        found->text(0, to_string(order++));
-                        found->text(2, buf);
-                    }
-                    else {
-                        tickmeters.at(0).append({to_string(order++), ticks.first, (string)buf});
-                    }
-                }
-            }
-            tickmeters.auto_draw(true);
+            fmt::print("{:<80}",
+                       fmt::format("n_threads: [{0:>3}/{1:>3}], task_wait: {2:>10.4f}ms, task_interv: {3:>10.4f}ms",
+                                   pool.num_available_workers(),
+                                   pool.num_workers(),
+                                   duration<double, milli>(pool.average_wait()).count(),
+                                   duration<double, milli>(pool.average_interval()).count()));
         }
 
         for (std::pair<std::string, cv::Mat> fetch_data;
