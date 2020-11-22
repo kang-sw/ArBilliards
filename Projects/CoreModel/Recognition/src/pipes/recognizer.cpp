@@ -7,6 +7,7 @@
 #include "fmt/format.h"
 #include "table_search.hpp"
 #include "../image_processing.hpp"
+#include "pipepp/options.hpp"
 
 #pragma warning(disable : 4244)
 
@@ -25,20 +26,47 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     input_proxy.configure_tweaks().selective_output = true;
 
     { // Optional SLIC scope
-        auto superpixels = input_proxy.create_and_link_output("Superpixels", std::thread::hardware_concurrency() / 2, &clustering::link_from_previous, &pipepp::make_executor<clustering>);
+        auto superpixels = input_proxy.create_and_link_output("clustering", std::thread::hardware_concurrency() / 2, &clustering::link_from_previous, &pipepp::make_executor<clustering>);
         superpixels.configure_tweaks().is_optional = true;
     }
 
-    auto contour_search_proxy = input_proxy.create_and_link_output("contour search", 1, &contour_candidate_search::link_from_previous, &pipepp::make_executor<contour_candidate_search>);
+    auto contour_search_proxy
+      = input_proxy.create_and_link_output(
+        "contour search",
+        1,
+        &contour_candidate_search::link_from_previous,
+        &pipepp::make_executor<contour_candidate_search>);
     contour_search_proxy.add_output_handler(&contour_candidate_search::output_handler);
 
-    auto pnp_solver_proxy = contour_search_proxy.create_and_link_output("table edge solver", 2, &table_edge_solver::link_from_previous, &pipepp::make_executor<table_edge_solver>);
+    auto pnp_solver_proxy
+      = contour_search_proxy.create_and_link_output(
+        "table edge solver",
+        2,
+        &table_edge_solver::link_from_previous,
+        &pipepp::make_executor<table_edge_solver>);
     pnp_solver_proxy.add_output_handler(&table_edge_solver::output_handler);
 
-    auto marker_solver_proxy = pnp_solver_proxy.create_and_link_output("marker solver", 2, &marker_solver::link_from_previous, &pipepp::make_executor<marker_solver>);
+    auto marker_finder_proxy
+      = pnp_solver_proxy.create_and_link_output(
+        "marker finder",
+        1,
+        &marker_finder::link_from_previous,
+        &pipepp::make_executor<marker_finder>);
+
+    auto marker_solver_proxy
+      = marker_finder_proxy.create_and_link_output(
+        "marker solver",
+        1,
+        &marker_solver::link_from_previous,
+        &pipepp::make_executor<marker_solver>);
     marker_solver_proxy.add_output_handler(&marker_solver::output_handler);
 
-    auto ball_finder_proxy = marker_solver_proxy.create_and_link_output("ball finder", 1, &ball_search::link_from_previous, &pipepp::make_executor<ball_search>);
+    auto ball_finder_proxy
+      = marker_solver_proxy.create_and_link_output(
+        "ball finder",
+        4,
+        &ball_search::link_from_previous,
+        &pipepp::make_executor<ball_search>);
 
     return pl;
 }
@@ -370,7 +398,7 @@ void billiards::pipes::table_edge_solver::output_handler(pipepp::pipe_error, sha
     state.table.rot = imgproc::set_filtered_table_rot(state.table.rot, o.table_rot, rot_alpha * o.confidence, jump_thr);
 }
 
-pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
+pipepp::pipe_error billiards::pipes::marker_finder::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using namespace cv;
@@ -382,31 +410,9 @@ pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_con
     auto table_pos = i.table_pos_init;
     auto& table_contour = *i.table_contour;
 
-    out.confidence = 0;
-
     auto& debug = *i.debug_mat;
     if (table_contour.empty()) {
         return pipepp::pipe_error::ok;
-    }
-
-    PIPEPP_ELAPSE_BLOCK("Render Markers")
-    {
-        Vec2f fov = i.FOV_degree;
-        constexpr float DtoR = CV_PI / 180.f;
-        auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
-
-        vector<Vec3f> vertexes;
-        get_marker_points_model(ec, vertexes);
-
-        auto world_tr = get_world_transform_matx_fast(table_pos, table_rot);
-        for (auto pt : vertexes) {
-            Vec4f pt4;
-            (Vec3f&)pt4 = pt;
-            pt4[3] = 1.0f;
-
-            pt4 = world_tr * pt4;
-            draw_circle(img, (Mat&)debug, 0.01f, (Vec3f&)pt4, {255, 255, 255}, 2);
-        }
     }
 
     Mat1b marker_area_mask(debug.size(), 0);
@@ -535,11 +541,68 @@ pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_con
         }
     }
 
+    out.weights = std::move(marker_weights);
+    out.markers = std::move(centers);
+    return pipepp::pipe_error::ok;
+}
+
+void billiards::pipes::marker_finder::link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o)
+{
+    auto _lck = sd.state->lock();
+    o = input_type{
+      .img_ptr = &sd.imdesc_bkup,
+      .img_size = sd.rgb.size(),
+      .table_pos_init = sd.state->table.pos,
+      .table_rot_init = sd.state->table.rot,
+      .debug_mat = &sd.debug_mat,
+      .table_contour = &sd.table.contour,
+      .u_hsv = &sd.u_hsv,
+      .FOV_degree = sd.camera_FOV(sd)};
+}
+
+pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
+{
+    PIPEPP_REGISTER_CONTEXT(ec);
+    out.confidence = 0;
+    using namespace cv;
+    using namespace std;
+    using namespace imgproc;
+
+    auto& img = *i.img_ptr;
+    auto table_rot = i.table_rot_init;
+    auto table_pos = i.table_pos_init;
+    auto& table_contour = *i.table_contour;
+
+    auto& centers = i.markers;
+    auto& marker_weights = i.weights;
+
+    auto& debug = *i.debug_mat;
+    if (table_contour.empty() || centers.empty()) {
+        return pipepp::pipe_error::ok;
+    }
+
+    PIPEPP_ELAPSE_BLOCK("Render Markers")
+    {
+        Vec2f fov = i.FOV_degree;
+        constexpr float DtoR = CV_PI / 180.f;
+        auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
+
+        auto& vertexes = i.marker_model;
+
+        auto world_tr = get_world_transform_matx_fast(table_pos, table_rot);
+        for (auto pt : vertexes) {
+            Vec4f pt4;
+            (Vec3f&)pt4 = pt;
+            pt4[3] = 1.0f;
+
+            pt4 = world_tr * pt4;
+            draw_circle(img, (Mat&)debug, 0.01f, (Vec3f&)pt4, {255, 255, 255}, 2);
+        }
+    }
+
     PIPEPP_ELAPSE_BLOCK("Solve")
     if (centers.empty() == false) {
-        vector<Vec3f> model; //  = table_params["marker"]["array"];
-                             // model.resize(table_params["marker"]["array-num"]);
-        get_marker_points_model(ec, model);
+        auto& model = i.marker_model;
 
         struct candidate_t {
             Vec3f rotation;
@@ -664,7 +727,7 @@ pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_con
     return pipepp::pipe_error::ok;
 }
 
-void billiards::pipes::marker_solver::link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o)
+void billiards::pipes::marker_solver::link_from_previous(shared_data const& sd, marker_finder::output_type const& i, input_type& o)
 {
     auto _lck = sd.state->lock();
     o = input_type{
@@ -676,7 +739,9 @@ void billiards::pipes::marker_solver::link_from_previous(shared_data const& sd, 
       .table_contour = &sd.table.contour,
       .u_hsv = &sd.u_hsv,
       .FOV_degree = sd.camera_FOV(sd),
-    };
+      .markers = i.markers,
+      .weights = i.weights};
+    shared_data::get_marker_points_model(sd, o.marker_model);
 }
 
 void billiards::pipes::marker_solver::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
@@ -690,21 +755,21 @@ void billiards::pipes::marker_solver::output_handler(pipepp::pipe_error, shared_
     state.table.rot = imgproc::set_filtered_table_rot(state.table.rot, o.table_rot, rot_alpha * o.confidence);
 }
 
-void billiards::pipes::marker_solver::get_marker_points_model(pipepp::execution_context& ec, std::vector<cv::Vec3f>& model)
+void billiards::pipes::shared_data::get_marker_points_model(pipepp::impl__::option_base const& ec, std::vector<cv::Vec3f>& model)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
 
-    int num_x = marker::count_x(ec);
-    int num_y = marker::count_y(ec);
-    float felt_width = marker::felt_width(ec);
-    float felt_height = marker::felt_height(ec);
-    float dist_from_felt_long = marker::dist_from_felt_long(ec);
-    float dist_from_felt_short = marker::dist_from_felt_short(ec);
-    float step = marker::step(ec);
-    float width_shift_a = marker::width_shift_a(ec);
-    float width_shift_b = marker::width_shift_b(ec);
-    float height_shift_a = marker::height_shift_a(ec);
-    float height_shift_b = marker::height_shift_b(ec);
+    int num_x = table::marker::count_x(ec);
+    int num_y = table::marker::count_y(ec);
+    float felt_width = table::marker::felt_width(ec);
+    float felt_height = table::marker::felt_height(ec);
+    float dist_from_felt_long = table::marker::dist_from_felt_long(ec);
+    float dist_from_felt_short = table::marker::dist_from_felt_short(ec);
+    float step = table::marker::step(ec);
+    float width_shift_a = table::marker::width_shift_a(ec);
+    float width_shift_b = table::marker::width_shift_b(ec);
+    float height_shift_a = table::marker::height_shift_a(ec);
+    float height_shift_b = table::marker::height_shift_b(ec);
 
     for (int i = -num_y / 2; i < num_y / 2 + 1; ++i) {
         model.emplace_back(-(dist_from_felt_short + felt_width / 2), 0, step * i + height_shift_a);

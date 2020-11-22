@@ -63,6 +63,21 @@ struct shared_data : pipepp::base_shared_context {
             PIPEPP_CATEGORY_OPTION(alpha_rot, 0.3);
             PIPEPP_CATEGORY_OPTION(jump_threshold_distance, 0.1);
         };
+        struct marker {
+            PIPEPP_DECLARE_OPTION_CATEGORY("Table.Marker");
+
+            PIPEPP_CATEGORY_OPTION(count_x, 9);
+            PIPEPP_CATEGORY_OPTION(count_y, 5);
+            PIPEPP_CATEGORY_OPTION(felt_width, 1.735f);
+            PIPEPP_CATEGORY_OPTION(felt_height, 0.915f);
+            PIPEPP_CATEGORY_OPTION(dist_from_felt_long, 0.012f);
+            PIPEPP_CATEGORY_OPTION(dist_from_felt_short, 0.012f);
+            PIPEPP_CATEGORY_OPTION(step, 0.206f);
+            PIPEPP_CATEGORY_OPTION(width_shift_a, 0.0f);
+            PIPEPP_CATEGORY_OPTION(width_shift_b, 0.0f);
+            PIPEPP_CATEGORY_OPTION(height_shift_a, 0.0f);
+            PIPEPP_CATEGORY_OPTION(height_shift_b, 0.01f);
+        };
     };
 
     PIPEPP_OPTION(camera_FOV, cv::Vec2d(84.855, 53.27), "Common");
@@ -88,6 +103,8 @@ struct shared_data : pipepp::base_shared_context {
         cv::Vec3f pos, rot;
         float confidence;
     } table;
+
+    static void get_marker_points_model(pipepp::impl__::option_base const& ec, std::vector<cv::Vec3f>& model);
 };
 
 struct input_resize {
@@ -204,8 +221,8 @@ struct table_edge_solver {
     static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
 };
 
-struct marker_solver {
-    PIPEPP_DECLARE_OPTION_CLASS(marker_solver);
+struct marker_finder {
+    PIPEPP_DECLARE_OPTION_CLASS(marker_finder);
     PIPEPP_OPTION(enable_debug_glyphs, true, "debug");
     PIPEPP_OPTION(enable_debug_mats, true, "debug");
     PIPEPP_OPTION(show_marker_area_mask, false, "debug");
@@ -219,21 +236,34 @@ struct marker_solver {
     PIPEPP_OPTION(marker_area_max_rad, 10.0, "PP 1: filtering");
     PIPEPP_OPTION(marker_area_min_size, 1, "PP 1: filtering");
 
-    struct marker {
-        PIPEPP_DECLARE_OPTION_CATEGORY("Marker");
+    struct input_type {
+        imgproc::img_t const* img_ptr;
+        cv::Size img_size;
 
-        PIPEPP_CATEGORY_OPTION(count_x, 9);
-        PIPEPP_CATEGORY_OPTION(count_y, 5);
-        PIPEPP_CATEGORY_OPTION(felt_width, 1.735f);
-        PIPEPP_CATEGORY_OPTION(felt_height, 0.915f);
-        PIPEPP_CATEGORY_OPTION(dist_from_felt_long, 0.012f);
-        PIPEPP_CATEGORY_OPTION(dist_from_felt_short, 0.012f);
-        PIPEPP_CATEGORY_OPTION(step, 0.206f);
-        PIPEPP_CATEGORY_OPTION(width_shift_a, 0.0f);
-        PIPEPP_CATEGORY_OPTION(width_shift_b, 0.0f);
-        PIPEPP_CATEGORY_OPTION(height_shift_a, 0.0f);
-        PIPEPP_CATEGORY_OPTION(height_shift_b, 0.01f);
+        cv::Vec3f table_pos_init;
+        cv::Vec3f table_rot_init;
+
+        cv::Mat const* debug_mat;
+        std::vector<cv::Vec2f> const* table_contour;
+
+        cv::UMat const* u_hsv;
+
+        cv::Vec2f FOV_degree;
     };
+
+    struct output_type {
+        std::vector<cv::Vec2f> markers;
+        std::vector<float> weights;
+    };
+
+    pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
+    static void link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o);
+};
+
+struct marker_solver {
+    PIPEPP_DECLARE_OPTION_CLASS(marker_solver);
+    PIPEPP_OPTION(enable_debug_glyphs, true, "debug");
+    PIPEPP_OPTION(enable_debug_mats, true, "debug");
 
     struct solver {
         PIPEPP_DECLARE_OPTION_CATEGORY("Solver");
@@ -265,6 +295,10 @@ struct marker_solver {
         cv::UMat const* u_hsv;
 
         cv::Vec2f FOV_degree;
+
+        std::vector<cv::Vec3f> marker_model;
+        std::vector<cv::Vec2f> markers;
+        std::vector<float> weights;
     };
 
     struct output_type {
@@ -274,10 +308,8 @@ struct marker_solver {
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
-    static void link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o);
+    static void link_from_previous(shared_data const& sd, marker_finder::output_type const& i, input_type& o);
     static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
-
-    static void get_marker_points_model(pipepp::execution_context& ec, std::vector<cv::Vec3f>& model);
 };
 
 struct ball_search {
