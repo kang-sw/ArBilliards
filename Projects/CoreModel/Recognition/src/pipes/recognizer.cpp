@@ -22,11 +22,11 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
 
     auto input_proxy = pl->front();
     input_proxy.add_output_handler(&input_resize::output_handler);
-    input_proxy.prelaunch_tweaks().selective_output = true;
+    input_proxy.configure_tweaks().selective_output = true;
 
     { // Optional SLIC scope
         auto superpixels = input_proxy.create_and_link_output("Superpixels", std::thread::hardware_concurrency() / 2, &clustering::link_from_previous, &pipepp::make_executor<clustering>);
-        superpixels.prelaunch_tweaks().is_optional = true;
+        superpixels.configure_tweaks().is_optional = true;
     }
 
     auto contour_search_proxy = input_proxy.create_and_link_output("contour search", 1, &contour_candidate_search::link_from_previous, &pipepp::make_executor<contour_candidate_search>);
