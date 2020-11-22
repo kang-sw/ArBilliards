@@ -1175,6 +1175,43 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
             }
         }
 
+        if (show_debug_mat(ec)) {
+            Vec2f table = input.table_inner_size;
+            float scale = top_view_scale(ec);
+
+            int ball_rad_pxl = ball_radius * scale;
+            Size total_size = (Point)(Vec2i)(input.table_outer_size * scale);
+            Size fit_size = (Point)(Vec2i)(input.table_fit_size * scale);
+            Size inner_size = (Point)(Vec2i)(input.table_inner_size * scale);
+
+            Mat3b table_mat(total_size, Vec3b(62, 62, 118));
+            rectangle(table_mat, Rect((total_size - fit_size) / 2, fit_size), Scalar{243, 0, 26}, -1);
+
+            Mat3b top_view_mat = table_mat(Rect((total_size - inner_size) / 2, inner_size));
+            top_view_mat.setTo(Scalar{196, 74, 86});
+
+            auto inv_tr = get_world_transform_matx_fast(table_pos, table_rot).inv();
+            for (int iter = 0; auto& b : descs) {
+                int index = iter++;
+                int bidx = max(0, index - 1);
+
+                if (ball_weights[index] == 0) {
+                    continue;
+                }
+
+                Vec4f pos4 = (Vec4f&)b.pos;
+                pos4(3) = 1;
+
+                pos4 = inv_tr * pos4;
+                auto pt = Point(pos4[0] * scale, -pos4[2] * scale) + (Point)inner_size / 2;
+
+                circle(top_view_mat, pt, ball_rad_pxl, color_ROW[bidx], -1);
+                putText(top_view_mat, to_string(iter), pt + Point(-6, 11), FONT_HERSHEY_PLAIN, scale * 0.002, {0, 0, 0}, 2);
+            }
+
+            PIPEPP_STORE_DEBUG_DATA("Table Top View", (Mat)table_mat);
+        }
+
         out.new_set = descs;
     }
 
@@ -1195,5 +1232,16 @@ void billiards::pipes::ball_search::link_from_previous(shared_data const& sd, ma
       .table_contour = &sd.table.contour,
       .table_pos = sd.state->table.pos,
       .table_rot = sd.state->table.rot,
+      .table_inner_size = shared_data::table::size::inner(sd),
+      .table_fit_size = shared_data::table::size::fit(sd),
+      .table_outer_size = shared_data::table::size::outer(sd),
     };
+}
+
+void billiards::pipes::ball_search::output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& o)
+{
+    if (e == pipepp::pipe_error::ok) {
+        auto _lck = sd.state->lock();
+        sd.state->balls = o.new_set;
+    }
 }

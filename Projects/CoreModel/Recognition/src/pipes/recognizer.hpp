@@ -54,7 +54,7 @@ struct shared_data : pipepp::base_shared_context {
         struct size {
             PIPEPP_DECLARE_OPTION_CATEGORY("Table.Size");
             PIPEPP_CATEGORY_OPTION(outer, cv::Vec2d(1.8, 0.98));
-            PIPEPP_CATEGORY_OPTION(innter, cv::Vec2d(1.653, 0.823));
+            PIPEPP_CATEGORY_OPTION(inner, cv::Vec2d(1.653, 0.823));
             PIPEPP_CATEGORY_OPTION(fit, cv::Vec2d(1.735, 0.915));
         };
         struct filter {
@@ -406,6 +406,10 @@ struct ball_search {
 
         cv::Vec3f table_pos;
         cv::Vec3f table_rot;
+
+        cv::Vec2f table_inner_size;
+        cv::Vec2f table_fit_size;
+        cv::Vec2f table_outer_size;
     };
     struct output_type {
         ball_position_set new_set;
@@ -413,6 +417,7 @@ struct ball_search {
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& input, output_type& out);
     static void link_from_previous(shared_data const& sd, marker_solver::output_type const& i, input_type& o);
+    static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
 
 private:
     std::vector<cv::Vec2f> normal_random_samples_;
