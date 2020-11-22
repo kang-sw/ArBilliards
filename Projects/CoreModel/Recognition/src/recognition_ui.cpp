@@ -462,7 +462,7 @@ void exec_ui()
     // pl_board.optional_connection_line_color = color(0, 255, 255);
 
     pl_board.events().mouse_down([&](arg_mouse const& arg) { if(arg.mid_button) { pl_board.center();} });
-    pl_board.debug_data_subscriber = [&](string const& basic_string, pipepp::execution_context_data::debug_data_entity const& debug_data_entity) {
+    pl_board.debug_data_subscriber = [&](string_view basic_string, pipepp::execution_context_data::debug_data_entity const& debug_data_entity) {
         if (auto any_ptr = std::get_if<std::any>(&debug_data_entity.data)) {
             if (auto mat_ptr = std::any_cast<cv::Mat>(any_ptr)) {
                 decltype(shown_images)::element_type e;
@@ -478,7 +478,7 @@ void exec_ui()
         is_config_dirty = true;
         fm_caption_dirty();
     };
-    pl_board.debug_data_unchecked = [&](string const& basic_string, pipepp::execution_context_data::debug_data_entity const& debug_data_entity) {
+    pl_board.debug_data_unchecked = [&](string_view basic_string, pipepp::execution_context_data::debug_data_entity const& debug_data_entity) {
         if (auto any_ptr = std::get_if<std::any>(&debug_data_entity.data)) {
             if (auto mat_ptr = std::any_cast<cv::Mat>(any_ptr)) {
                 auto name = fmt::format("{0}/{1}", basic_string, debug_data_entity.name);
