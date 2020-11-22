@@ -52,21 +52,23 @@ struct shared_data : pipepp::base_shared_context {
     PIPEPP_DECLARE_OPTION_CLASS(shared_data);
     struct table {
         struct size {
-            PIPEPP_OPTION(outer, cv::Vec2d(1.8, 0.98), "table");
-            PIPEPP_OPTION(innter, cv::Vec2d(1.653, 0.823), "table");
-            PIPEPP_OPTION(fit, cv::Vec2d(1.735, 0.915), "table");
+            PIPEPP_DECLARE_OPTION_CATEGORY("Table.Size");
+            PIPEPP_CATEGORY_OPTION(outer, cv::Vec2d(1.8, 0.98));
+            PIPEPP_CATEGORY_OPTION(innter, cv::Vec2d(1.653, 0.823));
+            PIPEPP_CATEGORY_OPTION(fit, cv::Vec2d(1.735, 0.915));
         };
         struct filter {
-            PIPEPP_OPTION(alpha_pos, 0.3, "table");
-            PIPEPP_OPTION(alpha_rot, 0.3, "table");
-            PIPEPP_OPTION(jump_threshold_distance, 0.1, "table");
+            PIPEPP_DECLARE_OPTION_CATEGORY("Table.Filter");
+            PIPEPP_CATEGORY_OPTION(alpha_pos, 0.3);
+            PIPEPP_CATEGORY_OPTION(alpha_rot, 0.3);
+            PIPEPP_CATEGORY_OPTION(jump_threshold_distance, 0.1);
         };
     };
 
-    PIPEPP_OPTION(camera_FOV, cv::Vec2d(84.855, 53.27), "common");
+    PIPEPP_OPTION(camera_FOV, cv::Vec2d(84.855, 53.27), "Common");
 
     struct ball {
-        PIPEPP_OPTION(radius, 0.030239439175, "ball");
+        PIPEPP_OPTION(radius, 0.030239439175, "Ball");
     };
 
     // data
@@ -110,19 +112,19 @@ struct input_resize {
 
 struct contour_candidate_search {
     PIPEPP_DECLARE_OPTION_CLASS(contour_candidate_search);
-    PIPEPP_OPTION(table_color_filter_0_lo, cv::Vec3b(175, 150, 60));
-    PIPEPP_OPTION(table_color_filter_1_hi, cv::Vec3b(10, 255, 255));
+    PIPEPP_OPTION(table_color_filter_0_lo, cv::Vec3b(175, 150, 60), "Filter");
+    PIPEPP_OPTION(table_color_filter_1_hi, cv::Vec3b(10, 255, 255), "Filter");
 
-    PIPEPP_OPTION(show_0_filtered, false, "debug");
-    PIPEPP_OPTION(show_1_edge, false, "debug");
+    PIPEPP_OPTION(show_0_filtered, false, "Debug");
+    PIPEPP_OPTION(show_1_edge, false, "Debug");
 
-    PIPEPP_OPTION(area_threshold_ratio, 0.1, "contour", "Minimul pixel size of table candidate area");
-    PIPEPP_OPTION(approx_epsilon_preprocess, 5.0, "contour", "Epsilon value used for approximate table contours");
-    PIPEPP_OPTION(approx_epsilon_convex_hull, 1.0, "contour", "Epsilon value used for approximate table contours after convex hull operation.");
+    PIPEPP_OPTION(area_threshold_ratio, 0.1, "Contour", "Minimul pixel size of table candidate area");
+    PIPEPP_OPTION(approx_epsilon_preprocess, 5.0, "Contour", "Epsilon value used for approximate table contours");
+    PIPEPP_OPTION(approx_epsilon_convex_hull, 1.0, "Contour", "Epsilon value used for approximate table contours after convex hull operation.");
 
     struct preprocess {
-        PIPEPP_OPTION(num_erode_prev, 2, "preprocess", "Number of erode operation before apply dilate. Dilate count determined automatically. ");
-        PIPEPP_OPTION(num_erode_post, 6, "preprocess", "Number of dilate operation after apply dilate. Dilate count is determined automatically.");
+        PIPEPP_OPTION(num_erode_prev, 2, "Preprocess", "Number of erode operation before apply dilate. Dilate count determined automatically. ");
+        PIPEPP_OPTION(num_erode_post, 6, "Preprocess", "Number of dilate operation after apply dilate. Dilate count is determined automatically.");
     };
 
     struct input_type {
@@ -150,27 +152,29 @@ struct table_edge_solver {
                   "PnP",
                   "Minimum required confidence value of full-PNP solver.");
 
-    PIPEPP_OPTION(debug_show_partial_glyphs, true, "debug");
+    PIPEPP_OPTION(debug_show_partial_glyphs, true, "Debug");
 
-    PIPEPP_OPTION(enable_partial_solver, true, "flags");
-    PIPEPP_OPTION(enable_partial_parallel_solve, true, "flags");
+    PIPEPP_OPTION(enable_partial_solver, true, "Flag");
+    PIPEPP_OPTION(enable_partial_parallel_solve, true, "Flag");
 
     struct partial {
+        PIPEPP_DECLARE_OPTION_CATEGORY("Partial");
         struct solver {
-            PIPEPP_OPTION(iteration, 5, "partial.solver");
-            PIPEPP_OPTION(candidates, 266, "partial.solver");
-            PIPEPP_OPTION(rotation_axis_variant, 0.008f, "partial.solver");
-            PIPEPP_OPTION(rotation_amount_variant, 0.007f, "partial.solver");
-            PIPEPP_OPTION(distance_variant, 0.12f, "partial.solver");
-            PIPEPP_OPTION(border_margin, 3, "partial.solver");
-            PIPEPP_OPTION(iteration_narrow_rate, 0.5f, "partial.solver");
-            PIPEPP_OPTION(error_function_base, 1.06, "partial.solver");
+            PIPEPP_DECLARE_OPTION_CATEGORY("Partial.Solver");
+            PIPEPP_CATEGORY_OPTION(iteration, 5);
+            PIPEPP_CATEGORY_OPTION(candidates, 266);
+            PIPEPP_CATEGORY_OPTION(rotation_axis_variant, 0.008f);
+            PIPEPP_CATEGORY_OPTION(rotation_amount_variant, 0.007f);
+            PIPEPP_CATEGORY_OPTION(distance_variant, 0.12f);
+            PIPEPP_CATEGORY_OPTION(border_margin, 3);
+            PIPEPP_CATEGORY_OPTION(iteration_narrow_rate, 0.5f);
+            PIPEPP_CATEGORY_OPTION(error_function_base, 1.06);
         };
 
-        PIPEPP_OPTION(cull_window_top_left, cv::Vec2d(0.05, 0.05), "partial.cull");
-        PIPEPP_OPTION(cull_window_bottom_right, cv::Vec2d(0.95, 0.95), "partial.cull");
+        PIPEPP_OPTION(cull_window_top_left, cv::Vec2d(0.05, 0.05), "Partial.Cull");
+        PIPEPP_OPTION(cull_window_bottom_right, cv::Vec2d(0.95, 0.95), "Partial.Cull");
 
-        PIPEPP_OPTION(apply_weight, 0.3, "partial");
+        PIPEPP_OPTION(apply_weight, 0.3, "Partial");
     };
 
     struct input_type {
@@ -281,7 +285,7 @@ struct ball_search {
     PIPEPP_OPTION(show_debug_mat, false, "Debug");
     PIPEPP_OPTION(show_random_sample, false, "Debug");
     PIPEPP_OPTION(random_sample_scale, 200, "Debug");
-    PIPEPP_OPTION(top_view_scale, 200, "Debug", "Number of pixels per meter");
+    PIPEPP_OPTION(top_view_scale, 600, "Debug", "Pixels per meter");
 
     struct field {
         inline static const std::string _category = "Balls.";
@@ -351,10 +355,9 @@ struct ball_search {
 
     struct movement {
         PIPEPP_DECLARE_OPTION_CATEGORY("Movement");
-        PIPEPP_CATEGORY_OPTION(max_error_speed, 0.0);
-        PIPEPP_CATEGORY_OPTION(alpha_position, 0.0);
-        PIPEPP_CATEGORY_OPTION(jump_distance, 0.0);
-        PIPEPP_CATEGORY_OPTION(confidence_threshold, 0.0);
+        PIPEPP_CATEGORY_OPTION(max_error_speed, 1.3);
+        PIPEPP_CATEGORY_OPTION(alpha_position, 1);
+        PIPEPP_CATEGORY_OPTION(jump_distance, 0.013);
     };
 
     struct input_type {

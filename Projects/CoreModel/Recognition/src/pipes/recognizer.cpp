@@ -1043,9 +1043,75 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
         }
     }
 
-    // 공의 위치를 이전과 비교합니다.
-    using ball_desc_set_t = array<ball_position_desc, 4>;
-    ball_desc_set_t descs;
+    PIPEPP_ELAPSE_BLOCK("Correct ball positions")
+    {
+        // 공의 위치를 이전과 비교합니다.
+        ball_position_set descs;
+        auto prev = input.prev_ball_pos;
+        auto now = chrono::system_clock::now();
+        double max_error_speed = movement::max_error_speed(ec);
+
+        // 만약 0번 공의 weight가 0인 경우, 즉 공이 하나만 감지된 경우
+        // 1번 공의 감지된 위치와 캐시된 0, 1번 공 위치를 비교하고, 1번 공과 더 동떨어진 것을 선택합니다.
+        if (ball_weights[0] == 0 && ball_weights[1]) {
+            auto p1 = ballpos[1];
+            auto diffs = {norm(p1 - prev[0].pos), norm(p1 - prev[1].pos)};
+            auto farther = distance(diffs.begin(), max_element(diffs.begin(), diffs.end()));
+            ball_weights[0] = 0.51f; // magic number ...
+            ballpos[0] = prev[farther].pos;
+        }
+
+        // 이전 위치와 비교해, 자리가 바뀐 경우를 처리합니다.
+        if (ball_weights[1] && ball_weights[0]) {
+            auto p = ballpos[0],
+                 ps0 = prev[0].ps(now),
+                 ps1 = prev[1].ps(now);
+
+            if (norm(ps1 - p) < norm(ps0 - p)) {
+                swap(ballpos[0], ballpos[1]);
+                swap(ball_weights[0], ball_weights[1]);
+            }
+        }
+
+        double alpha = movement::alpha_position(ec);
+        double jump_dist = movement::jump_distance(ec);
+        for (int i = 0; i < 4; ++i) {
+            auto& d = prev[i];
+            auto bidx = std::max(0, i - 1);
+            if (ball_weights[i] < ball_descs[bidx].confidence_threshold) {
+                continue;
+            }
+
+            auto dt = d.dt(now);
+            auto dp = ballpos[i] - d.pos;
+            auto vel_elapsed = dp / dt;
+
+            // 속도 차이가 오차 범위 이내일때만 이를 반영합니다.
+            // 속도가 오차 범위를 벗어난 경우 현재 위치와 속도를 갱신하지 않습니다.
+            //
+            if (norm(vel_elapsed - d.vel) < max_error_speed) {
+                // 만약 jump distance보다 위치 변화가 적다면, LPF로 위치를 누적합니다.
+                if (norm(dp) < jump_dist) {
+                    ballpos[i] = d.pos + (ballpos[i] - d.pos) * alpha;
+                }
+
+                descs[i] = ball_position_desc{.pos = ballpos[i], .vel = vel_elapsed, .tp = now};
+            }
+            else {
+                ball_weights[i] = 0;
+            }
+
+            if (ball_weights[i] && show_debug_mat(ec)) {
+                draw_circle(imdesc, debug, ball_radius, descs[i].pos, color_ROW[max(i - 1, 0)], 1);
+                auto center = project_single_point(imdesc, descs[i].pos);
+                auto pxl_rad = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
+
+                putText(debug, to_string(i + 1), center + Point(-7, -pxl_rad), FONT_HERSHEY_PLAIN, 1.3, {0, 0, 0}, 2);
+            }
+        }
+
+        out.new_set = descs;
+    }
 
     return pipepp::pipe_error::ok;
 }

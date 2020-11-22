@@ -525,6 +525,23 @@ void billiards::imgproc::generate_normalized_sparse_kernel(std::vector<cv::Vec<f
     });
 }
 
+cv::Point billiards::imgproc::project_single_point(img_t const& img, cv::Vec3f vertex, bool is_world)
+{
+    using namespace cv;
+    using namespace std;
+    vector<Vec3f> pos{{0, 0, 0}};
+    vector<Vec2f> pt;
+
+    if (is_world) {
+        project_model(img, pt, vertex, {0, 1, 0}, pos, false);
+    }
+    else {
+        project_model_local(img, pt, pos, false, {});
+    }
+
+    return static_cast<Vec<int, 2>>(pt.front());
+}
+
 std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgproc::estimate_matching_transform(img_t const& img, std::vector<cv::Vec2f> const& input_param, std::vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p)
 {
     using namespace std;
