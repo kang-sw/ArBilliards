@@ -806,9 +806,8 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
     for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
         auto& m = u_match_map[ball_idx];
         auto& bp = ball_descs[ball_idx];
-        cv::Scalar color = bp.color;
-        cv::Scalar weight = bp.weight;
-        weight /= norm(weight);
+        cv::Scalar color = bp.color / 255.f;
+        cv::Scalar weight = bp.weight / norm(bp.weight);
         auto ln_base = log(bp.error_fn_base);
 
         cv::subtract(m, color, u0);
@@ -836,28 +835,27 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
     // 정규화된 랜덤 샘플의 목록을 만듭니다.
     // 일반적으로 샘플의 아래쪽 반원은 음영에 의해 가려지게 되므로, 위쪽 반원의 샘플을 추출합니다.
     // 이는 정규화된 목록으로, 실제 샘플을 추출할때는 추정 중점 위치에서 계산된 반지름을 곱한 뒤 적용합니다.
-
     if (ec.consume_option_dirty_flag()) {
         PIPEPP_ELAPSE_SCOPE("Random Sample Generation")
 
-        normal_random_samples.clear();
-        normal_negative_samples.clear();
+        normal_random_samples_.clear();
+        normal_negative_samples_.clear();
         Vec2f positive_area_range = random_sample::positive_area(ec);
         Vec2f negative_area_range = random_sample::negative_area(ec);
         int rand_seed = random_sample::random_seed(ec), circle_radius = random_sample::integral_radius(ec);
         double rotate_angle = random_sample::rotate_angle(ec);
 
-        generate_normalized_sparse_kernel(normal_random_samples, normal_negative_samples, positive_area_range, negative_area_range, rand_seed, circle_radius, rotate_angle);
+        generate_normalized_sparse_kernel(normal_random_samples_, normal_negative_samples_, positive_area_range, negative_area_range, rand_seed, circle_radius, rotate_angle);
 
         // 샘플을 시각화합니다.
         if (show_random_sample(ec)) {
             int scale = random_sample_scale(ec);
             cv::Mat3b random_sample_visualize(scale, scale);
             random_sample_visualize.setTo(0);
-            for (auto& pt : normal_random_samples) {
+            for (auto& pt : normal_random_samples_) {
                 random_sample_visualize(cv::Point(pt * scale / 4) + cv::Point{scale / 2, scale / 2}) = {0, 255, 0};
             }
-            for (auto& pt : normal_negative_samples) {
+            for (auto& pt : normal_negative_samples_) {
                 auto at = Point(pt * scale / 4) + cv::Point{scale / 2, scale / 2};
                 if (Rect{{}, random_sample_visualize.size()}.contains(at)) {
                     random_sample_visualize(at) = {0, 0, 255};
@@ -866,6 +864,9 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
             PIPEPP_CAPTURE_DEBUG_DATA((Mat)random_sample_visualize);
         }
     }
+
+    auto const& normal_random_samples = normal_random_samples_;
+    auto const& normal_negative_samples = normal_negative_samples_;
 
     cv::Mat1f suitability_field{ROI.size()};
     suitability_field.setTo(0);

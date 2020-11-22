@@ -304,9 +304,19 @@ struct ball_search {
     };
 
     struct random_sample {
+        static bool verify_positive_area(cv::Vec2f& ref)
+        {
+            if (ref[0] > 1 || ref[1] > 1 || ref[0] < 0 || ref[1] < 0) {
+                ref[0] = std::clamp(ref[0], 0.f, 1.f);
+                ref[1] = std::clamp(ref[1], 0.f, 1.f);
+                return false;
+            }
+            return true;
+        }
+
         PIPEPP_DECLARE_OPTION_CATEGORY("Random Sample");
-        PIPEPP_OPTION_CAT(positive_area, cv::Vec2f(1.03, 1.33));
-        PIPEPP_OPTION_CAT(negative_area, cv::Vec2f(0.3, 1));
+        PIPEPP_OPTION_CAT(positive_area, cv::Vec2f(0.3, 1), "", &verify_positive_area);
+        PIPEPP_OPTION_CAT(negative_area, cv::Vec2f(1.03, 1.33));
         PIPEPP_OPTION_CAT(random_seed, 42);
         PIPEPP_OPTION_CAT(integral_radius, 25);
         PIPEPP_OPTION_CAT(rotate_angle, 0);
@@ -343,8 +353,8 @@ struct ball_search {
     static void link_from_previous(shared_data const& sd, marker_solver::output_type const& i, input_type& o);
 
 private:
-    std::vector<cv::Vec2f> normal_random_samples;
-    std::vector<cv::Vec2f> normal_negative_samples;
+    std::vector<cv::Vec2f> normal_random_samples_;
+    std::vector<cv::Vec2f> normal_negative_samples_;
 };
 
 } // namespace billiards::pipes
