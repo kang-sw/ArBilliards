@@ -126,7 +126,7 @@ cv::Matx44f billiards::imgproc::get_world_transform_matx_fast(cv::Vec3f pos, cv:
         world_transform.val[7] = pos[1];
         world_transform.val[11] = pos[2];
         Matx33f rot_mat = rodrigues(rot);
-        copyMatx(world_transform, rot_mat, 0, 0);
+        copy_matx(world_transform, rot_mat, 0, 0);
     }
     return world_transform;
 }
@@ -237,9 +237,9 @@ void billiards::imgproc::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::
     tvec = uvw[3];
 
     Matx33f rmat;
-    copyMatx(rmat, u, 0, 0);
-    copyMatx(rmat, v, 0, 1);
-    copyMatx(rmat, w, 0, 2);
+    copy_matx(rmat, u, 0, 0);
+    copy_matx(rmat, v, 0, 1);
+    copy_matx(rmat, w, 0, 2);
 
     rvec = rodrigues(rmat);
 }
@@ -274,8 +274,7 @@ cv::Vec3f billiards::imgproc::set_filtered_table_rot(cv::Vec3f table_rot, cv::Ve
 
     if (norm(new_rot - table_rot) < jump_threshold) {
         return (1 - alpha) * table_rot + alpha * new_rot;
-    }
-    else {
+    } else {
         return new_rot;
     }
 }
@@ -285,8 +284,7 @@ cv::Vec3f billiards::imgproc::set_filtered_table_pos(cv::Vec3f table_pos, cv::Ve
     using namespace cv;
     if (norm(new_pos - table_pos) < jump_threshold) {
         return (1 - alpha) * table_pos + alpha * new_pos;
-    }
-    else {
+    } else {
         return new_pos;
     }
 }
@@ -442,8 +440,7 @@ void billiards::imgproc::carve_outermost_pixels(cv::InputOutputArray io, cv::Sca
         mat.col(0).setTo(as);
         mat.row(mat.rows - 1).setTo(as);
         mat.col(mat.cols - 1).setTo(as);
-    }
-    else if (io.isMat()) {
+    } else if (io.isMat()) {
         auto mat = io.getMat();
         mat.row(0).setTo(as);
         mat.col(0).setTo(as);
@@ -535,8 +532,7 @@ cv::Point billiards::imgproc::project_single_point(img_t const& img, cv::Vec3f v
 
     if (is_world) {
         project_model(img, pt, vertex, {0, 1, 0}, pos, false);
-    }
-    else {
+    } else {
         project_model_local(img, pt, pos, false, {});
     }
 
@@ -688,8 +684,7 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
                       r = normalize(r + init_rot); // 회전축에 variant 적용
                       float new_rot_amount = norm(init_rot) + distr_rot(rand);
                       r *= new_rot_amount;
-                  }
-                  else {
+                  } else {
                       cand = elem;
                   }
 
@@ -702,8 +697,7 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
                   // 컨투어 개수가 달라도 기각함에 유의!
                   if (ch_mapped.empty() || ch_mapped.size() != input.size()) {
                       cand.error = numeric_limits<float>::max();
-                  }
-                  else {
+                  } else {
                       fit_contour_to_screen(ch_mapped, p.contour_cull_rect);
                       float dist_min = contour_distance(input, ch_mapped);
                       cand.error = dist_min;
@@ -711,8 +705,7 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
 
                   elem = cand;
               });
-        }
-        else {
+        } else {
             vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
             vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
             mt19937 rand(random_device{}());
@@ -770,8 +763,7 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
             init_rot = min_it->rot;
 
             cands = {*min_it};
-        }
-        else {
+        } else {
             // 애초에 테이블의 tvec, rvec이 없었던 경우 탐색에 실패할 수 있습니다.
             return {};
         }
@@ -888,8 +880,7 @@ void billiards::imgproc::filter_hsv(cv::InputArray input, cv::OutputArray output
 
         bitwise_or(hi, lo, temp);
         bitwise_and(temp, mask, output);
-    }
-    else {
+    } else {
         inRange(input, min_hsv, max_hsv, output);
     }
 }

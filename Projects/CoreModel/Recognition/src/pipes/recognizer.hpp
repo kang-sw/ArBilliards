@@ -98,6 +98,11 @@ struct shared_data : pipepp::base_shared_context {
     cv::Mat rgb, hsv;
     cv::UMat u_rgb, u_hsv;
 
+    struct cluster_type {
+        cv::Mat1i label_2d_spxl;
+        cv::Mat1i label_cluster_1darray; // super pixel의 대응되는 array 집합
+    } cluster;
+
     struct {
         std::vector<cv::Vec2f> contour;
 

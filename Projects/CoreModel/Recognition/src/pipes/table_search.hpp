@@ -109,8 +109,7 @@ public:
         superpixel::output_type clusters;
     };
 
-    struct output_type {
-    };
+    using output_type = shared_data::cluster_type;
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& in, output_type& out);
     static void link_from_previous(shared_data const& sd, superpixel::output_type const& o, input_type& i);
@@ -118,6 +117,13 @@ public:
 private:
     std::vector<cv::Vec<int32_t, 6>> spxl_sum;
     std::vector<cv::Vec<float, 5>> spxl_kmeans_param;
+};
+
+/**
+ * TODO: 클러스터 라벨 배열의 경계선 이미지를 획득하고, 여기서 hough 변환을 통해 모든 직선 후보를 찾습니다. 만나는 직선들로부터 모든 선분을 찾아내고, 선분으로부터 구성될 수 있는 모든 도형을 찾아냅니다. 이후 각 도형에 대해, 각 클러스터의 중심점을 iterate해, 테이블 색상과 가까운 클러스터가 가장 많이 포함되면서, 테이블 색상이 아닌 클러스터를 전혀 포함하지 않는 가장 큰 도형을 찾아냅니다. 이것이 테이블의 후보 사각형이 됩니다.
+ */
+class table_line_finding
+{
 };
 
 } // namespace billiards::pipes
