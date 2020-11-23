@@ -26,7 +26,7 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     input_proxy.configure_tweaks().selective_output = true;
 
     { // Optional SLIC scope
-        auto superpixels = input_proxy.create_and_link_output("clustering", std::thread::hardware_concurrency() / 2, &clustering::link_from_previous, &pipepp::make_executor<clustering>);
+        auto superpixels = input_proxy.create_and_link_output("superpixel", std::thread::hardware_concurrency() / 2, &superpixel::link_from_previous, &pipepp::make_executor<superpixel>);
     }
 
     auto contour_search_proxy

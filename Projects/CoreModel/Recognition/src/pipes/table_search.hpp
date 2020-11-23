@@ -3,10 +3,10 @@
 
 namespace billiards::pipes
 {
-class clustering
+class superpixel
 {
 public:
-    PIPEPP_DECLARE_OPTION_CLASS(clustering);
+    PIPEPP_DECLARE_OPTION_CLASS(superpixel);
     PIPEPP_OPTION(target_image_width, 1280, "Common");
     PIPEPP_OPTION(true_SLIC_false_SEEDS, true, "flags");
 
@@ -37,8 +37,8 @@ public:
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& o);
 
 public:
-    clustering();
-    ~clustering();
+    superpixel();
+    ~superpixel();
 
 private:
     struct implmentation;

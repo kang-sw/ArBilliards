@@ -12,14 +12,14 @@ struct SEEDS_setting {
 
 using cv::ximgproc::SuperpixelSEEDS;
 
-struct billiards::pipes::clustering::implmentation {
+struct billiards::pipes::superpixel::implmentation {
     SEEDS_setting setting_cache = {};
     cv::Ptr<SuperpixelSEEDS> engine;
 
     cv::Mat out_array;
 };
 
-pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_context& ec, input_type const& i, output_type& o)
+pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_context& ec, input_type const& i, output_type& o)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     auto cielab = i.cielab;
@@ -99,14 +99,14 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
     }
 }
 
-billiards::pipes::clustering::clustering()
+billiards::pipes::superpixel::superpixel()
     : impl_(std::make_unique<implmentation>())
 {
 }
 
-billiards::pipes::clustering::~clustering() = default;
+billiards::pipes::superpixel::~superpixel() = default;
 
-void billiards::pipes::clustering::link_from_previous(shared_data const& sd, input_resize::output_type const& i, input_type& o)
+void billiards::pipes::superpixel::link_from_previous(shared_data const& sd, input_resize::output_type const& i, input_type& o)
 {
     cv::cvtColor(sd.rgb, o.cielab, cv::COLOR_RGB2Lab);
 }
