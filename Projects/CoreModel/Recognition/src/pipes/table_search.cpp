@@ -133,9 +133,25 @@ billiards::pipes::superpixel::superpixel()
 
 billiards::pipes::superpixel::~superpixel() = default;
 
-void billiards::pipes::superpixel::link_from_previous(shared_data& sd, input_resize::output_type const& i, input_type& o)
+void billiards::pipes::superpixel::link_from_previous(shared_data& sd, pipepp::execution_context& ec, input_type& o)
 {
-    o.rgb = sd.rgb;
+    using opt = link::preprocess;
+    if (opt::enable_hsv_adjust(sd)) {
+        PIPEPP_REGISTER_CONTEXT(ec);
+        using namespace cv;
+
+        Mat1b ch[3];
+        Mat3b hsv;
+
+        split(sd.hsv, ch);
+        ch[2] = ch[2] * opt::v_mult(sd) + opt::v_add(sd);
+
+        merge(ch, 3, hsv);
+        cvtColor(hsv, o.rgb, cv::COLOR_HSV2RGB);
+        PIPEPP_STORE_DEBUG_DATA("Adjusted RGB", o.rgb);
+    } else {
+        o.rgb = sd.rgb;
+    }
 }
 
 void billiards::pipes::superpixel::output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& o)

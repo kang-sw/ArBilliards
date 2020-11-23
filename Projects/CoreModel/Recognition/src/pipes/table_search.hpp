@@ -60,7 +60,17 @@ private:
     int convert_to = -1, convert_from = -1;
 
 public:
-    static void link_from_previous(shared_data&, input_resize::output_type const&, input_type&);
+    struct link {
+        PIPEPP_DECLARE_OPTION_CLASS(shared_data);
+        struct preprocess {
+            PIPEPP_DECLARE_OPTION_CATEGORY("Processing.Clustering.Preprocess");
+            PIPEPP_CATEGORY_OPTION(enable_hsv_adjust, true);
+
+            PIPEPP_CATEGORY_OPTION(v_mult, 1.33);
+            PIPEPP_CATEGORY_OPTION(v_add, 100);
+        };
+    };
+    static void link_from_previous(shared_data&, pipepp::execution_context&, input_type&);
     static void output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& o);
 };
 
