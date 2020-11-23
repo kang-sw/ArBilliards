@@ -94,7 +94,7 @@ struct shared_data : pipepp::base_shared_context {
 
     cv::Mat debug_mat;
 
-    cv::Mat cielab;
+    cv::Mat cluster_color_mat;
     cv::Mat rgb, hsv;
     cv::UMat u_rgb, u_hsv;
 

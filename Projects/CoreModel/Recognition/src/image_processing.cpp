@@ -569,6 +569,32 @@ std::string billiards::imgproc::mat_info_str(cv::Mat const& i)
     return r;
 }
 
+void billiards::imgproc::color_space_to_flag(kangsw::hash_index cls, int& to, int& from)
+{
+    using namespace kangsw::literals;
+    switch (cls) {
+        case "Lab"_hash:
+            to = cv::COLOR_RGB2Lab, from = cv::COLOR_Lab2RGB;
+            break;
+        case "YCrCb"_hash:
+            to = cv::COLOR_RGB2YCrCb, from = cv::COLOR_YCrCb2RGB;
+            break;
+        case "YUV"_hash:
+            to = cv::COLOR_RGB2YUV, from = cv::COLOR_YUV2RGB;
+            break;
+        case "HLS"_hash:
+            to = cv::COLOR_RGB2HLS, from = cv::COLOR_HLS2RGB;
+            break;
+        case "HSV"_hash:
+            to = cv::COLOR_RGB2HSV, from = cv::COLOR_HSV2RGB;
+            break;
+        case "RGB"_hash: [[fallthrough]];
+        default:
+            to = -1, from = -1;
+            break;
+    }
+}
+
 std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgproc::estimate_matching_transform(img_t const& img, std::vector<cv::Vec2f> const& input_param, std::vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p)
 {
     using namespace std;

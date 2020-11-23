@@ -5,6 +5,7 @@
 #include "recognition.hpp"
 #include "kangsw/counter.hxx"
 #include "kangsw/for_each.hxx"
+#include "kangsw/hash_index.hxx"
 
 namespace billiards::imgproc
 {
@@ -57,6 +58,7 @@ void generate_normalized_sparse_kernel(std::vector<cv::Vec<float, 2>>& normal_ra
 cv::Point project_single_point(img_t const& img, cv::Vec3f vertex, bool is_world = true);
 
 std::string mat_info_str(cv::Mat const& i);
+void color_space_to_flag(kangsw::hash_index cls, int& to, int& from);
 
 struct transform_estimation_param_t {
     int num_iteration = 10;

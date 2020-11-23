@@ -1,8 +1,11 @@
 #include "table_search.hpp"
 
+#include <opencv2/imgproc.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/ximgproc/seeds.hpp>
 #include <opencv2/ximgproc/slic.hpp>
+
+#include "kangsw/hash_index.hxx"
 
 struct SEEDS_setting {
     cv::Size sz;
@@ -22,32 +25,46 @@ struct billiards::pipes::superpixel::implmentation {
 pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_context& ec, input_type const& i, output_type& o)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
-    auto cielab = i.cielab;
+    auto color_mat = i.rgb;
 
-    if (auto width = target_image_width(ec); width < i.cielab.cols) {
+    if (auto width = target_image_width(ec); width < i.rgb.cols) {
         PIPEPP_ELAPSE_SCOPE("Resize Image");
 
-        auto size = cielab.size();
+        auto size = color_mat.size();
         auto ratio = (double)width / size.width;
 
         size = cv::Size2d(size) * ratio;
 
         cv::Mat temp;
-        cv::resize(cielab, temp, size, 0, 0, cv::INTER_NEAREST);
-        cielab = temp;
+        cv::resize(color_mat, temp, size, 0, 0, cv::INTER_NEAREST);
+        color_mat = temp;
+    }
+
+    bool const option_is_dirty = ec.consume_option_dirty_flag();
+
+    if (option_is_dirty) {
+        auto cls = kangsw::hash_index(color_space(ec));
+        imgproc::color_space_to_flag(cls, convert_to, convert_from);
+    }
+
+    o.color_convert_to = convert_to;
+    o.color_convert_from = convert_from;
+
+    if (convert_to != -1) {
+        cv::cvtColor(color_mat, color_mat, convert_to);
     }
 
     if (!true_SLIC_false_SEEDS(ec)) {
         auto& m = *impl_;
 
-        auto size = cielab.size();
+        auto size = color_mat.size();
         SEEDS_setting setting = {
           .sz = size,
           .num_segs = num_segments(ec),
           .num_levels = num_levels(ec),
         };
 
-        if (ec.consume_option_dirty_flag()) {
+        if (option_is_dirty) {
             PIPEPP_ELAPSE_SCOPE("Recreate superpixel engine");
             m.engine = cv::ximgproc::createSuperpixelSEEDS(
               size.width, size.height, 3, setting.num_segs, setting.num_levels);
@@ -57,14 +74,18 @@ pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_contex
 
         PIPEPP_ELAPSE_BLOCK("Apply algorithm")
         {
-            m.engine->iterate(cielab, SEEDS::num_iter(ec));
+            m.engine->iterate(color_mat, std::min(size.area() / 10, SEEDS::num_iter(ec)));
         }
 
         if (show_segmentation_result(ec)) {
             PIPEPP_ELAPSE_SCOPE("Visualize segmentation result");
             cv::Mat display;
             cv::Mat show;
-            cv::cvtColor(cielab, show, cv::COLOR_Lab2RGB);
+            if (convert_from != -1) {
+                cv::cvtColor(color_mat, show, convert_from);
+            } else {
+                show = color_mat.clone();
+            }
             m.engine->getLabelContourMask(display);
             show.setTo(segmentation_devider_color(ec), display);
 
@@ -72,14 +93,13 @@ pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_contex
         }
 
         m.engine->getLabels(o.labels);
-    }
-    else {
+    } else {
         int algos[] = {cv::ximgproc::SLICO, cv::ximgproc::MSLIC, cv::ximgproc::SLIC};
         auto algo = algos[std::clamp(algo_index_SLICO_MSLIC_SLIC(ec), 0, 2)];
         cv::Ptr<cv::ximgproc::SuperpixelSLIC> engine;
 
         PIPEPP_ELAPSE_BLOCK("Create SLIC instance")
-        engine = cv::ximgproc::createSuperpixelSLIC(cielab, algo, region_size(ec), ruler(ec));
+        engine = cv::ximgproc::createSuperpixelSLIC(color_mat, algo, region_size(ec), ruler(ec));
 
         PIPEPP_ELAPSE_BLOCK("Iterate SLIC algorithm")
         engine->iterate(SLIC::num_iter(ec));
@@ -88,7 +108,11 @@ pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_contex
             PIPEPP_ELAPSE_SCOPE("Visualize segmentation result");
             cv::Mat display;
             cv::Mat show;
-            cv::cvtColor(cielab, show, cv::COLOR_Lab2RGB);
+            if (convert_from != -1) {
+                cv::cvtColor(color_mat, show, convert_from);
+            } else {
+                show = color_mat.clone();
+            }
             engine->getLabelContourMask(display);
             show.setTo(segmentation_devider_color(ec), display);
 
@@ -98,7 +122,7 @@ pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_contex
         engine->getLabels(o.labels);
     }
 
-    o.resized_cielab = cielab;
+    o.resized_cluster_color_mat = color_mat;
     return pipepp::pipe_error::ok;
 }
 
@@ -111,22 +135,22 @@ billiards::pipes::superpixel::~superpixel() = default;
 
 void billiards::pipes::superpixel::link_from_previous(shared_data& sd, input_resize::output_type const& i, input_type& o)
 {
-    cv::cvtColor(sd.rgb, o.cielab, cv::COLOR_RGB2Lab);
-    sd.cielab = o.cielab;
+    o.rgb = sd.rgb;
 }
 
-void billiards::pipes::superpixel::output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& out)
+void billiards::pipes::superpixel::output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& o)
 {
+    sd.cluster_color_mat = o.resized_cluster_color_mat;
 }
 
-static void LABXY_to_RGB(cv::Mat_<cv::Vec<float, 5>> centers, cv::Mat3b& center_colors)
+static void LABXY_to_RGB(cv::Mat_<cv::Vec<float, 5>> centers, cv::Mat3b& center_colors, int convert_from)
 {
     cv::Mat tmp[5];
     cv::Mat3f t1;
     split(centers, tmp);
     merge(tmp, 3, t1);
     t1.convertTo(center_colors, CV_8UC3, 255);
-    cvtColor(center_colors, center_colors, cv::COLOR_Lab2RGB);
+    if (convert_from != -1) { cvtColor(center_colors, center_colors, convert_from); }
 }
 
 pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
@@ -137,12 +161,15 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
     using namespace imgproc;
 
     using Mat5f = Mat_<cv::Vec<float, 5>>;
-    auto& [cielab, label] = in.clusters;
+    auto& ic = in.clusters;
+    auto& cluster_color_mat = ic.resized_cluster_color_mat;
+    auto& spxl_labels = ic.labels;
+
     int num_labels = 0;
-    for (auto v : label) { num_labels = max(v, num_labels); }
+    for (auto v : spxl_labels) { num_labels = max(v, num_labels); }
     num_labels += 1;
 
-    auto spatial_weight = sqrt(label.size().area());
+    auto spatial_weight = sqrt(spxl_labels.size().area());
 
     // k-means clustering을 수행합니다.
     // 항상 우하단 픽셀이 최대값이라 가정
@@ -158,12 +185,12 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
 
     PIPEPP_ELAPSE_BLOCK("Calculate sum/average of all channels")
     {
-        auto size = label.size();
+        auto size = spxl_labels.size();
         auto constexpr _0_to_3 = kangsw::iota{3};
         for (auto row : kangsw::iota{size.height}) {
             for (auto col : kangsw::iota{size.width}) {
-                auto color = cielab(row, col);
-                auto index = label(row, col);
+                auto color = cluster_color_mat(row, col);
+                auto index = spxl_labels(row, col);
 
                 auto& at = spxl_sum.at(index);
                 auto& [l, a, b, x, y, cnt] = at.val;
@@ -187,13 +214,17 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
         for (auto& p : spxl_centers) { p = Vec<float, 5>{p.div(weights).val}; }
 
         Mat3b spxl_center_colors;
-        LABXY_to_RGB(spxl_centers, spxl_center_colors);
-        auto image = index_by(spxl_center_colors, label);
+        LABXY_to_RGB(spxl_centers, spxl_center_colors, ic.color_convert_from);
+        auto image = index_by(spxl_center_colors, spxl_labels);
         PIPEPP_STORE_DEBUG_DATA("Superpixel result", (Mat)image);
     }
 
-    PIPEPP_ELAPSE_BLOCK("Apply k-means")
     {
+        // superpixel의 label matrix의 gradient를 계산해
+    }
+
+    if (kmeans::enabled(ec)) {
+        PIPEPP_ELAPSE_SCOPE("Apply k-means")
         Mat1i kmeans_labels;
         int n_cluster = kmeans::N_cluster(ec);
         TermCriteria criteria{
@@ -213,9 +244,9 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
         if (debug::show_kmeans_result(ec)) {
             PIPEPP_ELAPSE_SCOPE("k-means visualize");
             Mat3b center_colors;
-            LABXY_to_RGB(centers, center_colors);
+            LABXY_to_RGB(centers, center_colors, ic.color_convert_from);
             auto spxl_colors = index_by(center_colors, kmeans_labels);
-            auto colors = index_by(spxl_colors, label);
+            auto colors = index_by(spxl_colors, spxl_labels);
             PIPEPP_STORE_DEBUG_DATA("k-means result", (Mat)colors);
         }
     }

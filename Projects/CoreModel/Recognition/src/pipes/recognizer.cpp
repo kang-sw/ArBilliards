@@ -181,6 +181,8 @@ pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_cont
         testcode("LAB", "LAB", cv::COLOR_RGB2Lab);
         testcode("Luv", "Luv", cv::COLOR_RGB2Luv);
         testcode("YUV", "YUV", cv::COLOR_RGB2YUV);
+        testcode("HLS", "HLS", cv::COLOR_RGB2HLS);
+        testcode("YCrCb", "YRB", cv::COLOR_RGB2YCrCb);
     }
 
     out.img_size = cv::Size(width, height);

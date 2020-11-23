@@ -8,6 +8,16 @@ class superpixel
 public:
     PIPEPP_DECLARE_OPTION_CLASS(superpixel);
     PIPEPP_OPTION(target_image_width, 1280, "Common");
+    PIPEPP_OPTION(color_space,
+                  std::string("Lab"),
+                  "Common",
+                  R"(Input must be one of "Lab", "YCrCb", "RGB", "YUV", "HLS", "HSV")",
+                  ([](std::string& str) {
+                      static const std::set<std::string> valids = {"Lab", "YCrCb", "RGB", "YUV", "HLS", "HSV"};
+                      if (valids.contains(str) == false) { return str = *valids.begin(), false; }
+                      return true;
+                  }));
+
     PIPEPP_OPTION(true_SLIC_false_SEEDS, true, "flags");
 
     struct SEEDS {
@@ -27,12 +37,15 @@ public:
     PIPEPP_OPTION(ruler, 20, "SLIC");
 
     struct input_type {
-        cv::Mat cielab;
+        cv::Mat rgb;
     };
 
     struct output_type {
-        cv::Mat3b resized_cielab;
+        cv::Mat3b resized_cluster_color_mat;
         cv::Mat1i labels;
+
+        int color_convert_to;
+        int color_convert_from;
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& o);
@@ -44,10 +57,11 @@ public:
 private:
     struct implmentation;
     std::unique_ptr<implmentation> impl_;
+    int convert_to = -1, convert_from = -1;
 
 public:
     static void link_from_previous(shared_data&, input_resize::output_type const&, input_type&);
-    static void output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& out);
+    static void output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& o);
 };
 
 class clustering
@@ -69,6 +83,8 @@ public:
 
         PIPEPP_CATEGORY_OPTION(N_cluster, 52, "Number of Clusters");
         PIPEPP_CATEGORY_OPTION(attempts, 10);
+
+        PIPEPP_CATEGORY_OPTION(enabled, false);
 
         struct criteria {
             PIPEPP_DECLARE_OPTION_CATEGORY("Criteria");
