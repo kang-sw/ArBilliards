@@ -53,6 +53,32 @@ public:
 class clustering
 {
 public:
+    PIPEPP_DECLARE_OPTION_CLASS(clustering);
+    struct debug {
+        PIPEPP_DECLARE_OPTION_CATEGORY("Debug");
+        PIPEPP_CATEGORY_OPTION(show_kmeans_result, false);
+        PIPEPP_CATEGORY_OPTION(show_superpixel_result, false);
+    };
+
+    PIPEPP_OPTION(weights_L_A_B_XY, (cv::Vec<float, 4>(1.0, 1.0, 1.0, 1.0)));
+
+    struct kmeans {
+        PIPEPP_DECLARE_OPTION_CATEGORY("k-means");
+        PIPEPP_CATEGORY_OPTION(flag_enable_cluster_count_estimation, false, "Automatically calculates number of clusters.");
+        PIPEPP_CATEGORY_OPTION(flag_centoring_true_RANDOM_false_PP, false);
+
+        PIPEPP_CATEGORY_OPTION(N_cluster, 52, "Number of Clusters");
+        PIPEPP_CATEGORY_OPTION(attempts, 10);
+
+        struct criteria {
+            PIPEPP_DECLARE_OPTION_CATEGORY("Criteria");
+            PIPEPP_CATEGORY_OPTION(true_EPSILON_false_ITER, false);
+            PIPEPP_CATEGORY_OPTION(epsilon, 1.0);
+            PIPEPP_CATEGORY_OPTION(N_iter, 3);
+        };
+    };
+
+public:
     struct input_type {
         superpixel::output_type clusters;
     };
@@ -65,6 +91,7 @@ public:
 
 private:
     std::vector<cv::Vec<int32_t, 6>> spxl_sum;
+    std::vector<cv::Vec<float, 5>> spxl_kmeans_param;
 };
 
 } // namespace billiards::pipes

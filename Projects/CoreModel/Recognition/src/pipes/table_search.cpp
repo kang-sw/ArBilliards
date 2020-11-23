@@ -98,7 +98,6 @@ pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_contex
         engine->getLabels(o.labels);
     }
 
-    PIPEPP_STORE_DEBUG_DATA("Number of Superpixels", *(o.labels.end() - 1));
     o.resized_cielab = cielab;
     return pipepp::pipe_error::ok;
 }
@@ -120,21 +119,105 @@ void billiards::pipes::superpixel::output_handler(pipepp::pipe_error e, shared_d
 {
 }
 
+static void LABXY_to_RGB(cv::Mat_<cv::Vec<float, 5>> centers, cv::Mat3b& center_colors)
+{
+    cv::Mat tmp[5];
+    cv::Mat3f t1;
+    split(centers, tmp);
+    merge(tmp, 3, t1);
+    t1.convertTo(center_colors, CV_8UC3, 255);
+    cvtColor(center_colors, center_colors, cv::COLOR_Lab2RGB);
+}
+
 pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using namespace cv;
     using namespace std;
+    using namespace imgproc;
 
+    using Mat5f = Mat_<cv::Vec<float, 5>>;
     auto& [cielab, label] = in.clusters;
+    int num_labels = 0;
+    for (auto v : label) { num_labels = max(v, num_labels); }
+    num_labels += 1;
+
+    auto spatial_weight = sqrt(label.size().area());
+
     // k-means clustering을 수행합니다.
     // 항상 우하단 픽셀이 최대값이라 가정
     spxl_sum.clear();
-    spxl_sum.resize(*(label.end() - 1));
+    spxl_sum.resize(num_labels);
+    spxl_kmeans_param.clear();
+    spxl_kmeans_param.resize(num_labels);
     PIPEPP_STORE_DEBUG_DATA("Initial number of superpixels", spxl_sum.size());
 
-    PIPEPP_ELAPSE_BLOCK("Calculate sum of all channels")
+    auto _weights = weights_L_A_B_XY(ec);
+    auto weights = concat_vec(_weights, _weights[3]);
+    subvec<3, 2>(weights) /= spatial_weight;
+
+    PIPEPP_ELAPSE_BLOCK("Calculate sum/average of all channels")
     {
+        auto size = label.size();
+        auto constexpr _0_to_3 = kangsw::iota{3};
+        for (auto row : kangsw::iota{size.height}) {
+            for (auto col : kangsw::iota{size.width}) {
+                auto color = cielab(row, col);
+                auto index = label(row, col);
+
+                auto& at = spxl_sum.at(index);
+                auto& [l, a, b, x, y, cnt] = at.val;
+                subvec<0, 3>(at) += color;
+                x += col, y += row;
+                ++cnt;
+            }
+        }
+
+        for (auto [dst, src] : kangsw::zip(spxl_kmeans_param, spxl_sum)) {
+            dst = Vec<int, 5>(src.val);
+            dst /= std::max(1, src[5]);
+            for (auto i : _0_to_3) { dst(i) /= 255.f; } // to values
+            dst = dst.mul(weights);
+        }
+    }
+
+    if (debug::show_superpixel_result(ec)) {
+        PIPEPP_ELAPSE_SCOPE("Superpixel result display")
+        Mat5f spxl_centers{spxl_kmeans_param, true};
+        for (auto& p : spxl_centers) { p = Vec<float, 5>{p.div(weights).val}; }
+
+        Mat3b spxl_center_colors;
+        LABXY_to_RGB(spxl_centers, spxl_center_colors);
+        auto image = index_by(spxl_center_colors, label);
+        PIPEPP_STORE_DEBUG_DATA("Superpixel result", (Mat)image);
+    }
+
+    PIPEPP_ELAPSE_BLOCK("Apply k-means")
+    {
+        Mat1i kmeans_labels;
+        int n_cluster = kmeans::N_cluster(ec);
+        TermCriteria criteria{
+          kmeans::criteria::true_EPSILON_false_ITER(ec) ? TermCriteria::EPS : TermCriteria::MAX_ITER,
+          kmeans::criteria::N_iter(ec),
+          kmeans::criteria::epsilon(ec),
+        };
+        int attempts = kmeans::attempts(ec);
+        int flag = kmeans::flag_centoring_true_RANDOM_false_PP(ec) ? KMEANS_RANDOM_CENTERS : KMEANS_PP_CENTERS;
+
+        Mat5f centers;
+
+        cv::kmeans(spxl_kmeans_param, n_cluster, kmeans_labels, criteria, attempts, flag, centers);
+        for (auto& p : centers) { p = Vec<float, 5>{p.div(weights).val}; }
+        PIPEPP_CAPTURE_DEBUG_DATA(mat_info_str(centers));
+
+        if (debug::show_kmeans_result(ec)) {
+            PIPEPP_ELAPSE_SCOPE("k-means visualize");
+            Mat3b center_colors;
+            LABXY_to_RGB(centers, center_colors);
+            auto spxl_colors = index_by(center_colors, kmeans_labels);
+            auto colors = index_by(spxl_colors, label);
+            PIPEPP_STORE_DEBUG_DATA("k-means result", (Mat)colors);
+        }
     }
 
     return pipepp::pipe_error::ok;

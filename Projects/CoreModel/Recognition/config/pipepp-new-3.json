@@ -1,0 +1,281 @@
+{
+    "___pipes": {
+        "ball finder": {
+            "Balls.Orange.color": [
+                90.0,
+                210.0
+            ],
+            "Balls.Orange.confidence_threshold": 0.5,
+            "Balls.Orange.error_fn_base": 30000.0,
+            "Balls.Orange.matching_negative_weight": 3.0,
+            "Balls.Orange.suitability_threshold": 0.35,
+            "Balls.Orange.weight_hs": [
+                2.0,
+                3.0
+            ],
+            "Balls.Red.color": [
+                130.0,
+                205.0
+            ],
+            "Balls.Red.confidence_threshold": 0.5,
+            "Balls.Red.error_fn_base": 1300000.0,
+            "Balls.Red.matching_negative_weight": 1.2,
+            "Balls.Red.second_ball_erase_radius_adder": 5,
+            "Balls.Red.suitability_threshold": 0.2,
+            "Balls.Red.weight_hs": [
+                4.0,
+                1.0
+            ],
+            "Balls.White.color": [
+                80,
+                30
+            ],
+            "Balls.White.confidence_threshold": 0.2,
+            "Balls.White.error_fn_base": 30000.0,
+            "Balls.White.matching_negative_weight": 3.0,
+            "Balls.White.suitability_threshold": 0.22,
+            "Balls.White.weight_hs": [
+                0.20000000298023224,
+                1.0
+            ],
+            "Debug.random_sample_scale": 200,
+            "Debug.show_debug_mat": true,
+            "Debug.show_random_sample": true,
+            "Debug.top_view_scale": 600,
+            "Matching.confidence_weight": 1,
+            "Matching.cushion_center_gap": 0.0,
+            "Matching.enable_parallel": true,
+            "Matching.min_pixel_radius": 1,
+            "Matching.num_candidate_dilate": 6,
+            "Matching.num_candidate_erode": 6,
+            "Matching.num_maximum_sample": 100000,
+            "Movement.alpha_position": 1,
+            "Movement.jump_distance": 0.013,
+            "Movement.max_error_speed": 1.3,
+            "Random Sample.integral_radius": 25,
+            "Random Sample.negative_area": [
+                1.0299999713897705,
+                1.3300000429153442
+            ],
+            "Random Sample.positive_area": [
+                0.30000001192092896,
+                1.0
+            ],
+            "Random Sample.random_seed": 42,
+            "Random Sample.rotate_angle": 0
+        },
+        "clustering": {
+            ".weights_L_A_B_XY": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+            ],
+            "Criteria.N_iter": 10,
+            "Criteria.epsilon": 1,
+            "Criteria.true_EPSILON_false_ITER": false,
+            "Debug.show_kmeans_result": false,
+            "k-means.N_cluster": 53,
+            "k-means.attempts": 5,
+            "k-means.flag_centoring_true_RANDOM_false_PP": false,
+            "k-means.flag_enable_cluster_count_estimation": false
+        },
+        "contour search": {
+            "Contour.approx_epsilon_convex_hull": 11,
+            "Contour.approx_epsilon_preprocess": 5.0,
+            "Contour.area_threshold_ratio": 0.1,
+            "Debug.show_debug_mat": false,
+            "Filter.table_color_filter_0_lo": [
+                175,
+                150,
+                60
+            ],
+            "Filter.table_color_filter_1_hi": [
+                10,
+                255,
+                255
+            ],
+            "Preprocess.num_erode_post": 6,
+            "Preprocess.num_erode_prev": 2
+        },
+        "input": {
+            ".desired_image_width": 1280,
+            "Debug.show_sources": false,
+            "Debug.test_color_spaces": false
+        },
+        "marker finder": {
+            "PP 0: Marker area.num_insert_contour_vtx": 5,
+            "PP 0: Marker area.table_border_range_inner": 0.02,
+            "PP 0: Marker area.table_border_range_outer": 0.06,
+            "PP 1: filtering.laplacian_mask_threshold": 0.5,
+            "PP 1: filtering.marker_area_max_rad": 10.0,
+            "PP 1: filtering.marker_area_min_rad": 0.5,
+            "PP 1: filtering.marker_area_min_size": 1,
+            "debug.enable_debug_glyphs": true,
+            "debug.enable_debug_mats": true,
+            "debug.show_marker_area_mask": false
+        },
+        "marker solver": {
+            "Solver.confidence_amp": 1.5,
+            "Solver.do_parallel": true,
+            "Solver.error_base": 1.14,
+            "Solver.iteration": 5,
+            "Solver.min_valid_marker_size": 1.2,
+            "Solver.narrow_rate_pos": 0.5,
+            "Solver.narrow_rate_rot": 0.5,
+            "Solver.num_cands": 600,
+            "Solver.num_iter": 5,
+            "Solver.variant_pos": 0.1,
+            "Solver.variant_rot": 0.1,
+            "Solver.variant_rot_axis": 0.005,
+            "debug.enable_debug_glyphs": true,
+            "debug.enable_debug_mats": true
+        },
+        "output": {
+            "Debug.show_debug_mat": false
+        },
+        "superpixel": {
+            "Common.target_image_width": 480,
+            "SEEDS.num_iter": 4,
+            "SEEDS.num_levels": 5,
+            "SEEDS.num_segments": 1024,
+            "SLIC.algo_index_SLICO_MSLIC_SLIC": 2,
+            "SLIC.num_iter": 2,
+            "SLIC.region_size": 20,
+            "SLIC.ruler": 10,
+            "debug.segmentation_devider_color": [
+                255,
+                0,
+                255
+            ],
+            "debug.show_segmentation_result": true,
+            "flags.true_SLIC_false_SEEDS": true
+        },
+        "table edge solver": {
+            "Debug.debug_show_partial_glyphs": true,
+            "Flag.enable_partial_parallel_solve": true,
+            "Flag.enable_partial_solver": true,
+            "Partial.Cull.cull_window_bottom_right": [
+                0.95,
+                0.95
+            ],
+            "Partial.Cull.cull_window_top_left": [
+                0.05,
+                0.05
+            ],
+            "Partial.Solver.border_margin": 3,
+            "Partial.Solver.candidates": 266,
+            "Partial.Solver.distance_variant": 0.11999999731779099,
+            "Partial.Solver.error_function_base": 1.06,
+            "Partial.Solver.iteration": 5,
+            "Partial.Solver.iteration_narrow_rate": 0.5,
+            "Partial.Solver.rotation_amount_variant": 0.007000000216066837,
+            "Partial.Solver.rotation_axis_variant": 0.00800000037997961,
+            "Partial.apply_weight": 0.3,
+            "PnP.pnp_conf_threshold": 0.6,
+            "PnP.pnp_error_exp_fn_base": 1.06
+        }
+    },
+    "___shared": {
+        "Ball.radius": 0.030239439175,
+        "Ballradius": 0.0302,
+        "Common.camera_FOV": [
+            84.855,
+            53.27
+        ],
+        "Commoncamera_FOV": [
+            84.855,
+            53.27
+        ],
+        "Table.Filter.alpha_pos": 0.3,
+        "Table.Filter.alpha_rot": 0.3,
+        "Table.Filter.jump_threshold_distance": 0.1,
+        "Table.Filteralpha_pos": 0.8,
+        "Table.Filteralpha_rot": 0.8,
+        "Table.Filterjump_threshold_distance": 0.1,
+        "Table.Marker.count_x": 9,
+        "Table.Marker.count_y": 5,
+        "Table.Marker.dist_from_felt_long": 0.012000000104308128,
+        "Table.Marker.dist_from_felt_short": 0.012000000104308128,
+        "Table.Marker.felt_height": 0.9150000214576721,
+        "Table.Marker.felt_width": 1.7350000143051147,
+        "Table.Marker.height_shift_a": 0.0,
+        "Table.Marker.height_shift_b": 0.009999999776482582,
+        "Table.Marker.step": 0.20600000023841858,
+        "Table.Marker.width_shift_a": 0.0,
+        "Table.Marker.width_shift_b": 0.0,
+        "Table.Markercount_x": 9,
+        "Table.Markercount_y": 5,
+        "Table.Markerdist_from_felt_long": 0.012000000104308128,
+        "Table.Markerdist_from_felt_short": 0.012000000104308128,
+        "Table.Markerfelt_height": 0.9150000214576721,
+        "Table.Markerfelt_width": 1.7350000143051147,
+        "Table.Markerheight_shift_a": 0.0,
+        "Table.Markerheight_shift_b": 0.009999999776482582,
+        "Table.Markerstep": 0.20600000023841858,
+        "Table.Markerwidth_shift_a": 0.0,
+        "Table.Markerwidth_shift_b": 0.0,
+        "Table.Size.fit": [
+            1.735,
+            0.915
+        ],
+        "Table.Size.inner": [
+            1.653,
+            0.823
+        ],
+        "Table.Size.outer": [
+            1.8,
+            0.98
+        ],
+        "Table.Sizefit": [
+            1.735,
+            0.915
+        ],
+        "Table.Sizeinner": [
+            1.653,
+            0.823
+        ],
+        "Table.Sizeinnter": [
+            1.653,
+            0.823
+        ],
+        "Table.Sizeouter": [
+            1.84,
+            1.0
+        ],
+        "ballradius": 0.030239439175,
+        "commoncamera_FOV": [
+            84.855,
+            53.27
+        ],
+        "tablealpha_pos": 0.3,
+        "tablealpha_rot": 0.3,
+        "tablefit": [
+            1.735,
+            0.915
+        ],
+        "tableinnter": [
+            1.653,
+            0.823
+        ],
+        "tablejump_threshold_distance": 0.1,
+        "tableouter": [
+            1.8,
+            0.98
+        ]
+    },
+    "___suspended": {
+        "contour search": null
+    },
+    "g_props": {
+        "explorer": {
+            "depth-alpha": 32
+        },
+        "window-position": [
+            1944,
+            241,
+            1225,
+            944
+        ]
+    }
+}

@@ -453,6 +453,7 @@ void exec_ui()
     });
 
     // -- 파이프라인
+    pipepp::gui::DEFAULT_DATA_FONT = paint::font{"consolas", 10.5};
     kangsw::atomic_queue<std::pair<std::string, cv::Mat>> shown_images{1024};
     kangsw::atomic_queue<std::string> shutdown_images{1024};
     pipepp::gui::pipeline_board pl_board(fm, {}, true);

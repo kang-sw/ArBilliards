@@ -3,6 +3,8 @@
 #include <opencv2/opencv.hpp>
 #include <random>
 #include "recognition.hpp"
+#include "kangsw/counter.hxx"
+#include "kangsw/for_each.hxx"
 
 namespace billiards::imgproc
 {
@@ -53,6 +55,8 @@ void project_model_points(img_t const& img, std::vector<cv::Vec2f>& mapped_conto
 void draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness);
 void generate_normalized_sparse_kernel(std::vector<cv::Vec<float, 2>>& normal_random_samples, std::vector<cv::Vec<float, 2>>& normal_negative_samples, cv::Vec2f positive_area_range, cv::Vec2f negative_area_range, int rand_seed, int circle_radius, double rotate_angle);
 cv::Point project_single_point(img_t const& img, cv::Vec3f vertex, bool is_world = true);
+
+std::string mat_info_str(cv::Mat const& i);
 
 struct transform_estimation_param_t {
     int num_iteration = 10;
@@ -273,4 +277,62 @@ void discard_random_args(std::vector<Ty_>& iovec, size_t target_size, Rand_&& re
         iovec.pop_back();
     }
 }
+
+template <typename Ty_, size_t I_, size_t J_>
+cv::Vec<Ty_, I_ + J_> concat_vec(cv::Vec<Ty_, I_> const& a, cv::Vec<Ty_, I_> const& b)
+{
+    cv::Vec<Ty_, I_ + J_> r;
+    constexpr auto _0_to_i = kangsw::iota{I_};
+    constexpr auto _i_to_j = kangsw::iota{I_, J_};
+    for (auto i : _0_to_i) { r(i) = a(i); }
+    for (auto i : _i_to_j) { r(i) = b(i); }
+
+    return r;
+}
+
+template <typename Ty_, size_t I_, typename... Args_>
+decltype(auto) concat_vec(cv::Vec<Ty_, I_> const& a, Args_&&... args)
+{
+    cv::Vec<Ty_, I_ + sizeof...(args)> r;
+    constexpr auto _0_to_i = kangsw::iota{I_};
+    for (auto i : _0_to_i) { r(i) = a(i); }
+    auto tup = std::make_tuple(std::forward<Args_>(args)...);
+    kangsw::tuple_for_each(tup, [&](auto&& arg, size_t i) { r(I_ + i) = arg; });
+
+    return r;
+}
+
+template <typename Ty_, typename... Args_>
+decltype(auto) make_vec(Args_&&... args)
+{
+    cv::Vec<Ty_, sizeof...(args)> r;
+    auto tup = std::make_tuple(std::forward<Args_>(args)...);
+    kangsw::tuple_for_each(tup, [&](auto&& arg, size_t i) { r(i) = arg; });
+
+    return r;
+}
+
+template <size_t Begin_, size_t Cnt_, typename Ty_, size_t I_>
+cv::Vec<Ty_, Cnt_> const& subvec(cv::Vec<Ty_, I_> const& v)
+{
+    static_assert(Begin_ + Cnt_ <= I_);
+    return (cv::Vec<Ty_, Cnt_> const&)v.val[Begin_];
+}
+
+template <size_t Begin_, size_t Cnt_, typename Ty_, size_t I_>
+cv::Vec<Ty_, Cnt_>& subvec(cv::Vec<Ty_, I_>& v)
+{
+    static_assert(Begin_ + Cnt_ <= I_);
+    return (cv::Vec<Ty_, Cnt_>&)v.val[Begin_];
+}
+
+template <typename Ty_, size_t N_>
+cv::Mat_<cv::Vec<Ty_, N_>> index_by(cv::Mat_<cv::Vec<Ty_, N_>>& sources, cv::Mat1i indexes)
+{
+    cv::Mat_<cv::Vec<Ty_, N_>> retval(indexes.size());
+    auto range = kangsw::iota{indexes.size().area()};
+    for (auto i : range) { retval(i) = sources(indexes(i)); }
+    return retval;
+}
+
 } // namespace billiards::imgproc

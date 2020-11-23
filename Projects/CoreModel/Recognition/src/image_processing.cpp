@@ -1,6 +1,7 @@
 #include "image_processing.hpp"
 #include <execution>
 
+#include "fmt/core.h"
 #include "kangsw/misc.hxx"
 
 void billiards::imgproc::cull_frustum_impl(std::vector<cv::Vec3f>& obj_pts, plane_t const* plane_ptr, size_t num_planes)
@@ -540,6 +541,32 @@ cv::Point billiards::imgproc::project_single_point(img_t const& img, cv::Vec3f v
     }
 
     return static_cast<Vec<int, 2>>(pt.front());
+}
+
+std::string billiards::imgproc::mat_info_str(cv::Mat const& i)
+{
+    auto type = i.type();
+    std::string r;
+
+    uchar depth = type & CV_MAT_DEPTH_MASK;
+    uchar chans = 1 + (type >> CV_CN_SHIFT);
+
+    switch (depth) {
+        case CV_8U: r = "8U"; break;
+        case CV_8S: r = "8S"; break;
+        case CV_16U: r = "16U"; break;
+        case CV_16S: r = "16S"; break;
+        case CV_32S: r = "32S"; break;
+        case CV_32F: r = "32F"; break;
+        case CV_64F: r = "64F"; break;
+        default: r = "User"; break;
+    }
+
+    r += "C";
+    r += (chans + '0');
+
+    fmt::format_to(std::back_inserter(r), " {:>4}x{:>4}", i.cols, i.rows);
+    return r;
 }
 
 std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgproc::estimate_matching_transform(img_t const& img, std::vector<cv::Vec2f> const& input_param, std::vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p)
