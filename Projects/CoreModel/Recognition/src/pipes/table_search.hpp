@@ -31,6 +31,7 @@ public:
     };
 
     struct output_type {
+        cv::Mat3b resized_cielab;
         cv::Mat1i labels;
     };
 
@@ -45,7 +46,25 @@ private:
     std::unique_ptr<implmentation> impl_;
 
 public:
-    static void link_from_previous(shared_data const&, input_resize::output_type const&, input_type&);
+    static void link_from_previous(shared_data&, input_resize::output_type const&, input_type&);
+    static void output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& out);
+};
+
+class clustering
+{
+public:
+    struct input_type {
+        superpixel::output_type clusters;
+    };
+
+    struct output_type {
+    };
+
+    pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& in, output_type& out);
+    static void link_from_previous(shared_data const& sd, superpixel::output_type const& o, input_type& i);
+
+private:
+    std::vector<cv::Vec<int32_t, 6>> spxl_sum;
 };
 
 } // namespace billiards::pipes

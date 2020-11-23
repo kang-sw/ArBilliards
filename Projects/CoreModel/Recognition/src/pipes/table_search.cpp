@@ -31,8 +31,10 @@ pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_contex
         auto ratio = (double)width / size.width;
 
         size = cv::Size2d(size) * ratio;
-        cv::resize(cielab, impl_->out_array, size, 0, 0, cv::INTER_NEAREST);
-        cielab = impl_->out_array;
+
+        cv::Mat temp;
+        cv::resize(cielab, temp, size, 0, 0, cv::INTER_NEAREST);
+        cielab = temp;
     }
 
     if (!true_SLIC_false_SEEDS(ec)) {
@@ -70,7 +72,6 @@ pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_contex
         }
 
         m.engine->getLabels(o.labels);
-        return pipepp::pipe_error::abort;
     }
     else {
         int algos[] = {cv::ximgproc::SLICO, cv::ximgproc::MSLIC, cv::ximgproc::SLIC};
@@ -95,8 +96,11 @@ pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_contex
         }
 
         engine->getLabels(o.labels);
-        return pipepp::pipe_error::ok;
     }
+
+    PIPEPP_STORE_DEBUG_DATA("Number of Superpixels", *(o.labels.end() - 1));
+    o.resized_cielab = cielab;
+    return pipepp::pipe_error::ok;
 }
 
 billiards::pipes::superpixel::superpixel()
@@ -106,7 +110,37 @@ billiards::pipes::superpixel::superpixel()
 
 billiards::pipes::superpixel::~superpixel() = default;
 
-void billiards::pipes::superpixel::link_from_previous(shared_data const& sd, input_resize::output_type const& i, input_type& o)
+void billiards::pipes::superpixel::link_from_previous(shared_data& sd, input_resize::output_type const& i, input_type& o)
 {
     cv::cvtColor(sd.rgb, o.cielab, cv::COLOR_RGB2Lab);
+    sd.cielab = o.cielab;
+}
+
+void billiards::pipes::superpixel::output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& out)
+{
+}
+
+pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
+{
+    PIPEPP_REGISTER_CONTEXT(ec);
+    using namespace cv;
+    using namespace std;
+
+    auto& [cielab, label] = in.clusters;
+    // k-means clustering을 수행합니다.
+    // 항상 우하단 픽셀이 최대값이라 가정
+    spxl_sum.clear();
+    spxl_sum.resize(*(label.end() - 1));
+    PIPEPP_STORE_DEBUG_DATA("Initial number of superpixels", spxl_sum.size());
+
+    PIPEPP_ELAPSE_BLOCK("Calculate sum of all channels")
+    {
+    }
+
+    return pipepp::pipe_error::ok;
+}
+
+void billiards::pipes::clustering::link_from_previous(shared_data const& sd, superpixel::output_type const& o, input_type& i)
+{
+    i.clusters = o;
 }

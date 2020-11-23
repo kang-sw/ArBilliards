@@ -21,14 +21,32 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     auto pl = decltype(build_pipe())::element_type::create(
       "input", 1, &pipepp::make_executor<pipes::input_resize>);
 
+    // INPUT
     auto input_proxy = pl->front();
     input_proxy.add_output_handler(&input_resize::output_handler);
     input_proxy.configure_tweaks().selective_output = true;
 
-    { // Optional SLIC scope
-        auto superpixels = input_proxy.create_and_link_output("superpixel", std::thread::hardware_concurrency() / 2, &superpixel::link_from_previous, &pipepp::make_executor<superpixel>);
-    }
+    // ---------------------------------------------------------------------------------
+    //  INPUT --> [PREPROCESSOR]
+    // ---------------------------------------------------------------------------------
+    //      CASE A: SUPERPIXELS
+    auto superpixels_proxy
+      = input_proxy.create_and_link_output(
+        "superpixel",
+        std::thread::hardware_concurrency() / 2,
+        &superpixel::link_from_previous,
+        &pipepp::make_executor<superpixel>);
+    superpixels_proxy.add_output_handler(&superpixel::output_handler);
 
+    auto clustering_proxy
+      = superpixels_proxy.create_and_link_output(
+        "clustering",
+        std::thread::hardware_concurrency() / 2,
+        &clustering::link_from_previous,
+        &pipepp::make_executor<clustering>);
+
+    // ---------------------------------------------------------------------------------
+    //      CASE B: TRADITIONAL CONTOUR SEARCH
     auto contour_search_proxy
       = input_proxy.create_and_link_output(
         "contour search",
@@ -37,6 +55,9 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         &pipepp::make_executor<contour_candidate_search>);
     contour_search_proxy.add_output_handler(&contour_candidate_search::output_handler);
 
+    // ---------------------------------------------------------------------------------
+    //  PREPROCESSOR --> [TABLE CONTOUR SOLVER]
+    // ---------------------------------------------------------------------------------
     auto pnp_solver_proxy
       = contour_search_proxy.create_and_link_output(
         "table edge solver",
@@ -47,6 +68,10 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     pnp_solver_proxy.configure_tweaks().selective_input = true;
     pnp_solver_proxy.configure_tweaks().selective_output = true;
 
+    // ---------------------------------------------------------------------------------
+    //  TABLE SOLVER --> [MARKER SEARCH]
+    // ---------------------------------------------------------------------------------
+    //      CASE A: TRADITIONAL METHOD
     auto marker_finder_proxy
       = pnp_solver_proxy.create_and_link_output(
         "marker finder",
@@ -54,6 +79,13 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         &marker_finder::link_from_previous,
         &pipepp::make_executor<marker_finder>);
 
+    // ---------------------------------------------------------------------------------
+    //      CASE B: SUPERPIXELS
+    // TODO
+
+    // ---------------------------------------------------------------------------------
+    //  MARKER SEARCH --> [MARKER SOLVER]
+    // ---------------------------------------------------------------------------------
     auto marker_solver_proxy
       = marker_finder_proxy.create_and_link_output(
         "marker solver",
@@ -62,12 +94,31 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         &pipepp::make_executor<marker_solver>);
     marker_solver_proxy.add_output_handler(&marker_solver::output_handler);
 
+    // ---------------------------------------------------------------------------------
+    //  [TABLE POSITION] --> BALL SEARCH
+    // ---------------------------------------------------------------------------------
+    //      CASE A: TRADITIONAL METHOD
     auto ball_finder_proxy
       = marker_solver_proxy.create_and_link_output(
         "ball finder",
         4,
         &ball_search::link_from_previous,
         &pipepp::make_executor<ball_search>);
+
+    // ---------------------------------------------------------------------------------
+    //      CASE B: SUPERPIXELS
+
+    // ---------------------------------------------------------------------------------
+    //  FINAL OUTPUT PIPE
+    auto output_pipe_proxy
+      = ball_finder_proxy.create_and_link_output(
+        "output",
+        1,
+        &output_pipe::link_from_previous,
+        &output_pipe::factory);
+    output_pipe_proxy.configure_tweaks().selective_input = true;
+
+    clustering_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
 
     return pl;
 }
@@ -252,6 +303,15 @@ void billiards::pipes::contour_candidate_search::link_from_previous(shared_data 
 void billiards::pipes::contour_candidate_search::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
 {
     sd.table.contour = std::move(o.table_contour_candidate);
+}
+
+pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
+{
+    PIPEPP_REGISTER_CONTEXT(ec);
+    auto& sd = *i;
+
+    PIPEPP_STORE_DEBUG_DATA("Debug glyphs rendering", sd.debug_mat.clone());
+    return pipepp::pipe_error::ok;
 }
 
 pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution_context& ec, input_type const& i, output_type& o)
@@ -824,8 +884,7 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
     auto& table_contour = *input.table_contour;
     auto& sd = *input.opt_shared;
 
-    auto debug = input.debug_mat->clone();
-    PIPEPP_CAPTURE_DEBUG_DATA(debug);
+    auto debug = *input.debug_mat;
 
     PIPEPP_ELAPSE_BLOCK("Table area mask creation")
     {

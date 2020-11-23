@@ -94,6 +94,7 @@ struct shared_data : pipepp::base_shared_context {
 
     cv::Mat debug_mat;
 
+    cv::Mat cielab;
     cv::Mat rgb, hsv;
     cv::UMat u_rgb, u_hsv;
 
@@ -154,6 +155,22 @@ struct contour_candidate_search {
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
     static void link_from_previous(shared_data const&, input_resize::output_type const&, input_type&);
     static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
+};
+
+struct output_pipe {
+    PIPEPP_DECLARE_OPTION_CLASS(output_pipe);
+
+    struct debug {
+        PIPEPP_DECLARE_OPTION_CATEGORY("Debug");
+        PIPEPP_CATEGORY_OPTION(show_debug_mat, false);
+    };
+
+    using input_type = shared_data*;
+    using output_type = nullptr_t;
+
+    pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
+    static void link_from_previous(shared_data& sd, input_type& i) { i = &sd; }
+    static auto factory() { return pipepp::make_executor<output_pipe>(); }
 };
 
 struct table_edge_solver {
