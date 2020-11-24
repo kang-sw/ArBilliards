@@ -46,7 +46,7 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         &pipepp::make_executor<clustering>);
     clustering_proxy.add_output_handler(&clustering::output_handler);
 
-    auto table_contour_finder
+    auto table_contour_finder_proxy
       = clustering_proxy.create_and_link_output(
         "table contour search",
         1,
@@ -126,7 +126,7 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         &output_pipe::factory);
     output_pipe_proxy.configure_tweaks().selective_input = true;
 
-    clustering_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
+    table_contour_finder_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
 
     return pl;
 }

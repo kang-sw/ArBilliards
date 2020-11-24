@@ -7,16 +7,12 @@ class superpixel
 {
 public:
     PIPEPP_DECLARE_OPTION_CLASS(superpixel);
-    PIPEPP_OPTION_AUTO(target_image_width, 1280, "Common");
+    PIPEPP_OPTION_AUTO(target_image_width, 1280, "Common", "", pipepp::verify::clamp(300, 8096));
     PIPEPP_OPTION_AUTO(color_space,
                        std::string("Lab"),
                        "Common",
                        R"(Input must be one of "Lab", "YCrCb", "RGB", "YUV", "HLS", "HSV")",
-                       ([](std::string& str) {
-                           static const std::set<std::string> valids = {"Lab", "YCrCb", "RGB", "YUV", "HLS", "HSV"};
-                           if (valids.contains(str) == false) { return str = *valids.begin(), false; }
-                           return true;
-                       }));
+                       pipepp::verify::contains<std::string>("Lab", "YCrCb", "RGB", "YUV", "HLS", "HSV"));
 
     PIPEPP_OPTION_AUTO(true_SLIC_false_SEEDS, true, "flags");
 
@@ -101,7 +97,7 @@ public:
             PIPEPP_DECLARE_OPTION_CATEGORY("Criteria");
             PIPEPP_OPTION(true_EPSILON_false_ITER, false);
             PIPEPP_OPTION(epsilon, 1.0);
-            PIPEPP_OPTION(N_iter, 3);
+            PIPEPP_OPTION(N_iter, 3, "", pipepp::verify::minimum(1));
         };
     };
 
@@ -127,9 +123,22 @@ private:
 class table_contour_detection
 {
     PIPEPP_DECLARE_OPTION_CLASS(table_contour_detection);
+    PIPEPP_CATEGORY(debug, "Debug")
+    {
+        PIPEPP_OPTION(show_found_lines, false);
+    };
+
+    PIPEPP_CATEGORY(edge, "Edge Calc"){
+
+    };
+
     PIPEPP_CATEGORY(hough, "Hough Lines")
     {
-        PIPEPP_OPTION(rho, 3.14);
+        PIPEPP_OPTION(rho, 1.0, "", pipepp::verify::clamp(0.0, 1.0));
+        PIPEPP_OPTION(theta, 180.0, "", pipepp::verify::clamp(0.0, 180.0));
+        PIPEPP_OPTION(threshold, 1, "", pipepp::verify::minimum(0));
+        PIPEPP_OPTION(srn, 0.1, "", pipepp::verify::minimum(0.0));
+        PIPEPP_OPTION(stn, 0.1, "", pipepp::verify::minimum(0.0));
     };
 
 public:
