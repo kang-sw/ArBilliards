@@ -17,14 +17,14 @@ struct SEEDS_setting {
 
 using cv::ximgproc::SuperpixelSEEDS;
 
-struct billiards::pipes::superpixel::implmentation {
+struct billiards::pipes::superpixel_executor::implmentation {
     SEEDS_setting setting_cache = {};
     cv::Ptr<SuperpixelSEEDS> engine;
 
     cv::Mat out_array;
 };
 
-pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_context& ec, input_type const& i, output_type& o)
+pipepp::pipe_error billiards::pipes::superpixel_executor::invoke(pipepp::execution_context& ec, input_type const& i, output_type& o)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     auto color_mat = i.rgb;
@@ -137,14 +137,14 @@ pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_contex
     return pipepp::pipe_error::ok;
 }
 
-billiards::pipes::superpixel::superpixel()
+billiards::pipes::superpixel_executor::superpixel_executor()
     : impl_(std::make_unique<implmentation>())
 {
 }
 
-billiards::pipes::superpixel::~superpixel() = default;
+billiards::pipes::superpixel_executor::~superpixel_executor() = default;
 
-void billiards::pipes::superpixel::link_from_previous(shared_data& sd, pipepp::execution_context& ec, input_type& o)
+void billiards::pipes::superpixel_executor::link_from_previous(shared_data& sd, pipepp::execution_context& ec, input_type& o)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using opt = link::preprocess;
@@ -170,7 +170,7 @@ void billiards::pipes::superpixel::link_from_previous(shared_data& sd, pipepp::e
     }
 }
 
-void billiards::pipes::superpixel::output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& o)
+void billiards::pipes::superpixel_executor::output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& o)
 {
     sd.cluster_color_mat = o.resized_cluster_color_mat;
 }
@@ -185,7 +185,7 @@ static void LABXY_to_RGB(cv::Mat_<cv::Vec<float, 5>> centers, cv::Mat3b& center_
     if (convert_from != -1) { cvtColor(center_colors, center_colors, convert_from); }
 }
 
-pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
+pipepp::pipe_error billiards::pipes::kmeans_executor::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using namespace cv;
@@ -287,17 +287,17 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
     return pipepp::pipe_error::ok;
 }
 
-void billiards::pipes::clustering::link_from_previous(shared_data const& sd, superpixel::output_type const& o, input_type& i)
+void billiards::pipes::kmeans_executor::link_from_previous(shared_data const& sd, superpixel_executor::output_type const& o, input_type& i)
 {
     i.clusters = o;
 }
 
-void billiards::pipes::clustering::output_handler(shared_data& sd, output_type const& o)
+void billiards::pipes::kmeans_executor::output_handler(shared_data& sd, output_type const& o)
 {
     sd.cluster = o;
 }
 
-pipepp::pipe_error billiards::pipes::cluster_edge_calculation::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
+pipepp::pipe_error billiards::pipes::label_edge_detector::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using namespace std;
@@ -351,7 +351,7 @@ pipepp::pipe_error billiards::pipes::cluster_edge_calculation::invoke(pipepp::ex
     return pipepp::pipe_error::ok;
 }
 
-pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
+pipepp::pipe_error billiards::pipes::hough_line_executor::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using namespace std;

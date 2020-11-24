@@ -3,10 +3,10 @@
 
 namespace billiards::pipes
 {
-class superpixel
+class superpixel_executor
 {
 public:
-    PIPEPP_DECLARE_OPTION_CLASS(superpixel);
+    PIPEPP_DECLARE_OPTION_CLASS(superpixel_executor);
     PIPEPP_OPTION_AUTO(target_image_width, 1280, "Common", "", pipepp::verify::clamp(300, 8096));
     PIPEPP_OPTION_AUTO(color_space,
                        std::string("Lab"),
@@ -48,8 +48,8 @@ public:
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& o);
 
 public:
-    superpixel();
-    ~superpixel();
+    superpixel_executor();
+    ~superpixel_executor();
 
 private:
     struct implmentation;
@@ -73,10 +73,10 @@ public:
     static void output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& o);
 };
 
-class clustering
+class kmeans_executor
 {
 public:
-    PIPEPP_DECLARE_OPTION_CLASS(clustering);
+    PIPEPP_DECLARE_OPTION_CLASS(kmeans_executor);
     struct debug {
         PIPEPP_DECLARE_OPTION_CATEGORY("Debug");
         PIPEPP_OPTION(show_kmeans_result, false);
@@ -104,13 +104,13 @@ public:
 
 public:
     struct input_type {
-        superpixel::output_type clusters;
+        superpixel_executor::output_type clusters;
     };
 
     using output_type = shared_data::cluster_type;
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& in, output_type& out);
-    static void link_from_previous(shared_data const& sd, superpixel::output_type const& o, input_type& i);
+    static void link_from_previous(shared_data const& sd, superpixel_executor::output_type const& o, input_type& i);
     static void output_handler(shared_data& sd, output_type const& o);
 
 private:
@@ -118,8 +118,8 @@ private:
     std::vector<cv::Vec<float, 5>> spxl_kmeans_param;
 };
 
-struct cluster_edge_calculation {
-    PIPEPP_DECLARE_OPTION_CLASS(cluster_edge_calculation);
+struct label_edge_detector {
+    PIPEPP_DECLARE_OPTION_CLASS(label_edge_detector);
     PIPEPP_CATEGORY(debug, "Debug")
     {
         PIPEPP_OPTION(show_raw_edges, false);
@@ -146,9 +146,9 @@ struct cluster_edge_calculation {
 /**
  * TODO: 클러스터 라벨 배열의 경계선 이미지를 획득하고, 여기서 hough 변환을 통해 모든 직선 후보를 찾습니다. 만나는 직선들로부터 모든 선분을 찾아내고, 선분으로부터 구성될 수 있는 모든 도형을 찾아냅니다. 이후 각 도형에 대해, 각 클러스터의 중심점을 iterate해, 테이블 색상과 가까운 클러스터가 가장 많이 포함되면서, 테이블 색상이 아닌 클러스터를 전혀 포함하지 않는 가장 큰 도형을 찾아냅니다. 이것이 테이블의 후보 사각형이 됩니다.
  */
-class table_contour_detection
+class hough_line_executor
 {
-    PIPEPP_DECLARE_OPTION_CLASS(table_contour_detection);
+    PIPEPP_DECLARE_OPTION_CLASS(hough_line_executor);
     PIPEPP_CATEGORY(debug, "Debug")
     {
         PIPEPP_OPTION(show_source_image, false);
@@ -189,7 +189,7 @@ public:
 
 /**
  * 간단한 컨투어 필터입니다.
- *
+ * 마스크 데이터에서 보수적인 방법으로 컨투어를 획득합니다.
  */
 
 } // namespace billiards::pipes

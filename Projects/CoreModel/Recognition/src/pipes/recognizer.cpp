@@ -16,6 +16,7 @@ namespace billiards
 {
 class recognizer_t;
 }
+static void build_traditional_path(pipepp::pipeline<billiards::pipes::shared_data, billiards::pipes::input_resize>::initial_proxy_type input_proxy, pipepp::pipe_proxy<billiards::pipes::shared_data, billiards::pipes::output_pipe> output_pipe_proxy);
 
 auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_data, input_resize>>
 {
@@ -38,9 +39,9 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
       = input_proxy.create_and_link_output(
         "superpixel",
         std::thread::hardware_concurrency() / 2,
-        &superpixel::link_from_previous,
-        &pipepp::make_executor<superpixel>);
-    superpixels_proxy.add_output_handler(&superpixel::output_handler);
+        &superpixel_executor::link_from_previous,
+        &pipepp::make_executor<superpixel_executor>);
+    superpixels_proxy.add_output_handler(&superpixel_executor::output_handler);
     superpixels_proxy.configure_tweaks().selective_output = true;
 
     // ---------------------------------------------------------------------------------
@@ -48,10 +49,10 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     //
     {
         auto table_contour_finder_2_proxy = pl->create(
-          "table contour search 2", 4, &pipepp::make_executor<table_contour_detection>);
+          "table contour search 2", 4, &pipepp::make_executor<hough_line_executor>);
         superpixels_proxy
           .link_output(table_contour_finder_2_proxy,
-                       [](shared_data const& sd, table_contour_detection::input_type& i) {
+                       [](shared_data const& sd, hough_line_executor::input_type& i) {
                            i.dbg_mat = &sd.debug_mat;
                            auto& mask = sd.table_hsv_filtered;
                            cv::Mat eroded;
@@ -65,42 +66,50 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
       = superpixels_proxy.create_and_link_output(
         "clustering",
         std::thread::hardware_concurrency() / 2,
-        &clustering::link_from_previous,
-        &pipepp::make_executor<clustering>);
-    clustering_proxy.add_output_handler(&clustering::output_handler);
+        &kmeans_executor::link_from_previous,
+        &pipepp::make_executor<kmeans_executor>);
+    clustering_proxy.add_output_handler(&kmeans_executor::output_handler);
 
     auto edge_finder_0_proxy
       = clustering_proxy.create_and_link_output(
         "edge finder 0",
         1,
-        [](shared_data& sd, clustering::output_type const& o, cluster_edge_calculation::input_type& i) {
+        [](shared_data& sd, kmeans_executor::output_type const& o, label_edge_detector::input_type& i) {
             if (sd.cluster.label_2d_spxl.empty() || sd.cluster.label_cluster_1darray.empty()) {
                 return false;
             }
             i.labels = imgproc::index_by(sd.cluster.label_cluster_1darray, sd.cluster.label_2d_spxl);
             return true;
         },
-        &pipepp::make_executor<cluster_edge_calculation>);
+        &pipepp::make_executor<label_edge_detector>);
 
     auto table_contour_finder_proxy
       = edge_finder_0_proxy.create_and_link_output(
         "table contour search",
         1,
-        [](shared_data& sd, cluster_edge_calculation::output_type const& o, table_contour_detection::input_type& i) {
+        [](shared_data& sd, label_edge_detector::output_type const& o, hough_line_executor::input_type& i) {
             i.edges = o.edges;
             i.dbg_mat = &sd.debug_mat;
         },
-        &pipepp::make_executor<table_contour_detection>);
+        &pipepp::make_executor<hough_line_executor>);
 
+    build_traditional_path(input_proxy, output_pipe_proxy);
+    table_contour_finder_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
+
+    return pl;
+}
+
+void build_traditional_path(pipepp::pipeline<billiards::pipes::shared_data, billiards::pipes::input_resize>::initial_proxy_type input_proxy, pipepp::pipe_proxy<billiards::pipes::shared_data, billiards::pipes::output_pipe> output_pipe_proxy)
+{
     // ---------------------------------------------------------------------------------
     //      CASE B: TRADITIONAL CONTOUR SEARCH
     auto contour_search_proxy
       = input_proxy.create_and_link_output(
         "contour search",
         1,
-        &contour_candidate_search::link_from_previous,
-        &pipepp::make_executor<contour_candidate_search>);
-    contour_search_proxy.add_output_handler(&contour_candidate_search::output_handler);
+        &billiards::pipes::contour_candidate_search::link_from_previous,
+        &pipepp::make_executor<billiards::pipes::contour_candidate_search>);
+    contour_search_proxy.add_output_handler(&billiards::pipes::contour_candidate_search::output_handler);
 
     // ---------------------------------------------------------------------------------
     //  PREPROCESSOR --> [TABLE CONTOUR SOLVER]
@@ -109,9 +118,9 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
       = contour_search_proxy.create_and_link_output(
         "table edge solver",
         2,
-        &table_edge_solver::link_from_previous,
-        &pipepp::make_executor<table_edge_solver>);
-    pnp_solver_proxy.add_output_handler(&table_edge_solver::output_handler);
+        &billiards::pipes::table_edge_solver::link_from_previous,
+        &pipepp::make_executor<billiards::pipes::table_edge_solver>);
+    pnp_solver_proxy.add_output_handler(&billiards::pipes::table_edge_solver::output_handler);
     pnp_solver_proxy.configure_tweaks().selective_input = true;
     pnp_solver_proxy.configure_tweaks().selective_output = true;
 
@@ -123,8 +132,8 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
       = pnp_solver_proxy.create_and_link_output(
         "marker finder",
         1,
-        &marker_finder::link_from_previous,
-        &pipepp::make_executor<marker_finder>);
+        &billiards::pipes::marker_finder::link_from_previous,
+        &pipepp::make_executor<billiards::pipes::marker_finder>);
 
     // ---------------------------------------------------------------------------------
     //      CASE B: SUPERPIXELS
@@ -137,9 +146,9 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
       = marker_finder_proxy.create_and_link_output(
         "marker solver",
         1,
-        &marker_solver::link_from_previous,
-        &pipepp::make_executor<marker_solver>);
-    marker_solver_proxy.add_output_handler(&marker_solver::output_handler);
+        &billiards::pipes::marker_solver::link_from_previous,
+        &pipepp::make_executor<billiards::pipes::marker_solver>);
+    marker_solver_proxy.add_output_handler(&billiards::pipes::marker_solver::output_handler);
 
     // ---------------------------------------------------------------------------------
     //  [TABLE POSITION] --> BALL SEARCH
@@ -149,18 +158,15 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
       = marker_solver_proxy.create_and_link_output(
         "ball finder",
         4,
-        &ball_search::link_from_previous,
-        &pipepp::make_executor<ball_search>);
+        &billiards::pipes::ball_search::link_from_previous,
+        &pipepp::make_executor<billiards::pipes::ball_search>);
 
     // ---------------------------------------------------------------------------------
     //      CASE B: SUPERPIXELS
 
     // ---------------------------------------------------------------------------------
     //  FINAL OUTPUT PIPE
-    ball_finder_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
-    table_contour_finder_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
-
-    return pl;
+    ball_finder_proxy.link_output(output_pipe_proxy, &billiards::pipes::output_pipe::link_from_previous);
 }
 
 pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
