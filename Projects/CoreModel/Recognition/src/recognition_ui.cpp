@@ -16,6 +16,8 @@
 #include "nana/gui/widgets/button.hpp"
 #include "nana/gui/filebox.hpp"
 #include "nana/gui/widgets/slider.hpp"
+#include "nana/paint/graphics.hpp"
+#include "nana/paint/pixel_buffer.hpp"
 #include "pipepp/gui/basic_utility.hpp"
 #include "pipepp/gui/pipeline_board.hpp"
 #include "pipepp/pipeline.hpp"
@@ -231,18 +233,15 @@ static void json_recursive_substitute(json& to, json const& from)
         if (src) {
             if (value.type() == json::value_t::object) {
                 json_recursive_substitute(value, *src);
-            }
-            else if (value.type() == json::value_t::array) {
+            } else if (value.type() == json::value_t::array) {
                 for (int i = 0; i < /*min(value.size(),*/ (src->size()); ++i) {
                     if (value[i].type() == nlohmann::detail::value_t::object) {
                         json_recursive_substitute(value[i], (*src)[i]);
-                    }
-                    else {
+                    } else {
                         value[i] = (*src)[i];
                     }
                 }
-            }
-            else if (strcmp(value.type_name(), src->type_name()) == 0) {
+            } else if (strcmp(value.type_name(), src->type_name()) == 0) {
                 value = *src;
             }
         }
@@ -576,8 +575,7 @@ void exec_ui()
     snapshot_loader.elapse([&]() {
         if (snapshot) {
             g_recognizer.refresh_image(*snapshot, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); });
-        }
-        else {
+        } else {
             snapshot_loader.stop();
         }
     });
@@ -661,8 +659,7 @@ void exec_ui()
         if (is_playing_video) {
             btn_video_playpause.bgcolor(colors::red);
             btn_video_playpause.caption("Pause");
-        }
-        else {
+        } else {
             btn_video_playpause.bgcolor(colors::light_gray);
             btn_video_playpause.caption("Play");
         }
@@ -671,12 +668,10 @@ void exec_ui()
         if (frame_chunks.empty() == false) {
             if (is_playing_video) {
                 video_slider.move_step(false);
-            }
-            else {
+            } else {
                 video_slider.events().value_changed.emit({video_slider}, fm);
             }
-        }
-        else {
+        } else {
             video_slider.borderless(true);
             video_player.stop();
             previous.reset();
@@ -834,8 +829,7 @@ void ui_on_refresh()
             auto time = chrono::duration<float>(chrono::system_clock::now() - n->video.pivot_time).count();
             video_frame f = {.time_point = time, .img = g_recognizer.get_image_snapshot()};
             *n->video.strm_out << f;
-        }
-        else if (n->video.strm_out) {
+        } else if (n->video.strm_out) {
             n->video.strm_out.reset();
         }
 

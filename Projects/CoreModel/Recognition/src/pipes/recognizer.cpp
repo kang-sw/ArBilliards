@@ -44,6 +44,14 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         std::thread::hardware_concurrency() / 2,
         &clustering::link_from_previous,
         &pipepp::make_executor<clustering>);
+    clustering_proxy.add_output_handler(&clustering::output_handler);
+
+    auto table_contour_finder
+      = clustering_proxy.create_and_link_output(
+        "table contour search",
+        1,
+        &table_contour_detection::linker,
+        &pipepp::make_executor<table_contour_detection>);
 
     // ---------------------------------------------------------------------------------
     //      CASE B: TRADITIONAL CONTOUR SEARCH
@@ -137,8 +145,7 @@ pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_cont
         cv::cvtColor(i.rgba, rgb, cv::COLOR_RGBA2RGB);
         if (width < src_size.width) {
             cv::resize(rgb, out.u_rgb, {width, height});
-        }
-        else {
+        } else {
             out.u_rgb = std::move(rgb);
         }
     }
@@ -432,8 +439,7 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
             Rect r{(Point)(Vec2i)tl.mul(img_size), (Point)(Vec2i)br.mul(img_size)};
             if (get_safe_ROI_rect(i.debug_mat, r)) {
                 param.contour_cull_rect = r;
-            }
-            else {
+            } else {
                 param.contour_cull_rect = Rect{{}, img_size};
             }
         }
@@ -466,7 +472,7 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
     return pipepp::pipe_error::ok;
 }
 
-void billiards::pipes::table_edge_solver::link_from_previous(shared_data const& sd, contour_candidate_search::output_type const& i, input_type& o)
+void billiards::pipes::table_edge_solver::link_from_previous(shared_data const& sd, input_type& o)
 {
     auto _lck = sd.state->lock();
     o = input_type{
@@ -1120,8 +1126,7 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
         kangsw::iota indexes{cand_indexes.size()};
         if (matching::enable_parallel(ec)) {
             for_each(execution::par_unseq, indexes.begin(), indexes.end(), calculate_suitability);
-        }
-        else {
+        } else {
             for_each(execution::seq, indexes.begin(), indexes.end(), calculate_suitability);
         }
 
@@ -1254,8 +1259,7 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
                 }
 
                 descs[i] = ball_position_desc{.pos = ballpos[i], .vel = vel_elapsed, .tp = now};
-            }
-            else {
+            } else {
                 ball_weights[i] = 0;
             }
 

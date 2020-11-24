@@ -113,6 +113,7 @@ public:
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& in, output_type& out);
     static void link_from_previous(shared_data const& sd, superpixel::output_type const& o, input_type& i);
+    static void output_handler(shared_data& sd, output_type const& o);
 
 private:
     std::vector<cv::Vec<int32_t, 6>> spxl_sum;
@@ -122,8 +123,22 @@ private:
 /**
  * TODO: 클러스터 라벨 배열의 경계선 이미지를 획득하고, 여기서 hough 변환을 통해 모든 직선 후보를 찾습니다. 만나는 직선들로부터 모든 선분을 찾아내고, 선분으로부터 구성될 수 있는 모든 도형을 찾아냅니다. 이후 각 도형에 대해, 각 클러스터의 중심점을 iterate해, 테이블 색상과 가까운 클러스터가 가장 많이 포함되면서, 테이블 색상이 아닌 클러스터를 전혀 포함하지 않는 가장 큰 도형을 찾아냅니다. 이것이 테이블의 후보 사각형이 됩니다.
  */
-class table_line_finding
+class table_contour_detection
 {
+    PIPEPP_DECLARE_OPTION_CLASS(table_contour_detection);
+
+public:
+    struct input_type {
+        cv::Mat1i labels;
+        cv::Mat const* dbg_mat = {};
+    };
+
+    struct output_type {
+        std::vector<cv::Vec3f> contours;
+    };
+
+    pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& in, output_type& out);
+    static bool linker(shared_data const& sd, input_type& i);
 };
 
 } // namespace billiards::pipes

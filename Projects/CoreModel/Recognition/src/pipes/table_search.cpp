@@ -274,3 +274,38 @@ void billiards::pipes::clustering::link_from_previous(shared_data const& sd, sup
 {
     i.clusters = o;
 }
+
+void billiards::pipes::clustering::output_handler(shared_data& sd, output_type const& o)
+{
+    sd.cluster = o;
+}
+
+pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
+{
+    PIPEPP_REGISTER_CONTEXT(ec);
+    using namespace std;
+    using namespace cv;
+    using namespace imgproc;
+
+    // edge 계산
+    Mat1b edges;
+    PIPEPP_ELAPSE_BLOCK("Edge Calculation")
+    {
+        Mat1i border_inserted;
+        copyMakeBorder(in.labels, border_inserted, 0, 1, 0, 1, BORDER_REPLICATE);
+    }
+
+    return pipepp::pipe_error::ok;
+}
+
+bool billiards::pipes::table_contour_detection::linker(shared_data const& sd, input_type& i)
+{
+    if (sd.cluster.label_2d_spxl.empty() || sd.cluster.label_cluster_1darray.empty()) {
+        return false;
+    }
+
+    i.labels = imgproc::index_by(sd.cluster.label_cluster_1darray, sd.cluster.label_2d_spxl);
+    i.dbg_mat = &sd.debug_mat;
+
+    return true;
+}

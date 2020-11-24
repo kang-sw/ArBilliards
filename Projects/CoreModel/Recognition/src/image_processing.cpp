@@ -4,6 +4,9 @@
 #include "fmt/core.h"
 #include "kangsw/misc.hxx"
 
+#pragma warning(disable : 4244)
+#pragma warning(disable : 4838)
+
 void billiards::imgproc::cull_frustum_impl(std::vector<cv::Vec3f>& obj_pts, plane_t const* plane_ptr, size_t num_planes)
 {
     using namespace cv;
@@ -659,10 +662,8 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
             };
             vector<thread_context> contexts{thread::hardware_concurrency()};
 
-            kangsw::for_each_partition(
-              execution::par_unseq,
-              cands.begin(),
-              cands.end(),
+            kangsw::for_each_threads(
+              cands,
               [&](candidate_t& elem, size_t partition_index) {
                   candidate_t cand;
                   auto& context = contexts[partition_index];

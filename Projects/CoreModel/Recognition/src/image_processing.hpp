@@ -298,7 +298,7 @@ decltype(auto) concat_vec(cv::Vec<Ty_, I_> const& a, Args_&&... args)
     cv::Vec<Ty_, I_ + sizeof...(args)> r;
     constexpr auto _0_to_i = kangsw::iota{I_};
     for (auto i : _0_to_i) { r(i) = a(i); }
-    auto tup = std::make_tuple(std::forward<Args_>(args)...);
+    auto tup = std::forward_as_tuple(std::forward<Args_>(args)...);
     kangsw::tuple_for_each(tup, [&](auto&& arg, size_t i) { r(I_ + i) = arg; });
 
     return r;
@@ -328,10 +328,10 @@ cv::Vec<Ty_, Cnt_>& subvec(cv::Vec<Ty_, I_>& v)
     return (cv::Vec<Ty_, Cnt_>&)v.val[Begin_];
 }
 
-template <typename Ty_, size_t N_>
-cv::Mat_<cv::Vec<Ty_, N_>> index_by(cv::Mat_<cv::Vec<Ty_, N_>>& sources, cv::Mat1i indexes)
+template <typename Ty_>
+cv::Mat_<Ty_> index_by(cv::Mat_<Ty_> const& sources, cv::Mat1i const& indexes)
 {
-    cv::Mat_<cv::Vec<Ty_, N_>> retval(indexes.size());
+    cv::Mat_<Ty_> retval(indexes.size());
     auto range = kangsw::iota{indexes.size().area()};
     for (auto i : range) { retval(i) = sources(indexes(i)); }
     return retval;
