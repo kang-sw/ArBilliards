@@ -122,6 +122,15 @@ pipepp::pipe_error billiards::pipes::superpixel::invoke(pipepp::execution_contex
         engine->getLabels(o.labels);
     }
 
+    {
+        int num_labels = 0;
+        for (auto v : o.labels) { num_labels = std::max(v, num_labels); }
+        num_labels += 1;
+
+        o.num_labels = num_labels;
+        PIPEPP_CAPTURE_DEBUG_DATA(num_labels);
+    }
+
     o.resized_cluster_color_mat = color_mat;
     return pipepp::pipe_error::ok;
 }
@@ -179,12 +188,9 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
     using Mat5f = Mat_<cv::Vec<float, 5>>;
     auto& ic = in.clusters;
     auto& cluster_color_mat = ic.resized_cluster_color_mat;
-    auto& spxl_labels = ic.labels;
+    auto& spxl_labels = out.label_2d_spxl = ic.labels;
 
-    int num_labels = 0;
-    for (auto v : spxl_labels) { num_labels = max(v, num_labels); }
-    num_labels += 1;
-
+    int num_labels = ic.num_labels;
     auto spatial_weight = sqrt(spxl_labels.size().area());
 
     // k-means clustering을 수행합니다.
@@ -239,10 +245,12 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
         // superpixel의 label matrix의 gradient를 계산해
     }
 
-    if (kmeans::enabled(ec)) {
+    if (
+      int n_cluster = kmeans::N_cluster(ec);
+      kmeans::enabled(ec) && n_cluster < num_labels) {
         PIPEPP_ELAPSE_SCOPE("Apply k-means")
         Mat1i kmeans_labels;
-        int n_cluster = kmeans::N_cluster(ec);
+
         TermCriteria criteria{
           kmeans::criteria::true_EPSILON_false_ITER(ec) ? TermCriteria::EPS : TermCriteria::MAX_ITER,
           kmeans::criteria::N_iter(ec),
@@ -254,10 +262,12 @@ pipepp::pipe_error billiards::pipes::clustering::invoke(pipepp::execution_contex
         Mat5f centers;
 
         cv::kmeans(spxl_kmeans_param, n_cluster, kmeans_labels, criteria, attempts, flag, centers);
-        for (auto& p : centers) { p = Vec<float, 5>{p.div(weights).val}; }
+        out.label_cluster_1darray = kmeans_labels;
+
         PIPEPP_CAPTURE_DEBUG_DATA(mat_info_str(centers));
 
         if (debug::show_kmeans_result(ec)) {
+            for (auto& p : centers) { p = Vec<float, 5>{p.div(weights).val}; }
             PIPEPP_ELAPSE_SCOPE("k-means visualize");
             Mat3b center_colors;
             LABXY_to_RGB(centers, center_colors, ic.color_convert_from);
@@ -286,13 +296,35 @@ pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::exe
     using namespace std;
     using namespace cv;
     using namespace imgproc;
+    namespace ks = kangsw;
 
     // edge 계산
-    Mat1b edges;
+    auto& labels = in.labels;
+    Mat1b edges{labels.size()};
     PIPEPP_ELAPSE_BLOCK("Edge Calculation")
     {
-        Mat1i border_inserted;
-        copyMakeBorder(in.labels, border_inserted, 0, 1, 0, 1, BORDER_REPLICATE);
+        Mat1i expanded;
+        auto size = labels.size();
+        copyMakeBorder(labels, expanded, 0, 1, 0, 1, BORDER_REPLICATE);
+
+        for (auto& [i, j] : ks::counter(size.height, size.width)) {
+            auto A = expanded(i, j);
+            bool const is_edge
+              = A != expanded(i + 1, j)
+                || A != expanded(i, j + 1)
+                || A != expanded(i + 1, j + 1);
+
+            edges(i, j) = is_edge * 255;
+        }
+
+        PIPEPP_STORE_DEBUG_DATA("Calculated label edge", (Mat)edges);
+    }
+
+    // Hough 적용
+    PIPEPP_ELAPSE_BLOCK("Apply Hough")
+    {
+        cv::Mat lines;
+        // HoughLines(edges, lines, )
     }
 
     return pipepp::pipe_error::ok;
