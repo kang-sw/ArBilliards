@@ -1,5 +1,6 @@
 #pragma once
 #include <opencv2/core/matx.hpp>
+#pragma warning(disable : 4244 4305 4819)
 
 #include "../image_processing.hpp"
 #include "kangsw/spinlock.hxx"

@@ -7,6 +7,8 @@
 #include "pipepp/execution_context.hpp"
 #include "pipepp/pipeline.hpp"
 
+#pragma warning(disable : 4305)
+
 namespace billiards::pipes
 {
 struct table_edge_solver {

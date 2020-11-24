@@ -16,7 +16,8 @@ namespace billiards
 {
 class recognizer_t;
 }
-static void build_traditional_path(pipepp::pipeline<billiards::pipes::shared_data, billiards::pipes::input_resize>::initial_proxy_type input_proxy, pipepp::pipe_proxy<billiards::pipes::shared_data, billiards::pipes::output_pipe> output_pipe_proxy);
+
+void build_traditional_path(pipepp::pipeline<billiards::pipes::shared_data, billiards::pipes::input_resize>::initial_proxy_type input_proxy, pipepp::pipe_proxy<billiards::pipes::shared_data, billiards::pipes::output_pipe> output_pipe_proxy);
 
 auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_data, input_resize>>
 {
@@ -97,76 +98,6 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     table_contour_finder_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
 
     return pl;
-}
-
-void build_traditional_path(pipepp::pipeline<billiards::pipes::shared_data, billiards::pipes::input_resize>::initial_proxy_type input_proxy, pipepp::pipe_proxy<billiards::pipes::shared_data, billiards::pipes::output_pipe> output_pipe_proxy)
-{
-    // ---------------------------------------------------------------------------------
-    //      CASE B: TRADITIONAL CONTOUR SEARCH
-    auto contour_search_proxy
-      = input_proxy.create_and_link_output(
-        "contour search",
-        1,
-        &billiards::pipes::contour_candidate_search::link_from_previous,
-        &pipepp::make_executor<billiards::pipes::contour_candidate_search>);
-    contour_search_proxy.add_output_handler(&billiards::pipes::contour_candidate_search::output_handler);
-
-    // ---------------------------------------------------------------------------------
-    //  PREPROCESSOR --> [TABLE CONTOUR SOLVER]
-    // ---------------------------------------------------------------------------------
-    auto pnp_solver_proxy
-      = contour_search_proxy.create_and_link_output(
-        "table edge solver",
-        2,
-        &billiards::pipes::table_edge_solver::link_from_previous,
-        &pipepp::make_executor<billiards::pipes::table_edge_solver>);
-    pnp_solver_proxy.add_output_handler(&billiards::pipes::table_edge_solver::output_handler);
-    pnp_solver_proxy.configure_tweaks().selective_input = true;
-    pnp_solver_proxy.configure_tweaks().selective_output = true;
-
-    // ---------------------------------------------------------------------------------
-    //  TABLE SOLVER --> [MARKER SEARCH]
-    // ---------------------------------------------------------------------------------
-    //      CASE A: TRADITIONAL METHOD
-    auto marker_finder_proxy
-      = pnp_solver_proxy.create_and_link_output(
-        "marker finder",
-        1,
-        &billiards::pipes::marker_finder::link_from_previous,
-        &pipepp::make_executor<billiards::pipes::marker_finder>);
-
-    // ---------------------------------------------------------------------------------
-    //      CASE B: SUPERPIXELS
-    // TODO
-
-    // ---------------------------------------------------------------------------------
-    //  MARKER SEARCH --> [MARKER SOLVER]
-    // ---------------------------------------------------------------------------------
-    auto marker_solver_proxy
-      = marker_finder_proxy.create_and_link_output(
-        "marker solver",
-        1,
-        &billiards::pipes::marker_solver::link_from_previous,
-        &pipepp::make_executor<billiards::pipes::marker_solver>);
-    marker_solver_proxy.add_output_handler(&billiards::pipes::marker_solver::output_handler);
-
-    // ---------------------------------------------------------------------------------
-    //  [TABLE POSITION] --> BALL SEARCH
-    // ---------------------------------------------------------------------------------
-    //      CASE A: TRADITIONAL METHOD
-    auto ball_finder_proxy
-      = marker_solver_proxy.create_and_link_output(
-        "ball finder",
-        4,
-        &billiards::pipes::ball_search::link_from_previous,
-        &pipepp::make_executor<billiards::pipes::ball_search>);
-
-    // ---------------------------------------------------------------------------------
-    //      CASE B: SUPERPIXELS
-
-    // ---------------------------------------------------------------------------------
-    //  FINAL OUTPUT PIPE
-    ball_finder_proxy.link_output(output_pipe_proxy, &billiards::pipes::output_pipe::link_from_previous);
 }
 
 pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)

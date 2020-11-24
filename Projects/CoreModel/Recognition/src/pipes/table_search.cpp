@@ -1,3 +1,4 @@
+#pragma warning(disable : 4305 4244 4267 4819)
 #include "table_search.hpp"
 
 #include <opencv2/imgproc.hpp>
@@ -6,8 +7,6 @@
 #include <opencv2/ximgproc/slic.hpp>
 
 #include "kangsw/hash_index.hxx"
-
-#pragma warning(disable : 4305, disable : 4244, disable : 4267)
 
 struct SEEDS_setting {
     cv::Size sz;
