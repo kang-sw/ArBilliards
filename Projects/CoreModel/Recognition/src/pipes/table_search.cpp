@@ -361,6 +361,8 @@ pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::exe
     auto& edges = in.edges;
     auto& debug = *in.dbg_mat;
 
+    PIPEPP_CAPTURE_DEBUG_DATA_COND((Mat)in.edges, debug::show_source_image(ec));
+
     // Hough 적용
     PIPEPP_ELAPSE_BLOCK("Apply Hough")
     {
