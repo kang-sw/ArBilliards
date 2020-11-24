@@ -321,11 +321,11 @@ cv::Vec<Ty_, Cnt_> const& subvec(cv::Vec<Ty_, I_> const& v)
     return (cv::Vec<Ty_, Cnt_> const&)v.val[Begin_];
 }
 
-template <size_t Begin_, size_t Cnt_, typename Ty_, size_t I_>
+template <size_t Ofst_, size_t Cnt_, typename Ty_, size_t I_>
 cv::Vec<Ty_, Cnt_>& subvec(cv::Vec<Ty_, I_>& v)
 {
-    static_assert(Begin_ + Cnt_ <= I_);
-    return (cv::Vec<Ty_, Cnt_>&)v.val[Begin_];
+    static_assert(Ofst_ + Cnt_ <= I_);
+    return (cv::Vec<Ty_, Cnt_>&)v.val[Ofst_];
 }
 
 template <typename Ty_>

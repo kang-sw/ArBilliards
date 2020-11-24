@@ -7,6 +7,8 @@
 
 #include "kangsw/hash_index.hxx"
 
+#pragma warning(disable : 4305, disable : 4244, disable : 4267)
+
 struct SEEDS_setting {
     cv::Size sz;
     int num_segs;
@@ -301,14 +303,14 @@ pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::exe
     // edge 계산
     auto& labels = in.labels;
     auto& debug = *in.dbg_mat;
-    Mat1b edges{labels.size()};
+    Mat1b edges;
     PIPEPP_ELAPSE_BLOCK("Edge Calculation")
     {
         Mat1i expanded;
         auto size = labels.size();
         copyMakeBorder(labels, expanded, 0, 1, 0, 1, BORDER_REPLICATE);
 
-        auto find_border = [](cv::Size size, auto&& src /* expanded */, auto&& dst) {
+        auto find_border = [](cv::Size size, auto const& src /* expanded */, auto&& dst) {
             for (auto& [i, j] : ks::counter(size.height, size.width)) {
                 auto A = src(i, j);
                 bool const is_edge
@@ -320,47 +322,76 @@ pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::exe
             }
         };
 
-        // 한 번의 경계 계산만 수행하면, Superpixel의 특성으로 인해 굉장히 많은 노이즈가 생기게 되므로
-        //Dilate-Erode 연산 후 다시 경계선을 검출해 작은 크기의 경계들을 병합합니다.
+        // TODO: 한 번의 경계 계산만 수행하면, Superpixel 결과 작은 클러스터들로 인해 노이즈가 생기게 되므로 Dilate-Erode 연산 후 다시 경계선을 검출해 작은 크기의 경계들을 병합합니다.
+        edges.create(expanded.size());
+        edges.row(edges.rows - 1).setTo(0);
+        edges.col(edges.cols - 1).setTo(0);
+
         find_border(size, expanded, edges);
 
+        if (auto num_denoise = edge::pp_dilate_erode_count(ec); num_denoise) {
+            PIPEPP_ELAPSE_SCOPE("Edge denoising process");
+            PIPEPP_STORE_DEBUG_DATA_COND("Raw edge info before apply denoiser", expanded.clone(), debug::show_raw_edges(ec));
+            UMat u0, u1;
+            dilate(edges.getUMat(ACCESS_READ), u0, {}, {-1, -1}, num_denoise);
+            erode(u0, u1, {}, {-1, -1}, num_denoise);
+            u1.copyTo(edges);
+            find_border(size, edges, edges);
+        }
+
+        edges = edges(Rect({}, size - Size(1, 1))); // 삽입한 경계선 제거
         PIPEPP_STORE_DEBUG_DATA("Calculated label edge", (Mat)edges);
     }
 
     // Hough 적용
-    vector<cv::Vec2f> lines;
     PIPEPP_ELAPSE_BLOCK("Apply Hough")
     {
-        HoughLines(
-          edges,
-          lines,
-          hough::rho(ec),
-          hough::theta(ec) * CV_PI / 180,
-          hough::threshold(ec),
-          hough::srn(ec),
-          hough::stn(ec));
+        vector<cv::Vec4i> lines;
+
+        if (hough::use_P_version(ec)) {
+            HoughLinesP(edges,
+                        lines,
+                        hough::rho(ec),
+                        hough::theta(ec) * CV_PI / 180,
+                        hough::threshold(ec),
+                        hough::p::min_line_len(ec),
+                        hough::p::max_line_gap(ec));
+        } else {
+            vector<cv::Vec2f> result;
+            HoughLines(edges,
+                       result,
+                       hough::rho(ec),
+                       hough::theta(ec) * CV_PI / 180,
+                       hough::threshold(ec),
+                       hough::np::srn(ec),
+                       hough::np::stn(ec));
+
+            for (size_t i = 0; i < result.size(); i++) {
+                float rho = result[i][0], theta = result[i][1];
+                Vec4i& line = lines.emplace_back();
+                auto& pt1 = subvec<0, 2>(line);
+                auto& pt2 = subvec<2, 2>(line);
+
+                double a = cos(theta), b = sin(theta);
+                double x0 = a * rho, y0 = b * rho;
+                pt1[0] = cvRound(x0 + 1000 * (-b));
+                pt1[1] = cvRound(y0 + 1000 * (a));
+                pt2[0] = cvRound(x0 - 1000 * (-b));
+                pt2[1] = cvRound(y0 - 1000 * (a));
+            }
+        }
+
+        PIPEPP_CAPTURE_DEBUG_DATA(lines.size());
 
         if (debug::show_found_lines(ec)) {
             PIPEPP_ELAPSE_SCOPE("Hough visualization");
             cv::Mat vis;
-            if (debug.size() != labels.size()) {
-                resize(debug, vis, labels.size());
-            } else {
-                debug.copyTo(vis);
-            }
+            debug.size() != labels.size() ? resize(debug, vis, labels.size()) : debug.copyTo(vis);
 
-            for (size_t i = 0; i < lines.size(); i++) {
-                float rho = lines[i][0], theta = lines[i][1];
-                Point pt1, pt2;
-                double a = cos(theta), b = sin(theta);
-                double x0 = a * rho, y0 = b * rho;
-                pt1.x = cvRound(x0 + 1000 * (-b));
-                pt1.y = cvRound(y0 + 1000 * (a));
-                pt2.x = cvRound(x0 - 1000 * (-b));
-                pt2.y = cvRound(y0 - 1000 * (a));
-                line(vis, pt1, pt2, Scalar(0, 0, 255), 1, LINE_AA);
+            for (auto& line : lines) {
+                auto &p0 = subvec<0, 2>(line), p1 = subvec<2, 2>(line);
+                cv::line(vis, p0, p1, {0, 0, 255}, 1, LINE_AA);
             }
-
             PIPEPP_STORE_DEBUG_DATA("Hough line result", vis);
         }
     }
