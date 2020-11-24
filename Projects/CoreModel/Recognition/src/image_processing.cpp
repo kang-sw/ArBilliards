@@ -871,7 +871,7 @@ void billiards::imgproc::filter_hsv(cv::InputArray input, cv::OutputArray output
 {
     using namespace cv;
     if (max_hsv[0] < min_hsv[0]) {
-        UMat mask, hi, lo, temp;
+        Mat mask, hi, lo, temp;
         auto filt_min = min_hsv, filt_max = max_hsv;
         filt_min[0] = 0, filt_max[0] = 255;
 

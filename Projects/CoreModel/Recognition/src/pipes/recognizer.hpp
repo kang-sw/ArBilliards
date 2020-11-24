@@ -136,7 +136,7 @@ struct input_resize {
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
-    static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
+    static void output_handler(pipepp::pipe_error, shared_data& sd, pipepp::execution_context& ec, output_type const& o);
 };
 
 struct contour_candidate_search {

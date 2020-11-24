@@ -366,8 +366,9 @@ pipepp::pipe_error billiards::pipes::hough_line_executor::invoke(pipepp::executi
     PIPEPP_ELAPSE_BLOCK("Apply Hough")
     {
         vector<cv::Vec4i> lines;
-
-        if (hough::use_P_version(ec)) {
+        bool const use_P = (hough::use_P_version(ec));
+        bool const do_visualize = (debug::show_found_lines(ec));
+        if (use_P) {
             HoughLinesP(edges,
                         lines,
                         hough::rho(ec),
@@ -375,8 +376,9 @@ pipepp::pipe_error billiards::pipes::hough_line_executor::invoke(pipepp::executi
                         hough::threshold(ec),
                         hough::p::min_line_len(ec),
                         hough::p::max_line_gap(ec));
+
         } else {
-            vector<cv::Vec2f> result;
+            vector<cv::Vec3f> result;
             HoughLines(edges,
                        result,
                        hough::rho(ec),
@@ -385,24 +387,28 @@ pipepp::pipe_error billiards::pipes::hough_line_executor::invoke(pipepp::executi
                        hough::np::srn(ec),
                        hough::np::stn(ec));
 
-            for (size_t i = 0; i < result.size(); i++) {
-                float rho = result[i][0], theta = result[i][1];
-                Vec4i& line = lines.emplace_back();
-                auto& pt1 = subvec<0, 2>(line);
-                auto& pt2 = subvec<2, 2>(line);
+            if (do_visualize) {
+                for (size_t i = 0; i < result.size(); i++) {
+                    float rho = result[i][0], theta = result[i][1];
+                    Vec4i& line = lines.emplace_back();
+                    auto& pt1 = subvec<0, 2>(line);
+                    auto& pt2 = subvec<2, 2>(line);
 
-                double a = cos(theta), b = sin(theta);
-                double x0 = a * rho, y0 = b * rho;
-                pt1[0] = cvRound(x0 + 1000 * (-b));
-                pt1[1] = cvRound(y0 + 1000 * (a));
-                pt2[0] = cvRound(x0 - 1000 * (-b));
-                pt2[1] = cvRound(y0 - 1000 * (a));
+                    double a = cos(theta), b = sin(theta);
+                    double x0 = a * rho, y0 = b * rho;
+                    pt1[0] = cvRound(x0 + 1000 * (-b));
+                    pt1[1] = cvRound(y0 + 1000 * (a));
+                    pt2[0] = cvRound(x0 - 1000 * (-b));
+                    pt2[1] = cvRound(y0 - 1000 * (a));
+                }
             }
+
+            out.lines = std::move(result);
         }
 
         PIPEPP_CAPTURE_DEBUG_DATA(lines.size());
 
-        if (debug::show_found_lines(ec)) {
+        if (do_visualize) {
             PIPEPP_ELAPSE_SCOPE("Hough visualization");
             cv::Mat vis;
             debug.size() != edges.size() ? resize(debug, vis, edges.size()) : debug.copyTo(vis);
@@ -412,6 +418,10 @@ pipepp::pipe_error billiards::pipes::hough_line_executor::invoke(pipepp::executi
                 cv::line(vis, p0, p1, {0, 0, 255}, 1, LINE_AA);
             }
             PIPEPP_STORE_DEBUG_DATA("Hough line result", vis);
+        }
+
+        if (use_P) {
+            out.lines = lines;
         }
     }
 

@@ -130,8 +130,8 @@ struct label_edge_detector {
     PIPEPP_CATEGORY(edge, "Edge")
     {
         PIPEPP_OPTION(pp_dilate_erode_count, 0u,
-                      u8"í´ëŸ¬ìŠ¤í„°ë¡œë¶€í„° ê³„ì‚°ëœ ì—ì§€ì˜ ë…¸ì´ì¦ˆë¥¼ ê°ì†Œì‹œí‚¤ê¸° ìœ„í•´ "
-                      "ê²½ê³„ì„ ì„ N ë²ˆ íŒ½ì°½ì‹œí‚¨ ë’¤ ë‹¤ì‹œ ì¹¨ì‹í•©ë‹ˆë‹¤.");
+                      u8"Å¬·¯½ºÅÍ·ÎºÎÅÍ °è»êµÈ ¿¡ÁöÀÇ ³ëÀÌÁî¸¦ °¨¼Ò½ÃÅ°±â À§ÇØ "
+                      "°æ°è¼±À» N ¹ø ÆØÃ¢½ÃÅ² µÚ ´Ù½Ã Ä§½ÄÇÕ´Ï´Ù.");
     };
 
     struct input_type {
@@ -146,7 +146,7 @@ struct label_edge_detector {
 };
 
 /**
- * TODO: í´ëŸ¬ìŠ¤í„° ë¼ë²¨ ë°°ì—´ì˜ ê²½ê³„ì„  ì´ë¯¸ì§€ë¥¼ íšë“í•˜ê³ , ì—¬ê¸°ì„œ hough ë³€í™˜ì„ í†µí•´ ëª¨ë“  ì§ì„  í›„ë³´ë¥¼ ì°¾ìŠµë‹ˆë‹¤. ë§Œë‚˜ëŠ” ì§ì„ ë“¤ë¡œë¶€í„° ëª¨ë“  ì„ ë¶„ì„ ì°¾ì•„ë‚´ê³ , ì„ ë¶„ìœ¼ë¡œë¶€í„° êµ¬ì„±ë  ìˆ˜ ìžˆëŠ” ëª¨ë“  ë„í˜•ì„ ì°¾ì•„ëƒ…ë‹ˆë‹¤. ì´í›„ ê° ë„í˜•ì— ëŒ€í•´, ê° í´ëŸ¬ìŠ¤í„°ì˜ ì¤‘ì‹¬ì ì„ iterateí•´, í…Œì´ë¸” ìƒ‰ìƒê³¼ ê°€ê¹Œìš´ í´ëŸ¬ìŠ¤í„°ê°€ ê°€ìž¥ ë§Žì´ í¬í•¨ë˜ë©´ì„œ, í…Œì´ë¸” ìƒ‰ìƒì´ ì•„ë‹Œ í´ëŸ¬ìŠ¤í„°ë¥¼ ì „í˜€ í¬í•¨í•˜ì§€ ì•ŠëŠ” ê°€ìž¥ í° ë„í˜•ì„ ì°¾ì•„ëƒ…ë‹ˆë‹¤. ì´ê²ƒì´ í…Œì´ë¸”ì˜ í›„ë³´ ì‚¬ê°í˜•ì´ ë©ë‹ˆë‹¤.
+ * TODO: Å¬·¯½ºÅÍ ¶óº§ ¹è¿­ÀÇ °æ°è¼± ÀÌ¹ÌÁö¸¦ È¹µæÇÏ°í, ¿©±â¼­ hough º¯È¯À» ÅëÇØ ¸ðµç Á÷¼± ÈÄº¸¸¦ Ã£½À´Ï´Ù. ¸¸³ª´Â Á÷¼±µé·ÎºÎÅÍ ¸ðµç ¼±ºÐÀ» Ã£¾Æ³»°í, ¼±ºÐÀ¸·ÎºÎÅÍ ±¸¼ºµÉ ¼ö ÀÖ´Â ¸ðµç µµÇüÀ» Ã£¾Æ³À´Ï´Ù. ÀÌÈÄ °¢ µµÇü¿¡ ´ëÇØ, °¢ Å¬·¯½ºÅÍÀÇ Áß½ÉÁ¡À» iterateÇØ, Å×ÀÌºí »ö»ó°ú °¡±î¿î Å¬·¯½ºÅÍ°¡ °¡Àå ¸¹ÀÌ Æ÷ÇÔµÇ¸é¼­, Å×ÀÌºí »ö»óÀÌ ¾Æ´Ñ Å¬·¯½ºÅÍ¸¦ ÀüÇô Æ÷ÇÔÇÏÁö ¾Ê´Â °¡Àå Å« µµÇüÀ» Ã£¾Æ³À´Ï´Ù. ÀÌ°ÍÀÌ Å×ÀÌºíÀÇ ÈÄº¸ »ç°¢ÇüÀÌ µË´Ï´Ù.
  */
 class hough_line_executor
 {
@@ -159,7 +159,7 @@ class hough_line_executor
 
     PIPEPP_CATEGORY(hough, "Hough Lines")
     {
-        PIPEPP_OPTION(use_P_version, false, u8"í™œì„±í™” ì‹œ HoughLinesPë¥¼ ëŒ€ì‹  ì‚¬ìš©í•©ë‹ˆë‹¤.");
+        PIPEPP_OPTION(use_P_version, false, u8"È°¼ºÈ­ ½Ã HoughLinesP¸¦ ´ë½Å »ç¿ëÇÕ´Ï´Ù.");
         PIPEPP_OPTION(rho, 1.0, "", pipepp::verify::clamp(0.0, 1.0));
         PIPEPP_OPTION(theta, 180.0, "", pipepp::verify::clamp(1e-3, 180.0));
         PIPEPP_OPTION(threshold, 1, "", pipepp::verify::minimum(0));
@@ -183,15 +183,15 @@ public:
     };
 
     struct output_type {
-        std::vector<cv::Vec3f> contours;
+        std::variant<std::vector<cv::Vec4i>, std::vector<cv::Vec3f>> lines;
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& in, output_type& out);
 };
 
 /**
- * ê°„ë‹¨í•œ ì»¨íˆ¬ì–´ í•„í„°ìž…ë‹ˆë‹¤.
- * ë§ˆìŠ¤í¬ ë°ì´í„°ì—ì„œ ë³´ìˆ˜ì ì¸ ë°©ë²•ìœ¼ë¡œ ì»¨íˆ¬ì–´ë¥¼ íšë“í•©ë‹ˆë‹¤.
+ * °£´ÜÇÑ ÄÁÅõ¾î ÇÊÅÍÀÔ´Ï´Ù.
+ * ¸¶½ºÅ© µ¥ÀÌÅÍ¿¡¼­ º¸¼öÀûÀÎ ¹æ¹ýÀ¸·Î ÄÁÅõ¾î¸¦ È¹µæÇÕ´Ï´Ù.
  */
 
 } // namespace billiards::pipes

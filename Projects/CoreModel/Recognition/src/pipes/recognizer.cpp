@@ -166,8 +166,10 @@ pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_cont
     return pipepp::pipe_error::ok;
 }
 
-void billiards::pipes::input_resize::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
+void billiards::pipes::input_resize::output_handler(pipepp::pipe_error, shared_data& sd, pipepp::execution_context& ec, output_type const& o)
 {
+    PIPEPP_REGISTER_CONTEXT(ec);
+
     o.u_hsv.copyTo(sd.u_hsv);
     o.u_rgb.copyTo(sd.u_rgb);
     o.rgb.copyTo(sd.rgb);
@@ -176,10 +178,12 @@ void billiards::pipes::input_resize::output_handler(pipepp::pipe_error, shared_d
     o.rgb.copyTo(sd.debug_mat);
 
     imgproc::filter_hsv(
-      sd.hsv,
+      o.hsv,
       sd.table_hsv_filtered,
       shared_data::table::filter::color_lo(sd),
       shared_data::table::filter::color_hi(sd));
+
+    PIPEPP_STORE_DEBUG_DATA("Filtered HSV", (cv::Mat)sd.table_hsv_filtered);
 }
 
 pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)

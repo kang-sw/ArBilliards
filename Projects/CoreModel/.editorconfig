@@ -3,5 +3,5 @@
 # You can learn more about editorconfig here: https://docs.microsoft.com/en-us/visualstudio/ide/editorconfig-code-style-settings-reference
 root = true
 
-[*]
-charset = euc-kr
+# [*]
+# charset = euc-kr
