@@ -146,9 +146,9 @@ billiards::pipes::superpixel::~superpixel() = default;
 
 void billiards::pipes::superpixel::link_from_previous(shared_data& sd, pipepp::execution_context& ec, input_type& o)
 {
+    PIPEPP_REGISTER_CONTEXT(ec);
     using opt = link::preprocess;
     if (opt::enable_hsv_adjust(sd)) {
-        PIPEPP_REGISTER_CONTEXT(ec);
         using namespace cv;
 
         Mat1b ch[3];
@@ -162,6 +162,11 @@ void billiards::pipes::superpixel::link_from_previous(shared_data& sd, pipepp::e
         PIPEPP_STORE_DEBUG_DATA("Adjusted RGB", o.rgb);
     } else {
         o.rgb = sd.rgb;
+    }
+
+    if (opt::enable_hsv_filter(sd)) {
+        PIPEPP_STORE_DEBUG_DATA("HSV filtered mask", (cv::Mat)sd.table_hsv_filtered);
+        o.rgb.setTo(0, 255 - sd.table_hsv_filtered);
     }
 }
 
@@ -292,7 +297,7 @@ void billiards::pipes::clustering::output_handler(shared_data& sd, output_type c
     sd.cluster = o;
 }
 
-pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
+pipepp::pipe_error billiards::pipes::cluster_edge_calculation::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using namespace std;
@@ -300,15 +305,14 @@ pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::exe
     using namespace imgproc;
     namespace ks = kangsw;
 
-    // edge 계산
     auto& labels = in.labels;
-    auto& debug = *in.dbg_mat;
     Mat1b edges;
     PIPEPP_ELAPSE_BLOCK("Edge Calculation")
     {
         Mat1i expanded;
         auto size = labels.size();
-        copyMakeBorder(labels, expanded, 0, 1, 0, 1, BORDER_REPLICATE);
+        copyMakeBorder(labels, expanded, 0, 1, 0, 1, BORDER_CONSTANT, 0);
+        carve_outermost_pixels(expanded({{}, size}), 0);
 
         auto find_border = [](cv::Size size, auto const& src /* expanded */, auto&& dst) {
             for (auto& [i, j] : ks::counter(size.height, size.width)) {
@@ -331,7 +335,7 @@ pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::exe
 
         if (auto num_denoise = edge::pp_dilate_erode_count(ec); num_denoise) {
             PIPEPP_ELAPSE_SCOPE("Edge denoising process");
-            PIPEPP_STORE_DEBUG_DATA_COND("Raw edge info before apply denoiser", expanded.clone(), debug::show_raw_edges(ec));
+            PIPEPP_STORE_DEBUG_DATA_COND("Raw edge info before apply denoiser", (Mat)expanded.clone(), debug::show_raw_edges(ec));
             UMat u0, u1;
             dilate(edges.getUMat(ACCESS_READ), u0, {}, {-1, -1}, num_denoise);
             erode(u0, u1, {}, {-1, -1}, num_denoise);
@@ -342,6 +346,20 @@ pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::exe
         edges = edges(Rect({}, size - Size(1, 1))); // 삽입한 경계선 제거
         PIPEPP_STORE_DEBUG_DATA("Calculated label edge", (Mat)edges);
     }
+
+    out.edges = edges;
+    return pipepp::pipe_error::ok;
+}
+
+pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
+{
+    PIPEPP_REGISTER_CONTEXT(ec);
+    using namespace std;
+    using namespace cv;
+    using namespace imgproc;
+    namespace ks = kangsw;
+    auto& edges = in.edges;
+    auto& debug = *in.dbg_mat;
 
     // Hough 적용
     PIPEPP_ELAPSE_BLOCK("Apply Hough")
@@ -386,7 +404,7 @@ pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::exe
         if (debug::show_found_lines(ec)) {
             PIPEPP_ELAPSE_SCOPE("Hough visualization");
             cv::Mat vis;
-            debug.size() != labels.size() ? resize(debug, vis, labels.size()) : debug.copyTo(vis);
+            debug.size() != edges.size() ? resize(debug, vis, edges.size()) : debug.copyTo(vis);
 
             for (auto& line : lines) {
                 auto &p0 = subvec<0, 2>(line), p1 = subvec<2, 2>(line);
@@ -397,16 +415,4 @@ pipepp::pipe_error billiards::pipes::table_contour_detection::invoke(pipepp::exe
     }
 
     return pipepp::pipe_error::ok;
-}
-
-bool billiards::pipes::table_contour_detection::linker(shared_data const& sd, input_type& i)
-{
-    if (sd.cluster.label_2d_spxl.empty() || sd.cluster.label_cluster_1darray.empty()) {
-        return false;
-    }
-
-    i.labels = imgproc::index_by(sd.cluster.label_cluster_1darray, sd.cluster.label_2d_spxl);
-    i.dbg_mat = &sd.debug_mat;
-
-    return true;
 }

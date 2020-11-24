@@ -46,11 +46,27 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         &pipepp::make_executor<clustering>);
     clustering_proxy.add_output_handler(&clustering::output_handler);
 
-    auto table_contour_finder_proxy
+    auto edge_finder_0_proxy
       = clustering_proxy.create_and_link_output(
+        "edge finder 0",
+        1,
+        [](shared_data& sd, clustering::output_type const& o, cluster_edge_calculation::input_type& i) {
+            if (sd.cluster.label_2d_spxl.empty() || sd.cluster.label_cluster_1darray.empty()) {
+                return false;
+            }
+            i.labels = imgproc::index_by(sd.cluster.label_cluster_1darray, sd.cluster.label_2d_spxl);
+            return true;
+        },
+        &pipepp::make_executor<cluster_edge_calculation>);
+
+    auto table_contour_finder_proxy
+      = edge_finder_0_proxy.create_and_link_output(
         "table contour search",
         1,
-        &table_contour_detection::linker,
+        [](shared_data& sd, cluster_edge_calculation::output_type const& o, table_contour_detection::input_type& i) {
+            i.edges = o.edges;
+            i.dbg_mat = &sd.debug_mat;
+        },
         &pipepp::make_executor<table_contour_detection>);
 
     // ---------------------------------------------------------------------------------
@@ -205,6 +221,12 @@ void billiards::pipes::input_resize::output_handler(pipepp::pipe_error, shared_d
     o.hsv.copyTo(sd.hsv);
 
     o.rgb.copyTo(sd.debug_mat);
+
+    imgproc::filter_hsv(
+      sd.hsv,
+      sd.table_hsv_filtered,
+      shared_data::table::filter::color_lo(sd),
+      shared_data::table::filter::color_hi(sd));
 }
 
 pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::execution_context& ec, input_type const& i, output_type& o)

@@ -118,6 +118,31 @@ private:
     std::vector<cv::Vec<float, 5>> spxl_kmeans_param;
 };
 
+struct cluster_edge_calculation {
+    PIPEPP_DECLARE_OPTION_CLASS(cluster_edge_calculation);
+    PIPEPP_CATEGORY(debug, "Debug")
+    {
+        PIPEPP_OPTION(show_raw_edges, false);
+    };
+
+    PIPEPP_CATEGORY(edge, "Edge")
+    {
+        PIPEPP_OPTION(pp_dilate_erode_count, 0u,
+                      u8"클러스터로부터 계산된 에지의 노이즈를 감소시키기 위해 "
+                      "경계선을 N 번 팽창시킨 뒤 다시 침식합니다.");
+    };
+
+    struct input_type {
+        cv::Mat1i labels;
+    };
+
+    struct output_type {
+        cv::Mat1b edges;
+    };
+
+    pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& in, output_type& out);
+};
+
 /**
  * TODO: 클러스터 라벨 배열의 경계선 이미지를 획득하고, 여기서 hough 변환을 통해 모든 직선 후보를 찾습니다. 만나는 직선들로부터 모든 선분을 찾아내고, 선분으로부터 구성될 수 있는 모든 도형을 찾아냅니다. 이후 각 도형에 대해, 각 클러스터의 중심점을 iterate해, 테이블 색상과 가까운 클러스터가 가장 많이 포함되면서, 테이블 색상이 아닌 클러스터를 전혀 포함하지 않는 가장 큰 도형을 찾아냅니다. 이것이 테이블의 후보 사각형이 됩니다.
  */
@@ -127,14 +152,6 @@ class table_contour_detection
     PIPEPP_CATEGORY(debug, "Debug")
     {
         PIPEPP_OPTION(show_found_lines, false);
-        PIPEPP_OPTION(show_raw_edges, false);
-    };
-
-    PIPEPP_CATEGORY(edge, "Edge")
-    {
-        PIPEPP_OPTION(pp_dilate_erode_count, 0u,
-                      u8"클러스터로부터 계산된 에지의 노이즈를 감소시키기 위해 "
-                      "경계선을 N 번 팽창시킨 뒤 다시 침식합니다.");
     };
 
     PIPEPP_CATEGORY(hough, "Hough Lines")
@@ -158,7 +175,7 @@ class table_contour_detection
 
 public:
     struct input_type {
-        cv::Mat1i labels;
+        cv::Mat1b edges;
         cv::Mat const* dbg_mat = {};
     };
 
@@ -167,7 +184,10 @@ public:
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& in, output_type& out);
-    static bool linker(shared_data const& sd, input_type& i);
 };
+
+/**
+ * 
+ */
 
 } // namespace billiards::pipes

@@ -62,6 +62,9 @@ struct shared_data : pipepp::base_shared_context {
             PIPEPP_OPTION(alpha_pos, 0.3);
             PIPEPP_OPTION(alpha_rot, 0.3);
             PIPEPP_OPTION(jump_threshold_distance, 0.1);
+
+            PIPEPP_OPTION(color_lo, cv::Vec3b(175, 150, 60));
+            PIPEPP_OPTION(color_hi, cv::Vec3b(10, 255, 255));
         };
         struct marker {
             PIPEPP_DECLARE_OPTION_CATEGORY("Table.Marker");
@@ -97,6 +100,8 @@ struct shared_data : pipepp::base_shared_context {
     cv::Mat cluster_color_mat;
     cv::Mat rgb, hsv;
     cv::UMat u_rgb, u_hsv;
+
+    cv::Mat1b table_hsv_filtered;
 
     struct cluster_type {
         cv::Mat1i label_2d_spxl;
