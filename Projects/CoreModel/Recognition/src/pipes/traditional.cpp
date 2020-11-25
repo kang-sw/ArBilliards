@@ -34,8 +34,8 @@ void build_traditional_path(pipepp::pipeline<billiards::pipes::shared_data, bill
       = pnp_solver_proxy.create_and_link_output(
         "marker finder",
         1,
-        &billiards::pipes::marker_finder::link_from_previous,
-        &pipepp::make_executor<billiards::pipes::marker_finder>);
+        &billiards::pipes::DEPRECATED_marker_finder::link_from_previous,
+        &pipepp::make_executor<billiards::pipes::DEPRECATED_marker_finder>);
 
     // ---------------------------------------------------------------------------------
     //      CASE B: SUPERPIXELS
@@ -48,9 +48,9 @@ void build_traditional_path(pipepp::pipeline<billiards::pipes::shared_data, bill
       = marker_finder_proxy.create_and_link_output(
         "marker solver",
         1,
-        &billiards::pipes::marker_solver::link_from_previous,
-        &pipepp::make_executor<billiards::pipes::marker_solver>);
-    marker_solver_proxy.add_output_handler(&billiards::pipes::marker_solver::output_handler);
+        &billiards::pipes::DEPRECATED_marker_solver::link_from_previous,
+        &pipepp::make_executor<billiards::pipes::DEPRECATED_marker_solver>);
+    marker_solver_proxy.add_output_handler(&billiards::pipes::DEPRECATED_marker_solver::output_handler);
 
     // ---------------------------------------------------------------------------------
     //  [TABLE POSITION] --> BALL SEARCH
@@ -60,8 +60,8 @@ void build_traditional_path(pipepp::pipeline<billiards::pipes::shared_data, bill
       = marker_solver_proxy.create_and_link_output(
         "ball finder",
         4,
-        &billiards::pipes::ball_search::link_from_previous,
-        &pipepp::make_executor<billiards::pipes::ball_search>);
+        &billiards::pipes::DEPRECATED_ball_search::link_from_previous,
+        &pipepp::make_executor<billiards::pipes::DEPRECATED_ball_search>);
 
     // ---------------------------------------------------------------------------------
     //      CASE B: SUPERPIXELS
@@ -304,13 +304,12 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
 
         if (result.has_value()) {
             auto& res = *result;
-            float partial_weight = partial::apply_weight(ec);
-            o.confidence = res.confidence * partial_weight;
+            o.confidence = res.confidence * partial::apply_weight(ec);
             o.table_pos = res.position;
             o.table_rot = res.rotation;
 
             o.can_jump = false;
-            PIPEPP_STORE_DEBUG_DATA("Partial data confidence", o.confidence);
+            PIPEPP_STORE_DEBUG_DATA("Partial data confidence", res.confidence);
         }
     }
 
@@ -353,7 +352,7 @@ void billiards::pipes::table_edge_solver::output_handler(pipepp::pipe_error, sha
     state.table.rot = imgproc::set_filtered_table_rot(state.table.rot, o.table_rot, rot_alpha * o.confidence, jump_thr);
 }
 
-pipepp::pipe_error billiards::pipes::marker_finder::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
+pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using namespace cv;
@@ -501,7 +500,7 @@ pipepp::pipe_error billiards::pipes::marker_finder::invoke(pipepp::execution_con
     return pipepp::pipe_error::ok;
 }
 
-void billiards::pipes::marker_finder::link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o)
+void billiards::pipes::DEPRECATED_marker_finder::link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o)
 {
     auto _lck = sd.state->lock();
     o = input_type{
@@ -515,7 +514,7 @@ void billiards::pipes::marker_finder::link_from_previous(shared_data const& sd, 
       .FOV_degree = sd.camera_FOV(sd)};
 }
 
-pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
+pipepp::pipe_error billiards::pipes::DEPRECATED_marker_solver::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     out.confidence = 0;
@@ -682,7 +681,7 @@ pipepp::pipe_error billiards::pipes::marker_solver::invoke(pipepp::execution_con
     return pipepp::pipe_error::ok;
 }
 
-void billiards::pipes::marker_solver::link_from_previous(shared_data const& sd, marker_finder::output_type const& i, input_type& o)
+void billiards::pipes::DEPRECATED_marker_solver::link_from_previous(shared_data const& sd, DEPRECATED_marker_finder::output_type const& i, input_type& o)
 {
     auto _lck = sd.state->lock();
     o = input_type{
@@ -696,10 +695,10 @@ void billiards::pipes::marker_solver::link_from_previous(shared_data const& sd, 
       .FOV_degree = sd.camera_FOV(sd),
       .markers = i.markers,
       .weights = i.weights};
-    shared_data::get_marker_points_model(sd, o.marker_model);
+    sd.get_marker_points_model(o.marker_model);
 }
 
-void billiards::pipes::marker_solver::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
+void billiards::pipes::DEPRECATED_marker_solver::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
 {
     auto& state = *sd.state;
     auto _lck = state.lock();
@@ -710,9 +709,9 @@ void billiards::pipes::marker_solver::output_handler(pipepp::pipe_error, shared_
     state.table.rot = imgproc::set_filtered_table_rot(state.table.rot, o.table_rot, rot_alpha * o.confidence);
 }
 
-void billiards::pipes::shared_data::get_marker_points_model(pipepp::detail::option_base const& ec, std::vector<cv::Vec3f>& model)
+void billiards::pipes::shared_data::get_marker_points_model(std::vector<cv::Vec3f>& model) const
 {
-    PIPEPP_REGISTER_CONTEXT(ec);
+    auto& ec = *this;
 
     int num_x = table::marker::count_x(ec);
     int num_y = table::marker::count_y(ec);
@@ -736,7 +735,7 @@ void billiards::pipes::shared_data::get_marker_points_model(pipepp::detail::opti
     }
 }
 
-pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_context& ec, input_type const& input, output_type& out)
+pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::execution_context& ec, input_type const& input, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using namespace cv;
@@ -1169,7 +1168,7 @@ pipepp::pipe_error billiards::pipes::ball_search::invoke(pipepp::execution_conte
     return pipepp::pipe_error::ok;
 }
 
-void billiards::pipes::ball_search::link_from_previous(shared_data const& sd, marker_solver::output_type const& i, input_type& o)
+void billiards::pipes::DEPRECATED_ball_search::link_from_previous(shared_data const& sd, DEPRECATED_marker_solver::output_type const& i, input_type& o)
 {
     auto _lck = sd.state->lock();
     o = input_type{
@@ -1189,7 +1188,7 @@ void billiards::pipes::ball_search::link_from_previous(shared_data const& sd, ma
     };
 }
 
-void billiards::pipes::ball_search::output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& o)
+void billiards::pipes::DEPRECATED_ball_search::output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& o)
 {
     if (e == pipepp::pipe_error::ok) {
         auto _lck = sd.state->lock();

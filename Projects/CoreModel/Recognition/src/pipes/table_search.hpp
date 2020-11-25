@@ -199,13 +199,41 @@ public:
  * 불충분하다면, superpixel을 활용합니다. 가급적 간단하게 구현하고 넘어갑시다 ... 시간 부족!
  *
  */
-struct table_contour_searching_executor {
-    struct input_type {
-    };
-    struct output_type {
+PIPEPP_EXECUTOR(table_contour_geometric_search)
+{
+    PIPEPP_CATEGORY(debug, "Debug")
+    {
+        PIPEPP_OPTION(show_input, true);
+        PIPEPP_OPTION(show_all_contours, true);
+        PIPEPP_OPTION(contour_color, (cv::Vec3b{255, 255, 255}));
+        PIPEPP_OPTION(show_approx_0_contours, true);
+        PIPEPP_OPTION(approxed_contour_color, (cv::Vec3b{0, 255, 255}));
     };
 
-    pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& in, output_type& out);
+    PIPEPP_CATEGORY(filtering, "Filtering")
+    {
+        PIPEPP_OPTION(min_area_ratio, 0.05, u8"전체 이미지 크기 대비, 유효한 것으로 계산되는 컨투어의 화면 넓이에 대한 비율입니다.");
+    };
+
+    PIPEPP_CATEGORY(approx, "Approximation")
+    {
+        PIPEPP_OPTION(epsilon0, 1.0, u8"컨투어 목록에 적용할 approxPolyDP() 함수 파라미터.", pipepp::verify::minimum(0.0));
+        PIPEPP_OPTION(make_convex_hull, true);
+        PIPEPP_OPTION(epsilon1, -1.0, u8"컨벡스 헐 연산 이후 적용할 approxPolyDP() 파라미터", pipepp::verify::minimum(0.0));
+    };
+
+    struct input_type {
+        cv::Mat1b edge_img;
+        cv::Mat3b const* debug_rgb;
+    };
+    struct output_type {
+        std::vector<cv::Vec2f> contours;
+    };
+
+    pipepp::pipe_error invoke(pipepp::execution_context & ec, input_type const& in, output_type& out);
+
+private:
+    std::vector<std::vector<cv::Vec2i>> contours_;
 };
 
 /**
@@ -216,7 +244,31 @@ struct table_contour_searching_executor {
  * @details
  *
  * 희소 커널 원형의 각 버텍스를 X, Z 평면(테이블과 같은 평면)상에 스폰합니다. 테이블의 카메라에 대한 상대 로테이션으로 각 버텍스를 회전시키고 화면에 원근 투영하면, 평면 커널을 획득할 수 있습니다.
- *
- * 
  */
+PIPEPP_EXECUTOR(table_marker_finder)
+{
+    PIPEPP_CATEGORY(debug, "Debug"){
+
+    };
+
+    PIPEPP_CATEGORY(kernel, "Kernel"){
+
+    };
+
+    struct input_type {
+        std::vector<cv::Vec2f> contour;
+        std::vector<cv::Vec3f> marker_model;
+    };
+    struct output_type {
+        cv::Mat1f marker_weight_map;
+    };
+
+    pipepp::pipe_error invoke(pipepp::execution_context & ec, input_type const& in, output_type& out);
+    static void link(shared_data const& sd, input_type& i)
+    {
+        i.contour = sd.table.contour;
+        sd.get_marker_points_model(i.marker_model);
+    }
+};
+
 } // namespace billiards::pipes

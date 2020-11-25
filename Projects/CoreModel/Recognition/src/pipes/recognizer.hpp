@@ -4,7 +4,6 @@
 
 #include "../image_processing.hpp"
 #include "kangsw/spinlock.hxx"
-#include "pipepp/execution_context.hpp"
 #include "pipepp/pipepp.h"
 
 namespace pipepp
@@ -103,6 +102,7 @@ struct shared_data : pipepp::base_shared_context {
     cv::UMat u_rgb, u_hsv;
 
     cv::Mat1b table_hsv_filtered;
+    cv::Mat1b table_filtered_edge;
 
     struct cluster_type {
         cv::Mat1i label_2d_spxl;
@@ -116,7 +116,7 @@ struct shared_data : pipepp::base_shared_context {
         float confidence;
     } table;
 
-    static void get_marker_points_model(pipepp::detail::option_base const& ec, std::vector<cv::Vec3f>& model);
+    void get_marker_points_model(std::vector<cv::Vec3f>& model) const;
 };
 
 struct input_resize {

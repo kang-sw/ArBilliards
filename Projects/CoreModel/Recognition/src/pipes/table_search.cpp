@@ -5,6 +5,7 @@
 #include <opencv2/core/types.hpp>
 #include <opencv2/ximgproc/seeds.hpp>
 #include <opencv2/ximgproc/slic.hpp>
+#include <ranges>
 
 #include "kangsw/hash_index.hxx"
 
@@ -426,4 +427,94 @@ pipepp::pipe_error billiards::pipes::hough_line_executor::invoke(pipepp::executi
     }
 
     return pipepp::pipe_error::ok;
+}
+
+pipepp::pipe_error billiards::pipes::table_contour_geometric_search::invoke(
+  pipepp::execution_context& ec,
+  input_type const& in,
+  output_type& out)
+{
+    PIPEPP_REGISTER_CONTEXT(ec);
+
+    auto& edge_mat = in.edge_img;
+    auto& table_contour = out.contours;
+    auto& debug = *in.debug_rgb;
+
+    table_contour.clear();
+
+    using namespace cv;
+    using namespace std;
+    namespace ks = kangsw;
+
+    if (debug::show_input(ec)) {
+        PIPEPP_CAPTURE_DEBUG_DATA((Mat)in.edge_img.clone());
+    }
+
+    PIPEPP_ELAPSE_BLOCK("Apply: findContours()")
+    {
+        contours_.clear();
+        findContours(edge_mat, contours_, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+        PIPEPP_CAPTURE_DEBUG_DATA(contours_.size());
+    }
+
+    vector<double> areas(contours_.size());
+
+    PIPEPP_ELAPSE_BLOCK("Filter contours based on area size")
+    {
+        auto threshold = filtering::min_area_ratio(ec) * edge_mat.size().area();
+
+        for (auto idx : ks::rcounter(contours_.size())) {
+            auto& contour = contours_[idx];
+            auto area = areas[idx] = contourArea(contour);
+
+            if (area < threshold) {
+                ks::swap_remove(contours_, idx);
+                ks::swap_remove(areas, idx);
+            }
+        }
+
+        if (contours_.size()) {
+            if (debug::show_all_contours(ec)) {
+                drawContours(debug, contours_, -1, debug::contour_color(ec), 1);
+            }
+            PIPEPP_ELAPSE_SCOPE("Approximate contour lines");
+            auto max_elem = max_element(areas.begin(), areas.end());
+            auto idx = std::distance(areas.begin(), max_elem);
+
+            auto& contour = contours_.at(idx);
+            table_contour.assign(contour.begin(), contour.end());
+        }
+    }
+
+    if (table_contour.empty() == false) {
+        PIPEPP_ELAPSE_SCOPE("PolyDP Approximation");
+        vector<Vec2f> approx;
+        if (auto eps0 = approx::epsilon0(ec)) {
+            approxPolyDP(table_contour, approx, eps0, true);
+        }
+
+        if (approx::make_convex_hull(ec)) {
+            swap(table_contour, approx);
+            convexHull(table_contour, approx);
+            if (auto eps1 = approx::epsilon1(ec)) {
+                swap(table_contour, approx);
+                approxPolyDP(table_contour, approx, eps1, true);
+            }
+        }
+
+        if (debug::show_approx_0_contours(ec)) {
+            vector<Vec2i> list{approx.begin(), approx.end()};
+            drawContours(debug, vector{{list}}, -1, debug::approxed_contour_color(ec), 2);
+            for (auto pt : list) { circle(debug, pt, 5, debug::approxed_contour_color(ec), -1); }
+        }
+
+        table_contour = move(approx);
+    }
+
+    return {};
+}
+
+pipepp::pipe_error billiards::pipes::table_marker_finder::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
+{
+    return {};
 }

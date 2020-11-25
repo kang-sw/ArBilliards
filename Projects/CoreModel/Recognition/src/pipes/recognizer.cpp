@@ -35,32 +35,39 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     // ---------------------------------------------------------------------------------
     //  INPUT --> [PREPROCESSOR]
     // ---------------------------------------------------------------------------------
+    //      CASE A: TRADITIONAL CONTOUR SEARCH
+    // ALL PIPES
+    {
+        auto contour_search_proxy = pl->create("table contour searcher", 1, &pipepp::make_executor<table_contour_geometric_search>);
+        auto pnp_solver_proxy = pl->create("solve table edge", 1, &pipepp::make_executor<table_edge_solver>);
+        auto marker_search_proxy = pl->create("table marker search", 1, &pipepp::make_executor<table_marker_finder>);
+
+        input_proxy.link_output(contour_search_proxy,
+                                [](shared_data& sd, table_contour_geometric_search::input_type& i) {
+                                    i.debug_rgb = &(cv::Mat3b&)sd.debug_mat;
+                                    i.edge_img = sd.table_filtered_edge;
+                                });
+
+        contour_search_proxy.add_output_handler(
+          [](shared_data& sd, table_contour_geometric_search::output_type const& o) {
+              sd.table.contour = o.contours;
+          });
+        contour_search_proxy.link_output(pnp_solver_proxy, &table_edge_solver::link_from_previous);
+
+        pnp_solver_proxy.add_output_handler(&table_edge_solver::output_handler);
+        pnp_solver_proxy.link_output(marker_search_proxy, &table_marker_finder::link);
+
+        marker_search_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
+    }
+
+    return pl;
+
     //      CASE A: SUPERPIXELS
     auto superpixels_proxy
-      = input_proxy.create_and_link_output(
-        "superpixel",
-        std::thread::hardware_concurrency() / 2,
-        &superpixel_executor::link_from_previous,
-        &pipepp::make_executor<superpixel_executor>);
+      = pl->create("superpixel", std::thread::hardware_concurrency() / 2, &pipepp::make_executor<superpixel_executor>);
+    input_proxy.link_output(superpixels_proxy, &superpixel_executor::link_from_previous);
     superpixels_proxy.add_output_handler(&superpixel_executor::output_handler);
     superpixels_proxy.configure_tweaks().selective_output = true;
-
-    // ---------------------------------------------------------------------------------
-    //          SUPERPIXELS< CONTOUR SEARCH
-    //
-    {
-        auto table_contour_finder_2_proxy = pl->create(
-          "table contour search 2", 4, &pipepp::make_executor<hough_line_executor>);
-        superpixels_proxy
-          .link_output(table_contour_finder_2_proxy,
-                       [](shared_data const& sd, hough_line_executor::input_type& i) {
-                           i.dbg_mat = &sd.debug_mat;
-                           auto& mask = sd.table_hsv_filtered;
-                           cv::Mat eroded;
-                           cv::erode(mask, eroded, {});
-                           i.edges = mask - eroded;
-                       });
-    }
 
     // ---------------------------------------------------------------------------------
     auto clustering_proxy
@@ -170,20 +177,28 @@ void billiards::pipes::input_resize::output_handler(pipepp::pipe_error, shared_d
 {
     PIPEPP_REGISTER_CONTEXT(ec);
 
-    o.u_hsv.copyTo(sd.u_hsv);
-    o.u_rgb.copyTo(sd.u_rgb);
-    o.rgb.copyTo(sd.rgb);
-    o.hsv.copyTo(sd.hsv);
+    PIPEPP_ELAPSE_BLOCK("Data Copy & Generation")
+    {
+        o.u_hsv.copyTo(sd.u_hsv);
+        o.u_rgb.copyTo(sd.u_rgb);
+        o.rgb.copyTo(sd.rgb);
+        o.hsv.copyTo(sd.hsv);
 
-    o.rgb.copyTo(sd.debug_mat);
+        o.rgb.copyTo(sd.debug_mat);
+    }
 
-    imgproc::filter_hsv(
-      o.hsv,
-      sd.table_hsv_filtered,
-      shared_data::table::filter::color_lo(sd),
-      shared_data::table::filter::color_hi(sd));
+    PIPEPP_ELAPSE_BLOCK("Table Area Edge Detection")
+    {
+        imgproc::filter_hsv(
+          o.hsv,
+          sd.table_hsv_filtered,
+          shared_data::table::filter::color_lo(sd),
+          shared_data::table::filter::color_hi(sd));
 
-    PIPEPP_STORE_DEBUG_DATA("Filtered HSV", (cv::Mat)sd.table_hsv_filtered);
+        imgproc::carve_outermost_pixels(sd.table_hsv_filtered, 0);
+        erode(sd.table_hsv_filtered, sd.table_filtered_edge, {});
+        sd.table_filtered_edge = sd.table_hsv_filtered - sd.table_filtered_edge;
+    }
 }
 
 pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
