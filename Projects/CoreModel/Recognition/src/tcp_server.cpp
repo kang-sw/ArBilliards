@@ -1,10 +1,10 @@
 #include "tcp_server.hpp"
 #include <atomic>
-#include <unordered_map>
 #include <boost/asio.hpp>
+#include <boost/container/vector.hpp>
 #include <boost/function.hpp>
 #include <boost/thread.hpp>
-#include <boost/container/vector.hpp>
+#include <unordered_map>
 
 using namespace boost;
 using namespace boost::asio;
@@ -15,8 +15,7 @@ using std::shared_ptr;
 using std::unique_ptr;
 
 // ================================================================================================
-class tcp_server_impl
-{
+class tcp_server_impl {
 public:
     std::shared_ptr<io_context> io;
     boost::thread_group io_thr;
@@ -28,8 +27,7 @@ public:
 };
 
 // ================================================================================================
-class channel_type
-{
+class channel_type {
 public:
     channel_type(tcp_server_impl& srv, tcp::acceptor&& acpt, tcp_server::accept_strand_group_assignment_handler_type&& on_assign_strand_group, tcp_server::accept_handler_type&& on_accept) noexcept
         : srv_(srv)
@@ -79,8 +77,7 @@ void channel_type::start(size_t buflen)
             if (!error) {
                 if (m.strand) {
                     m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), m.strand->wrap(*this));
-                }
-                else {
+                } else {
                     m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), *this);
                 }
             }
@@ -108,8 +105,7 @@ void channel_type::start(size_t buflen)
                 }
 
                 m.strand = found_it->second.get();
-            }
-            else {
+            } else {
                 m.strand = nullptr;
             }
 
@@ -121,8 +117,7 @@ void channel_type::start(size_t buflen)
             if (!error && m.on_read) {
                 if (m.strand) {
                     m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), m.strand->wrap(*this));
-                }
-                else {
+                } else {
                     m.socket->async_read_some(asio::buffer(m.membuf.data(), m.membuf.size()), *this);
                 }
             }

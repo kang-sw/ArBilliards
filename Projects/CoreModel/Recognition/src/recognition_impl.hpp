@@ -1,21 +1,18 @@
-#include "recognition.hpp"
-#include "recognition.hpp"
-#include "recognition.hpp"
-#include <thread>
-#include <shared_mutex>
+#include <any>
 #include <atomic>
-#include <optional>
 #include <condition_variable>
-#include <unordered_map>
-#include <vector>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/base.hpp>
-#include <any>
+#include <optional>
+#include <shared_mutex>
+#include <thread>
+#include <unordered_map>
+#include <vector>
+#include "recognition.hpp"
 
 #include "image_processing.hpp"
 
-namespace billiards
-{
+namespace billiards {
 // 평면을 나타내는 타입입니다.
 struct plane_t {
     cv::Vec3f N;
@@ -39,8 +36,7 @@ using write_lock = std::unique_lock<std::shared_mutex>;
 /**
  * @note 클래스 내부에서 사용하는 월드 좌표계는 모두 Unity 좌표계로 통일합니다. 단, 카메라 좌표계는 opencv 좌표계입니다.
  */
-class recognizer_impl_t
-{
+class recognizer_impl_t {
 public:
     recognizer_t& m;
 
@@ -514,8 +510,7 @@ enum BALL_INDEX {
     BALL_WHITE
 };
 
-namespace names
-{
+namespace names {
 enum Type {
     Size_Image,
 

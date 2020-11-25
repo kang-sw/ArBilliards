@@ -692,7 +692,8 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
                 vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
 
                 thread_context()
-                    : rand((unsigned)hash<thread::id>{}(this_thread::get_id())) { }
+                    : rand((unsigned)hash<thread::id>{}(this_thread::get_id()))
+                {}
             };
             vector<thread_context> contexts{thread::hardware_concurrency()};
 

@@ -1,18 +1,16 @@
 #pragma once
+#include <boost/asio.hpp>
+#include <boost/asio/buffer.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <functional>
 #include <memory>
 #include <string_view>
-#include <functional>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/buffer.hpp>
-#include <boost/asio.hpp>
 
-namespace boost::system
-{
+namespace boost::system {
 class error_code;
 } // namespace boost::system
 
-struct tcp_connection_desc
-{
+struct tcp_connection_desc {
     std::weak_ptr<boost::asio::io_context> io;
     std::weak_ptr<boost::asio::ip::tcp::socket> socket;
     boost::asio::io_context::strand* strand;
@@ -29,8 +27,7 @@ struct tcp_connection_desc
     operator bool() const { return !io.expired() && !socket.expired(); }
 };
 
-class tcp_server
-{
+class tcp_server {
 public:
     /**
    * 만약 대상 채널의 연결이 특정 strand에 묶여야 하는 경우 설정합니다.

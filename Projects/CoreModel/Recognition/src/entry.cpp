@@ -1,18 +1,18 @@
 #include <iostream>
-#include <nlohmann/json.hpp>
-#include <vector>
 #include <map>
 #include <mutex>
-#include <optional>
+#include <nlohmann/json.hpp>
 #include <opencv2/core.hpp>
+#include <optional>
+#include <vector>
 #include "templates.hxx"
 
 #define CVUI_IMPLEMENTATION
 
 #include <nana/gui.hpp>
 
-#include "tcp_server.hpp"
 #include "recognition.hpp"
+#include "tcp_server.hpp"
 
 using namespace std;
 using nlohmann::json;
@@ -43,8 +43,7 @@ struct image_chunk_t {
     string_view depth_view;
 };
 
-class image_retrieve_map_t
-{
+class image_retrieve_map_t {
 public:
     using value_type = pair<optional<image_desc_t>, optional<image_chunk_t>>;
     using stamp_type = int;
@@ -135,8 +134,7 @@ private:
 static image_retrieve_map_t g_retrieve_map;
 
 // ================================================================================================
-class json_handler_t
-{
+class json_handler_t {
 public:
     void operator()(boost::system::error_code const& ec,
                     tcp_connection_desc connection,
@@ -164,8 +162,7 @@ public:
                         json_raw.clear();
                     }
                 }
-            }
-            else {
+            } else {
                 json_raw.push_back(ch);
             }
         }
@@ -186,8 +183,7 @@ private:
     shared_ptr<body_type> body;
 };
 
-class binary_recv_channel_handler
-{
+class binary_recv_channel_handler {
 public:
     void operator()(boost::system::error_code const& ec,
                     tcp_connection_desc conn,

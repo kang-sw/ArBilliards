@@ -1,26 +1,22 @@
 #pragma once
-#include <memory>
 #include <functional>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <opencv2/core.hpp>
 
-namespace pipepp
-{
-namespace detail
-{
+namespace pipepp {
+namespace detail {
 class pipeline_base;
 }
 } // namespace pipepp
 
-namespace billiards
-{
+namespace billiards {
 /**
  * 당구대, 당구공, 큐대 전반적인 인식을 담당하는 클래스입니다.
  * 모든 거리 단위는 meter, 각도 단위는 degree입니다.
  * 
  */
-class recognizer_t
-{
+class recognizer_t {
 public:
     /**
      * 생성자.
@@ -101,8 +97,7 @@ private:
 
 } // namespace billiards
 
-namespace std
-{
+namespace std {
 ostream& operator<<(ostream& strm, billiards::recognizer_t::frame_desc const& desc);
 istream& operator>>(istream& strm, billiards::recognizer_t::frame_desc& desc);
 } // namespace std

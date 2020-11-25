@@ -2,11 +2,11 @@
 //
 
 #define _USE_MATH_DEFINES
+#include <nlohmann/json.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
-#include <sl/Camera.hpp>
 #include <optional>
-#include <nlohmann/json.hpp>
+#include <sl/Camera.hpp>
 
 using json = nlohmann::json;
 using namespace std;

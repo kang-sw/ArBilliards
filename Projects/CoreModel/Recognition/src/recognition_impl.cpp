@@ -1,17 +1,12 @@
 #include "recognition_impl.hpp"
-#include <iostream>
-#include <vector>
-#include <opencv2/highgui.hpp>
-#include <opencv2/core/base.hpp>
-#include <execution>
-#include <random>
 #include <algorithm>
-#include <vector>
-#include <vector>
-#include <vector>
+#include <execution>
+#include <iostream>
 #include <nlohmann/json.hpp>
 #include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
+#include <opencv2/highgui.hpp>
+#include <random>
+#include <vector>
 
 #include "image_processing.hpp"
 #include "templates.hxx"
@@ -30,7 +25,7 @@ using namespace std;
 #define ELAPSE_SCOPE(name) XTRACE_2(TIMER__, __COUNTER__, (name))
 #define ELAPSE_BLOCK(name) if (ELAPSE_SCOPE((name)); true)
 
-#define varset(varname)       ((void)billiards::names::varname, vars[#varname])
+#define varset(varname) ((void)billiards::names::varname, vars[#varname])
 #define varget(type, varname) ((void)billiards::names::varname, any_cast<remove_reference_t<type>&>(vars[#varname]))
 
 template <typename Fn_>
@@ -439,8 +434,7 @@ static float contour_min_dist_for_each(vector<cv::Vec2f> const& ct_a, vector<cv:
     return sum;
 }
 
-namespace billiards
-{
+namespace billiards {
 static int timer_scope_counter;
 struct timer_scope_t {
     timer_scope_t(recognizer_impl_t* self, string name)
@@ -552,8 +546,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
                     r = normalize(r + init_rot); // 회전축에 variant 적용
                     float new_rot_amount = norm(init_rot) + distr_rot(rand);
                     r *= new_rot_amount;
-                }
-                else {
+                } else {
                     cand = elem;
                 }
 
@@ -568,16 +561,14 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
                 // 컨투어 개수가 달라도 기각함에 유의!
                 if (ch_mapped.empty() || ch_mapped.size() != input.size()) {
                     cand.error = numeric_limits<float>::max();
-                }
-                else {
+                } else {
                     float dist_min = contour_distance(input, ch_mapped);
                     cand.error = dist_min;
                 }
 
                 elem = cand;
             });
-        }
-        else {
+        } else {
             vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
             vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
             mt19937 rand(random_device{}());
@@ -635,8 +626,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
             init_rot = min_it->rot;
 
             cands = {*min_it};
-        }
-        else {
+        } else {
             // 애초에 테이블의 tvec, rvec이 없었던 경우 탐색에 실패할 수 있습니다.
             return {};
         }
@@ -678,8 +668,7 @@ cv::Point recognizer_impl_t::project_single_point(img_t const& img, cv::Vec3f ve
 
     if (is_world) {
         project_model(img, pt, vertex, {0, 1, 0}, pos, false);
-    }
-    else {
+    } else {
         project_model_local(img, pt, pos, false, {});
     }
 
@@ -692,8 +681,7 @@ void recognizer_impl_t::get_marker_points_model(std::vector<cv::Vec3f>& model)
     if (model_param["array-enable"]) {
         model = model_param["array"].get<vector<cv::Vec3f>>();
         model.resize(model_param["array-num"]);
-    }
-    else {
+    } else {
         int num_x = model_param["count-x"];
         int num_y = model_param["count-y"];
         float felt_width = model_param["felt-width"];
@@ -945,8 +933,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
             Rect r{(Point)(Vec2i)offset.mul(img_size), (Size)(Vec2i)size.mul(img_size)};
             if (get_safe_ROI_rect(debug, r)) {
                 param.contour_cull_rect = r;
-            }
-            else {
+            } else {
                 param.contour_cull_rect = Rect{{}, debug.size()};
             }
         }
@@ -1000,8 +987,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
             drawContours(marker_area_mask, vector{{pts}}, -1, {0}, -1);
 
             bitwise_not(debug, debug, marker_area_mask);
-        }
-        else {
+        } else {
             ELAPSE_SCOPE("Calculate Table Contour Mask");
             vector<Vec2f> contour;
 
@@ -1110,8 +1096,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 }
                 // putText(debug, to_string(radius), center, FONT_HERSHEY_PLAIN, 1.0, {0, 0, 255});
             }
-        }
-        else {
+        } else {
             ELAPSE_SCOPE("Filter Marker Range");
             auto u_hsv = varget(UMat, UImg_HSV);
             vector<UMat> channels;
@@ -1340,8 +1325,7 @@ cv::Vec3f recognizer_impl_t::set_filtered_table_pos(cv::Vec3f new_pos, float con
     if (!allow_jump || norm(new_pos - table_pos) < m.props["table"]["LPF"]["distance-jump-threshold"]) {
         float alpha = (float)m.props["table"]["LPF"]["position"] * confidence;
         return table_pos = (1 - alpha) * table_pos + alpha * new_pos;
-    }
-    else {
+    } else {
         return table_pos = new_pos;
     }
 }
@@ -1363,8 +1347,7 @@ cv::Vec3f recognizer_impl_t::set_filtered_table_rot(cv::Vec3f new_rot, float con
     if (!allow_jump || norm(new_rot - table_rot) < m.props["table"]["LPF"]["rotation-jump-threshold"]) {
         float alpha = (float)m.props["table"]["LPF"]["rotation"] * confidence;
         return table_rot = (1 - alpha) * table_rot + alpha * new_rot;
-    }
-    else {
+    } else {
         return table_rot = new_rot;
     }
 }
@@ -1496,8 +1479,7 @@ void recognizer_impl_t::filter_hsv(cv::InputArray input, cv::OutputArray output,
 
         bitwise_or(hi, lo, temp);
         bitwise_and(temp, mask, output);
-    }
-    else {
+    } else {
         inRange(input, min_hsv, max_hsv, output);
     }
 }
@@ -1719,8 +1701,7 @@ void recognizer_impl_t::carve_outermost_pixels(cv::InputOutputArray io, cv::Scal
         mat.col(0).setTo(as);
         mat.row(mat.rows - 1).setTo(as);
         mat.col(mat.cols - 1).setTo(as);
-    }
-    else if (io.isMat()) {
+    } else if (io.isMat()) {
         auto mat = io.getMat();
         mat.row(0).setTo(as);
         mat.col(0).setTo(as);
@@ -2031,8 +2012,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
             if (static_cast<bool>(bm["random-sample"]["do-parallel"])) {
                 // for_each(execution::par_unseq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
                 for_each(execution::par_unseq, counter_base<size_t>{}, counter_base<size_t>{cand_indexes.size()}, calculate_suitability);
-            }
-            else {
+            } else {
                 // for_each(execution::seq, cand_indexes.begin(), cand_indexes.end(), calculate_suitability);
                 for_each(execution::seq, counter_base<size_t>{}, counter_base<size_t>{cand_indexes.size()}, calculate_suitability);
             }
@@ -2175,13 +2155,11 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
                     }
 
                     descs[i] = ball_position_desc_t{.pos = ballpos[i], .vel = vel_elapsed, .tp = now};
-                }
-                else {
+                } else {
                     ball_weights[i] = 0;
                 }
             }
-        }
-        else {
+        } else {
             for (int i = 0; auto& d : descs) {
                 auto pos = ballpos[i++];
                 d = ball_position_desc_t{.pos = pos, .vel = {}, .tp = chrono::system_clock::now()};
@@ -2329,8 +2307,7 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
             }
             imdesc_scaled.camera = scp;
             cvtColor(img_rgb_scaled, imdesc_scaled.rgba, COLOR_RGB2RGBA);
-        }
-        else {
+        } else {
             varset(Size_Image) = scaled_image_size = img_rgb.size();
 
             img_rgb_scaled = img_rgb;
@@ -2478,8 +2455,8 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
             for (int C : {R, G, B}) {
                 auto& pvt = lo_hi_pivot[C];
                 pvt[0] = 0, pvt[1] = 256;
-                for (int sum = 0; pvt[0] < 128 && sum < discard_count[C]; sum += histo[C][pvt[0]++]) { }
-                for (int sum = 0; pvt[1] > 128 && sum < discard_count[C]; sum += histo[C][--pvt[1]]) { }
+                for (int sum = 0; pvt[0] < 128 && sum < discard_count[C]; sum += histo[C][pvt[0]++]) {}
+                for (int sum = 0; pvt[1] > 128 && sum < discard_count[C]; sum += histo[C][--pvt[1]]) {}
 
                 adds[C] = pvt[0];
                 mults[C] = 255 / (float)(pvt[1] - pvt[0]);

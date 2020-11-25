@@ -1,16 +1,15 @@
 #pragma once
 #include <opencv2/core/matx.hpp>
 
-#include "recognizer.hpp"
 #include "../image_processing.hpp"
 #include "kangsw/spinlock.hxx"
 #include "pipepp/execution_context.hpp"
 #include "pipepp/pipeline.hpp"
+#include "recognizer.hpp"
 
 #pragma warning(disable : 4305)
 
-namespace billiards::pipes
-{
+namespace billiards::pipes {
 struct table_edge_solver {
     PIPEPP_DECLARE_OPTION_CLASS(table_edge_solver);
 

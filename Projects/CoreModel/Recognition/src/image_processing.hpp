@@ -1,14 +1,13 @@
 #pragma once
-#include <optional>
 #include <opencv2/opencv.hpp>
+#include <optional>
 #include <random>
-#include "recognition.hpp"
 #include "kangsw/counter.hxx"
 #include "kangsw/for_each.hxx"
 #include "kangsw/hash_index.hxx"
+#include "recognition.hpp"
 
-namespace cv
-{
+namespace cv {
 template <int Size_, typename Ty_>
 void to_json(nlohmann::json& j, const Vec<Ty_, Size_>& v)
 {
@@ -37,8 +36,7 @@ void from_json(const nlohmann::json& j, Scalar_<Ty_>& v)
 }
 } // namespace cv
 
-namespace std
-{
+namespace std {
 template <typename Ty_, size_t N_>
 auto begin(cv::Vec<Ty_, N_>& it)
 {
@@ -62,8 +60,7 @@ auto end(cv::Vec<Ty_, N_> const& it)
 
 } // namespace std
 
-namespace billiards::imgproc
-{
+namespace billiards::imgproc {
 using img_t = recognizer_t::frame_desc;
 
 struct plane_t {

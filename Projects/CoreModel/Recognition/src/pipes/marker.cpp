@@ -1,8 +1,8 @@
 #include "marker.hpp"
-#include "../image_processing.hpp"
 #include <amp.h>
 #include <amp_math.h>
 #include <random>
+#include "../image_processing.hpp"
 
 #undef max
 #undef min
@@ -246,7 +246,6 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
             // 다른 메소드에서는 lightness가 지정됩니다.
             // 먼저 lightness Mat에 2D 필터 적용
             cv::Matx33f edge_kernel(-1, -1, -1, -1, 8, -1, -1, -1, -1);
-
         }
     }
 

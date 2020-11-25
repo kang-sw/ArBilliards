@@ -1,13 +1,11 @@
 #pragma once
-#include "recognizer.hpp"
 #include "../image_processing.hpp"
+#include "recognizer.hpp"
 
-namespace billiards::pipes
-{
+namespace billiards::pipes {
 using namespace std::literals;
 
-namespace helpers
-{
+namespace helpers {
 struct table_edge_extender {
     // inputs
     cv::Vec3f table_rot, table_pos;
@@ -64,7 +62,7 @@ struct kernel_visualizer {
  */
 PIPEPP_EXECUTOR(table_marker_finder)
 {
-        PIPEPP_OPTION(show_debug_mats, true);
+    PIPEPP_OPTION(show_debug_mats, true);
 
     PIPEPP_CATEGORY(debug, "Debug")
     {

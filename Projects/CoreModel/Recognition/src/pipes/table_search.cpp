@@ -1,8 +1,8 @@
 #pragma warning(disable : 4305 4244 4267 4819)
 #include "table_search.hpp"
 
-#include <opencv2/imgproc.hpp>
 #include <opencv2/core/types.hpp>
+#include <opencv2/imgproc.hpp>
 #include <opencv2/ximgproc/seeds.hpp>
 #include <opencv2/ximgproc/slic.hpp>
 #include <ranges>

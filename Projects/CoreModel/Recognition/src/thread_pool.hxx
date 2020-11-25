@@ -1,14 +1,13 @@
 #pragma once
-#include <queue>
-#include <thread>
+#include <atomic>
 #include <condition_variable>
 #include <functional>
-#include <atomic>
+#include <queue>
 #include <shared_mutex>
+#include <thread>
 
 template <typename FnSig>
-class thread_pool
-{
+class thread_pool {
 public: /* Type definitions */
     using self_type = thread_pool<FnSig>;
     using function_type = std::function<FnSig>;
@@ -58,8 +57,7 @@ void thread_pool<FnSig>::set_num_workers(size_t new_number)
 {
     using namespace std;
 
-    struct worker_function_type
-    {
+    struct worker_function_type {
         void operator()() const
         {
             while (*is_alive) {

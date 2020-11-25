@@ -1,11 +1,10 @@
 #include "recognition.hpp"
-#include <memory>
 #include <exception>
-#include "pipes/recognizer.hpp"
+#include <memory>
 #include "pipepp/pipeline.hpp"
+#include "pipes/recognizer.hpp"
 
-class billiards::recognizer_t::implementation
-{
+class billiards::recognizer_t::implementation {
 public:
     recognizer_t& self;
     std::shared_ptr<pipepp::pipeline<pipes::shared_data, pipes::input_resize>> pipeline;
@@ -77,8 +76,7 @@ std::vector<std::pair<std::string, std::chrono::microseconds>> billiards::recogn
     return {};
 }
 
-namespace std
-{
+namespace std {
 ostream& operator<<(ostream& strm, billiards::recognizer_t::frame_desc const& desc)
 {
     auto write = [&strm](auto val) {

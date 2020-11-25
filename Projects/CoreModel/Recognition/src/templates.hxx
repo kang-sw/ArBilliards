@@ -1,22 +1,29 @@
 #pragma once
-#include <iterator>
 #include <execution>
+#include <iterator>
 
-namespace templates
-{
+namespace templates {
 template <typename Ty_>
 requires std::is_arithmetic_v<Ty_>&& std::is_integral_v<Ty_> class counter_base
-    : public std::iterator<std::random_access_iterator_tag, typename Ty_>
-{
+    : public std::iterator<std::random_access_iterator_tag, typename Ty_> {
 public:
     using super = std::iterator<std::random_access_iterator_tag, typename Ty_>;
 
     counter_base()
-        : count_(0) { ; }
+        : count_(0)
+    {
+        ;
+    }
     counter_base(Ty_ rhs)
-        : count_(rhs) { ; }
+        : count_(rhs)
+    {
+        ;
+    }
     counter_base(counter_base const& rhs)
-        : count_(rhs.count_) { ; }
+        : count_(rhs.count_)
+    {
+        ;
+    }
 
 public:
     friend counter_base operator+(counter_base c, typename super::difference_type n) { return counter_base(c.count_ + n); }
@@ -44,16 +51,19 @@ private:
 };
 
 template <typename Ty_>
-class counter_range_base
-{
+class counter_range_base {
 public:
     counter_range_base(Ty_ min, Ty_ max)
         : min_(min)
-        , max_(max) { }
+        , max_(max)
+    {}
 
     counter_range_base(Ty_ max)
         : min_(Ty_{})
-        , max_(max) { assert(min_ < max_); }
+        , max_(max)
+    {
+        assert(min_ < max_);
+    }
 
     counter_base<Ty_> begin() const { return min_; }
     counter_base<Ty_> cbegin() const { return min_; }

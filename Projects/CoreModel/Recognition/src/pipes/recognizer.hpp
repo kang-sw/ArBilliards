@@ -6,16 +6,13 @@
 #include "kangsw/spinlock.hxx"
 #include "pipepp/pipepp.h"
 
-namespace pipepp
-{
-namespace detail
-{
+namespace pipepp {
+namespace detail {
 class option_base;
 }
 } // namespace pipepp
 
-namespace billiards::pipes
-{
+namespace billiards::pipes {
 struct verify {
     inline static const auto color_space_string_verify = pipepp::verify::contains<std::string>("Lab", "YCrCb", "RGB", "YUV", "HLS", "HSV", "Luv");
 };
@@ -23,8 +20,7 @@ struct verify {
 auto build_pipe() -> std::shared_ptr<pipepp::pipeline<struct shared_data, struct input_resize>>;
 } // namespace billiards::pipes
 
-namespace billiards::pipes
-{
+namespace billiards::pipes {
 struct ball_position_desc {
     using clock = std::chrono::system_clock;
 

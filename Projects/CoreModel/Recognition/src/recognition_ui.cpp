@@ -1,27 +1,27 @@
-#include "recognition.hpp"
-#include <set>
-#include <fstream>
 #include <chrono>
+#include <fstream>
 #include <nana/gui.hpp>
-#include <queue>
 #include <opencv2/opencv.hpp>
+#include <queue>
+#include <set>
 #include <span>
+#include "recognition.hpp"
 
 #include "fmt/format.h"
 #include "kangsw/atomic_queue.hxx"
-#include "nana/gui/widgets/form.hpp"
-#include "nana/gui/widgets/treebox.hpp"
-#include "nana/gui/widgets/textbox.hpp"
-#include "nana/gui/widgets/listbox.hpp"
-#include "nana/gui/widgets/button.hpp"
 #include "nana/gui/filebox.hpp"
+#include "nana/gui/widgets/button.hpp"
+#include "nana/gui/widgets/form.hpp"
+#include "nana/gui/widgets/listbox.hpp"
 #include "nana/gui/widgets/slider.hpp"
+#include "nana/gui/widgets/textbox.hpp"
+#include "nana/gui/widgets/treebox.hpp"
 #include "nana/paint/graphics.hpp"
 #include "nana/paint/pixel_buffer.hpp"
 #include "pipepp/gui/basic_utility.hpp"
+#include "pipepp/gui/option_panel.hpp"
 #include "pipepp/gui/pipeline_board.hpp"
 #include "pipepp/pipeline.hpp"
-#include "pipepp/gui/option_panel.hpp"
 
 extern billiards::recognizer_t g_recognizer;
 static nlohmann::json g_props;
@@ -333,7 +333,7 @@ void exec_ui()
     };
 
     // 설정 로드
-    if (load_from_path(AUTOSAVE_PATH)) { }
+    if (load_from_path(AUTOSAVE_PATH)) {}
     pipepp::gui::option_panel options{fm, true};
     options.on_dirty = [&](auto&&) { is_config_dirty = true, fm_caption_dirty(); };
     options.vertical(true);

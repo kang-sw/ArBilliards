@@ -1,13 +1,11 @@
 #pragma warning(disable : 4819)
 
 #pragma once
-#include "recognizer.hpp"
 #include "pipepp/options.hpp"
+#include "recognizer.hpp"
 
-namespace billiards::pipes
-{
-class superpixel_executor
-{
+namespace billiards::pipes {
+class superpixel_executor {
 public:
     PIPEPP_DECLARE_OPTION_CLASS(superpixel_executor);
     PIPEPP_OPTION_AUTO(target_image_width, 1280, "Common", "", pipepp::verify::clamp(300, 8096));
@@ -76,8 +74,7 @@ public:
     static void output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& o);
 };
 
-class kmeans_executor
-{
+class kmeans_executor {
 public:
     PIPEPP_DECLARE_OPTION_CLASS(kmeans_executor);
     struct debug {
@@ -149,8 +146,7 @@ struct label_edge_detector {
 /**
  * 경계선을 탐색하는 실행기
  */
-class hough_line_executor
-{
+class hough_line_executor {
     PIPEPP_DECLARE_OPTION_CLASS(hough_line_executor);
     PIPEPP_CATEGORY(debug, "Debug")
     {

@@ -1,21 +1,20 @@
 #include "recognizer.hpp"
 
-#include <random>
 #include <opencv2/calib3d.hpp>
-#include <opencv2/imgproc.hpp>
 #include <opencv2/core/matx.hpp>
+#include <opencv2/imgproc.hpp>
+#include <random>
 
-#include "marker.hpp"
-#include "fmt/format.h"
-#include "table_search.hpp"
 #include "../image_processing.hpp"
+#include "fmt/format.h"
+#include "marker.hpp"
 #include "pipepp/options.hpp"
+#include "table_search.hpp"
 #include "traditional.hpp"
 
 #pragma warning(disable : 4244)
 
-namespace billiards
-{
+namespace billiards {
 class recognizer_t;
 }
 
@@ -115,9 +114,9 @@ cv::Mat billiards::pipes::shared_data::retrieve_image_in_colorspace(kangsw::hash
     imgproc::color_space_to_flag(hash, to, _ph0);
 
     if (to == -1) { return rgb; }
-    auto [it , should_generate]= converted_resources_.try_emplace(hash);
+    auto [it, should_generate] = converted_resources_.try_emplace(hash);
 
-    if(should_generate) {
+    if (should_generate) {
         cv::cvtColor(rgb, it->second, to);
     }
 
