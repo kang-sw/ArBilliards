@@ -11,6 +11,7 @@ struct billiards::pipes::table_marker_finder::impl {
     // array<>
     size_t positive_index_fence = 0;
     std::vector<cv::Vec3f> kernel_model;
+    std::vector<cv::Vec2f> _kernel_mem;
 
     struct {
         std::optional<concurrency::array<cv::Vec2f>> kernel_vertexes;
@@ -91,9 +92,10 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         m.kernel_model = std::move(vtxs);
     }
 
-    // 1 meter 거리에 대해 모든 포인트를 투사합니다.
+    auto& kernel = m._kernel_mem;
     PIPEPP_ELAPSE_BLOCK("Project points by view")
     {
+        // 1 meter 거리에 대해 모든 포인트를 투사합니다.
         using namespace imgproc;
         auto vertices = m.kernel_model;
         cv::Vec3f local_loc = {}, local_rot = in.init_table_rot;
@@ -107,8 +109,8 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
             vt = rotation * vt + local_loc;
         }
 
-        std::vector<cv::Vec2f> projected;
-        project_model_local(imdesc, projected, vertices, false, {});
+        kernel.clear();
+        project_model_local(imdesc, kernel, vertices, false, {});
 
         if (debug::show_current_3d_kernel(ec)) {
             PIPEPP_ELAPSE_SCOPE("Kernel visualization");
@@ -120,22 +122,21 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
             cv::Scalar colors[] = {{0, 255, 0}, {0, 0, 255}};
             cv::Vec2f cam_center(imdesc.camera.cx, imdesc.camera.cy);
 
-            for (auto idx : kangsw::counter(projected.size())) {
-                auto fpt = projected[idx];
+            for (auto idx : kangsw::counter(kernel.size())) {
+                auto fpt = kernel[idx];
                 fpt = (fpt - cam_center) * mult;
 
                 cv::circle(kernel_view, center + (cv::Point)(cv::Vec2i)fpt, radius, colors[idx >= m.positive_index_fence]);
-            }
-            for (auto idx : kangsw::counter(projected.size())) {
-                auto fpt = projected[idx];
-                fpt = (fpt - cam_center) * mult;
-
-                cv::circle(kernel_view, center + (cv::Point)(cv::Vec2i)fpt, 0, colors[idx >= m.positive_index_fence]);
             }
 
             PIPEPP_STORE_DEBUG_DATA("Current kernel", (cv::Mat)kernel_view);
         }
     }
+
+    // 커널을 유효한 부분에서만 계산할 수 있도록, 먼저 일정 색역 이내로 이미지를 필터링합니다.
+    // 이 때 색공간은 임의로 지정합니다. 
+    PIPEPP_ELAPSE_BLOCK("") {}
+
     return {};
 }
 
@@ -145,3 +146,4 @@ billiards::pipes::table_marker_finder::table_marker_finder()
 }
 
 billiards::pipes::table_marker_finder::~table_marker_finder() = default;
+

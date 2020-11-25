@@ -46,6 +46,7 @@ target_link_libraries(
 		pipepp_gui
 		nlohmann_json
 		fmt
+		d3d12.lib
 )
 
 target_include_directories(

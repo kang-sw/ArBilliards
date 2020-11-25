@@ -94,6 +94,7 @@ struct shared_data : pipepp::base_shared_context {
     };
 
     // data
+public:
     std::shared_ptr<shared_state> state;
 
     recognizer_t::frame_desc imdesc_bkup;
@@ -108,6 +109,7 @@ struct shared_data : pipepp::base_shared_context {
     cv::Mat1b table_hsv_filtered;
     cv::Mat1b table_filtered_edge;
 
+
     struct cluster_type {
         cv::Mat1i label_2d_spxl;
         cv::Mat1i label_cluster_1darray; // super pixel의 대응되는 array 집합
@@ -120,7 +122,12 @@ struct shared_data : pipepp::base_shared_context {
         float confidence;
     } table;
 
+public:
     void get_marker_points_model(std::vector<cv::Vec3f>& model) const;
+    
+
+private:
+    std::map<std::string, cv::Mat> converted_resources_;
 };
 
 struct input_resize {

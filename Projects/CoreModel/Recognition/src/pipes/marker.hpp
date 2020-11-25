@@ -4,6 +4,7 @@
 
 namespace billiards::pipes
 {
+using namespace std::literals;
 /**
  * TODO
  * 마커를 탐색합니다. 모든 흰 점을 대해, Sparse Kernel을 적용해 찾아냅니다.
@@ -41,6 +42,11 @@ PIPEPP_EXECUTOR(table_marker_finder)
     PIPEPP_CATEGORY(marker, "Marker")
     {
         PIPEPP_OPTION(radius, 0.005, "Units in centimeters");
+
+        PIPEPP_CATEGORY(filter, "Filtering")
+        {
+            PIPEPP_OPTION(color_space, "HSV"s, u8"마커의 필터를 적용할 색공간입니다.");
+        };
     };
 
     struct input_type {
@@ -59,7 +65,7 @@ PIPEPP_EXECUTOR(table_marker_finder)
     };
 
     pipepp::pipe_error operator()(pipepp::execution_context& ec, input_type const& in, output_type& out);
-    static void link(shared_data const& sd, input_type& i)
+    static void link(shared_data const& sd, input_type& i, pipepp::detail::option_base const& opt)
     {
         auto _lck = sd.state->lock();
         i.debug = sd.debug_mat;
