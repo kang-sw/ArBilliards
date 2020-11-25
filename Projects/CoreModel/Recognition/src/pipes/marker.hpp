@@ -5,22 +5,70 @@
 namespace billiards::pipes
 {
 using namespace std::literals;
+
+namespace helpers
+{
+struct table_edge_extender {
+    // inputs
+    cv::Vec3f table_rot, table_pos;
+    imgproc::img_t const* p_imdesc;
+    std::span<const cv::Vec2f> table_contour;
+
+    // opts
+    int num_insert_contour_vertexes = 5;
+    double table_border_range_outer = 0.06;
+    double table_border_range_inner = 0.06;
+
+    cv::Mat const* debug_mat = {};
+
+    void operator()(pipepp::execution_context& ec, cv::Mat& marker_area_mask);
+};
+
+struct kernel_visualizer {
+    std::span<cv::Vec3f> vtxs;
+    int kernel_view_size = 200;
+    size_t positive_index_fence = 0;
+
+    cv::Mat3b operator()(pipepp::execution_context& ec)
+    {
+        PIPEPP_REGISTER_CONTEXT(ec);
+
+        PIPEPP_ELAPSE_SCOPE("Kernel visualization");
+        auto scale = kernel_view_size;
+        auto mult = scale / 4;
+        auto radius = std::max(1, scale / 100);
+        cv::Mat3b kernel_view(scale, scale, {0, 0, 0});
+        cv::Point center(scale / 2, scale / 2);
+        cv::Scalar colors[] = {{0, 255, 0}, {0, 0, 255}};
+
+        for (auto idx : kangsw::counter(vtxs.size())) {
+            auto vtx = vtxs[idx];
+            cv::Point pt(vtx[0] * mult, -vtx[2] * mult);
+            cv::circle(kernel_view, center + pt, radius, colors[idx >= positive_index_fence]);
+        }
+
+        return kernel_view;
+    }
+};
+
+} // namespace helpers
+
 /**
  * TODO
- * ë§ˆì»¤ë¥¼ íƒìƒ‰í•©ë‹ˆë‹¤. ëª¨ë“  í° ì ì„ ëŒ€í•´, Sparse Kernelì„ ì ìš©í•´ ì°¾ì•„ëƒ…ë‹ˆë‹¤.
- * ì´ ë•Œ, ì»¤ë„ì˜ ê¸°ë³¸í˜•ì€ ì›í˜•ì˜ ì  ëª©ë¡ì„ 3D ê³µê°„ìœ¼ë¡œ ë³€í™˜í•˜ê³ , ê° ì ì— ë²„í…ìŠ¤ ì…°ì´ë”ë¥¼ ì ìš©í•´ ì–»ìŠµë‹ˆë‹¤.
+ * ¸¶Ä¿¸¦ Å½»öÇÕ´Ï´Ù. ¸ğµç Èò Á¡À» ´ëÇØ, Sparse KernelÀ» Àû¿ëÇØ Ã£¾Æ³À´Ï´Ù.
+ * ÀÌ ¶§, Ä¿³ÎÀÇ ±âº»ÇüÀº ¿øÇüÀÇ Á¡ ¸ñ·ÏÀ» 3D °ø°£À¸·Î º¯È¯ÇÏ°í, °¢ Á¡¿¡ ¹öÅØ½º ¼ÎÀÌ´õ¸¦ Àû¿ëÇØ ¾ò½À´Ï´Ù.
  *
  * @details
  *
- * í¬ì†Œ ì»¤ë„ ì›í˜•ì˜ ê° ë²„í…ìŠ¤ë¥¼ X, Z í‰ë©´(í…Œì´ë¸”ê³¼ ê°™ì€ í‰ë©´)ìƒì— ìŠ¤í°í•©ë‹ˆë‹¤. í…Œì´ë¸”ì˜ ì¹´ë©”ë¼ì— ëŒ€í•œ ìƒëŒ€ ë¡œí…Œì´ì…˜ìœ¼ë¡œ ê° ë²„í…ìŠ¤ë¥¼ íšŒì „ì‹œí‚¤ê³  í™”ë©´ì— ì›ê·¼ íˆ¬ì˜í•˜ë©´, í‰ë©´ ì»¤ë„ì„ íšë“í•  ìˆ˜ ìˆìŠµë‹ˆë‹¤.
+ * Èñ¼Ò Ä¿³Î ¿øÇüÀÇ °¢ ¹öÅØ½º¸¦ X, Z Æò¸é(Å×ÀÌºí°ú °°Àº Æò¸é)»ó¿¡ ½ºÆùÇÕ´Ï´Ù. Å×ÀÌºíÀÇ Ä«¸Ş¶ó¿¡ ´ëÇÑ »ó´ë ·ÎÅ×ÀÌ¼ÇÀ¸·Î °¢ ¹öÅØ½º¸¦ È¸Àü½ÃÅ°°í È­¸é¿¡ ¿ø±Ù Åõ¿µÇÏ¸é, Æò¸é Ä¿³ÎÀ» È¹µæÇÒ ¼ö ÀÖ½À´Ï´Ù.
  */
 PIPEPP_EXECUTOR(table_marker_finder)
 {
+        PIPEPP_OPTION(show_debug_mats, true);
+
     PIPEPP_CATEGORY(debug, "Debug")
     {
-        PIPEPP_OPTION(show_generated_kernel, true);
         PIPEPP_OPTION(kernel_view_size, 200);
-        PIPEPP_OPTION(show_current_3d_kernel, true);
         PIPEPP_OPTION(current_kernel_view_scale, 0.05f);
     };
 
@@ -28,20 +76,34 @@ PIPEPP_EXECUTOR(table_marker_finder)
     {
         PIPEPP_OPTION(positive_area,
                       cv::Vec2d(0, 1),
-                      u8"ì¤‘ì‹¬ì ìœ¼ë¡œë¶€í„°, ì–‘ì˜ ê°€ì¤‘ì¹˜ë¡œ í‰ê°€ë˜ëŠ” êµ¬ê°„ì…ë‹ˆë‹¤.",
+                      u8"Áß½ÉÁ¡À¸·ÎºÎÅÍ, ¾çÀÇ °¡ÁßÄ¡·Î Æò°¡µÇ´Â ±¸°£ÀÔ´Ï´Ù.",
                       pipepp::verify::clamp_all<cv::Vec2d>(0, 1) | pipepp::verify::ascending<cv::Vec2d>());
         PIPEPP_OPTION(negative_area,
                       cv::Vec2d(1, 2),
-                      u8"ì¤‘ì‹¬ì ìœ¼ë¡œë¶€í„°, ìŒì˜ ê°€ì¤‘ì¹˜ë¡œ í‰ê°€ë˜ëŠ” êµ¬ê°„ì…ë‹ˆë‹¤.",
+                      u8"Áß½ÉÁ¡À¸·ÎºÎÅÍ, À½ÀÇ °¡ÁßÄ¡·Î Æò°¡µÇ´Â ±¸°£ÀÔ´Ï´Ù.",
                       pipepp::verify::minimum_all<cv::Vec2d>(0) | pipepp::verify::ascending<cv::Vec2d>());
         PIPEPP_OPTION(generator_positive_radius, 10u, "", pipepp::verify::maximum(10000u));
         PIPEPP_OPTION(generator_negative_radius, 10u, "", pipepp::verify::maximum(10000u));
         PIPEPP_OPTION(random_seed, 42);
     };
 
-    PIPEPP_CATEGORY(marker, "Marker")
+    PIPEPP_CATEGORY(marker, "Marker Search")
     {
         PIPEPP_OPTION(radius, 0.005, "Units in centimeters");
+
+        PIPEPP_CATEGORY(pp, "Preprocessing")
+        {
+            PIPEPP_OPTION(num_inserted_contours, 5,
+                          u8"¸¶Ä¿ Å½»öÀ» À§ÇØ ´ç±¸´ë °¢ Á¤Á¡À» È®ÀåÇÒ ¶§, "
+                          "»õ·Ó°Ô »ğÀÔÇÒ ÄÁÅõ¾î Á¤Á¡ÀÇ °³¼öÀÔ´Ï´Ù. ¿µ»ó Ã³¸® ÀÚÃ¼¿¡ ¹ÌÄ¡´Â ¿µÇâÀº ¹Ì¹ÌÇÕ´Ï´Ù.");
+            PIPEPP_OPTION(marker_range_outer, 0.1,
+                          u8"ÀÏ¹İÀûÀ¸·Î, ´ç±¸´ëÀÇ ÆçÆ® °æ°è¼±ºÎÅÍ ¹Ù±ùÂÊ±îÁöÀÇ ¿µ¿ª ±æÀÌ¸¦ ÁöÁ¤ÇÕ´Ï´Ù.\n"
+                          "meter ´ÜÀ§");
+            PIPEPP_OPTION(marker_range_inner, 0.0,
+                          u8"´ç±¸´ëÀÇ ÆçÆ® °æ°èºÎÅÍ ¾ÈÂÊÀ¸·Î ¸¶Ä¿ ¿µ¿ª ¸¶½ºÅ©¸¦ ¼³Á¤ÇÏ´Â µ¥ »ç¿ëÇÕ´Ï´Ù.\n"
+                          "ÀÏ¹İÀûÀ¸·Î 0À» ÁöÁ¤ÇÏ¸é ÃæºĞÇÕ´Ï´Ù.\n"
+                          "meter ´ÜÀ§");
+        };
 
         PIPEPP_CATEGORY(filter, "Filtering")
         {
@@ -52,26 +114,26 @@ PIPEPP_EXECUTOR(table_marker_finder)
                           "[3] Lightness edge: V of HSV \n",
                           pipepp::verify::contains(0, 1, 2, 3));
 
-            PIPEPP_OPTION(color_space, "HSV"s, u8"ë§ˆì»¤ì˜ í•„í„°ë¥¼ ì ìš©í•  ìƒ‰ê³µê°„ì…ë‹ˆë‹¤.", verify::color_space_string_verify);
-            PIPEPP_OPTION(pivot_color, cv::Vec3b(233, 233, 233), u8"ë§ˆì»¤ì˜ ëŒ€í‘œ ìƒ‰ìƒì…ë‹ˆë‹¤. ìƒ‰ ê³µê°„ì— ì˜ì¡´ì ì…ë‹ˆë‹¤.");
+            PIPEPP_OPTION(color_space, "HSV"s, u8"¸¶Ä¿ÀÇ ÇÊÅÍ¸¦ Àû¿ëÇÒ »ö°ø°£ÀÔ´Ï´Ù.", verify::color_space_string_verify);
+            PIPEPP_OPTION(pivot_color, cv::Vec3b(233, 233, 233), u8"¸¶Ä¿ÀÇ ´ëÇ¥ »ö»óÀÔ´Ï´Ù. »ö °ø°£¿¡ ÀÇÁ¸ÀûÀÔ´Ï´Ù.");
 
             PIPEPP_OPTION(method_0_range_lo, cv::Vec3b(125, 125, 125));
             PIPEPP_OPTION(method_0_range_hi, cv::Vec3b(255, 255, 255));
 
             PIPEPP_OPTION(method_1_threshold, 0.5);
-            PIPEPP_OPTION(method_1_hole_filling_cnt, 0, u8"ì§€ì •í•œ íšŸìˆ˜ë§Œí¼ dilate-erode ì—°ì‚°ì„ ë°˜ë³µ ì ìš©");
+            PIPEPP_OPTION(method_1_hole_filling_cnt, 0, u8"ÁöÁ¤ÇÑ È½¼ö¸¸Å­ dilate-erode ¿¬»êÀ» ¹İº¹ Àû¿ë");
         };
     };
 
     struct input_type {
         cv::Mat3b debug;
 
-        // ì›ë³¸ ì´ë¯¸ì§€ë¥¼ íŠ¹ì • ìƒ‰ê³µê°„ìœ¼ë¡œ ë³€í™˜í•œ ë„ë©”ì¸ì…ë‹ˆë‹¤.
-        // marker::filter::method == 0ì¼ ë•ŒëŠ” color range filterë¥¼ ê³„ì‚°í•˜ëŠ” ë„ë©”ì¸ì…ë‹ˆë‹¤.
-        // 
+        // ¿øº» ÀÌ¹ÌÁö¸¦ Æ¯Á¤ »ö°ø°£À¸·Î º¯È¯ÇÑ µµ¸ŞÀÎÀÔ´Ï´Ù.
+        // marker::filter::method == 0ÀÏ ¶§´Â color range filter¸¦ °è»êÇÏ´Â µµ¸ŞÀÎÀÔ´Ï´Ù.
+        //
         cv::Mat3b domain;
 
-        cv::Mat1b lightness; // marker::filter::method == 1ì¼ë•Œë§Œ ê°’ì„ ì§€ì •í•˜ëŠ” ë°ê¸° ì±„ë„ì…ë‹ˆë‹¤.
+        cv::Mat1b lightness; // marker::filter::method == 1ÀÏ¶§¸¸ °ªÀ» ÁöÁ¤ÇÏ´Â ¹à±â Ã¤³ÎÀÔ´Ï´Ù.
 
         imgproc::img_t const* p_imdesc;
         cv::Vec3f init_table_pos;
@@ -116,9 +178,11 @@ PIPEPP_EXECUTOR(table_marker_finder)
                 default:
                     return false;
             }
+        } else {
+            i.lightness = {};
         }
 
-        return true;
+        return i.contour.empty() == false;
     }
 
 public:

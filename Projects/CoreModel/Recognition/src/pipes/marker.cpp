@@ -19,12 +19,98 @@ struct billiards::pipes::table_marker_finder::impl {
     } gpu;
 };
 
+void billiards::pipes::helpers::table_edge_extender::operator()(pipepp::execution_context& ec, cv::Mat& marker_area_mask)
+{
+    PIPEPP_REGISTER_CONTEXT(ec);
+    using namespace cv;
+    using namespace std;
+    using namespace imgproc;
+
+    auto& img = *p_imdesc;
+    bool const draw_debug_glyphs = !!debug_mat;
+    auto& debug = *debug_mat;
+
+    {
+        PIPEPP_ELAPSE_SCOPE("Calculate Table Contour Mask");
+        vector<Vec2f> contour;
+
+        // 테이블 평면 획득
+        auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, 1, 0});
+        plane_to_camera(img, table_plane, table_plane);
+
+        // contour 개수를 단순 증식합니다.
+        for (int i = 0, num_insert = num_insert_contour_vertexes;
+             i < table_contour.size() - 1;
+             ++i) {
+            auto p0 = table_contour[i];
+            auto p1 = table_contour[i + 1];
+
+            for (int idx = 0; idx < num_insert + 1; ++idx) {
+                contour.push_back(p0 + (p1 - p0) * (1.f / num_insert * idx));
+            }
+        }
+
+        auto outer_contour = contour;
+        auto inner_contour = contour;
+        auto m = moments(contour);
+        auto center = Vec2f(m.m10 / m.m00, m.m01 / m.m00);
+        double frame_width_outer = table_border_range_outer;
+        double frame_width_inner = table_border_range_inner;
+
+        // 각 컨투어의 거리 값에 따라, 차등적으로 밀고 당길 거리를 지정합니다.
+        for (int index = 0; index < contour.size(); ++index) {
+            Vec2i pt = contour[index];
+            auto& outer = outer_contour[index];
+            auto& inner = inner_contour[index];
+
+            // 거리 획득
+            // auto depth = img.depth.at<float>((Point)pt);
+            // auto drag_width_outer = min(300.f, get_pixel_length(img, frame_width_outer, depth));
+            // auto drag_width_inner = min(300.f, get_pixel_length(img, frame_width_inner, depth));
+            float drag_width_outer = get_pixel_length_on_contact(img, table_plane, pt, frame_width_outer);
+            float drag_width_inner = get_pixel_length_on_contact(img, table_plane, pt, frame_width_inner);
+
+            // 평면과 해당 방향 시야가 이루는 각도 theta를 구하고, cos(theta)를 곱해 화면상의 픽셀 드래그를 구합니다.
+            Vec3f pt_dir(pt[0], pt[1], 1);
+            get_point_coord_3d(img, pt_dir[0], pt_dir[1], 1);
+            pt_dir = normalize(pt_dir);
+            auto cos_theta = abs(pt_dir.dot(table_plane.N));
+            drag_width_outer *= cos_theta;
+            drag_width_inner *= cos_theta;
+            drag_width_outer = isnan(drag_width_outer) ? 1 : drag_width_outer;
+            drag_width_inner = isnan(drag_width_inner) ? 1 : drag_width_inner;
+            drag_width_outer = clamp<float>(drag_width_outer, 1, 100);
+            drag_width_inner = clamp<float>(drag_width_inner, 1, 100);
+
+            auto direction = normalize(outer - center);
+            outer += direction * drag_width_outer;
+            if (!is_border_pixel({{}, marker_area_mask.size()}, inner)) {
+                inner -= direction * drag_width_inner;
+            }
+        }
+
+        vector<Vec2i> drawer;
+        drawer.assign(outer_contour.begin(), outer_contour.end());
+        drawContours(marker_area_mask, vector{{drawer}}, -1, 255, -1);
+        if (draw_debug_glyphs) {
+            drawContours(debug, vector{{drawer}}, -1, {0, 0, 0}, 2);
+        }
+
+        drawer.assign(inner_contour.begin(), inner_contour.end());
+        drawContours(marker_area_mask, vector{{drawer}}, -1, 0, -1);
+        if (draw_debug_glyphs) {
+            drawContours(debug, vector{{drawer}}, -1, {0, 0, 0}, 2);
+        }
+    }
+}
+
 pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::execution_context& ec, input_type const& in, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     auto& m = *impl_;
     bool const option_dirty = ec.consume_option_dirty_flag();
     auto& imdesc = *in.p_imdesc;
+    bool const show_debug = show_debug_mats(ec);
 
     if (option_dirty) {
         PIPEPP_ELAPSE_SCOPE("Regenerate Kernels");
@@ -66,22 +152,13 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
             vtx *= idx < m.positive_index_fence ? positive(rand) : negative(rand);
         }
 
-        if (debug::show_generated_kernel(ec)) {
-            PIPEPP_ELAPSE_SCOPE("Kernel visualization");
-            auto scale = debug::kernel_view_size(ec);
-            auto mult = scale / 4;
-            auto radius = std::max(1, scale / 100);
-            cv::Mat3b kernel_view(scale, scale, {0, 0, 0});
-            cv::Point center(scale / 2, scale / 2);
-            cv::Scalar colors[] = {{0, 255, 0}, {0, 0, 255}};
+        if (show_debug) {
+            helpers::kernel_visualizer kv;
+            kv.kernel_view_size = debug::kernel_view_size(ec);
+            kv.positive_index_fence = m.positive_index_fence;
+            kv.vtxs = vtxs;
 
-            for (auto idx : kangsw::counter(vtxs.size())) {
-                auto vtx = vtxs[idx];
-                cv::Point pt(vtx[0] * mult, -vtx[2] * mult);
-                cv::circle(kernel_view, center + pt, radius, colors[idx >= m.positive_index_fence]);
-            }
-
-            PIPEPP_STORE_DEBUG_DATA("Generated kernel", (cv::Mat)kernel_view);
+            PIPEPP_STORE_DEBUG_DATA("Generated kernel", (cv::Mat)kv(ec));
         }
 
         // 반지름을 곱합니다.
@@ -112,7 +189,7 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         kernel.clear();
         project_model_local(imdesc, kernel, vertices, false, {});
 
-        if (debug::show_current_3d_kernel(ec)) {
+        if (show_debug) {
             PIPEPP_ELAPSE_SCOPE("Kernel visualization");
             auto scale = debug::kernel_view_size(ec);
             auto mult = debug::current_kernel_view_scale(ec);
@@ -133,9 +210,24 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         }
     }
 
-    // 커널을 유효한 부분에서만 계산할 수 있도록, 먼저 일정 색역 이내로 이미지를 필터링합니다.
-    // 이 때 색공간은 임의로 지정합니다. 
-    PIPEPP_ELAPSE_BLOCK("") {}
+    // 커널을 유효한 부분에서만 계산할 수 있도록, 먼저 컨투어를 유효 영역으로 확장합니다.
+    cv::Mat1b area_mask(in.domain.size(), 0);
+    PIPEPP_ELAPSE_BLOCK("Table contour area extension")
+    {
+        helpers::table_edge_extender tee = {
+          .table_rot = in.init_table_rot,
+          .table_pos = in.init_table_pos,
+          .p_imdesc = in.p_imdesc,
+          .table_contour = in.contour,
+          .num_insert_contour_vertexes = marker::pp::num_inserted_contours(ec),
+          .table_border_range_outer = marker::pp::marker_range_outer(ec),
+          .table_border_range_inner = marker::pp::marker_range_inner(ec),
+          .debug_mat = (cv::Mat*)&in.debug,
+        };
+        tee(ec, area_mask);
+
+        PIPEPP_STORE_DEBUG_DATA_COND("Marker Area Mask", (cv::Mat)area_mask, show_debug);
+    }
 
     return {};
 }
@@ -146,4 +238,3 @@ billiards::pipes::table_marker_finder::table_marker_finder()
 }
 
 billiards::pipes::table_marker_finder::~table_marker_finder() = default;
-
