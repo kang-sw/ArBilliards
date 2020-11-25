@@ -5,7 +5,7 @@
 #include "../image_processing.hpp"
 #include "kangsw/spinlock.hxx"
 #include "pipepp/execution_context.hpp"
-#include "pipepp/pipeline.hpp"
+#include "pipepp/pipepp.h"
 
 namespace pipepp
 {

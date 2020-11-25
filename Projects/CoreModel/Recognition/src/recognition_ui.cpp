@@ -322,7 +322,8 @@ void exec_ui()
     // 세이브 함수
     auto save_as = [&](string path) {
         ofstream strm(path);
-        auto opts = g_recognizer.get_pipeline_instance().lock()->export_options();
+        json opts;
+        g_recognizer.get_pipeline_instance().lock()->export_options(opts);
         opts["g_props"] = g_props;
         strm << opts.dump(4);
 
