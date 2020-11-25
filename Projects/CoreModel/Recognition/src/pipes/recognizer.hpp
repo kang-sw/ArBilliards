@@ -109,7 +109,6 @@ public:
     cv::Mat1b table_hsv_filtered;
     cv::Mat1b table_filtered_edge;
 
-
     struct cluster_type {
         cv::Mat1i label_2d_spxl;
         cv::Mat1i label_cluster_1darray; // super pixel의 대응되는 array 집합
@@ -123,11 +122,12 @@ public:
     } table;
 
 public:
+    void reload() override { converted_resources_.clear(); }
     void get_marker_points_model(std::vector<cv::Vec3f>& model) const;
-    
+    cv::Mat retrieve_image_in_colorspace(kangsw::hash_index hash);
 
 private:
-    std::map<std::string, cv::Mat> converted_resources_;
+    std::map<kangsw::hash_index, cv::Mat3b> converted_resources_;
 };
 
 struct input_resize {

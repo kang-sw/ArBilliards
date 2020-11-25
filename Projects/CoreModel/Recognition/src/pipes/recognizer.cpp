@@ -109,6 +109,21 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     return pl;
 }
 
+cv::Mat billiards::pipes::shared_data::retrieve_image_in_colorspace(kangsw::hash_index hash)
+{
+    int _ph0, to;
+    imgproc::color_space_to_flag(hash, to, _ph0);
+
+    if (to == -1) { return rgb; }
+    auto [it , should_generate]= converted_resources_.try_emplace(hash);
+
+    if(should_generate) {
+        cv::cvtColor(rgb, it->second, to);
+    }
+
+    return it->second;
+}
+
 pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);

@@ -45,13 +45,33 @@ PIPEPP_EXECUTOR(table_marker_finder)
 
         PIPEPP_CATEGORY(filter, "Filtering")
         {
-            PIPEPP_OPTION(color_space, "HSV"s, u8"마커의 필터를 적용할 색공간입니다.");
+            PIPEPP_OPTION(method, 0,
+                          "[0] Simple color range filter \n"
+                          "[1] Lightness edge: L of Lab \n"
+                          "[2] Lightness edge: Y of YUV \n"
+                          "[3] Lightness edge: V of HSV \n",
+                          pipepp::verify::contains(0, 1, 2, 3));
+
+            PIPEPP_OPTION(color_space, "HSV"s, u8"마커의 필터를 적용할 색공간입니다.", verify::color_space_string_verify);
+            PIPEPP_OPTION(pivot_color, cv::Vec3b(233, 233, 233), u8"마커의 대표 색상입니다. 색 공간에 의존적입니다.");
+
+            PIPEPP_OPTION(method_0_range_lo, cv::Vec3b(125, 125, 125));
+            PIPEPP_OPTION(method_0_range_hi, cv::Vec3b(255, 255, 255));
+
+            PIPEPP_OPTION(method_1_threshold, 0.5);
+            PIPEPP_OPTION(method_1_hole_filling_cnt, 0, u8"지정한 횟수만큼 dilate-erode 연산을 반복 적용");
         };
     };
 
     struct input_type {
         cv::Mat3b debug;
-        cv::Mat3b rgb;
+
+        // 원본 이미지를 특정 색공간으로 변환한 도메인입니다.
+        // marker::filter::method == 0일 때는 color range filter를 계산하는 도메인입니다.
+        // 
+        cv::Mat3b domain;
+
+        cv::Mat1b lightness; // marker::filter::method == 1일때만 값을 지정하는 밝기 채널입니다.
 
         imgproc::img_t const* p_imdesc;
         cv::Vec3f init_table_pos;
@@ -65,18 +85,40 @@ PIPEPP_EXECUTOR(table_marker_finder)
     };
 
     pipepp::pipe_error operator()(pipepp::execution_context& ec, input_type const& in, output_type& out);
-    static void link(shared_data const& sd, input_type& i, pipepp::detail::option_base const& opt)
-    {
-        auto _lck = sd.state->lock();
-        i.debug = sd.debug_mat;
-        i.rgb = sd.rgb;
 
+    static bool link(shared_data & sd, input_type & i, pipepp::detail::option_base const& opt)
+    {
+        {
+            auto _lck = sd.state->lock();
+            i.init_table_pos = sd.state->table.pos;
+            i.init_table_rot = sd.state->table.rot;
+        }
+
+        i.debug = sd.debug_mat;
         i.p_imdesc = &sd.imdesc_bkup;
-        i.init_table_pos = sd.state->table.pos;
-        i.init_table_rot = sd.state->table.rot;
 
         i.contour = sd.table.contour;
         sd.get_marker_points_model(i.marker_model);
+
+        i.domain = sd.retrieve_image_in_colorspace(marker::filter::color_space(opt));
+
+        auto method = marker::filter::method(opt);
+
+        if (method > 0) {
+            cv::Mat split[3];
+            cv::split(i.domain, split);
+
+            switch (method) {
+                case 1: [[fallthrough]];
+                case 2: i.lightness = split[0]; break;
+                case 3: i.lightness = split[2]; break;
+
+                default:
+                    return false;
+            }
+        }
+
+        return true;
     }
 
 public:
