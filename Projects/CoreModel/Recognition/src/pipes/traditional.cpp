@@ -626,7 +626,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_marker_solver::invoke(pipepp::ex
                 cc_model = model;
                 cc_projected.clear();
                 cc_detected = detected;
-                transform_to_camera(img, pos, rot, cc_model);
+                transform_points_to_camera(img, pos, rot, cc_model);
                 project_model_points(img, cc_projected, cc_model, true, view_planes);
 
                 // 각각의 점에 대해 독립적으로 거리를 계산합니다.
@@ -652,7 +652,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_marker_solver::invoke(pipepp::ex
         {
             auto vertexes = model;
             vector<Vec2f> projected;
-            transform_to_camera(img, best.position, best.rotation, vertexes);
+            transform_points_to_camera(img, best.position, best.rotation, vertexes);
             project_model_points(img, projected, vertexes, true, view_planes);
 
             for (Point2f pt : detected) {

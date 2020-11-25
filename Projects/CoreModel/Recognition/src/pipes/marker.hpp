@@ -18,8 +18,9 @@ PIPEPP_EXECUTOR(table_marker_finder)
     PIPEPP_CATEGORY(debug, "Debug")
     {
         PIPEPP_OPTION(show_generated_kernel, true);
-        PIPEPP_OPTION(kernel_view_scale, 200);
+        PIPEPP_OPTION(kernel_view_size, 200);
         PIPEPP_OPTION(show_current_3d_kernel, true);
+        PIPEPP_OPTION(current_kernel_view_scale, 0.05f);
     };
 
     PIPEPP_CATEGORY(kernel, "Kernel")
@@ -39,14 +40,14 @@ PIPEPP_EXECUTOR(table_marker_finder)
 
     PIPEPP_CATEGORY(marker, "Marker")
     {
-        PIPEPP_OPTION(marker_radius, 0.005, "Units in centimeters");
+        PIPEPP_OPTION(radius, 0.005, "Units in centimeters");
     };
 
     struct input_type {
         cv::Mat3b debug;
         cv::Mat3b rgb;
 
-        imgproc::img_t const* params;
+        imgproc::img_t const* p_imdesc;
         cv::Vec3f init_table_pos;
         cv::Vec3f init_table_rot;
 
@@ -64,7 +65,7 @@ PIPEPP_EXECUTOR(table_marker_finder)
         i.debug = sd.debug_mat;
         i.rgb = sd.rgb;
 
-        i.params = &sd.imdesc_bkup;
+        i.p_imdesc = &sd.imdesc_bkup;
         i.init_table_pos = sd.state->table.pos;
         i.init_table_rot = sd.state->table.rot;
 

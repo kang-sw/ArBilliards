@@ -134,7 +134,7 @@ cv::Matx44f billiards::imgproc::get_world_transform_matx_fast(cv::Vec3f pos, cv:
     return world_transform;
 }
 
-void billiards::imgproc::transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, std::vector<cv::Vec3f>& model_vertexes)
+void billiards::imgproc::transform_points_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, std::vector<cv::Vec3f>& model_vertexes)
 {
     // cv::Mat world_transform;
     // get_world_transform_matx(world_pos, world_rot, world_transform);
@@ -155,7 +155,7 @@ void billiards::imgproc::transform_to_camera(img_t const& img, cv::Vec3f world_p
 
 void billiards::imgproc::project_model_fast(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes)
 {
-    transform_to_camera(img, obj_pos, obj_rot, model_vertexes);
+    transform_points_to_camera(img, obj_pos, obj_rot, model_vertexes);
 
     project_model_local(img, mapped_contour, model_vertexes, do_cull, planes);
 }
@@ -217,11 +217,11 @@ void billiards::imgproc::draw_axes(img_t const& img, cv::Mat const& dest, cv::Ve
 void billiards::imgproc::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec)
 {
     using namespace cv;
-    std::vector<Vec3f> uvw;
-    uvw.emplace_back(0.1f, 0, 0);
-    uvw.emplace_back(0, -0.1f, 0);
-    uvw.emplace_back(0, 0, 0.1f);
-    uvw.emplace_back(0, 0, 0);
+    Vec3f uvw[4];
+    uvw[0] = {0.1f, 0, 0};
+    uvw[1] = {0, -0.1f, 0};
+    uvw[2] = {0, 0, 0.1f};
+    uvw[3] = {0, 0, 0};
 
     Matx33f rot = rodrigues(rvec);
 
@@ -232,6 +232,37 @@ void billiards::imgproc::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::
         pt4[3] = 1.0f, pt4[1] *= -1.0f;
         pt4 = img.camera_transform * pt4;
         pt = (Vec3f&)pt4;
+    }
+
+    Matx31f u = normalize(uvw[0] - uvw[3]);
+    Matx31f v = normalize(uvw[1] - uvw[3]);
+    Matx31f w = normalize(uvw[2] - uvw[3]);
+    tvec = uvw[3];
+
+    Matx33f rmat;
+    copy_matx(rmat, u, 0, 0);
+    copy_matx(rmat, v, 0, 1);
+    copy_matx(rmat, w, 0, 2);
+
+    rvec = rodrigues(rmat);
+}
+
+void billiards::imgproc::world_to_camera(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec)
+{
+    using namespace cv;
+    auto inv_cam = img.camera_transform.inv();
+    Vec3f uvw[4];
+    uvw[0] = {0.1f, 0, 0};
+    uvw[1] = {0, -0.1f, 0};
+    uvw[2] = {0, 0, 0.1f};
+    uvw[3] = {0, 0, 0};
+
+    Matx33f rot = rodrigues(rvec);
+
+    for (auto& pt : uvw) {
+        pt = (rot * pt) + tvec;
+        pt = subvec<0, 3>(inv_cam * concat_vec(pt, 1.f));
+        pt[1] = -pt[1];
     }
 
     Matx31f u = normalize(uvw[0] - uvw[3]);

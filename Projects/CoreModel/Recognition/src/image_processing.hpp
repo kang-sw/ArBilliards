@@ -88,12 +88,13 @@ void cull_frustum(std::vector<cv::Vec3f>& obj_pts, std::vector<plane_t> const& p
 void project_model_local(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
 void project_points(std::vector<cv::Vec3f> const& points, cv::Matx33f const& camera, cv::Matx41f const& disto, std::vector<cv::Vec2f>& o_points);
 auto get_world_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot) -> cv::Matx44f;
-void transform_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, std::vector<cv::Vec3f>& model_vertexes);
+void transform_points_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, std::vector<cv::Vec3f>& model_vertexes);
 void project_model_fast(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
 auto generate_frustum(float hfov_rad, float vfov_rad) -> std::vector<plane_t>;
 void project_model(img_t const& img, std::vector<cv::Vec2f>& mapped_contours, cv::Vec3f world_pos, cv::Vec3f world_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, float FOV_h = 88, float FOV_v = 50);
 void draw_axes(img_t const& img, cv::Mat const& dest, cv::Vec3f rvec, cv::Vec3f tvec, float marker_length, int thickness);
 void camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec);
+void world_to_camera(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec);
 auto rotate_local(cv::Vec3f target, cv::Vec3f rvec) -> cv::Vec3f;
 auto set_filtered_table_rot(cv::Vec3f table_rot, cv::Vec3f new_rot, float alpha = 1.0f, float jump_threshold = FLT_MAX) -> cv::Vec3f;
 auto set_filtered_table_pos(cv::Vec3f table_pos, cv::Vec3f new_pos, float alpha = 1.0f, float jump_threshold = FLT_MAX) -> cv::Vec3f;
@@ -197,19 +198,38 @@ cv::Vec<Ty_, 3> rodrigues(cv::Matx<Ty_, 3, 3> m)
     return v * O;
 }
 
-template <typename Ty_, int r0, int c0, int r1, int c1>
-void copy_matx(cv::Matx<Ty_, r0, c0>& to, cv::Matx<Ty_, r1, c1> const& from, int r, int c)
+template <typename Ty_, size_t r0, size_t c0, size_t r1, size_t c1>
+void copy_matx(cv::Matx<Ty_, r0, c0>& to, cv::Matx<Ty_, r1, c1> const& from, size_t row_ofst, size_t col_ofst)
 {
     static_assert(r0 >= r1);
     static_assert(c0 >= c1);
     assert(r + r1 <= r0);
     assert(c + c1 <= c0);
 
-    for (int i = 0; i < r1; ++i) {
-        for (int j = 0; j < c1; ++j) {
-            to(i + r, j + c) = from(i, j);
+    for (size_t i = 0; i < r1; ++i) {
+        for (size_t j = 0; j < c1; ++j) {
+            to(i + row_ofst, j + col_ofst) = from(i, j);
         }
     }
+}
+
+template <size_t RowOfst_, size_t ColOfst_, size_t W_ = -1, size_t H_ = -1, typename Ty_, size_t SrcW_, size_t SrcH_>
+auto submatx(cv::Matx<Ty_, SrcH_, SrcW_> const& src)
+{
+    constexpr size_t row = RowOfst_;
+    constexpr size_t col = ColOfst_;
+    constexpr size_t w = W_ == -1 ? SrcW_ - ColOfst_ : W_;
+    constexpr size_t h = H_ == -1 ? SrcH_ - RowOfst_ : H_;
+    static_assert(row + h <= SrcH_ && col + w <= SrcW_);
+
+    cv::Matx<Ty_, W_, H_> value;
+    for (auto r : kangsw::iota(row, row + h)) {
+        for (auto c : kangsw::iota(col, col + w)) {
+            value(r, c) = src(r + row, c + col);
+        }
+    }
+
+    return value;
 }
 
 template <typename Ty_>
@@ -388,7 +408,7 @@ decltype(auto) concat_vec(cv::Vec<Ty_, I_> const& a, Args_&&... args)
     constexpr auto _0_to_i = kangsw::iota{I_};
     for (auto i : _0_to_i) { r(i) = a(i); }
     auto tup = std::forward_as_tuple(std::forward<Args_>(args)...);
-    kangsw::tuple_for_each(tup, [&](auto&& arg, size_t i) { r(I_ + i) = arg; });
+    kangsw::tuple_for_each(tup, [&](auto&& arg, size_t i) { r(I_ + i) = std::forward<decltype(arg)>(arg); });
 
     return r;
 }
@@ -403,18 +423,18 @@ decltype(auto) make_vec(Args_&&... args)
     return r;
 }
 
-template <size_t Begin_, size_t Cnt_, typename Ty_, size_t I_>
-cv::Vec<Ty_, Cnt_> const& subvec(cv::Vec<Ty_, I_> const& v)
+template <size_t Ofst_, size_t Cnt_, typename Ty_, size_t I_>
+cv::Vec<Ty_, Cnt_> subvec(cv::Vec<Ty_, I_> const& v)
 {
-    static_assert(Begin_ + Cnt_ <= I_);
-    return (cv::Vec<Ty_, Cnt_> const&)v.val[Begin_];
+    static_assert(Ofst_ + Cnt_ <= I_);
+    return *(cv::Vec<Ty_, Cnt_> const*)(v.val + Ofst_);
 }
 
 template <size_t Ofst_, size_t Cnt_, typename Ty_, size_t I_>
 cv::Vec<Ty_, Cnt_>& subvec(cv::Vec<Ty_, I_>& v)
 {
     static_assert(Ofst_ + Cnt_ <= I_);
-    return (cv::Vec<Ty_, Cnt_>&)v.val[Ofst_];
+    return *(cv::Vec<Ty_, Cnt_>*)(v.val + Ofst_);
 }
 
 template <typename Ty_>
