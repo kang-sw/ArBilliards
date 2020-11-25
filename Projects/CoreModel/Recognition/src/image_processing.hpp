@@ -7,6 +7,61 @@
 #include "kangsw/for_each.hxx"
 #include "kangsw/hash_index.hxx"
 
+namespace cv
+{
+template <int Size_, typename Ty_>
+void to_json(nlohmann::json& j, const Vec<Ty_, Size_>& v)
+{
+    j = (std::array<Ty_, Size_>&)v;
+}
+
+template <int Size_, typename Ty_>
+void from_json(const nlohmann::json& j, Vec<Ty_, Size_>& v)
+{
+    std::array<Ty_, Size_> const& arr = j;
+    v = (cv::Vec<Ty_, Size_>&)arr;
+}
+
+template <typename Ty_>
+void to_json(nlohmann::json& j, const Scalar_<Ty_>& v)
+{
+    j = (std::array<Ty_, 4>&)v;
+}
+
+template <typename Ty_>
+void from_json(const nlohmann::json& j, Scalar_<Ty_>& v)
+{
+    for (int i = 0, num_elem = min(j.size(), 4ull); i < num_elem; ++i) {
+        v.val[i] = j[i];
+    }
+}
+} // namespace cv
+
+namespace std
+{
+template <typename Ty_, size_t N_>
+auto begin(cv::Vec<Ty_, N_>& it)
+{
+    return begin(it.val);
+}
+template <typename Ty_, size_t N_>
+auto end(cv::Vec<Ty_, N_>& it)
+{
+    return end(it.val);
+}
+template <typename Ty_, size_t N_>
+auto begin(cv::Vec<Ty_, N_> const& it)
+{
+    return begin(it.val);
+}
+template <typename Ty_, size_t N_>
+auto end(cv::Vec<Ty_, N_> const& it)
+{
+    return end(it.val);
+}
+
+} // namespace std
+
 namespace billiards::imgproc
 {
 using img_t = recognizer_t::frame_desc;

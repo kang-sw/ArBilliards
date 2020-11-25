@@ -513,8 +513,3 @@ pipepp::pipe_error billiards::pipes::table_contour_geometric_search::invoke(
 
     return {};
 }
-
-pipepp::pipe_error billiards::pipes::table_marker_finder::invoke(pipepp::execution_context& ec, input_type const& in, output_type& out)
-{
-    return {};
-}

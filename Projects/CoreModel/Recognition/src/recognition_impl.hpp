@@ -12,6 +12,8 @@
 #include <opencv2/core/base.hpp>
 #include <any>
 
+#include "image_processing.hpp"
+
 namespace billiards
 {
 // 평면을 나타내는 타입입니다.

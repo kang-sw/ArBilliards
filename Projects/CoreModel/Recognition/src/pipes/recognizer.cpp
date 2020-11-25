@@ -4,6 +4,8 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/core/matx.hpp>
+
+#include "marker.hpp"
 #include "fmt/format.h"
 #include "table_search.hpp"
 #include "../image_processing.hpp"

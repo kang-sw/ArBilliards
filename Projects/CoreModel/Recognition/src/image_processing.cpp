@@ -587,6 +587,9 @@ void billiards::imgproc::color_space_to_flag(kangsw::hash_index cls, int& to, in
         case "HSV"_hash:
             to = cv::COLOR_RGB2HSV, from = cv::COLOR_HSV2RGB;
             break;
+        case "Luv"_hash:
+            to = cv::COLOR_RGB2Luv, from = cv::COLOR_Luv2RGB;
+            break;
         case "RGB"_hash: [[fallthrough]];
         default:
             to = -1, from = -1;

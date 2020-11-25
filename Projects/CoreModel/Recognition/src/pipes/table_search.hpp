@@ -2,6 +2,7 @@
 
 #pragma once
 #include "recognizer.hpp"
+#include "pipepp/options.hpp"
 
 namespace billiards::pipes
 {
@@ -14,7 +15,7 @@ public:
                        std::string("Lab"),
                        "Common",
                        R"(Input must be one of "Lab", "YCrCb", "RGB", "YUV", "HLS", "HSV")",
-                       pipepp::verify::contains<std::string>("Lab", "YCrCb", "RGB", "YUV", "HLS", "HSV"));
+                       verify::color_space_string_verify);
 
     PIPEPP_OPTION_AUTO(true_SLIC_false_SEEDS, true, "flags");
 
@@ -130,8 +131,8 @@ struct label_edge_detector {
     PIPEPP_CATEGORY(edge, "Edge")
     {
         PIPEPP_OPTION(pp_dilate_erode_count, 0u,
-                      u8"클러스터로부터 계산된 에지의 노이즈를 감소시키기 위해 "
-                      "경계선을 N 번 팽창시킨 뒤 다시 침식합니다.");
+                      u8"Ŭ�����ͷκ��� ���� ������ ����� ���ҽ�Ű�� ���� "
+                      "��輱�� N �� ��â��Ų �� �ٽ� ħ���մϴ�.");
     };
 
     struct input_type {
@@ -146,7 +147,7 @@ struct label_edge_detector {
 };
 
 /**
- * 경계선을 탐색하는 실행기
+ * ��輱�� Ž���ϴ� �����
  */
 class hough_line_executor
 {
@@ -159,7 +160,7 @@ class hough_line_executor
 
     PIPEPP_CATEGORY(hough, "Hough Lines")
     {
-        PIPEPP_OPTION(use_P_version, false, u8"활성화 시 HoughLinesP를 대신 사용합니다.");
+        PIPEPP_OPTION(use_P_version, false, u8"Ȱ��ȭ �� HoughLinesP�� ��� ����մϴ�.");
         PIPEPP_OPTION(rho, 1.0, "", pipepp::verify::clamp(0.0, 1.0));
         PIPEPP_OPTION(theta, 180.0, "", pipepp::verify::clamp(1e-3, 180.0));
         PIPEPP_OPTION(threshold, 1, "", pipepp::verify::minimum(0));
@@ -190,13 +191,13 @@ public:
 };
 
 /**
- * TODO: 구현하기
- * 클러스터 라벨 배열의 경계선 이미지를 획득하고, 여기서 hough 변환을 통해 모든 직선 후보를 찾습니다. 만나는 직선들로부터 모든 선분을 찾아내고, 선분으로부터 구성될 수 있는 모든 도형을 찾아냅니다. 이후 각 도형에 대해, 각 클러스터의 중심점을 iterate해, 테이블 색상과 가까운 클러스터가 가장 많이 포함되면서, 테이블 색상이 아닌 클러스터를 전혀 포함하지 않는 가장 큰 도형을 찾아냅니다. 이것이 테이블의 후보 사각형이 됩니다.
+ * TODO: �����ϱ�
+ * Ŭ������ �� �迭�� ��輱 �̹����� ȹ���ϰ�, ���⼭ hough ��ȯ�� ���� ��� ���� �ĺ��� ã���ϴ�. ������ ������κ��� ��� ������ ã�Ƴ���, �������κ��� ������ �� �ִ� ��� ������ ã�Ƴ��ϴ�. ���� �� ������ ����, �� Ŭ�������� �߽����� iterate��, ���̺� ����� ����� Ŭ�����Ͱ� ���� ���� ���ԵǸ鼭, ���̺� ������ �ƴ� Ŭ�����͸� ���� �������� �ʴ� ���� ū ������ ã�Ƴ��ϴ�. �̰��� ���̺��� �ĺ� �簢���� �˴ϴ�.
  *
- * 보수적인(넓은 스레숄드) 값으로 추출한 테이블 마스크 영역 내에서, 모든 직선 후보의 교점을 찾습니다.
- * 각 교점은 테이블의 contour 후보가 되며, 
- * 테이블 색상 마스크에서 보수적인 방법으로 가능한 모든 컨투어를 추출하고, ApproxPolyDP를 적은 수준에서 적용한 뒤, 가장 긴 컨투어 4개 선분을 구하고 연장선의 교점 목록을 획득, 새로운 컨투어로 삼습니다. (기하적 방법)
- * 불충분하다면, superpixel을 활용합니다. 가급적 간단하게 구현하고 넘어갑시다 ... 시간 부족!
+ * ��������(���� �������) ������ ������ ���̺� ����ũ ���� ������, ��� ���� �ĺ��� ������ ã���ϴ�.
+ * �� ������ ���̺��� contour �ĺ��� �Ǹ�, 
+ * ���̺� ���� ����ũ���� �������� ������� ������ ��� ����� �����ϰ�, ApproxPolyDP�� ���� ���ؿ��� ������ ��, ���� �� ������ 4�� ������ ���ϰ� ���弱�� ���� ����� ȹ��, ���ο� ������� ����ϴ�. (������ ���)
+ * ������ϴٸ�, superpixel�� Ȱ���մϴ�. ������ �����ϰ� �����ϰ� �Ѿ�ô� ... �ð� ����!
  *
  */
 PIPEPP_EXECUTOR(table_contour_geometric_search)
@@ -212,14 +213,14 @@ PIPEPP_EXECUTOR(table_contour_geometric_search)
 
     PIPEPP_CATEGORY(filtering, "Filtering")
     {
-        PIPEPP_OPTION(min_area_ratio, 0.05, u8"전체 이미지 크기 대비, 유효한 것으로 계산되는 컨투어의 화면 넓이에 대한 비율입니다.");
+        PIPEPP_OPTION(min_area_ratio, 0.05, u8"��ü �̹��� ũ�� ���, ��ȿ�� ������ ���Ǵ� �������� ȭ�� ���̿� ���� �����Դϴ�.");
     };
 
     PIPEPP_CATEGORY(approx, "Approximation")
     {
-        PIPEPP_OPTION(epsilon0, 1.0, u8"컨투어 목록에 적용할 approxPolyDP() 함수 파라미터.", pipepp::verify::minimum(0.0));
+        PIPEPP_OPTION(epsilon0, 1.0, u8"������ ��Ͽ� ������ approxPolyDP() �Լ� �Ķ����.", pipepp::verify::minimum(0.0));
         PIPEPP_OPTION(make_convex_hull, true);
-        PIPEPP_OPTION(epsilon1, -1.0, u8"컨벡스 헐 연산 이후 적용할 approxPolyDP() 파라미터", pipepp::verify::minimum(0.0));
+        PIPEPP_OPTION(epsilon1, -1.0, u8"������ �� ���� ���� ������ approxPolyDP() �Ķ����", pipepp::verify::minimum(0.0));
     };
 
     struct input_type {
@@ -235,40 +236,4 @@ PIPEPP_EXECUTOR(table_contour_geometric_search)
 private:
     std::vector<std::vector<cv::Vec2i>> contours_;
 };
-
-/**
- * TODO
- * 마커를 탐색합니다. 모든 흰 점을 대해, Sparse Kernel을 적용해 찾아냅니다.
- * 이 때, 커널의 기본형은 원형의 점 목록을 3D 공간으로 변환하고, 각 점에 버텍스 셰이더를 적용해 얻습니다.
- *
- * @details
- *
- * 희소 커널 원형의 각 버텍스를 X, Z 평면(테이블과 같은 평면)상에 스폰합니다. 테이블의 카메라에 대한 상대 로테이션으로 각 버텍스를 회전시키고 화면에 원근 투영하면, 평면 커널을 획득할 수 있습니다.
- */
-PIPEPP_EXECUTOR(table_marker_finder)
-{
-    PIPEPP_CATEGORY(debug, "Debug"){
-
-    };
-
-    PIPEPP_CATEGORY(kernel, "Kernel"){
-
-    };
-
-    struct input_type {
-        std::vector<cv::Vec2f> contour;
-        std::vector<cv::Vec3f> marker_model;
-    };
-    struct output_type {
-        cv::Mat1f marker_weight_map;
-    };
-
-    pipepp::pipe_error invoke(pipepp::execution_context & ec, input_type const& in, output_type& out);
-    static void link(shared_data const& sd, input_type& i)
-    {
-        i.contour = sd.table.contour;
-        sd.get_marker_points_model(i.marker_model);
-    }
-};
-
 } // namespace billiards::pipes
