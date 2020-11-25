@@ -79,7 +79,7 @@ struct plane_t {
     std::optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
 };
 
-void filter_hsv(cv::InputArray input, cv::OutputArray output, cv::Vec3f min_hsv, cv::Vec3f max_hsv);
+void range_filter(cv::InputArray input, cv::OutputArray output, cv::Vec3f min_hsv, cv::Vec3f max_hsv);
 bool is_border_pixel(cv::Rect img_size, cv::Vec2i pixel, int margin = 3);
 void get_table_model(std::vector<cv::Vec3f>& vertexes, cv::Vec2f model_size);
 auto get_camera_matx(billiards::recognizer_t::frame_desc const& img) -> std::pair<cv::Matx33d, cv::Matx41d>;

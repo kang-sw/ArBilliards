@@ -901,7 +901,7 @@ std::optional<cv::Vec3f> billiards::imgproc::plane_t::find_contact(cv::Vec3f con
     return {};
 }
 
-void billiards::imgproc::filter_hsv(cv::InputArray input, cv::OutputArray output, cv::Vec3f min_hsv, cv::Vec3f max_hsv)
+void billiards::imgproc::range_filter(cv::InputArray input, cv::OutputArray output, cv::Vec3f min_hsv, cv::Vec3f max_hsv)
 {
     using namespace cv;
     if (max_hsv[0] < min_hsv[0]) {

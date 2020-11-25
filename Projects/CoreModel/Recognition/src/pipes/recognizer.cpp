@@ -206,7 +206,7 @@ void billiards::pipes::input_resize::output_handler(pipepp::pipe_error, shared_d
 
     PIPEPP_ELAPSE_BLOCK("Table Area Edge Detection")
     {
-        imgproc::filter_hsv(
+        imgproc::range_filter(
           o.hsv,
           sd.table_hsv_filtered,
           shared_data::table::filter::color_lo(sd),

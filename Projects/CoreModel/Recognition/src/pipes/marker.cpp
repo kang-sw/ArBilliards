@@ -54,6 +54,7 @@ void billiards::pipes::helpers::table_edge_extender::operator()(pipepp::executio
         auto inner_contour = contour;
         auto m = moments(contour);
         auto center = Vec2f(m.m10 / m.m00, m.m01 / m.m00);
+        auto mass = sqrt(m.m00);
         double frame_width_outer = table_border_range_outer;
         double frame_width_inner = table_border_range_inner;
 
@@ -82,10 +83,10 @@ void billiards::pipes::helpers::table_edge_extender::operator()(pipepp::executio
             drag_width_outer = clamp<float>(drag_width_outer, 1, 100);
             drag_width_inner = clamp<float>(drag_width_inner, 1, 100);
 
-            auto direction = normalize(outer - center);
-            outer += direction * drag_width_outer;
+            auto direction = /*normalize*/ (outer - center);
+            outer += direction * drag_width_outer / mass;
             if (!is_border_pixel({{}, marker_area_mask.size()}, inner)) {
-                inner -= direction * drag_width_inner;
+                inner -= direction * drag_width_inner / mass;
             }
         }
 
@@ -227,6 +228,26 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         tee(ec, area_mask);
 
         PIPEPP_STORE_DEBUG_DATA_COND("Marker Area Mask", (cv::Mat)area_mask, show_debug);
+    }
+
+    // 유효 픽셀만을 필터링합니다. 두 가지 메소드 중 하나를 적용하게 됩니다.
+    // (델타 색상 또는 범위 필터)
+    std::vector<cv::Vec2i> valid_marker_pixels;
+    PIPEPP_ELAPSE_BLOCK("Filter valid marker pixels")
+    {
+        using namespace imgproc;
+        cv::Mat1b valid_pxls;
+
+        if (in.lightness.empty()) {
+            // 0번 메소드 시 lightness가 지정되지 않습니다.
+            // 0번 메소드 ==> Range filter 후 모든 픽셀 선택
+            range_filter(in.domain, valid_pxls, marker::filter::method_0_range_lo(ec), marker::filter::method_0_range_hi(ec));
+        } else {
+            // 다른 메소드에서는 lightness가 지정됩니다.
+            // 먼저 lightness Mat에 2D 필터 적용
+            cv::Matx33f edge_kernel(-1, -1, -1, -1, 8, -1, -1, -1, -1);
+
+        }
     }
 
     return {};

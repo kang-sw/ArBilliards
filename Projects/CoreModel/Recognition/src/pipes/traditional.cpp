@@ -85,7 +85,7 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
     {
         PIPEPP_ELAPSE_BLOCK("Preprocess: hsv filtering")
         {
-            imgproc::filter_hsv(i.u_hsv, u_filtered, filter[0], filter[1]);
+            imgproc::range_filter(i.u_hsv, u_filtered, filter[0], filter[1]);
             imgproc::carve_outermost_pixels(u_filtered, {0});
         }
 
