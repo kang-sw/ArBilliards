@@ -1,34 +1,40 @@
 #pragma once
 #include "recognizer.hpp"
+#include "../image_processing.hpp"
 
 namespace billiards::pipes
 {
 /**
  * TODO
- * ¸¶Ä¿¸¦ Å½»öÇÕ´Ï´Ù. ¸ğµç Èò Á¡À» ´ëÇØ, Sparse KernelÀ» Àû¿ëÇØ Ã£¾Æ³À´Ï´Ù.
- * ÀÌ ¶§, Ä¿³ÎÀÇ ±âº»ÇüÀº ¿øÇüÀÇ Á¡ ¸ñ·ÏÀ» 3D °ø°£À¸·Î º¯È¯ÇÏ°í, °¢ Á¡¿¡ ¹öÅØ½º ¼ÎÀÌ´õ¸¦ Àû¿ëÇØ ¾ò½À´Ï´Ù.
+ * ë§ˆì»¤ë¥¼ íƒìƒ‰í•©ë‹ˆë‹¤. ëª¨ë“  í° ì ì„ ëŒ€í•´, Sparse Kernelì„ ì ìš©í•´ ì°¾ì•„ëƒ…ë‹ˆë‹¤.
+ * ì´ ë•Œ, ì»¤ë„ì˜ ê¸°ë³¸í˜•ì€ ì›í˜•ì˜ ì  ëª©ë¡ì„ 3D ê³µê°„ìœ¼ë¡œ ë³€í™˜í•˜ê³ , ê° ì ì— ë²„í…ìŠ¤ ì…°ì´ë”ë¥¼ ì ìš©í•´ ì–»ìŠµë‹ˆë‹¤.
  *
  * @details
  *
- * Èñ¼Ò Ä¿³Î ¿øÇüÀÇ °¢ ¹öÅØ½º¸¦ X, Z Æò¸é(Å×ÀÌºí°ú °°Àº Æò¸é)»ó¿¡ ½ºÆùÇÕ´Ï´Ù. Å×ÀÌºíÀÇ Ä«¸Ş¶ó¿¡ ´ëÇÑ »ó´ë ·ÎÅ×ÀÌ¼ÇÀ¸·Î °¢ ¹öÅØ½º¸¦ È¸Àü½ÃÅ°°í È­¸é¿¡ ¿ø±Ù Åõ¿µÇÏ¸é, Æò¸é Ä¿³ÎÀ» È¹µæÇÒ ¼ö ÀÖ½À´Ï´Ù.
+ * í¬ì†Œ ì»¤ë„ ì›í˜•ì˜ ê° ë²„í…ìŠ¤ë¥¼ X, Z í‰ë©´(í…Œì´ë¸”ê³¼ ê°™ì€ í‰ë©´)ìƒì— ìŠ¤í°í•©ë‹ˆë‹¤. í…Œì´ë¸”ì˜ ì¹´ë©”ë¼ì— ëŒ€í•œ ìƒëŒ€ ë¡œí…Œì´ì…˜ìœ¼ë¡œ ê° ë²„í…ìŠ¤ë¥¼ íšŒì „ì‹œí‚¤ê³  í™”ë©´ì— ì›ê·¼ íˆ¬ì˜í•˜ë©´, í‰ë©´ ì»¤ë„ì„ íšë“í•  ìˆ˜ ìˆìŠµë‹ˆë‹¤.
  */
 PIPEPP_EXECUTOR(table_marker_finder)
 {
-    PIPEPP_CATEGORY(debug, "Debug"){
-
+    PIPEPP_CATEGORY(debug, "Debug")
+    {
+        PIPEPP_OPTION(show_generated_kernel, true);
+        PIPEPP_OPTION(kernel_view_scale, 200);
+        PIPEPP_OPTION(show_current_3d_kernel, true);
     };
 
     PIPEPP_CATEGORY(kernel, "Kernel")
     {
         PIPEPP_OPTION(positive_area,
                       cv::Vec2d(0, 1),
-                      "",
+                      u8"ì¤‘ì‹¬ì ìœ¼ë¡œë¶€í„°, ì–‘ì˜ ê°€ì¤‘ì¹˜ë¡œ í‰ê°€ë˜ëŠ” êµ¬ê°„ì…ë‹ˆë‹¤.",
                       pipepp::verify::clamp_all<cv::Vec2d>(0, 1) | pipepp::verify::ascending<cv::Vec2d>());
         PIPEPP_OPTION(negative_area,
                       cv::Vec2d(1, 2),
-                      "",
+                      u8"ì¤‘ì‹¬ì ìœ¼ë¡œë¶€í„°, ìŒì˜ ê°€ì¤‘ì¹˜ë¡œ í‰ê°€ë˜ëŠ” êµ¬ê°„ì…ë‹ˆë‹¤.",
                       pipepp::verify::minimum_all<cv::Vec2d>(0) | pipepp::verify::ascending<cv::Vec2d>());
-        PIPEPP_OPTION(generator_integral_radius, 10u, "", pipepp::verify::maximum(10000u));
+        PIPEPP_OPTION(generator_positive_radius, 10u, "", pipepp::verify::maximum(10000u));
+        PIPEPP_OPTION(generator_negative_radius, 10u, "", pipepp::verify::maximum(10000u));
+        PIPEPP_OPTION(random_seed, 42);
     };
 
     PIPEPP_CATEGORY(marker, "Marker")
@@ -38,9 +44,13 @@ PIPEPP_EXECUTOR(table_marker_finder)
 
     struct input_type {
         cv::Mat3b debug;
-        cv::Mat source;
+        cv::Mat3b rgb;
 
-        std::vector<cv::Vec2f> contour;
+        imgproc::img_t const* params;
+        cv::Vec3f init_table_pos;
+        cv::Vec3f init_table_rot;
+
+        std::span<const cv::Vec2f> contour;
         std::vector<cv::Vec3f> marker_model;
     };
     struct output_type {
@@ -50,6 +60,14 @@ PIPEPP_EXECUTOR(table_marker_finder)
     pipepp::pipe_error operator()(pipepp::execution_context& ec, input_type const& in, output_type& out);
     static void link(shared_data const& sd, input_type& i)
     {
+        auto _lck = sd.state->lock();
+        i.debug = sd.debug_mat;
+        i.rgb = sd.rgb;
+
+        i.params = &sd.imdesc_bkup;
+        i.init_table_pos = sd.state->table.pos;
+        i.init_table_rot = sd.state->table.rot;
+
         i.contour = sd.table.contour;
         sd.get_marker_points_model(i.marker_model);
     }

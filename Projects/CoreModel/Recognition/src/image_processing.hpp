@@ -324,6 +324,40 @@ void circle_op(int cent_x, int cent_y, int radius, Fn_&& op)
     }
 }
 
+template <typename Fn_>
+void circle_op(int radius, Fn_&& op)
+{
+    int x = 0, y = radius;
+    int d = 1 - radius;             // 결정변수를 int로 변환
+    int delta_e = 3;                // E가 선택됐을 때 증분값
+    int delta_se = -2 * radius + 5; // SE가 선탣됐을 때 증분값
+
+    op(+x, +y), op(-x, +y), op(+x, -y), op(-x, -y);
+    op(+y, +x), op(-y, +x), op(+y, -x), op(-y, -x);
+
+    // 12시 방향에서 시작해서 시계방향으로 회전한다고 했을 때
+    // 45도를 지나면 y값이 x값보다 작아지는걸 이용
+    while (y > x) {
+        // E 선택
+        if (d < 0) {
+            d += delta_e;
+            delta_e += 2;
+            delta_se += 2;
+        }
+        // SE 선택
+        else {
+            d += delta_se;
+            delta_e += 2;
+            delta_se += 4;
+            y--;
+        }
+        x++;
+
+        op(+x, +y), op(-x, +y), op(+x, -y), op(-x, -y);
+        op(+y, +x), op(-y, +x), op(+y, -x), op(-y, -x);
+    }
+}
+
 template <typename Ty_, typename Rand_>
 void discard_random_args(std::vector<Ty_>& iovec, size_t target_size, Rand_&& rengine)
 {
