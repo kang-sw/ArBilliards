@@ -2,6 +2,7 @@
 #include <amp.h>
 #include <amp_math.h>
 #include <opencv2/core.hpp>
+#include <opencv2/core/matx.hpp>
 #include <random>
 
 #include "../image_processing.hpp"
@@ -151,15 +152,14 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         std::uniform_real_distribution<float> positive(_positive[0], _positive[1]);
         std::uniform_real_distribution<float> negative(_negative[0], _negative[1]);
 
-        auto kg = helpers::kernel_generator
-        {
-            .positive = positive,
-            .negative = negative,
-            .positive_integral_radius = kernel::generator_positive_radius(ec),
-            .negative_integral_radius = kernel::generator_negative_radius(ec),
-            .random_seed = kernel::random_seed(ec),
-            .show_debug = show_debug,
-            .kernel_view_size = debug::kernel_view_size(ec),
+        auto kg = helpers::kernel_generator{
+          .positive = positive,
+          .negative = negative,
+          .positive_integral_radius = kernel::generator_positive_radius(ec),
+          .negative_integral_radius = kernel::generator_negative_radius(ec),
+          .random_seed = kernel::random_seed(ec),
+          .show_debug = show_debug,
+          .kernel_view_size = debug::kernel_view_size(ec),
         };
 
         auto vtxs = kg(ec);
@@ -325,8 +325,44 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         PIPEPP_STORE_DEBUG_DATA("Number of candidate pixels", valid_marker_pixels.size());
     }
 
+    if (valid_marker_pixels.empty()) {
+        return pipepp::pipe_error::warning;
+    }
+
     // 각각의 유효 마커 픽셀을 iterate해, 거리를 계산합니다.
-    
+    std::vector<float> distances(valid_marker_pixels.size());
+    PIPEPP_ELAPSE_BLOCK("Create distance buffer")
+    {
+        using namespace imgproc;
+        using namespace cv;
+
+        auto table_plane = plane_t::from_rp(in.init_table_rot, in.init_table_pos, {0, 1, 0});
+        plane_to_camera(imdesc, table_plane, table_plane);
+
+        for (auto idx : kangsw::rcounter(valid_marker_pixels.size())) {
+            auto pos = valid_marker_pixels[idx];
+
+            Point pt = (Point)pos + roi.tl();
+            Vec3f vec(pt.x, pt.y, 100.f);
+            get_point_coord_3d(imdesc, vec[0], vec[1], vec[2]);
+            if (auto uo = table_plane.calc_u({}, vec)) {
+                distances[idx] = *uo;
+            } else { // invalid한 평면에 있다면 제거합니다.
+                kangsw::swap_remove(valid_marker_pixels, idx);
+                kangsw::swap_remove(distances, idx);
+            }
+        }
+
+        if (show_debug) {
+            cv::Mat1f depths(roi.size(), 0);
+            auto mult = debug::depth_view_multiply(ec);
+             for (auto [pos, depth] : kangsw::zip(valid_marker_pixels, distances)) {
+                depths((cv::Point)pos ) = depth * mult;
+            }
+
+            PIPEPP_STORE_DEBUG_DATA("Marker area depths", (Mat)depths);
+        }
+    }
 
     return {};
 }

@@ -116,6 +116,7 @@ PIPEPP_EXECUTOR(table_marker_finder)
     {
         PIPEPP_OPTION(kernel_view_size, 200u);
         PIPEPP_OPTION(current_kernel_view_scale, 0.05f);
+        PIPEPP_OPTION(depth_view_multiply, 10.f);
     };
 
     PIPEPP_CATEGORY(kernel, "Kernel")
