@@ -14,6 +14,57 @@
 
 #pragma warning(disable : 4244)
 
+namespace billiards::pipes {
+namespace {
+
+struct marker_search_to_solve {
+    PIPEPP_DECLARE_OPTION_CLASS(table_marker_finder);
+
+    static bool link(
+      shared_data& sd,
+      table_marker_finder::output_type const& o,
+      marker_solver_OLD::input_type& i)
+    {
+        {
+            auto _lck = sd.state->lock();
+            i = marker_solver_OLD::input_type{
+              .img_ptr = &sd.imdesc_bkup,
+              .img_size = sd.rgb.size(),
+              .table_pos_init = sd.state->table.pos,
+              .table_rot_init = sd.state->table.rot,
+              .debug_mat = &sd.debug_mat,
+              .table_contour = &sd.table.contour,
+              .u_hsv = &sd.u_hsv,
+              .FOV_degree = sd.camera_FOV(sd)};
+            sd.get_marker_points_model(i.marker_model);
+        }
+
+        // Weight map으로부터 마커 목록 찾기
+        using namespace std;
+        using namespace cv;
+        Mat1b mat = o.marker_weight_map > 0.1f;
+        Mat1b expand;
+        dilate(mat, expand, {});
+
+        vector<vector<Vec2i>> contours;
+        findContours(expand - mat, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+        for (auto& contour : contours) {
+            auto m = moments(contour);
+            if (m.m00) {
+                Vec2f centerf(m.m10 / m.m00, m.m01 / m.m00);
+                Point center = (Vec2i)centerf;
+                i.markers.push_back(centerf);
+                i.weights.push_back(o.marker_weight_map(center));
+            }
+        }
+
+        return i.markers.empty() == false;
+    }
+};
+} // namespace
+} // namespace billiards::pipes
+
 namespace billiards {
 class recognizer_t;
 }
@@ -42,6 +93,7 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         auto contour_search_proxy = pl->create("table contour searcher", 1, &pipepp::make_executor<table_contour_geometric_search>);
         auto pnp_solver_proxy = pl->create("solve table edge", 1, &pipepp::make_executor<table_edge_solver>);
         auto marker_search_proxy = pl->create("table marker search", 1, &pipepp::make_executor<table_marker_finder>);
+        auto marker_solver_proxy = pl->create("table marker solver", 1, &pipepp::make_executor<marker_solver_OLD>);
 
         input_proxy.link_output(contour_search_proxy,
                                 [](shared_data& sd, table_contour_geometric_search::input_type& i) {
@@ -50,7 +102,8 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
                                 });
 
         contour_search_proxy.add_output_handler(
-          [](shared_data& sd, table_contour_geometric_search::output_type const& o) {
+          [](shared_data& sd,
+             table_contour_geometric_search::output_type const& o) {
               sd.table.contour = o.contours;
           });
         contour_search_proxy.link_output(pnp_solver_proxy, &table_edge_solver::link_from_previous);
@@ -58,7 +111,10 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         pnp_solver_proxy.add_output_handler(&table_edge_solver::output_handler);
         pnp_solver_proxy.link_output(marker_search_proxy, &table_marker_finder::link);
 
-        marker_search_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
+        marker_search_proxy.link_output(marker_solver_proxy, &marker_search_to_solve::link);
+
+        marker_solver_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
+
     }
 
     return pl;

@@ -459,10 +459,10 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
 
         u_suit.synchronize();
 
-        cv::Mat1f suits(pp_filter_domain.size());
+        cv::Mat1f suits(in.domain.size());
         auto mult = debug::suitability_view_multiply(ec);
         for (auto [idx, value] : zip(valid_marker_pixels, suitabilities)) {
-            suits((cv::Point)idx) = value * mult;
+            suits(roi.tl() + (cv::Point)idx) = value * mult;
         }
 
         out.marker_weight_map = suits;
