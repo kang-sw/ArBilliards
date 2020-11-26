@@ -48,7 +48,7 @@ void billiards::recognizer_t::refresh_image(frame_desc image, process_finish_cal
     m.pipeline->suply(image, [&](pipes::shared_data& sty) {
         sty.callback = std::move(callback);
         sty.imdesc_bkup = image;
-        sty.state = impl_->shared_state;
+        sty.state_ = impl_->shared_state;
     });
 }
 

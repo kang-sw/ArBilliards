@@ -213,11 +213,8 @@ PIPEPP_EXECUTOR(table_marker_finder)
 
     static bool link(shared_data & sd, input_type & i, pipepp::detail::option_base const& opt)
     {
-        {
-            auto _lck = sd.state->lock();
-            i.init_table_pos = sd.state->table.pos;
-            i.init_table_rot = sd.state->table.rot;
-        }
+        i.init_table_pos = sd.table.pos;
+        i.init_table_rot = sd.table.rot;
 
         i.debug = sd.debug_mat;
         i.p_imdesc = &sd.imdesc_bkup;

@@ -25,19 +25,16 @@ struct marker_search_to_solve {
       table_marker_finder::output_type const& o,
       marker_solver_OLD::input_type& i)
     {
-        {
-            auto _lck = sd.state->lock();
-            i = marker_solver_OLD::input_type{
-              .img_ptr = &sd.imdesc_bkup,
-              .img_size = sd.rgb.size(),
-              .table_pos_init = sd.state->table.pos,
-              .table_rot_init = sd.state->table.rot,
-              .debug_mat = &sd.debug_mat,
-              .table_contour = &sd.table.contour,
-              .u_hsv = &sd.u_hsv,
-              .FOV_degree = sd.camera_FOV(sd)};
-            sd.get_marker_points_model(i.marker_model);
-        }
+        i = marker_solver_OLD::input_type{
+          .img_ptr = &sd.imdesc_bkup,
+          .img_size = sd.rgb.size(),
+          .table_pos_init = sd.table.pos,
+          .table_rot_init = sd.table.rot,
+          .debug_mat = &sd.debug_mat,
+          .table_contour = &sd.table.contour,
+          .u_hsv = &sd.u_hsv,
+          .FOV_degree = sd.camera_FOV(sd)};
+        sd.get_marker_points_model(i.marker_model);
 
         // Weight map으로부터 마커 목록 찾기
         using namespace std;
@@ -114,7 +111,7 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         marker_search_proxy.link_output(marker_solver_proxy, &marker_search_to_solve::link);
 
         marker_solver_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
-
+        marker_solver_proxy.add_output_handler(&marker_solver_OLD::output_handler);
     }
 
     return pl;
@@ -277,6 +274,30 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     auto& sd = *i;
+    auto& debug = sd.debug_mat;
+    auto& imdesc = sd.imdesc_bkup;
+    using namespace imgproc;
+    using namespace std;
+    using namespace cv;
+
+    {
+        auto _lck = sd.state_->lock();
+        sd.state_->table.pos = sd.table.pos;
+        sd.state_->table.rot = sd.table.rot;
+    }
+
+    if (debug::render_debug_glyphs(ec)) {
+        auto& pos = sd.table.pos;
+        auto& rot = sd.table.rot;
+        auto FOV = sd.camera_FOV(sd);
+        vector<Vec3f> model;
+        get_table_model(model, shared_data::table::size::fit(sd));
+        project_contours(imdesc, debug, model, pos, rot, {0, 255, 0}, 3, FOV);
+        get_table_model(model, shared_data::table::size::inner(sd));
+        project_contours(imdesc, debug, model, pos, rot, {221, 64, 0}, 3, FOV);
+        get_table_model(model, shared_data::table::size::outer(sd));
+        project_contours(imdesc, debug, model, pos, rot, {83, 0, 213}, 3, FOV);
+    }
 
     PIPEPP_STORE_DEBUG_DATA("Debug glyphs rendering", sd.debug_mat.clone());
     return pipepp::pipe_error::ok;

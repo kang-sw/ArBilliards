@@ -75,20 +75,22 @@ void billiards::pipes::helpers::table_edge_extender::operator()(pipepp::executio
             // auto depth = img.depth.at<float>((Point)pt);
             // auto drag_width_outer = min(300.f, get_pixel_length(img, frame_width_outer, depth));
             // auto drag_width_inner = min(300.f, get_pixel_length(img, frame_width_inner, depth));
-            float drag_width_outer = get_pixel_length_on_contact(img, table_plane, pt, frame_width_outer);
-            float drag_width_inner = get_pixel_length_on_contact(img, table_plane, pt, frame_width_inner);
+            float drag_width_outer = table_border_range_outer * 100;
+            // get_pixel_length_on_contact(img, table_plane, pt, frame_width_outer);
+            float drag_width_inner = table_border_range_inner * 100;
+            // get_pixel_length_on_contact(img, table_plane, pt, frame_width_inner);
 
             // 평면과 해당 방향 시야가 이루는 각도 theta를 구하고, cos(theta)를 곱해 화면상의 픽셀 드래그를 구합니다.
-            Vec3f pt_dir(pt[0], pt[1], 1);
-            get_point_coord_3d(img, pt_dir[0], pt_dir[1], 1);
-            pt_dir = normalize(pt_dir);
-            auto cos_theta = abs(pt_dir.dot(table_plane.N));
-            drag_width_outer *= cos_theta;
-            drag_width_inner *= cos_theta;
-            drag_width_outer = isnan(drag_width_outer) ? 1 : drag_width_outer;
-            drag_width_inner = isnan(drag_width_inner) ? 1 : drag_width_inner;
-            drag_width_outer = clamp<float>(drag_width_outer, 1, 100);
-            drag_width_inner = clamp<float>(drag_width_inner, 1, 100);
+            // Vec3f pt_dir(pt[0], pt[1], 1);
+            // get_point_coord_3d(img, pt_dir[0], pt_dir[1], 1);
+            // pt_dir = normalize(pt_dir);
+            // auto cos_theta = abs(pt_dir.dot(table_plane.N));
+            // drag_width_outer *= cos_theta;
+            // drag_width_inner *= cos_theta;
+            // drag_width_outer = isnan(drag_width_outer) ? 1 : drag_width_outer;
+            // drag_width_inner = isnan(drag_width_inner) ? 1 : drag_width_inner;
+            // drag_width_outer = clamp<float>(drag_width_outer, 1, 100);
+            // drag_width_inner = clamp<float>(drag_width_inner, 1, 100);
 
             auto direction = /*normalize*/ (outer - center);
             outer += direction * drag_width_outer / mass;

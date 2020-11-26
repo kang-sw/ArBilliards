@@ -91,8 +91,6 @@ struct shared_data : pipepp::base_shared_context {
 
     // data
 public:
-    std::shared_ptr<shared_state> state;
-
     recognizer_t::frame_desc imdesc_bkup;
     recognizer_t::process_finish_callback_type callback;
 
@@ -118,9 +116,16 @@ public:
     } table;
 
 public:
-    void reload() override { converted_resources_.clear(); }
+    void reload() override
+    {
+        converted_resources_.clear();
+        table.pos = state_->table.pos;
+        table.rot = state_->table.rot;
+    }
     void get_marker_points_model(std::vector<cv::Vec3f>& model) const;
     cv::Mat retrieve_image_in_colorspace(kangsw::hash_index hash);
+
+    std::shared_ptr<shared_state> state_;
 
 private:
     std::map<kangsw::hash_index, cv::Mat3b> converted_resources_;
@@ -178,9 +183,10 @@ struct contour_candidate_search {
 struct output_pipe {
     PIPEPP_DECLARE_OPTION_CLASS(output_pipe);
 
-    struct debug {
-        PIPEPP_DECLARE_OPTION_CATEGORY("Debug");
+    PIPEPP_CATEGORY(debug, "Debug")
+    {
         PIPEPP_OPTION(show_debug_mat, false);
+        PIPEPP_OPTION(render_debug_glyphs, true);
     };
 
     using input_type = shared_data*;

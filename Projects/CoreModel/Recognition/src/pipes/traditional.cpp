@@ -328,7 +328,6 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
 
 void billiards::pipes::table_edge_solver::link_from_previous(shared_data const& sd, input_type& o)
 {
-    auto _lck = sd.state->lock();
     o = input_type{
       .FOV_degree = sd.camera_FOV(sd),
       .debug_mat = sd.debug_mat,
@@ -336,20 +335,17 @@ void billiards::pipes::table_edge_solver::link_from_previous(shared_data const& 
       .img_size = sd.debug_mat.size(),
       .table_contour = &sd.table.contour,
       .table_fit_size = shared_data::table::size::fit(sd),
-      .table_pos_init = sd.state->table.pos,
-      .table_rot_init = sd.state->table.rot};
+      .table_pos_init = sd.table.pos,
+      .table_rot_init = sd.table.rot};
 }
 
 void billiards::pipes::table_edge_solver::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
 {
-    auto& state = *sd.state;
-    auto _lck = state.lock();
-
     float pos_alpha = shared_data::table::filter::alpha_pos(sd);
     float rot_alpha = shared_data::table::filter::alpha_rot(sd);
     float jump_thr = !o.can_jump * 1e10 + shared_data::table::filter::jump_threshold_distance(sd);
-    state.table.pos = imgproc::set_filtered_table_pos(state.table.pos, o.table_pos, pos_alpha * o.confidence, jump_thr);
-    state.table.rot = imgproc::set_filtered_table_rot(state.table.rot, o.table_rot, rot_alpha * o.confidence, jump_thr);
+    sd.table.pos = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence, jump_thr);
+    sd.table.rot = imgproc::set_filtered_table_rot(sd.table.rot, o.table_rot, rot_alpha * o.confidence, jump_thr);
 }
 
 pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
@@ -502,12 +498,11 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::ex
 
 void billiards::pipes::DEPRECATED_marker_finder::link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o)
 {
-    auto _lck = sd.state->lock();
     o = input_type{
       .img_ptr = &sd.imdesc_bkup,
       .img_size = sd.rgb.size(),
-      .table_pos_init = sd.state->table.pos,
-      .table_rot_init = sd.state->table.rot,
+      .table_pos_init = sd.table.pos,
+      .table_rot_init = sd.table.rot,
       .debug_mat = &sd.debug_mat,
       .table_contour = &sd.table.contour,
       .u_hsv = &sd.u_hsv,
@@ -683,12 +678,11 @@ pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution
 
 void billiards::pipes::marker_solver_OLD::link_from_previous(shared_data const& sd, DEPRECATED_marker_finder::output_type const& i, input_type& o)
 {
-    auto _lck = sd.state->lock();
     o = input_type{
       .img_ptr = &sd.imdesc_bkup,
       .img_size = sd.rgb.size(),
-      .table_pos_init = sd.state->table.pos,
-      .table_rot_init = sd.state->table.rot,
+      .table_pos_init = sd.table.pos,
+      .table_rot_init = sd.table.rot,
       .debug_mat = &sd.debug_mat,
       .table_contour = &sd.table.contour,
       .u_hsv = &sd.u_hsv,
@@ -700,13 +694,10 @@ void billiards::pipes::marker_solver_OLD::link_from_previous(shared_data const& 
 
 void billiards::pipes::marker_solver_OLD::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
 {
-    auto& state = *sd.state;
-    auto _lck = state.lock();
-
     float pos_alpha = shared_data::table::filter::alpha_pos(sd);
     float rot_alpha = shared_data::table::filter::alpha_rot(sd);
-    state.table.pos = imgproc::set_filtered_table_pos(state.table.pos, o.table_pos, pos_alpha * o.confidence);
-    state.table.rot = imgproc::set_filtered_table_rot(state.table.rot, o.table_rot, rot_alpha * o.confidence);
+    sd.table.pos = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence);
+    sd.table.rot = imgproc::set_filtered_table_rot(sd.table.rot, o.table_rot, rot_alpha * o.confidence);
 }
 
 void billiards::pipes::shared_data::get_marker_points_model(std::vector<cv::Vec3f>& model) const
@@ -1170,28 +1161,27 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
 
 void billiards::pipes::DEPRECATED_ball_search::link_from_previous(shared_data const& sd, marker_solver_OLD::output_type const& i, input_type& o)
 {
-    auto _lck = sd.state->lock();
-    o = input_type{
-      .opt_shared = sd.option(),
-      .imdesc = &sd.imdesc_bkup,
-      .debug_mat = &sd.debug_mat,
-      .prev_ball_pos = sd.state->balls,
-      .u_rgb = sd.u_rgb,
-      .u_hsv = sd.u_hsv,
-      .img_size = sd.rgb.size(),
-      .table_contour = &sd.table.contour,
-      .table_pos = sd.state->table.pos,
-      .table_rot = sd.state->table.rot,
-      .table_inner_size = shared_data::table::size::inner(sd),
-      .table_fit_size = shared_data::table::size::fit(sd),
-      .table_outer_size = shared_data::table::size::outer(sd),
-    };
+    //o = input_type{
+    //  .opt_shared = sd.option(),
+    //  .imdesc = &sd.imdesc_bkup,
+    //  .debug_mat = &sd.debug_mat,
+    //  .prev_ball_pos = sd.state->balls,
+    //  .u_rgb = sd.u_rgb,
+    //  .u_hsv = sd.u_hsv,
+    //  .img_size = sd.rgb.size(),
+    //  .table_contour = &sd.table.contour,
+    //  .table_pos = sd.state->table.pos,
+    //  .table_rot = sd.state->table.rot,
+    //  .table_inner_size = shared_data::table::size::inner(sd),
+    //  .table_fit_size = shared_data::table::size::fit(sd),
+    //  .table_outer_size = shared_data::table::size::outer(sd),
+    //};
 }
 
 void billiards::pipes::DEPRECATED_ball_search::output_handler(pipepp::pipe_error e, shared_data& sd, output_type const& o)
 {
-    if (e == pipepp::pipe_error::ok) {
-        auto _lck = sd.state->lock();
-        sd.state->balls = o.new_set;
-    }
+    //if (e == pipepp::pipe_error::ok) {
+    //    auto _lck = sd.state->lock();
+    //    sd.state->balls = o.new_set;
+    //}
 }
