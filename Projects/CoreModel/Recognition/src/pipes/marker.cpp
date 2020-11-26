@@ -115,27 +115,6 @@ void billiards::pipes::helpers::table_edge_extender::operator()(pipepp::executio
     }
 }
 
-cv::Mat3b billiards::pipes::helpers::kernel_visualizer::operator()(pipepp::execution_context& ec)
-{
-    PIPEPP_REGISTER_CONTEXT(ec);
-
-    PIPEPP_ELAPSE_SCOPE("Kernel visualization");
-    auto scale = kernel_view_size;
-    auto mult = scale / 4;
-    auto radius = std::max(1, scale / 100);
-    cv::Mat3b kernel_view(scale, scale, {0, 0, 0});
-    cv::Point center(scale / 2, scale / 2);
-    cv::Scalar colors[] = {{0, 255, 0}, {0, 0, 255}};
-
-    for (auto idx : kangsw::counter(vtxs.size())) {
-        auto vtx = vtxs[idx];
-        cv::Point pt(vtx[0] * mult, -vtx[2] * mult);
-        cv::circle(kernel_view, center + pt, radius, colors[idx >= positive_index_fence]);
-    }
-
-    return kernel_view;
-}
-
 pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::execution_context& ec, input_type const& in, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
