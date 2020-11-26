@@ -19,6 +19,11 @@ struct table_edge_extender {
 
     cv::Mat const* debug_mat = {};
 
+    struct {
+        std::vector<cv::Vec2f> outer_contour;
+        std::vector<cv::Vec2f> inner_contour;
+    } output;
+
     void operator()(pipepp::execution_context& ec, cv::Mat& marker_area_mask);
 };
 
@@ -53,12 +58,12 @@ struct kernel_visualizer {
 
 /**
  * TODO
- * ¸¶Ä¿¸¦ Å½»öÇÕ´Ï´Ù. ¸ğµç Èò Á¡À» ´ëÇØ, Sparse KernelÀ» Àû¿ëÇØ Ã£¾Æ³À´Ï´Ù.
- * ÀÌ ¶§, Ä¿³ÎÀÇ ±âº»ÇüÀº ¿øÇüÀÇ Á¡ ¸ñ·ÏÀ» 3D °ø°£À¸·Î º¯È¯ÇÏ°í, °¢ Á¡¿¡ ¹öÅØ½º ¼ÎÀÌ´õ¸¦ Àû¿ëÇØ ¾ò½À´Ï´Ù.
+ * ë§ˆì»¤ë¥¼ íƒìƒ‰í•©ë‹ˆë‹¤. ëª¨ë“  í° ì ì„ ëŒ€í•´, Sparse Kernelì„ ì ìš©í•´ ì°¾ì•„ëƒ…ë‹ˆë‹¤.
+ * ì´ ë•Œ, ì»¤ë„ì˜ ê¸°ë³¸í˜•ì€ ì›í˜•ì˜ ì  ëª©ë¡ì„ 3D ê³µê°„ìœ¼ë¡œ ë³€í™˜í•˜ê³ , ê° ì ì— ë²„í…ìŠ¤ ì…°ì´ë”ë¥¼ ì ìš©í•´ ì–»ìŠµë‹ˆë‹¤.
  *
  * @details
  *
- * Èñ¼Ò Ä¿³Î ¿øÇüÀÇ °¢ ¹öÅØ½º¸¦ X, Z Æò¸é(Å×ÀÌºí°ú °°Àº Æò¸é)»ó¿¡ ½ºÆùÇÕ´Ï´Ù. Å×ÀÌºíÀÇ Ä«¸Ş¶ó¿¡ ´ëÇÑ »ó´ë ·ÎÅ×ÀÌ¼ÇÀ¸·Î °¢ ¹öÅØ½º¸¦ È¸Àü½ÃÅ°°í È­¸é¿¡ ¿ø±Ù Åõ¿µÇÏ¸é, Æò¸é Ä¿³ÎÀ» È¹µæÇÒ ¼ö ÀÖ½À´Ï´Ù.
+ * í¬ì†Œ ì»¤ë„ ì›í˜•ì˜ ê° ë²„í…ìŠ¤ë¥¼ X, Z í‰ë©´(í…Œì´ë¸”ê³¼ ê°™ì€ í‰ë©´)ìƒì— ìŠ¤í°í•©ë‹ˆë‹¤. í…Œì´ë¸”ì˜ ì¹´ë©”ë¼ì— ëŒ€í•œ ìƒëŒ€ ë¡œí…Œì´ì…˜ìœ¼ë¡œ ê° ë²„í…ìŠ¤ë¥¼ íšŒì „ì‹œí‚¤ê³  í™”ë©´ì— ì›ê·¼ íˆ¬ì˜í•˜ë©´, í‰ë©´ ì»¤ë„ì„ íšë“í•  ìˆ˜ ìˆìŠµë‹ˆë‹¤.
  */
 PIPEPP_EXECUTOR(table_marker_finder)
 {
@@ -74,11 +79,11 @@ PIPEPP_EXECUTOR(table_marker_finder)
     {
         PIPEPP_OPTION(positive_area,
                       cv::Vec2d(0, 1),
-                      u8"Áß½ÉÁ¡À¸·ÎºÎÅÍ, ¾çÀÇ °¡ÁßÄ¡·Î Æò°¡µÇ´Â ±¸°£ÀÔ´Ï´Ù.",
+                      u8"ì¤‘ì‹¬ì ìœ¼ë¡œë¶€í„°, ì–‘ì˜ ê°€ì¤‘ì¹˜ë¡œ í‰ê°€ë˜ëŠ” êµ¬ê°„ì…ë‹ˆë‹¤.",
                       pipepp::verify::clamp_all<cv::Vec2d>(0, 1) | pipepp::verify::ascending<cv::Vec2d>());
         PIPEPP_OPTION(negative_area,
                       cv::Vec2d(1, 2),
-                      u8"Áß½ÉÁ¡À¸·ÎºÎÅÍ, À½ÀÇ °¡ÁßÄ¡·Î Æò°¡µÇ´Â ±¸°£ÀÔ´Ï´Ù.",
+                      u8"ì¤‘ì‹¬ì ìœ¼ë¡œë¶€í„°, ìŒì˜ ê°€ì¤‘ì¹˜ë¡œ í‰ê°€ë˜ëŠ” êµ¬ê°„ì…ë‹ˆë‹¤.",
                       pipepp::verify::minimum_all<cv::Vec2d>(0) | pipepp::verify::ascending<cv::Vec2d>());
         PIPEPP_OPTION(generator_positive_radius, 10u, "", pipepp::verify::maximum(10000u));
         PIPEPP_OPTION(generator_negative_radius, 10u, "", pipepp::verify::maximum(10000u));
@@ -92,46 +97,46 @@ PIPEPP_EXECUTOR(table_marker_finder)
         PIPEPP_CATEGORY(pp, "Preprocessing")
         {
             PIPEPP_OPTION(num_inserted_contours, 5,
-                          u8"¸¶Ä¿ Å½»öÀ» À§ÇØ ´ç±¸´ë °¢ Á¤Á¡À» È®ÀåÇÒ ¶§, "
-                          "»õ·Ó°Ô »ğÀÔÇÒ ÄÁÅõ¾î Á¤Á¡ÀÇ °³¼öÀÔ´Ï´Ù. ¿µ»ó Ã³¸® ÀÚÃ¼¿¡ ¹ÌÄ¡´Â ¿µÇâÀº ¹Ì¹ÌÇÕ´Ï´Ù.");
+                          u8"ë§ˆì»¤ íƒìƒ‰ì„ ìœ„í•´ ë‹¹êµ¬ëŒ€ ê° ì •ì ì„ í™•ì¥í•  ë•Œ, "
+                          "ìƒˆë¡­ê²Œ ì‚½ì…í•  ì»¨íˆ¬ì–´ ì •ì ì˜ ê°œìˆ˜ì…ë‹ˆë‹¤. ì˜ìƒ ì²˜ë¦¬ ìì²´ì— ë¯¸ì¹˜ëŠ” ì˜í–¥ì€ ë¯¸ë¯¸í•©ë‹ˆë‹¤.");
             PIPEPP_OPTION(marker_range_outer, 0.1,
-                          u8"ÀÏ¹İÀûÀ¸·Î, ´ç±¸´ëÀÇ ÆçÆ® °æ°è¼±ºÎÅÍ ¹Ù±ùÂÊ±îÁöÀÇ ¿µ¿ª ±æÀÌ¸¦ ÁöÁ¤ÇÕ´Ï´Ù.\n"
-                          "meter ´ÜÀ§");
+                          u8"ì¼ë°˜ì ìœ¼ë¡œ, ë‹¹êµ¬ëŒ€ì˜ í íŠ¸ ê²½ê³„ì„ ë¶€í„° ë°”ê¹¥ìª½ê¹Œì§€ì˜ ì˜ì—­ ê¸¸ì´ë¥¼ ì§€ì •í•©ë‹ˆë‹¤.\n"
+                          "meter ë‹¨ìœ„");
             PIPEPP_OPTION(marker_range_inner, 0.0,
-                          u8"´ç±¸´ëÀÇ ÆçÆ® °æ°èºÎÅÍ ¾ÈÂÊÀ¸·Î ¸¶Ä¿ ¿µ¿ª ¸¶½ºÅ©¸¦ ¼³Á¤ÇÏ´Â µ¥ »ç¿ëÇÕ´Ï´Ù.\n"
-                          "ÀÏ¹İÀûÀ¸·Î 0À» ÁöÁ¤ÇÏ¸é ÃæºĞÇÕ´Ï´Ù.\n"
-                          "meter ´ÜÀ§");
+                          u8"ë‹¹êµ¬ëŒ€ì˜ í íŠ¸ ê²½ê³„ë¶€í„° ì•ˆìª½ìœ¼ë¡œ ë§ˆì»¤ ì˜ì—­ ë§ˆìŠ¤í¬ë¥¼ ì„¤ì •í•˜ëŠ” ë° ì‚¬ìš©í•©ë‹ˆë‹¤.\n"
+                          "ì¼ë°˜ì ìœ¼ë¡œ 0ì„ ì§€ì •í•˜ë©´ ì¶©ë¶„í•©ë‹ˆë‹¤.\n"
+                          "meter ë‹¨ìœ„");
         };
 
         PIPEPP_CATEGORY(filter, "Filtering")
         {
+            PIPEPP_OPTION(enable_gpu, false);
+            PIPEPP_OPTION(enable_cpu_parellel, false);
             PIPEPP_OPTION(method, 0,
                           "[0] Simple color range filter \n"
-                          "[1] Lightness edge: L of Lab \n"
-                          "[2] Lightness edge: Y of YUV \n"
-                          "[3] Lightness edge: V of HSV \n",
-                          pipepp::verify::contains(0, 1, 2, 3));
+                          "[1] Lightness edge detector\n",
+                          pipepp::verify::contains(0, 1));
 
-            PIPEPP_OPTION(color_space, "HSV"s, u8"¸¶Ä¿ÀÇ ÇÊÅÍ¸¦ Àû¿ëÇÒ »ö°ø°£ÀÔ´Ï´Ù.", verify::color_space_string_verify);
-            PIPEPP_OPTION(pivot_color, cv::Vec3b(233, 233, 233), u8"¸¶Ä¿ÀÇ ´ëÇ¥ »ö»óÀÔ´Ï´Ù. »ö °ø°£¿¡ ÀÇÁ¸ÀûÀÔ´Ï´Ù.");
+            PIPEPP_OPTION(color_space, "HSV"s, u8"ë§ˆì»¤ì˜ í•„í„°ë¥¼ ì ìš©í•  ìƒ‰ê³µê°„ì…ë‹ˆë‹¤.", verify::color_space_string_verify);
+            PIPEPP_OPTION(pivot_color, cv::Vec3b(233, 233, 233), u8"ë§ˆì»¤ì˜ ëŒ€í‘œ ìƒ‰ìƒì…ë‹ˆë‹¤. ìƒ‰ ê³µê°„ì— ì˜ì¡´ì ì…ë‹ˆë‹¤.");
 
             PIPEPP_OPTION(method_0_range_lo, cv::Vec3b(125, 125, 125));
             PIPEPP_OPTION(method_0_range_hi, cv::Vec3b(255, 255, 255));
 
             PIPEPP_OPTION(method_1_threshold, 0.5);
-            PIPEPP_OPTION(method_1_hole_filling_cnt, 0, u8"ÁöÁ¤ÇÑ È½¼ö¸¸Å­ dilate-erode ¿¬»êÀ» ¹İº¹ Àû¿ë");
+            PIPEPP_OPTION(method_1_hole_filling_cnt, 0, u8"ì§€ì •í•œ íšŸìˆ˜ë§Œí¼ dilate-erode ì—°ì‚°ì„ ë°˜ë³µ ì ìš©");
         };
     };
 
     struct input_type {
         cv::Mat3b debug;
 
-        // ¿øº» ÀÌ¹ÌÁö¸¦ Æ¯Á¤ »ö°ø°£À¸·Î º¯È¯ÇÑ µµ¸ŞÀÎÀÔ´Ï´Ù.
-        // marker::filter::method == 0ÀÏ ¶§´Â color range filter¸¦ °è»êÇÏ´Â µµ¸ŞÀÎÀÔ´Ï´Ù.
+        // ì›ë³¸ ì´ë¯¸ì§€ë¥¼ íŠ¹ì • ìƒ‰ê³µê°„ìœ¼ë¡œ ë³€í™˜í•œ ë„ë©”ì¸ì…ë‹ˆë‹¤.
+        // marker::filter::method == 0ì¼ ë•ŒëŠ” color range filterë¥¼ ê³„ì‚°í•˜ëŠ” ë„ë©”ì¸ì…ë‹ˆë‹¤.
         //
         cv::Mat3b domain;
 
-        cv::Mat1b lightness; // marker::filter::method == 1ÀÏ¶§¸¸ °ªÀ» ÁöÁ¤ÇÏ´Â ¹à±â Ã¤³ÎÀÔ´Ï´Ù.
+        cv::Mat1b lightness; // marker::filter::method == 1ì¼ë•Œë§Œ ê°’ì„ ì§€ì •í•˜ëŠ” ë°ê¸° ì±„ë„ì…ë‹ˆë‹¤.
 
         imgproc::img_t const* p_imdesc;
         cv::Vec3f init_table_pos;
@@ -160,21 +165,25 @@ PIPEPP_EXECUTOR(table_marker_finder)
         i.contour = sd.table.contour;
         sd.get_marker_points_model(i.marker_model);
 
-        i.domain = sd.retrieve_image_in_colorspace(marker::filter::color_space(opt));
+        auto colorspace = (marker::filter::color_space(opt));
+        i.domain = sd.retrieve_image_in_colorspace(colorspace);
 
-        auto method = marker::filter::method(opt);
-
-        if (method > 0) {
+        if (marker::filter::method(opt) > 0) {
             cv::Mat split[3];
             cv::split(i.domain, split);
 
-            switch (method) {
-                case 1: [[fallthrough]];
-                case 2: i.lightness = split[0]; break;
-                case 3: i.lightness = split[2]; break;
+            using namespace kangsw::literals;
+            switch (kangsw::hash_index(colorspace)) {
+                case "YCrCb"_hash:
+                case "Lab"_hash:
+                case "Luv"_hash: [[fallthrough]];
+                case "YUV"_hash: i.lightness = split[0]; break;
+                case "HLS"_hash: i.lightness = split[1]; break;
+                case "HSV"_hash: i.lightness = split[2]; break;
 
                 default:
-                    return false;
+                    i.lightness = {};
+                    break;
             }
         } else {
             i.lightness = {};

@@ -1,7 +1,9 @@
 #include "marker.hpp"
 #include <amp.h>
 #include <amp_math.h>
+#include <opencv2/core.hpp>
 #include <random>
+
 #include "../image_processing.hpp"
 
 #undef max
@@ -50,8 +52,11 @@ void billiards::pipes::helpers::table_edge_extender::operator()(pipepp::executio
             }
         }
 
-        auto outer_contour = contour;
-        auto inner_contour = contour;
+        auto& outer_contour = output.outer_contour;
+        auto& inner_contour = output.inner_contour;
+
+        outer_contour = contour;
+        inner_contour = contour;
         auto m = moments(contour);
         auto center = Vec2f(m.m10 / m.m00, m.m01 / m.m00);
         auto mass = sqrt(m.m00);
@@ -213,6 +218,8 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
 
     // 커널을 유효한 부분에서만 계산할 수 있도록, 먼저 컨투어를 유효 영역으로 확장합니다.
     cv::Mat1b area_mask(in.domain.size(), 0);
+    cv::Rect roi;
+    cv::Mat3b domain;
     PIPEPP_ELAPSE_BLOCK("Table contour area extension")
     {
         helpers::table_edge_extender tee = {
@@ -226,8 +233,12 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
           .debug_mat = (cv::Mat*)&in.debug,
         };
         tee(ec, area_mask);
-
         PIPEPP_STORE_DEBUG_DATA_COND("Marker Area Mask", (cv::Mat)area_mask, show_debug);
+
+        roi = cv::boundingRect(tee.output.outer_contour);
+        imgproc::get_safe_ROI_rect(in.domain, roi);
+        area_mask = area_mask(roi);
+        domain = in.domain(roi);
     }
 
     // 유효 픽셀만을 필터링합니다. 두 가지 메소드 중 하나를 적용하게 됩니다.
@@ -245,7 +256,66 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         } else {
             // 다른 메소드에서는 lightness가 지정됩니다.
             // 먼저 lightness Mat에 2D 필터 적용
-            cv::Matx33f edge_kernel(-1, -1, -1, -1, 8, -1, -1, -1, -1);
+            float edge_kernel[3][3] = {{-1, -1, -1},
+                                       {-1, +8, -1},
+                                       {-1, -1, -1}};
+
+            cv::Mat lightness;
+            cv::Mat1f edges(roi.size());
+            cv::copyMakeBorder(in.lightness(roi), lightness, 1, 1, 1, 1, cv::BORDER_DEFAULT);
+            lightness.convertTo(lightness, CV_32FC1, 1 / 255.0);
+
+            if (marker::filter::enable_gpu(ec) == false) {
+                auto inner_counter = kangsw::counter(3, 3);
+
+                if (marker::filter::enable_cpu_parellel( ec)) {
+                    kangsw::for_each_threads(kangsw::counter(roi.height, roi.width), [&](std::array<int, 2> idx) {
+                        auto [row, col] = idx;
+                        float sum = 0.f;
+                        for (auto [i, j] : inner_counter) {
+                            sum += lightness.at<float>(row + i, col + j) * edge_kernel[i][j];
+                        }
+                        edges(row, col) = sum;
+                    });
+                } else {
+                    for (auto [row, col] : kangsw::counter(roi.height, roi.width)) {
+                        float sum = 0.f;
+                        for (auto [i, j] : inner_counter) {
+                            sum += lightness.at<float>(row + i, col + j) * edge_kernel[i][j];
+                        }
+                        edges(row, col) = sum;
+                    }
+                }
+
+            } else {
+                using namespace concurrency;
+                array_view<float, 2> gpu_lightness(lightness.rows, lightness.cols, &lightness.at<float>(0));
+                array_view<float, 2> gpu_edges(roi.height, roi.width, &edges(0));
+                array_view<float, 2> gpu_kernel(3, 3, &edge_kernel[0][0]);
+                gpu_edges.discard_data();
+
+                parallel_for_each(
+                  gpu_edges.extent,
+                  [=](index<2> idx) restrict(amp) {
+                      int row = idx[0];
+                      int col = idx[1];
+
+                      float sum = 0;
+                      for (int i = -1; i < 2; ++i) {
+                          for (int j = -1; j < 2; ++j) {
+                              sum += gpu_lightness(row + i + 1, col + j + 1) * gpu_kernel(i + 1, j + 1);
+                          }
+                      }
+
+                      gpu_edges(row, col) = sum;
+                  });
+
+                gpu_edges.synchronize();
+            }
+            if (show_debug_mats(ec)) {
+                PIPEPP_STORE_DEBUG_DATA("Source Image", (cv::Mat)in.lightness);
+                PIPEPP_STORE_DEBUG_DATA("Edge of lightness", (cv::Mat)edges);
+            }
         }
     }
 
