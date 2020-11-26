@@ -141,44 +141,7 @@ PIPEPP_EXECUTOR(table_marker_finder)
 
     pipepp::pipe_error operator()(pipepp::execution_context& ec, input_type const& in, output_type& out);
 
-    static bool link(shared_data & sd, input_type & i, pipepp::detail::option_base const& opt)
-    {
-        i.init_table_pos = sd.table.pos;
-        i.init_table_rot = sd.table.rot;
-
-        i.debug = sd.debug_mat;
-        i.p_imdesc = &sd.imdesc_bkup;
-
-        i.contour = sd.table.contour;
-        sd.get_marker_points_model(i.marker_model);
-
-        auto colorspace = (filter::color_space(opt));
-        i.domain = sd.retrieve_image_in_colorspace(colorspace);
-        i.conv_domain = sd.retrieve_image_in_colorspace(filter::convolution_color_space(opt));
-
-        if (filter::method(opt) > 0) {
-            cv::Mat split[3];
-            cv::split(i.domain, split);
-
-            using namespace kangsw::literals;
-            switch (kangsw::hash_index(colorspace)) {
-                case "YCrCb"_hash:
-                case "Lab"_hash:
-                case "Luv"_hash: [[fallthrough]];
-                case "YUV"_hash: i.lightness = split[0]; break;
-                case "HLS"_hash: i.lightness = split[1]; break;
-                case "HSV"_hash: i.lightness = split[2]; break;
-
-                default:
-                    i.lightness = {};
-                    break;
-            }
-        } else {
-            i.lightness = {};
-        }
-
-        return i.contour.empty() == false;
-    }
+    static bool link(shared_data& sd, input_type& i, pipepp::detail::option_base const& opt);
 
 public:
     table_marker_finder();
