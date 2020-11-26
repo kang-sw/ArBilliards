@@ -292,11 +292,13 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
         auto FOV = sd.camera_FOV(sd);
         vector<Vec3f> model;
         get_table_model(model, shared_data::table::size::fit(sd));
-        project_contours(imdesc, debug, model, pos, rot, {0, 255, 0}, 3, FOV);
+        project_contours(imdesc, debug, model, pos, rot, {0, 255, 0}, 2, FOV);
         get_table_model(model, shared_data::table::size::inner(sd));
-        project_contours(imdesc, debug, model, pos, rot, {221, 64, 0}, 3, FOV);
+        project_contours(imdesc, debug, model, pos, rot, {221, 64, 0}, 2, FOV);
         get_table_model(model, shared_data::table::size::outer(sd));
-        project_contours(imdesc, debug, model, pos, rot, {83, 0, 213}, 3, FOV);
+        project_contours(imdesc, debug, model, pos, rot, {83, 0, 213}, 1, FOV);
+
+        draw_axes(imdesc, debug, pos, rot, 0.1, 2);
     }
 
     PIPEPP_STORE_DEBUG_DATA("Debug glyphs rendering", sd.debug_mat.clone());

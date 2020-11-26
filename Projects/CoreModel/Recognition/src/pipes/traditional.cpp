@@ -260,7 +260,7 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
         }
     }
 
-    if (table_contour.empty() == false && o.confidence == 0) {
+    if (enable_partial_solver(ec) && table_contour.empty() == false && o.confidence == 0) {
         // full-point PnP 알고리즘이 실패한 경우, partial view를 수행합니다.
 
         vector<Vec3f> model;
@@ -603,8 +603,8 @@ pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution
                 cand.rotation *= rot_amount;
 
                 // 임의의 확률로 180도 회전시킵니다.
-                bool rotate180 = uniform_int_distribution{0, 1}(rengine);
-                if (rotate180) { cand.rotation = rotate_euler(cand.rotation, {0, CV_PI, 0}); }
+                // bool rotate180 = uniform_int_distribution{0, 1}(rengine);
+                // if (rotate180) { cand.rotation = rotate_euler(cand.rotation, {0, CV_PI, 0}); }
 
                 candidates.push_back(cand);
             }
