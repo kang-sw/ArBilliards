@@ -117,6 +117,7 @@ PIPEPP_EXECUTOR(table_marker_finder)
         PIPEPP_OPTION(kernel_view_size, 200u);
         PIPEPP_OPTION(current_kernel_view_scale, 0.05f);
         PIPEPP_OPTION(depth_view_multiply, 10.f);
+        PIPEPP_OPTION(suitability_view_multiply, 10.f);
     };
 
     PIPEPP_CATEGORY(kernel, "Kernel")
@@ -158,7 +159,18 @@ PIPEPP_EXECUTOR(table_marker_finder)
                       pipepp::verify::contains(0, 1));
 
         PIPEPP_OPTION(color_space, "HSV"s, u8"마커의 필터를 적용할 색공간입니다.", verify::color_space_string_verify);
-        PIPEPP_OPTION(pivot_color, cv::Vec3b(233, 233, 233), u8"마커의 대표 색상입니다. 색 공간에 의존적입니다.");
+        PIPEPP_OPTION(convolution_color_space, "HSV"s, u8"마커의 컨볼루션을 적용할 색공간입니다.", verify::color_space_string_verify);
+
+        PIPEPP_CATEGORY(convolution, "Convolution")
+        {
+            PIPEPP_OPTION(pivot_color, cv::Vec3b(233, 233, 233), u8"마커의 대표 색상입니다. 색 공간에 의존적입니다.");
+            PIPEPP_OPTION(pivot_color_weight, cv::Vec3f(1, 1, 1), u8"대표 색상의 적용 질량입니다.");
+            PIPEPP_OPTION(color_distance_error_base, 1.01f,
+                          u8"거리 계산 함수 d(x) = b^(-x)에 대해, b의 값입니다.",
+                          pipepp::verify::minimum(1.f));
+            PIPEPP_OPTION(negative_kernel_weight, 1.0f, u8"Negative kernel이 값의 평가에 미치는 영향 정도입니다.",
+                          pipepp::verify::minimum(0.f));
+        };
 
         PIPEPP_CATEGORY(method0, "Method 0: Range Filter")
         {
@@ -182,6 +194,7 @@ PIPEPP_EXECUTOR(table_marker_finder)
         // marker::filter::method == 0일 때는 color range filter를 계산하는 도메인입니다.
         //
         cv::Mat3b domain;
+        cv::Mat3b conv_domain;
 
         cv::Mat1b lightness; // marker::filter::method == 1일때만 값을 지정하는 밝기 채널입니다.
 
@@ -214,6 +227,7 @@ PIPEPP_EXECUTOR(table_marker_finder)
 
         auto colorspace = (filter::color_space(opt));
         i.domain = sd.retrieve_image_in_colorspace(colorspace);
+        i.conv_domain = sd.retrieve_image_in_colorspace(filter::convolution_color_space(opt));
 
         if (filter::method(opt) > 0) {
             cv::Mat split[3];

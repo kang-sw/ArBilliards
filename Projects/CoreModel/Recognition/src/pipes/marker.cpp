@@ -1,6 +1,7 @@
 #include "marker.hpp"
 #include <amp.h>
 #include <amp_math.h>
+#include <amp_short_vectors.h>
 #include <opencv2/core.hpp>
 #include <opencv2/core/matx.hpp>
 #include <random>
@@ -140,6 +141,7 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
     auto& imdesc = *in.p_imdesc;
     bool const show_debug = show_debug_mats(ec);
 
+    // 옵션이 바뀐 경우 커널을 재생성합니다.
     if (option_dirty) {
         PIPEPP_ELAPSE_SCOPE("Regenerate Kernels");
 
@@ -172,7 +174,9 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         m.kernel_model = std::move(vtxs);
     }
 
-    auto& kernel = m._kernel_mem;
+    // 커널을 테이블과의 각도에 따라 회전시키고, 1미터 거리를 기준으로 투영합니다.
+    // 이를 통해 원형의 마커를 회전에 따라 알맞은 각도로 적용할 수 있습니다.
+    auto& rotated_kernel = m._kernel_mem;
     PIPEPP_ELAPSE_BLOCK("Project points by view")
     {
         // 1 meter 거리에 대해 모든 포인트를 투사합니다.
@@ -189,8 +193,14 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
             vt = rotation * vt + local_loc;
         }
 
-        kernel.clear();
-        project_model_local(imdesc, kernel, vertices, false, {});
+        rotated_kernel.clear();
+        project_model_local(imdesc, rotated_kernel, vertices, false, {});
+
+        // 커널을 카메라 중심으로 매핑
+        for (cv::Vec2f cam_center(imdesc.camera.cx, imdesc.camera.cy);
+             auto& vt : rotated_kernel) {
+            vt -= cam_center;
+        }
 
         if (show_debug) {
             PIPEPP_ELAPSE_SCOPE("Kernel visualization");
@@ -200,11 +210,10 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
             cv::Mat3b kernel_view(scale, scale, {0, 0, 0});
             cv::Point center(scale / 2, scale / 2);
             cv::Scalar colors[] = {{0, 255, 0}, {0, 0, 255}};
-            cv::Vec2f cam_center(imdesc.camera.cx, imdesc.camera.cy);
 
-            for (auto idx : kangsw::counter(kernel.size())) {
-                auto fpt = kernel[idx];
-                fpt = (fpt - cam_center) * mult;
+            for (auto idx : kangsw::counter(rotated_kernel.size())) {
+                auto fpt = rotated_kernel[idx];
+                fpt = fpt * mult;
 
                 cv::circle(kernel_view, center + (cv::Point)(cv::Vec2i)fpt, radius, colors[idx >= m.positive_index_fence]);
             }
@@ -216,7 +225,7 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
     // 커널을 유효한 부분에서만 계산할 수 있도록, 먼저 컨투어를 유효 영역으로 확장합니다.
     cv::Mat1b area_mask(in.domain.size(), 0);
     cv::Rect roi;
-    cv::Mat3b domain;
+    cv::Mat3b pp_filter_domain;
     PIPEPP_ELAPSE_BLOCK("Table contour area extension")
     {
         helpers::table_edge_extender tee = {
@@ -235,7 +244,7 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         roi = cv::boundingRect(tee.output.outer_contour);
         imgproc::get_safe_ROI_rect(in.domain, roi);
         area_mask = area_mask(roi);
-        domain = in.domain(roi);
+        pp_filter_domain = in.domain(roi);
     }
 
     // 유효 픽셀만을 필터링합니다. 두 가지 메소드 중 하나를 적용하게 됩니다.
@@ -249,7 +258,7 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         if (in.lightness.empty()) {
             // 0번 메소드 시 lightness가 지정되지 않습니다.
             // 0번 메소드 ==> Range filter 후 모든 픽셀 선택
-            range_filter(domain, valid_pxls, filter::method0::range_lo(ec), filter::method0::range_hi(ec));
+            range_filter(pp_filter_domain, valid_pxls, filter::method0::range_lo(ec), filter::method0::range_hi(ec));
         } else {
             // 다른 메소드에서는 lightness가 지정됩니다.
             // 먼저 lightness Mat에 2D 필터 적용
@@ -343,7 +352,7 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
             auto pos = valid_marker_pixels[idx];
 
             Point pt = (Point)pos + roi.tl();
-            Vec3f vec(pt.x, pt.y, 100.f);
+            Vec3f vec(pt.x, pt.y, 1.f);
             get_point_coord_3d(imdesc, vec[0], vec[1], vec[2]);
             if (auto uo = table_plane.calc_u({}, vec)) {
                 distances[idx] = *uo;
@@ -356,12 +365,108 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         if (show_debug) {
             cv::Mat1f depths(roi.size(), 0);
             auto mult = debug::depth_view_multiply(ec);
-             for (auto [pos, depth] : kangsw::zip(valid_marker_pixels, distances)) {
-                depths((cv::Point)pos ) = depth * mult;
+            for (auto [pos, depth] : kangsw::zip(valid_marker_pixels, distances)) {
+                depths((cv::Point)pos) = depth * mult;
             }
 
             PIPEPP_STORE_DEBUG_DATA("Marker area depths", (Mat)depths);
         }
+    }
+
+    // 희소 커널 콘볼루션을 수행합니다.
+    // 후보 개수 M, 커널 개수 N인 M by N extent에서 계산을 수행합니다.
+    // 이후, 누적 연산은 M by 1(또는 타일 개수?) extent에서 수행
+    //
+    // 알고리즘 개요
+    //      1) intermediate[m, n] = colorDist(domain[n.(x,y) / m.distance], pvtColor)
+    //      2) weight[m] = sum(intermediate[m, :]
+    PIPEPP_ELAPSE_BLOCK("Apply sparse kernel convolution")
+    {
+        using namespace concurrency;
+        using namespace graphics;
+        using namespace kangsw;
+        int M = valid_marker_pixels.size();
+        int N = rotated_kernel.size();
+        cv::Mat3f domainf;
+        in.conv_domain(roi).convertTo(domainf, CV_32FC3, 1 / 255.0);
+        std::vector<float> suitabilities(M);
+
+        array<float, 2> u_interm_suits(M, N);
+
+        // [M] domain
+        array_view<int_2> u_indexes(M, ptr_cast<int_2>(&valid_marker_pixels[0]));
+        array_view<float> u_dists(M, distances.data());
+        array_view<float> u_suit(M, &suitabilities[0]);
+        u_suit.discard_data();
+
+        // [N] domain
+        array_view<float_2> u_kernel(N, ptr_cast<float_2>(&rotated_kernel[0]));
+
+        // color domain
+        array_view<float_3, 2> u_domain(domainf.rows, domainf.cols, ptr_cast<float_3>(&domainf(0)));
+
+        // constants
+        int_2 img_size(domainf.cols, domainf.rows);
+        float_3 color_pivot = value_cast<float_3>((cv::Vec3f)filter::convolution::pivot_color(ec) / 255.f);
+        float_3 color_weight = value_cast<float_3>(filter::convolution::pivot_color_weight(ec));
+        float err_base = filter::convolution::color_distance_error_base(ec);
+        int positive_kernel_fence = m.positive_index_fence;
+        float neg_weight = filter::convolution::negative_kernel_weight(ec);
+
+        // Step 1. 각 커널의 구성 픽셀에 대한 suitability를 계산합니다.
+        parallel_for_each(
+          u_interm_suits.get_extent(),
+          [=, &u_interm_suits](index<2> idx) restrict(amp) {
+              auto _m = idx[0];
+              auto _n = idx[1];
+              auto offset = u_indexes[_m];
+              auto distance = u_dists[_m];
+              auto kpos = u_kernel[_n];
+
+              // auto index = int_2((float_2)offset + kpos / distance);
+              float_2 offsetf(offset.x, offset.y);
+              offsetf = offsetf + (kpos / distance);
+              int_2 index(offsetf.x, offsetf.y);
+              if ((0 <= index.x && index.x < img_size.x)
+                  && (0 <= index.y && index.y < img_size.y)) {
+                  // Weight를 계산합니다.
+                  namespace fm = fast_math;
+                  auto color = u_domain(index.y, index.x);
+                  auto dist_3 = (color - color_pivot);
+                  dist_3 = dist_3 * dist_3 * color_weight;
+                  auto dist = (dist_3.x + dist_3.y + dist_3.z);
+
+                  auto suitability = fm::pow(err_base, -dist);
+                  u_interm_suits(idx) = suitability * (_n >= positive_kernel_fence ? -neg_weight : 1.0f);
+              } else {
+                  u_interm_suits(idx) = 0.f;
+              }
+          });
+
+        // 중간 결과의 각 커널 채널을 iterate해, 누산합니다.
+        float f_positive_kernels = positive_kernel_fence;
+
+        parallel_for_each(
+          extent<1>(M),
+          [=, u_interm = array_view{u_interm_suits}](index<1> idx) restrict(amp) {
+              float sum = 0;
+              auto i = idx[0];
+              for (int n = 0; n < N; ++n) {
+                  sum += u_interm(i, n);
+              }
+              u_suit(idx) = sum / f_positive_kernels;
+          });
+
+        u_suit.synchronize();
+
+        cv::Mat1f suits(pp_filter_domain.size());
+        auto mult = debug::suitability_view_multiply(ec);
+        for (auto [idx, value] : zip(valid_marker_pixels, suitabilities)) {
+            suits((cv::Point)idx) = value * mult;
+        }
+
+        out.marker_weight_map = suits;
+        if (show_debug) { PIPEPP_STORE_DEBUG_DATA("Marker suitability view", (cv::Mat)suits); }
     }
 
     return {};
