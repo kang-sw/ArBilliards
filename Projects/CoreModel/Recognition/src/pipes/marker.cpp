@@ -110,6 +110,27 @@ void billiards::pipes::helpers::table_edge_extender::operator()(pipepp::executio
     }
 }
 
+cv::Mat3b billiards::pipes::helpers::kernel_visualizer::operator()(pipepp::execution_context& ec)
+{
+    PIPEPP_REGISTER_CONTEXT(ec);
+
+    PIPEPP_ELAPSE_SCOPE("Kernel visualization");
+    auto scale = kernel_view_size;
+    auto mult = scale / 4;
+    auto radius = std::max(1, scale / 100);
+    cv::Mat3b kernel_view(scale, scale, {0, 0, 0});
+    cv::Point center(scale / 2, scale / 2);
+    cv::Scalar colors[] = {{0, 255, 0}, {0, 0, 255}};
+
+    for (auto idx : kangsw::counter(vtxs.size())) {
+        auto vtx = vtxs[idx];
+        cv::Point pt(vtx[0] * mult, -vtx[2] * mult);
+        cv::circle(kernel_view, center + pt, radius, colors[idx >= positive_index_fence]);
+    }
+
+    return kernel_view;
+}
+
 pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::execution_context& ec, input_type const& in, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
@@ -130,48 +151,24 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         std::uniform_real_distribution<float> positive(_positive[0], _positive[1]);
         std::uniform_real_distribution<float> negative(_negative[0], _negative[1]);
 
-        std::vector<cv::Vec3f> vtxs;
-        vtxs.reserve(size_t((positive_integral_radius + negative_integral_radius) * CV_PI * 2));
+        auto kg = helpers::kernel_generator
+        {
+            .positive = positive,
+            .negative = negative,
+            .positive_integral_radius = kernel::generator_positive_radius(ec),
+            .negative_integral_radius = kernel::generator_negative_radius(ec),
+            .random_seed = kernel::random_seed(ec),
+            .show_debug = show_debug,
+            .kernel_view_size = debug::kernel_view_size(ec),
+        };
 
-        m.positive_index_fence = -1;
-        for (auto integral_radius : {positive_integral_radius, negative_integral_radius}) {
-            imgproc::circle_op(
-              integral_radius,
-              [&](int x, int y) {
-                  auto& vtx = vtxs.emplace_back();
-                  vtx[0] = x, vtx[1] = 0, vtx[2] = y;
-                  vtx = cv::normalize(vtx);
-              });
-
-            if (m.positive_index_fence == -1) {
-                m.positive_index_fence = vtxs.size();
-            }
-        }
-
-        PIPEPP_STORE_DEBUG_DATA("Total kernel points", vtxs.size());
-        PIPEPP_STORE_DEBUG_DATA("Num positive points", m.positive_index_fence);
-        PIPEPP_STORE_DEBUG_DATA("Num negative points", vtxs.size() - m.positive_index_fence);
-
-        // Positive, negative 범위 할당
-        for (auto idx : kangsw::counter(vtxs.size())) {
-            auto& vtx = vtxs[idx];
-            vtx *= idx < m.positive_index_fence ? positive(rand) : negative(rand);
-        }
-
-        if (show_debug) {
-            helpers::kernel_visualizer kv;
-            kv.kernel_view_size = debug::kernel_view_size(ec);
-            kv.positive_index_fence = m.positive_index_fence;
-            kv.vtxs = vtxs;
-
-            PIPEPP_STORE_DEBUG_DATA("Generated kernel", (cv::Mat)kv(ec));
-        }
+        auto vtxs = kg(ec);
 
         // 반지름을 곱합니다.
-        for (auto radius = marker::radius(ec);
-             auto& vtx : vtxs) {
+        for (auto radius = marker_radius(ec); auto& vtx : vtxs) {
             vtx *= radius;
         }
+        m.positive_index_fence = kg.output.positive_index_fence;
         m.kernel_model = std::move(vtxs);
     }
 
@@ -199,7 +196,7 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
             PIPEPP_ELAPSE_SCOPE("Kernel visualization");
             auto scale = debug::kernel_view_size(ec);
             auto mult = debug::current_kernel_view_scale(ec);
-            auto radius = std::max(1, scale / 100);
+            auto radius = std::max(1, (int)scale / 100);
             cv::Mat3b kernel_view(scale, scale, {0, 0, 0});
             cv::Point center(scale / 2, scale / 2);
             cv::Scalar colors[] = {{0, 255, 0}, {0, 0, 255}};
@@ -227,9 +224,9 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
           .table_pos = in.init_table_pos,
           .p_imdesc = in.p_imdesc,
           .table_contour = in.contour,
-          .num_insert_contour_vertexes = marker::pp::num_inserted_contours(ec),
-          .table_border_range_outer = marker::pp::marker_range_outer(ec),
-          .table_border_range_inner = marker::pp::marker_range_inner(ec),
+          .num_insert_contour_vertexes = pp::num_inserted_contours(ec),
+          .table_border_range_outer = pp::marker_range_outer(ec),
+          .table_border_range_inner = pp::marker_range_inner(ec),
           .debug_mat = (cv::Mat*)&in.debug,
         };
         tee(ec, area_mask);
@@ -252,7 +249,7 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         if (in.lightness.empty()) {
             // 0번 메소드 시 lightness가 지정되지 않습니다.
             // 0번 메소드 ==> Range filter 후 모든 픽셀 선택
-            range_filter(in.domain, valid_pxls, marker::filter::method_0_range_lo(ec), marker::filter::method_0_range_hi(ec));
+            range_filter(domain, valid_pxls, filter::method0::range_lo(ec), filter::method0::range_hi(ec));
         } else {
             // 다른 메소드에서는 lightness가 지정됩니다.
             // 먼저 lightness Mat에 2D 필터 적용
@@ -262,32 +259,18 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
 
             cv::Mat lightness;
             cv::Mat1f edges(roi.size());
-            cv::copyMakeBorder(in.lightness(roi), lightness, 1, 1, 1, 1, cv::BORDER_DEFAULT);
-            lightness.convertTo(lightness, CV_32FC1, 1 / 255.0);
 
-            if (marker::filter::enable_gpu(ec) == false) {
+            // 컨볼루션 수행
+            if (filter::method1::enable_gpu(ec) == false) {
+                PIPEPP_ELAPSE_SCOPE("CPU Convolution");
                 auto inner_counter = kangsw::counter(3, 3);
-
-                if (marker::filter::enable_cpu_parellel( ec)) {
-                    kangsw::for_each_threads(kangsw::counter(roi.height, roi.width), [&](std::array<int, 2> idx) {
-                        auto [row, col] = idx;
-                        float sum = 0.f;
-                        for (auto [i, j] : inner_counter) {
-                            sum += lightness.at<float>(row + i, col + j) * edge_kernel[i][j];
-                        }
-                        edges(row, col) = sum;
-                    });
-                } else {
-                    for (auto [row, col] : kangsw::counter(roi.height, roi.width)) {
-                        float sum = 0.f;
-                        for (auto [i, j] : inner_counter) {
-                            sum += lightness.at<float>(row + i, col + j) * edge_kernel[i][j];
-                        }
-                        edges(row, col) = sum;
-                    }
-                }
-
+                in.lightness(roi).convertTo(lightness, CV_32FC1, 1 / 255.0);
+                cv::filter2D(lightness, edges, -1, cv::Matx33f(*edge_kernel));
             } else {
+                PIPEPP_ELAPSE_SCOPE("GPU Convolution");
+                cv::copyMakeBorder(in.lightness(roi), lightness, 1, 1, 1, 1, cv::BORDER_DEFAULT);
+                lightness.convertTo(lightness, CV_32FC1, 1 / 255.0);
+
                 using namespace concurrency;
                 array_view<float, 2> gpu_lightness(lightness.rows, lightness.cols, &lightness.at<float>(0));
                 array_view<float, 2> gpu_edges(roi.height, roi.width, &edges(0));
@@ -312,12 +295,37 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
 
                 gpu_edges.synchronize();
             }
-            if (show_debug_mats(ec)) {
+
+            if (show_debug) {
                 PIPEPP_STORE_DEBUG_DATA("Source Image", (cv::Mat)in.lightness);
                 PIPEPP_STORE_DEBUG_DATA("Edge of lightness", (cv::Mat)edges);
             }
+
+            // constant threshold 값으로 이진화한 뒤, dilate-erode 연산을 적용해 마커 중심을 채웁니다.
+            auto thres = filter::method1::threshold(ec);
+            valid_pxls = edges > thres;
+
+            if (auto n = filter::method1::holl_fill_num_dilate(ec)) {
+                cv::dilate(valid_pxls, valid_pxls, {}, {-1, -1}, n);
+            }
+            if (auto n = filter::method1::holl_fill_num_erode(ec)) {
+                cv::erode(valid_pxls, valid_pxls, {}, {-1, -1}, n);
+            }
+
+            if (show_debug) {
+            }
         }
+
+        valid_pxls = valid_pxls & area_mask;
+        cv::findNonZero(valid_pxls, valid_marker_pixels);
+        if (show_debug) {
+            PIPEPP_STORE_DEBUG_DATA("Selected valid pixels", (cv::Mat)valid_pxls);
+        }
+
+        PIPEPP_STORE_DEBUG_DATA("Number of candidate pixels", valid_marker_pixels.size());
     }
+
+    // 각 유효 마커 픽셀을 iterate해,
 
     return {};
 }

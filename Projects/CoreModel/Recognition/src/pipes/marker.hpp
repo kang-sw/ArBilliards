@@ -32,25 +32,68 @@ struct kernel_visualizer {
     int kernel_view_size = 200;
     size_t positive_index_fence = 0;
 
-    cv::Mat3b operator()(pipepp::execution_context& ec)
+    cv::Mat3b operator()(pipepp::execution_context& ec);
+};
+
+struct kernel_generator {
+    // inputs
+    std::uniform_real_distribution<float> positive, negative;
+    unsigned positive_integral_radius;
+    unsigned negative_integral_radius;
+    unsigned random_seed;
+
+    bool show_debug;
+    unsigned kernel_view_size;
+
+    struct out_t {
+        size_t positive_index_fence;
+    } output;
+
+    auto operator()(pipepp::execution_context& ec)
     {
         PIPEPP_REGISTER_CONTEXT(ec);
 
-        PIPEPP_ELAPSE_SCOPE("Kernel visualization");
-        auto scale = kernel_view_size;
-        auto mult = scale / 4;
-        auto radius = std::max(1, scale / 100);
-        cv::Mat3b kernel_view(scale, scale, {0, 0, 0});
-        cv::Point center(scale / 2, scale / 2);
-        cv::Scalar colors[] = {{0, 255, 0}, {0, 0, 255}};
+        // 컨투어 랜덤 샘플 피봇 재생성
+        std::mt19937 rand(random_seed);
+        auto& m = output;
+        std::vector<cv::Vec3f> vtxs;
+        vtxs.reserve(size_t((positive_integral_radius + negative_integral_radius) * CV_PI * 2));
 
-        for (auto idx : kangsw::counter(vtxs.size())) {
-            auto vtx = vtxs[idx];
-            cv::Point pt(vtx[0] * mult, -vtx[2] * mult);
-            cv::circle(kernel_view, center + pt, radius, colors[idx >= positive_index_fence]);
+        m.positive_index_fence = -1;
+        for (auto integral_radius : {positive_integral_radius, negative_integral_radius}) {
+            imgproc::circle_op(
+              integral_radius,
+              [&](int x, int y) {
+                  auto& vtx = vtxs.emplace_back();
+                  vtx[0] = x, vtx[1] = 0, vtx[2] = y;
+                  vtx = cv::normalize(vtx);
+              });
+
+            if (m.positive_index_fence == -1) {
+                m.positive_index_fence = vtxs.size();
+            }
         }
 
-        return kernel_view;
+        PIPEPP_STORE_DEBUG_DATA("Total kernel points", vtxs.size());
+        PIPEPP_STORE_DEBUG_DATA("Num positive points", m.positive_index_fence);
+        PIPEPP_STORE_DEBUG_DATA("Num negative points", vtxs.size() - m.positive_index_fence);
+
+        // Positive, negative 범위 할당
+        for (auto idx : kangsw::counter(vtxs.size())) {
+            auto& vtx = vtxs[idx];
+            vtx *= idx < m.positive_index_fence ? positive(rand) : negative(rand);
+        }
+
+        if (show_debug) {
+            helpers::kernel_visualizer kv;
+            kv.kernel_view_size = kernel_view_size;
+            kv.positive_index_fence = m.positive_index_fence;
+            kv.vtxs = vtxs;
+
+            PIPEPP_STORE_DEBUG_DATA("Generated kernel", (cv::Mat)kv(ec));
+        }
+
+        return std::move(vtxs);
     }
 };
 
@@ -71,7 +114,7 @@ PIPEPP_EXECUTOR(table_marker_finder)
 
     PIPEPP_CATEGORY(debug, "Debug")
     {
-        PIPEPP_OPTION(kernel_view_size, 200);
+        PIPEPP_OPTION(kernel_view_size, 200u);
         PIPEPP_OPTION(current_kernel_view_scale, 0.05f);
     };
 
@@ -87,44 +130,47 @@ PIPEPP_EXECUTOR(table_marker_finder)
                       pipepp::verify::minimum_all<cv::Vec2d>(0) | pipepp::verify::ascending<cv::Vec2d>());
         PIPEPP_OPTION(generator_positive_radius, 10u, "", pipepp::verify::maximum(10000u));
         PIPEPP_OPTION(generator_negative_radius, 10u, "", pipepp::verify::maximum(10000u));
-        PIPEPP_OPTION(random_seed, 42);
+        PIPEPP_OPTION(random_seed, 42u);
     };
 
-    PIPEPP_CATEGORY(marker, "Marker Search")
-    {
-        PIPEPP_OPTION(radius, 0.005, "Units in centimeters");
+    PIPEPP_OPTION(marker_radius, 0.005, "Units in centimeters");
 
-        PIPEPP_CATEGORY(pp, "Preprocessing")
+    PIPEPP_CATEGORY(pp, "Preprocessing")
+    {
+        PIPEPP_OPTION(num_inserted_contours, 5,
+                      u8"마커 탐색을 위해 당구대 각 정점을 확장할 때, "
+                      "새롭게 삽입할 컨투어 정점의 개수입니다. 영상 처리 자체에 미치는 영향은 미미합니다.");
+        PIPEPP_OPTION(marker_range_outer, 0.1,
+                      u8"일반적으로, 당구대의 펠트 경계선부터 바깥쪽까지의 영역 길이를 지정합니다.\n"
+                      "meter 단위");
+        PIPEPP_OPTION(marker_range_inner, 0.0,
+                      u8"당구대의 펠트 경계부터 안쪽으로 마커 영역 마스크를 설정하는 데 사용합니다.\n"
+                      "일반적으로 0을 지정하면 충분합니다.\n"
+                      "meter 단위");
+    };
+
+    PIPEPP_CATEGORY(filter, "Filtering")
+    {
+        PIPEPP_OPTION(method, 0,
+                      "[0] Simple color range filter \n"
+                      "[1] Lightness edge detector\n",
+                      pipepp::verify::contains(0, 1));
+
+        PIPEPP_OPTION(color_space, "HSV"s, u8"마커의 필터를 적용할 색공간입니다.", verify::color_space_string_verify);
+        PIPEPP_OPTION(pivot_color, cv::Vec3b(233, 233, 233), u8"마커의 대표 색상입니다. 색 공간에 의존적입니다.");
+
+        PIPEPP_CATEGORY(method0, "Method 0: Range Filter")
         {
-            PIPEPP_OPTION(num_inserted_contours, 5,
-                          u8"마커 탐색을 위해 당구대 각 정점을 확장할 때, "
-                          "새롭게 삽입할 컨투어 정점의 개수입니다. 영상 처리 자체에 미치는 영향은 미미합니다.");
-            PIPEPP_OPTION(marker_range_outer, 0.1,
-                          u8"일반적으로, 당구대의 펠트 경계선부터 바깥쪽까지의 영역 길이를 지정합니다.\n"
-                          "meter 단위");
-            PIPEPP_OPTION(marker_range_inner, 0.0,
-                          u8"당구대의 펠트 경계부터 안쪽으로 마커 영역 마스크를 설정하는 데 사용합니다.\n"
-                          "일반적으로 0을 지정하면 충분합니다.\n"
-                          "meter 단위");
+            PIPEPP_OPTION(range_lo, cv::Vec3b(125, 125, 125));
+            PIPEPP_OPTION(range_hi, cv::Vec3b(255, 255, 255));
         };
 
-        PIPEPP_CATEGORY(filter, "Filtering")
+        PIPEPP_CATEGORY(method1, "Method 1: Laplacian Filter")
         {
             PIPEPP_OPTION(enable_gpu, false);
-            PIPEPP_OPTION(enable_cpu_parellel, false);
-            PIPEPP_OPTION(method, 0,
-                          "[0] Simple color range filter \n"
-                          "[1] Lightness edge detector\n",
-                          pipepp::verify::contains(0, 1));
-
-            PIPEPP_OPTION(color_space, "HSV"s, u8"마커의 필터를 적용할 색공간입니다.", verify::color_space_string_verify);
-            PIPEPP_OPTION(pivot_color, cv::Vec3b(233, 233, 233), u8"마커의 대표 색상입니다. 색 공간에 의존적입니다.");
-
-            PIPEPP_OPTION(method_0_range_lo, cv::Vec3b(125, 125, 125));
-            PIPEPP_OPTION(method_0_range_hi, cv::Vec3b(255, 255, 255));
-
-            PIPEPP_OPTION(method_1_threshold, 0.5);
-            PIPEPP_OPTION(method_1_hole_filling_cnt, 0, u8"지정한 횟수만큼 dilate-erode 연산을 반복 적용");
+            PIPEPP_OPTION(threshold, 0.5);
+            PIPEPP_OPTION(holl_fill_num_dilate, 0u, u8"지정한 횟수만큼 dilate-erode 연산을 반복 적용", pipepp::verify::maximum(50u));
+            PIPEPP_OPTION(holl_fill_num_erode, 0u, u8"지정한 횟수만큼 dilate-erode 연산을 반복 적용", pipepp::verify::maximum(50u));
         };
     };
 
@@ -165,10 +211,10 @@ PIPEPP_EXECUTOR(table_marker_finder)
         i.contour = sd.table.contour;
         sd.get_marker_points_model(i.marker_model);
 
-        auto colorspace = (marker::filter::color_space(opt));
+        auto colorspace = (filter::color_space(opt));
         i.domain = sd.retrieve_image_in_colorspace(colorspace);
 
-        if (marker::filter::method(opt) > 0) {
+        if (filter::method(opt) > 0) {
             cv::Mat split[3];
             cv::split(i.domain, split);
 
