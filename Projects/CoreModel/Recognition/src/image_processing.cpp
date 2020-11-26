@@ -278,7 +278,7 @@ void billiards::imgproc::world_to_camera(img_t const& img, cv::Vec3f& rvec, cv::
     rvec = rodrigues(rmat);
 }
 
-cv::Vec3f billiards::imgproc::rotate_local(cv::Vec3f target, cv::Vec3f rvec)
+cv::Vec3f billiards::imgproc::rotate_euler(cv::Vec3f target, cv::Vec3f rvec)
 {
     using namespace cv;
     Matx33f axes = Matx33f::eye();
@@ -303,7 +303,7 @@ cv::Vec3f billiards::imgproc::set_filtered_table_rot(cv::Vec3f table_rot, cv::Ve
 {
     // 180도 회전한 경우, 다시 180도 돌려줍니다.
     if (norm(table_rot - new_rot) > (170.0f) * CV_PI / 180.0f) {
-        new_rot = rotate_local(new_rot, {0, (float)CV_PI, 0});
+        new_rot = rotate_euler(new_rot, {0, (float)CV_PI, 0});
     }
 
     if (norm(new_rot - table_rot) < jump_threshold) {

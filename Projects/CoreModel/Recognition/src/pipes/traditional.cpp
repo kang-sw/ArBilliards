@@ -609,7 +609,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_marker_solver::invoke(pipepp::ex
 
                 // 임의의 확률로 180도 회전시킵니다.
                 bool rotate180 = uniform_int_distribution{0, 1}(rengine);
-                if (rotate180) { cand.rotation = rotate_local(cand.rotation, {0, CV_PI, 0}); }
+                if (rotate180) { cand.rotation = rotate_euler(cand.rotation, {0, CV_PI, 0}); }
 
                 candidates.push_back(cand);
             }

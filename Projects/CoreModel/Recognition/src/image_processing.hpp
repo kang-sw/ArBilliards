@@ -92,7 +92,9 @@ void project_model(img_t const& img, std::vector<cv::Vec2f>& mapped_contours, cv
 void draw_axes(img_t const& img, cv::Mat const& dest, cv::Vec3f rvec, cv::Vec3f tvec, float marker_length, int thickness);
 void camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec);
 void world_to_camera(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec);
-auto rotate_local(cv::Vec3f target, cv::Vec3f rvec) -> cv::Vec3f;
+auto rotate_euler(cv::Vec3f target, cv::Vec3f euler_rvec)->cv::Vec3f;
+
+// 
 auto set_filtered_table_rot(cv::Vec3f table_rot, cv::Vec3f new_rot, float alpha = 1.0f, float jump_threshold = FLT_MAX) -> cv::Vec3f;
 auto set_filtered_table_pos(cv::Vec3f table_pos, cv::Vec3f new_pos, float alpha = 1.0f, float jump_threshold = FLT_MAX) -> cv::Vec3f;
 void project_model(img_t const& img, std::vector<cv::Point>& mapped, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, float FOV_h, float FOV_v);

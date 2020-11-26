@@ -325,7 +325,8 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         PIPEPP_STORE_DEBUG_DATA("Number of candidate pixels", valid_marker_pixels.size());
     }
 
-    // 각 유효 마커 픽셀을 iterate해,
+    // 각각의 유효 마커 픽셀을 iterate해, 거리를 계산합니다.
+    
 
     return {};
 }
