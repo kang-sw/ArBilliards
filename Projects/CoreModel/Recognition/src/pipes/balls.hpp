@@ -1,15 +1,124 @@
 #pragma once
 #include "recognizer.hpp"
 
-namespace billiards::pipes
-{
+namespace billiards::pipes {
+using namespace std::literals;
 
 /**
- * ê³µ íƒìƒ‰ì€ ê° í”„ë ˆìž„ë‹¹ ê°œê´„ì ìœ¼ë¡œ ë‹¤ìŒê³¼ ê°™ì€ ì ˆì°¨ë¥¼ ë”°ë¦…ë‹ˆë‹¤.
+ *  °ø Å½»öÀº °³°ýÀûÀ¸·Î ´ÙÀ½°ú °°Àº ÀýÂ÷¸¦ µû¸¨´Ï´Ù.
  *
- * 0. ì‚¬ì „ ì„¤ì • ì‚¬í•­
- *      1. ì»¤ë„ ë°€ë„ (ì¼ë°˜ì ìœ¼ë¡œ, 
- *      2. 
+ *  0. »çÀü ¼³Á¤ »çÇ×
+ *      1. Ä¿³Î ¹Ðµµ (circle ÇÔ¼ö ¹Ý°æ, positive/negative °¡ÁßÄ¡ ¹üÀ§)
+ *      2. Á¶¸íÀÇ À§Ä¡, »ö»ó, °³¼ö
+ *
+ *  (1. ¿É¼Ç º¯°æ ½Ã)
+ *      ÀÓÀÇ °³¼öÀÇ 3D Ä¿³ÎÀ» Z = 1m °Å¸®¿¡ °ø°ú °°Àº ¹ÝÁö¸§À¸·Î »ý¼ºÇÕ´Ï´Ù.
+ *      Ä¿³Î ¼Ó¼º = [[X, Y, Z], [R, G, B]]
+ *
+ *  1. Ä¿³ÎÀ» ±âº» »ö»óÀ¸·Î ÃÊ±âÈ­
+ *
+ *  2. Á¶¸í °è»ê.
+ *      °øÀ» Å×ÀÌºí ÁßÁ¡¿¡ µÐ °ÍÀ¸·Î °¡Á¤ÇÏ°í, Á¶¸í¿¡ ÀÇÇÑ »ö»óÀ» °è»êÇÕ´Ï´Ù.
+ *      Ä¿³ÎÀº ±¸ÇüÀÇ Á¤±ÔÈ­µÈ Á¤Á¡ ¸ñ·ÏÀÎµ¥, ¹Ý´ëÂÊ Á¤Á¡Àº ÀÇ¹Ì ¾øÀ¸¹Ç·Î Á¶¸í °è»ê ½Ã µîÁö´Â
+ *     Á¤Á¡Àº ¸ðµÎ Z °ªÀ» ¹ÝÀü½ÃÄÑÁÝ´Ï´Ù.
+ *      Á¶¸í °è»êÀÌ ³¡³­ Ä¿³ÎÀº Z°ªÀ» µå¶øÇÏ°í(Orthogonal Projection), [X, Y], [R, G, B}¸¸ ³²±é´Ï´Ù.
+ *      ÀÌÈÄ R, G, B º¤ÅÍ ¸®½ºÆ®´Â ¿øÇÏ´Â »ö°ø°£À¸·Î º¯È¯
+ *
+ *  2. ÄÁº¼·ç¼Ç
+ *      Åõ»çÁ¡±îÁöÀÇ °Å¸®¸¦ ¹ÙÅÁÀ¸·Î Ä¿³ÎÀÇ ¹Ý°æÀ» Á¶Á¤ÇÑ µÚ, ÈÄº¸ À§Ä¡ °³¼ö M by Ä¿³Î ±æÀÌ N¿¡ ´ëÇØ
+ *     Èñ¼Ò Ä¿³Î ÅÛÇÃ¸´ ¸ÅÄªÀ» ¼öÇàÇÕ´Ï´Ù. (»ö»ó °Å¸®ÀÇ ¿ª¼ö¿¡ ´ëÇÑ Áö¼öÇÔ¼ö)
+ *
+ *  3. °ø ¼±ÅÃ
+ *      °¡Àå ³ôÀº °ªÀ» ¹ÝÈ¯ÇÏ´Â ÇÈ¼¿ÀÌ °øÀÇ ÁßÁ¡ÀÌ µÇ¸ç, ¿©·¯ °³ÀÇ °øÀ» Å½»öÇÏ·Á´Â °æ¿ì À§ÀÇ °¡ÁßÄ¡
+ *     ¸®½ºÆ®¿¡¼­ ¼±ÅÃµÈ °øÀÇ ¹Ý°æ ¹üÀ§¿¡ µé¾î°¡´Â ¸ðµç ÀûÇÕµµ ÇÈ¼¿À» Áö¿î µÚ ´Ù½Ã ÃÖ´ë°ªÀ» Ã£½À´Ï´Ù.
+ *     (ÀûÇÕµµ º¤ÅÍ¸¦ iterateÇØ ¼±ÅÃµÈ °øÀÇ ¹Ý°æ ³»¿¡ µé¾î°¡´Â ¸ðµç ÇÈ¼¿À» Áö¿ì¸é µÉµí)
+ *
  */
+PIPEPP_EXECUTOR(ball_finder_executor)
+{
+    // 1. °ø °³¼ö
+    // 2. ¸ÓÅÍ¸®¾ó ÆÄ¶ó¹ÌÅÍ
+    // 3. ¹ÝÁö¸§ µî
+    // 4. ±âº» »ö»ó
+    // 5. Ä¿³Î Á¤Á¡ °³¼ö
+    PIPEPP_CATEGORY(debug, "Debug")
+    {
+        PIPEPP_OPTION(show_debug_mat, false);
+        PIPEPP_OPTION(show_realtime_kernel, false);
+    };
 
-}
+    PIPEPP_CATEGORY(kernel, "Kernels")
+    {
+        PIPEPP_OPTION(n_dots, 1600u,
+                      u8"Ä¿³ÎÀ» ±¸¼ºÇÏ´Â Á¡ÀÇ °³¼öÀÔ´Ï´Ù. ¸¹À»¼ö·Ï Á¤¹ÐÇÏÁö¸¸, ´À·ÁÁý´Ï´Ù.",
+                      pipepp::verify::minimum(1u));
+        PIPEPP_OPTION(positive_weight_range, cv::Vec2f(0, 1),
+                      u8"¾çÀÇ °¡ÁßÄ¡·Î Æò°¡µÇ´Â Ä¿³Î ±¸°£ÀÔ´Ï´Ù.\n"
+                      "Á¶¸í °è»ê ÀÌÈÄ Ä¿³Î ¹Ý°æÀ» ½ºÄÉÀÏÇÏ´Â ¹æ½ÄÀ¸·Î µ¿ÀÛÇÏ¸ç, µû¶ó¼­ "
+                      " °øÀÇ ÀÎ½Ä ¹ÝÁö¸§ ÀÚÃ¼¸¦ ³ÐÈ÷´Â È¿°ú¸¦ ³À´Ï´Ù.",
+                      pipepp::verify::minimum_all<cv::Vec2f>(0.f)
+                        | pipepp::verify::ascending<cv::Vec2f>());
+        PIPEPP_OPTION(negative_weight_range, cv::Vec2f(0, 1),
+                      u8"À½ÀÇ °¡ÁßÄ¡·Î Æò°¡µÇ´Â Ä¿³Î ±¸°£ÀÔ´Ï´Ù. \n"
+                      "Á¶¸íÀÌ °è»êµÇÁö ¾Ê´Â º°µµÀÇ Ä¿³ÎÀÌ¸ç, ÀüÇüÀûÀÎ circleOp ¿¬»êÀ» ÅëÇØ »ý¼ºµË´Ï´Ù. \n"
+                      "´Ü, °Å¸® °è»ê °ø½ÄÀº Á¶¸íÀÌ °è»êµÈ ¾çÀÇ Ä¿³Î°ú ¶È°°ÀÌ Àû¿ëÇÕ´Ï´Ù. \n"
+                      "ÀÌ Ä¿³Î ±¸°£¿¡¼­ °è»êµÈ ÀûÇÕµµ´Â À½ÀÇ °¡ÁßÄ¡·Î Àû¿ëµÇ¾î, ÀüÃ¼ ÀûÇÕµµ¸¦ °¨¼Ò½ÃÅµ´Ï´Ù."
+                      " ÀÌ¸¦ ÅëÇØ Áß½ÉÀÌ ¾Æ´Ñ Á¡¿¡ ´ëÇÑ ¸ÅÄª ÈÄº¸ÀÇ ÀûÇÕµµ¸¦ ¶³¾îÆ®·Á, ¸ÅÄªÀ» Áß¾ÓÀ¸·Î"
+                      " ÁýÁß½ÃÅ³ ¼ö ÀÖ°Ô µË´Ï´Ù.",
+                      pipepp::verify::minimum_all<cv::Vec2f>(0.f)
+                        | pipepp::verify::ascending<cv::Vec2f>());
+    };
+
+    PIPEPP_CATEGORY(colors, "Colors")
+    {
+        PIPEPP_OPTION(base_rgb, cv::Vec3b(255, 255, 232),
+                      u8"°øÀÇ ±âº» RGB »ö»óÀÔ´Ï´Ù. »ö»ó °è»ê ÀÌÈÄ, ÀûÇÕÇÑ »ö°ø°£À¸·Î º¯È¯ÇØ Ã³¸®ÇÕ´Ï´Ù.");
+    };
+
+    PIPEPP_CATEGORY(match, "Matching")
+    {
+        PIPEPP_OPTION(color_space, "HSV"s,
+                      u8"¸ÅÄªÀÌ ¼öÇàµÇ´Â »ö°ø°£ÀÔ´Ï´Ù",
+                      verify::color_space_string_verify);
+        PIPEPP_OPTION(error_base, 1.04f,
+                      u8"¿¡·¯ °è»ê¿¡ »ç¿ëÇÏ´Â Áö¼öÀÇ ¹ØÀÔ´Ï´Ù. Å¬¼ö·Ï ¸ÅÄªÀÌ ¾ö°ÝÇÏ°Ô Æò°¡µË´Ï´Ù.",
+                      pipepp::verify::minimum(1.f));
+        PIPEPP_OPTION(error_weight, cv::Vec3f(1, 1, 1),
+                      u8"¿¡·¯ °è»ê ½Ã, »ö»óÀÇ °¢ Ã¤³Î¿¡ Àû¿ëÇÒ ¿¡·¯ °¡ÁßÄ¡ÀÔ´Ï´Ù. ³ôÀ» ¼ö·Ï ¿¡·¯¿¡ Å« ¿µÇâÀ» ÁÝ´Ï´Ù.");
+        PIPEPP_OPTION(negative_weight, 1.0f,
+                      u8"Negative Ä¿³ÎÀÇ ÇÈ¼¿¿¡ ¾ó¸¶¸¸Å­ÀÇ À½ÀÇ °¡ÁßÄ¡¸¦ ºÎ¿©ÇÒÁö °áÁ¤ÇÕ´Ï´Ù.",
+                      pipepp::verify::minimum(0.f));
+    };
+
+    PIPEPP_CATEGORY(search, "Searching")
+    {
+        PIPEPP_OPTION(n_balls, 1,
+                      u8"Ã£¾Æ³¾ °øÀÇ °³¼öÀÔ´Ï´Ù.");
+    };
+
+    struct input_type {
+        // Áß½ÉÀÌ µÉ ¼ö ÀÖ´Â ¸ðµç Á¡ÀÇ ¸¶½ºÅ©ÀÔ´Ï´Ù.
+        // ÀüÇüÀûÀ¸·Î, Å×ÀÌºí »ö»ó ÇÊÅÍÀÇ ¹ÝÀüÀ» Å×ÀÌºí ÀüÃ¼ ¿µ¿ªÀ¸·Î ¸¶½ºÅ·ÇÕ´Ï´Ù.
+        cv::Mat1b center_area_mask;
+
+        // Å×ÀÌºí Æ®·£½ºÆû
+        cv::Vec3f table_rot, table_pos;
+
+        // °øÀÇ »ö»óÀ» °è»êÇÒ µµ¸ÞÀÎÀÔ´Ï´Ù.
+        // ¹Ýµå½Ã match::color_space¿¡ ÁöÁ¤µÈ »ö°ø°£°ú °°Àº °ªÀÌ¾î¾ß ÇÕ´Ï´Ù.
+        cv::Mat3f domain;
+
+        // ±âÅ¸ ±âº» ÆÄ¶ó¹ÌÅÍ
+    };
+
+    struct output_type
+    {
+        // Ã£¾Æ³½ °øÀÇ ¿ùµå ÁÂÇ¥ ¹× È®½ÅµµÀÔ´Ï´Ù.
+        cv::Vec3f position;
+        float confidence;
+    };    
+
+    void operator()(pipepp::execution_context& ec, input_type& i, output_type& o);
+};
+
+} // namespace billiards::pipes
