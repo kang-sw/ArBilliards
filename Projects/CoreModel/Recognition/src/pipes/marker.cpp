@@ -7,6 +7,7 @@
 #include <random>
 
 #include "../image_processing.hpp"
+#include "helpers.hpp"
 
 #undef max
 #undef min

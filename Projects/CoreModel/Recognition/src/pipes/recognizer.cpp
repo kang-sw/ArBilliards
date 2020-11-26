@@ -87,10 +87,10 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     //      CASE A: TRADITIONAL CONTOUR SEARCH
     // ALL PIPES
     {
-        auto contour_search_proxy = pl->create("table contour searcher", 1, &pipepp::make_executor<table_contour_geometric_search>);
-        auto pnp_solver_proxy = pl->create("solve table edge", 1, &pipepp::make_executor<table_edge_solver>);
-        auto marker_search_proxy = pl->create("table marker search", 1, &pipepp::make_executor<table_marker_finder>);
-        auto marker_solver_proxy = pl->create("table marker solver", 1, &pipepp::make_executor<marker_solver_OLD>);
+        auto contour_search_proxy = pl->create("table contour searcher", 4, &pipepp::make_executor<table_contour_geometric_search>);
+        auto pnp_solver_proxy = pl->create("solve table edge", 4, &pipepp::make_executor<table_edge_solver>);
+        auto marker_search_proxy = pl->create("table marker search", 4, &pipepp::make_executor<table_marker_finder>);
+        auto marker_solver_proxy = pl->create("table marker solver", 4, &pipepp::make_executor<marker_solver_OLD>);
 
         input_proxy.link_output(contour_search_proxy,
                                 [](shared_data& sd, table_contour_geometric_search::input_type& i) {
