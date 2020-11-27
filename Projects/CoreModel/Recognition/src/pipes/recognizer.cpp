@@ -6,9 +6,11 @@
 #include <random>
 
 #include "../image_processing.hpp"
+#include "balls.hpp"
 #include "fmt/format.h"
 #include "marker.hpp"
 #include "pipepp/options.hpp"
+#include "pipepp/pipe.hpp"
 #include "table_search.hpp"
 #include "traditional.hpp"
 
@@ -62,6 +64,16 @@ struct marker_search_to_solve {
         }
     }
 };
+
+struct ball_position_mapping {
+    int const index_offset;
+
+    void operator() (
+      shared_data& sd,
+      ball_finder_executor::output_type const& o) const
+    {
+    }
+};
 } // namespace
 } // namespace billiards::pipes
 
@@ -82,7 +94,6 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     input_proxy.configure_tweaks().selective_output = true;
 
     auto output_pipe_proxy = pl->create("output", 1, &output_pipe::factory);
-    output_pipe_proxy.configure_tweaks().selective_input = true;
 
     // ---------------------------------------------------------------------------------
     //  INPUT --> [PREPROCESSOR]
@@ -114,7 +125,21 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         marker_search_proxy.link_output(marker_solver_proxy, &marker_search_to_solve::link);
 
         marker_solver_proxy.add_output_handler(&marker_solver_OLD::output_handler);
-        marker_solver_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
+        for (auto ballidx : kangsw::counter(3)) {
+            constexpr char const* BALL_NAME[] = {"Red", "Orange", "White"};
+            constexpr int IDX_OFFSET[] = {0, 2, 3};
+            auto ball_proxy = pl->create(fmt::format("ball finder: {}", BALL_NAME[ballidx]),
+                                         4, &pipepp::make_executor<ball_finder_executor>);
+
+            // 이전 출력 연결
+            marker_solver_proxy.link_output(ball_proxy, &ball_finder_executor::link);
+
+            // 빨간 공이 2개이므로, 인덱스를 각각 0, 2, 3 부여합니다.
+            ball_proxy.add_output_handler(ball_position_mapping{IDX_OFFSET[ballidx]});
+
+            // 출력 연결
+            ball_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
+        }
     }
 
     return pl;

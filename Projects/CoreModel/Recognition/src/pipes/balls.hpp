@@ -112,15 +112,19 @@ PIPEPP_EXECUTOR(ball_finder_executor)
         imgproc::img_t const* p_imdesc;
     };
 
-    struct output_type
-    {
-        // 찾아낸 공의 월드 좌표 및 확신도입니다.
-        cv::Vec3f position;
-        float confidence;
-    };    
+    struct output_type {
+        struct ball_position {
+            // 찾아낸 공의 월드 좌표 및 확신도입니다.
+            cv::Vec3f position;
+            float confidence;
+        };
 
-    void operator()(pipepp::execution_context& ec, input_type& i, output_type& o);
-    void link(shared_data const& sd, input_type& i) {}
+        // 다수의 출력을 포함할 수 있습니다.
+        std::vector<ball_position> positions;
+    };
+
+    void operator()(pipepp::execution_context& ec, input_type const& i, output_type& o);
+    static void link(shared_data & sd, input_type & i) {}
 };
 
 } // namespace billiards::pipes
