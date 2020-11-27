@@ -1,11 +1,11 @@
 #include "balls.hpp"
-#include <amp.h>
-#include <amp_math.h>
-#include <amp_short_vectors.h>
-
 #include "../amp-math/helper.hxx"
 #include "kangsw/trivial.hxx"
 #include "pipepp/options.hpp"
+
+#include <amp.h>
+#include <amp_math.h>
+#include <amp_short_vectors.h>
 
 #undef max
 #undef min
@@ -70,40 +70,41 @@ struct kernel_shader {
               namespace m_ = mathf;
               namespace fm_ = fast_math;
               // note. 카메라 위치는 항상 원점입니다.
-              float3 n = _kernel_src[idx];
-              float3 p = n + _kcp;
+              float3 kp = _kernel_src[idx];
+              float3 n = m_::normalize(kp);
+              float3 p = kp + _kcp;
 
               // 시선 역방향 벡터 v가 노멀과 반대 방향을 보는 경우, 뒤집어줍니다.
-              float3 v = m_::normalize(-p);
-              /*if (m_::dot(v, n) < 0.f) {
-                  p = p - 2.f * n;
+              if (m_::dot(-p, n) < 0.f) {
+                  p = _kcp - kp;
                   n = -n;
-                  v = m_::normalize(-p);
-              }*/
+              }
 
+              float3 v = m_::normalize(-p);
               float3 L = m_::normalize(_lp - p);
-
               float3 I = -L;
               float3 r = I - 2 * m_::dot(n, I) * n;
 
-              auto L_dot_n = m_::dot(L, n);
-              float lambert = L_dot_n < 0.f ? 0.f : L_dot_n;
+              float lambert = m_::Max(m_::dot(L, n), 0.f);
 
               // 분산 조명 계산
               float3 c_d = _lclor * _bclor * lambert;
 
               // 반영 조명 계산
-              float3 R_F = _fresnel + (1 - _fresnel) * m_::powi(1 - lambert, 5);
+              float3 R_F
+                = _fresnel + (1 - _fresnel) * m_::powi(1 - m_::Max(m_::dot(r, n), 0.f), 5);
 
               // 러프니스 계산
-              float3 h = v * L * 0.5f;
-              float3 S = (_m + 8.f) * (1.f / 8.f) * fm_::powf(m_::dot(n, h), _m);
+              float3 h = m_::normalize(v + L);
+              auto m = (1 - _m) * 256.f;
+              float3 S = (m + 8.f) * (1.f / 8.f) * fm_::powf(m_::Max(0.f, m_::dot(n, h)), m);
 
               // 프레넬 및 러프니스 결합
               float3 c_s = lambert * _bclor * (R_F * S);
 
               // 광원 조명 - 최종
               float3 C = c_d + c_s;
+              // +c_s;
 
               // 커널의 색공간 전환: 고정 사용
 
@@ -228,7 +229,7 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
         array_view colors = *_m->pkernel_colors_;
         parallel_for_each(
           colors.extent,
-          [=](index<1> idx) restrict(amp) { colors[idx] = {}; });
+          [=](index<1> idx) restrict(amp) { colors[idx] = 0; });
     }
 
     {
@@ -253,18 +254,25 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
         copy(m.lights_.begin(), m.lights_.end(), _lights.begin());
         span lights{_lights.begin(), m.lights_.size()};
 
-        auto world_tr = get_transform_matx_fast(world_pos, world_rot);
-        for (auto& l : lights) {
-            l.pos = subvec<0, 3>(inv_cam * (world_tr * concat_vec(l.pos, 1.f)).mul({1, -1.f, 1}));
-        }
-
         Vec3f pivot_pos = world_pos;
         Vec3f pivot_rot = world_rot;
         world_to_camera(imdesc, pivot_rot, pivot_pos);
 
+        auto tr = get_transform_matx_fast(pivot_pos, pivot_rot);
+        auto crot_vec = normalize(pivot_pos.cross({0, 0, 1}));
+        auto angle = acosf(normalize(pivot_pos).dot({0, 0, 1}));
+        crot_vec *= angle;
+
+        auto centering_rotation = rodrigues(crot_vec);
+        centering_rotation = centering_rotation * submatx<0, 0, 3, 3>(tr);
+        copy_matx(tr, centering_rotation, 0, 0);
+        for (auto& l : lights) {
+            l.pos = subvec<0, 3>(tr * concat_vec(l.pos, 1.f));
+        }
+
         helper::kernel_shader ks = {
           .kernel = *m.pkernel_src_coords_,
-          .kernel_center = pivot_pos,
+          .kernel_center = centering_rotation * pivot_pos,
           .base_rgb = ball_color,
           .fresnel0 = fresnel0,
           .roughness = roughness,
@@ -288,16 +296,16 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
             vector<float3> colors = *m.pkernel_colors_;
 
             auto scale = debug::kernel_display_scale(ec);
-            Mat3b target(scale, scale, {0, 0, 0});
+            Mat3f target(scale, scale, {0.4, 0.4, 0.4});
             int mult = (scale / 4) / kernel::ball_radius(ec);
             int ofst = scale / 2;
             int rad = 0; // scale / 100;
 
             for (auto [_p, _c] : kangsw::zip(positions, colors)) {
                 auto pos = Vec2i((mult * kangsw::value_cast<Vec2f>(_p)) + Vec2f(ofst, ofst));
-                auto col = Vec3b(255 * kangsw::value_cast<Vec3f>(_c));
+                auto col = kangsw::value_cast<Vec3f>(_c);
 
-                circle(target, pos, rad, col, -1);
+                target((Point)pos) = col;
             }
 
             PIPEPP_STORE_DEBUG_DATA("Real time kernel", (Mat)target);
