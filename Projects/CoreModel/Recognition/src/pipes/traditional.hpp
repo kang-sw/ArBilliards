@@ -143,7 +143,7 @@ struct marker_solver_OLD {
         cv::Vec3f table_rot_init;
 
         cv::Mat const* debug_mat;
-        std::vector<cv::Vec2f> const* table_contour;
+        std::vector<cv::Vec2f> const* p_table_contour;
 
         cv::UMat const* u_hsv;
 

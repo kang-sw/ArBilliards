@@ -123,6 +123,11 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
     auto& imdesc = *in.p_imdesc;
     bool const show_debug = show_debug_mats(ec);
 
+    if (in.contour.empty()) {
+        out.marker_weight_map = cv::Mat{};
+        return pipepp::pipe_error::warning;
+    }
+
     // 옵션이 바뀐 경우 커널을 재생성합니다.
     if (option_dirty) {
         PIPEPP_ELAPSE_SCOPE("Regenerate Kernels");
@@ -454,8 +459,13 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
     return {};
 }
 
-bool billiards::pipes::table_marker_finder::link(shared_data& sd, input_type& i, pipepp::detail::option_base const& opt)
+void billiards::pipes::table_marker_finder::link(shared_data& sd, input_type& i, pipepp::detail::option_base const& opt)
 {
+    if (sd.table.contour.empty()) {
+        i.contour = {};
+        return;
+    }
+
     i.init_table_pos = sd.table.pos;
     i.init_table_rot = sd.table.rot;
 
@@ -469,34 +479,23 @@ bool billiards::pipes::table_marker_finder::link(shared_data& sd, input_type& i,
     i.domain = sd.retrieve_image_in_colorspace(colorspace);
     i.conv_domain = sd.retrieve_image_in_colorspace(filter::convolution_color_space(opt));
 
-    if (filter::method(opt) > 0)
-    {
+    if (filter::method(opt) > 0) {
         cv::Mat split[3];
         cv::split(i.domain, split);
 
         using namespace kangsw::literals;
-        switch (kangsw::hash_index(colorspace))
-        {
+        switch (kangsw::hash_index(colorspace)) {
             case "YCrCb"_hash:
             case "Lab"_hash:
             case "Luv"_hash: [[fallthrough]];
-            case "YUV"_hash: i.lightness = split[0];
-                break;
-            case "HLS"_hash: i.lightness = split[1];
-                break;
-            case "HSV"_hash: i.lightness = split[2];
-                break;
-
-            default: i.lightness = {};
-                break;
+            case "YUV"_hash: i.lightness = split[0]; break;
+            case "HLS"_hash: i.lightness = split[1]; break;
+            case "HSV"_hash: i.lightness = split[2]; break;
+            default: i.lightness = {}; break;
         }
-    }
-    else
-    {
+    } else {
         i.lightness = {};
     }
-
-    return i.contour.empty() == false;
 }
 
 billiards::pipes::table_marker_finder::table_marker_finder()

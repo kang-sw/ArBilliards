@@ -20,18 +20,23 @@ namespace {
 struct marker_search_to_solve {
     PIPEPP_DECLARE_OPTION_CLASS(table_marker_finder);
 
-    static bool link(
+    static void link(
       shared_data& sd,
       table_marker_finder::output_type const& o,
       marker_solver_OLD::input_type& i)
     {
+        if (o.marker_weight_map.empty()) {
+            i.p_table_contour = nullptr;
+            return;
+        }
+
         i = marker_solver_OLD::input_type{
           .img_ptr = &sd.imdesc_bkup,
           .img_size = sd.rgb.size(),
           .table_pos_init = sd.table.pos,
           .table_rot_init = sd.table.rot,
           .debug_mat = &sd.debug_mat,
-          .table_contour = &sd.table.contour,
+          .p_table_contour = &sd.table.contour,
           .u_hsv = &sd.u_hsv,
           .FOV_degree = sd.camera_FOV(sd)};
         sd.get_marker_points_model(i.marker_model);
@@ -55,8 +60,6 @@ struct marker_search_to_solve {
                 i.weights.push_back(o.marker_weight_map(center));
             }
         }
-
-        return i.markers.empty() == false;
     }
 };
 } // namespace
@@ -110,8 +113,8 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
 
         marker_search_proxy.link_output(marker_solver_proxy, &marker_search_to_solve::link);
 
-        marker_solver_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
         marker_solver_proxy.add_output_handler(&marker_solver_OLD::output_handler);
+        marker_solver_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
     }
 
     return pl;
@@ -301,9 +304,35 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
         get_table_model(model, shared_data::table::size::outer(sd));
         project_contours(imdesc, debug, model, pos, rot, {83, 0, 213}, 1, FOV);
 
-        draw_axes(imdesc, debug, pos, rot, 0.1, 2);
+        draw_axes(imdesc, debug, rot, pos, 0.1, 2);
     }
 
     PIPEPP_STORE_DEBUG_DATA("Debug glyphs rendering", sd.debug_mat.clone());
     return pipepp::pipe_error::ok;
+}
+
+void billiards::pipes::shared_data::get_marker_points_model(std::vector<cv::Vec3f>& model) const
+{
+    auto& ec = *this;
+
+    int num_x = table::marker::count_x(ec);
+    int num_y = table::marker::count_y(ec);
+    float felt_width = table::marker::felt_width(ec);
+    float felt_height = table::marker::felt_height(ec);
+    float dist_from_felt_long = table::marker::dist_from_felt_long(ec);
+    float dist_from_felt_short = table::marker::dist_from_felt_short(ec);
+    float step = table::marker::step(ec);
+    float width_shift_a = table::marker::width_shift_a(ec);
+    float width_shift_b = table::marker::width_shift_b(ec);
+    float height_shift_a = table::marker::height_shift_a(ec);
+    float height_shift_b = table::marker::height_shift_b(ec);
+
+    for (int i = -num_y / 2; i < num_y / 2 + 1; ++i) {
+        model.emplace_back(-(dist_from_felt_short + felt_width / 2), 0, step * i + height_shift_a);
+        model.emplace_back(+(dist_from_felt_short + felt_width / 2), 0, step * -i + height_shift_b);
+    }
+    for (int i = -num_x / 2; i < num_x / 2 + 1; ++i) {
+        model.emplace_back(step * i + width_shift_a, 0, -(dist_from_felt_long + felt_height / 2));
+        model.emplace_back(step * -i + width_shift_b, 0, +(dist_from_felt_long + felt_height / 2));
+    }
 }

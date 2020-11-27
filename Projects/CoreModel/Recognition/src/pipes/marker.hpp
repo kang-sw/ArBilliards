@@ -140,8 +140,7 @@ PIPEPP_EXECUTOR(table_marker_finder)
     };
 
     pipepp::pipe_error operator()(pipepp::execution_context& ec, input_type const& in, output_type& out);
-
-    static bool link(shared_data& sd, input_type& i, pipepp::detail::option_base const& opt);
+    static void link(shared_data& sd, input_type& i, pipepp::detail::option_base const& opt);
 
 public:
     table_marker_finder();

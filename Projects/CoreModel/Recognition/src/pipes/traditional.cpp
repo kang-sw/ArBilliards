@@ -517,10 +517,14 @@ pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution
     using namespace std;
     using namespace imgproc;
 
+    if (i.p_table_contour == nullptr) {
+        return pipepp::pipe_error::warning;
+    }
+
     auto& img = *i.img_ptr;
     auto table_rot = i.table_rot_init;
     auto table_pos = i.table_pos_init;
-    auto& table_contour = *i.table_contour;
+    auto& table_contour = *i.p_table_contour;
 
     auto& centers = i.markers;
     auto& marker_weights = i.weights;
@@ -684,7 +688,7 @@ void billiards::pipes::marker_solver_OLD::link_from_previous(shared_data const& 
       .table_pos_init = sd.table.pos,
       .table_rot_init = sd.table.rot,
       .debug_mat = &sd.debug_mat,
-      .table_contour = &sd.table.contour,
+      .p_table_contour = &sd.table.contour,
       .u_hsv = &sd.u_hsv,
       .FOV_degree = sd.camera_FOV(sd),
       .markers = i.markers,
@@ -698,32 +702,6 @@ void billiards::pipes::marker_solver_OLD::output_handler(pipepp::pipe_error, sha
     float rot_alpha = shared_data::table::filter::alpha_rot(sd);
     sd.table.pos = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence);
     sd.table.rot = imgproc::set_filtered_table_rot(sd.table.rot, o.table_rot, rot_alpha * o.confidence);
-}
-
-void billiards::pipes::shared_data::get_marker_points_model(std::vector<cv::Vec3f>& model) const
-{
-    auto& ec = *this;
-
-    int num_x = table::marker::count_x(ec);
-    int num_y = table::marker::count_y(ec);
-    float felt_width = table::marker::felt_width(ec);
-    float felt_height = table::marker::felt_height(ec);
-    float dist_from_felt_long = table::marker::dist_from_felt_long(ec);
-    float dist_from_felt_short = table::marker::dist_from_felt_short(ec);
-    float step = table::marker::step(ec);
-    float width_shift_a = table::marker::width_shift_a(ec);
-    float width_shift_b = table::marker::width_shift_b(ec);
-    float height_shift_a = table::marker::height_shift_a(ec);
-    float height_shift_b = table::marker::height_shift_b(ec);
-
-    for (int i = -num_y / 2; i < num_y / 2 + 1; ++i) {
-        model.emplace_back(-(dist_from_felt_short + felt_width / 2), 0, step * i + height_shift_a);
-        model.emplace_back(+(dist_from_felt_short + felt_width / 2), 0, step * -i + height_shift_b);
-    }
-    for (int i = -num_x / 2; i < num_x / 2 + 1; ++i) {
-        model.emplace_back(step * i + width_shift_a, 0, -(dist_from_felt_long + felt_height / 2));
-        model.emplace_back(step * -i + width_shift_b, 0, +(dist_from_felt_long + felt_height / 2));
-    }
 }
 
 pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::execution_context& ec, input_type const& input, output_type& out)
