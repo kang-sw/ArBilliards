@@ -119,7 +119,7 @@ void billiards::imgproc::project_points(std::vector<cv::Vec3f> const& points, cv
     }
 }
 
-cv::Matx44f billiards::imgproc::get_world_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot)
+cv::Matx44f billiards::imgproc::get_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot)
 {
     using namespace cv;
     Matx44f world_transform = {};
@@ -138,7 +138,7 @@ void billiards::imgproc::transform_points_to_camera(img_t const& img, cv::Vec3f 
 {
     // cv::Mat world_transform;
     // get_world_transform_matx(world_pos, world_rot, world_transform);
-    auto world_transform = get_world_transform_matx_fast(world_pos, world_rot);
+    auto world_transform = get_transform_matx_fast(world_pos, world_rot);
     auto inv_camera_transform = img.camera_transform.inv();
 
     for (auto& opt : model_vertexes) {

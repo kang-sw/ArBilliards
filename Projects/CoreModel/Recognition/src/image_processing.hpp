@@ -84,7 +84,7 @@ void cull_frustum_impl(std::vector<cv::Vec3f>& obj_pts, plane_t const* plane_ptr
 void cull_frustum(std::vector<cv::Vec3f>& obj_pts, std::vector<plane_t> const& planes);
 void project_model_local(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
 void project_points(std::vector<cv::Vec3f> const& points, cv::Matx33f const& camera, cv::Matx41f const& disto, std::vector<cv::Vec2f>& o_points);
-auto get_world_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot) -> cv::Matx44f;
+auto get_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot) -> cv::Matx44f;
 void transform_points_to_camera(img_t const& img, cv::Vec3f world_pos, cv::Vec3f world_rot, std::vector<cv::Vec3f>& model_vertexes);
 void project_model_fast(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
 auto generate_frustum(float hfov_rad, float vfov_rad) -> std::vector<plane_t>;
@@ -92,9 +92,9 @@ void project_model(img_t const& img, std::vector<cv::Vec2f>& mapped_contours, cv
 void draw_axes(img_t const& img, cv::Mat const& dest, cv::Vec3f rvec, cv::Vec3f tvec, float marker_length, int thickness);
 void camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec);
 void world_to_camera(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec);
-auto rotate_euler(cv::Vec3f target, cv::Vec3f euler_rvec)->cv::Vec3f;
+auto rotate_euler(cv::Vec3f target, cv::Vec3f euler_rvec) -> cv::Vec3f;
 
-// 
+//
 auto set_filtered_table_rot(cv::Vec3f table_rot, cv::Vec3f new_rot, float alpha = 1.0f, float jump_threshold = FLT_MAX) -> cv::Vec3f;
 auto set_filtered_table_pos(cv::Vec3f table_pos, cv::Vec3f new_pos, float alpha = 1.0f, float jump_threshold = FLT_MAX) -> cv::Vec3f;
 void project_model(img_t const& img, std::vector<cv::Point>& mapped, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, float FOV_h, float FOV_v);
@@ -261,10 +261,8 @@ void fit_contour_to_screen(std::vector<Ty_>& pts, cv::Rect screen)
 template <typename Rand_, typename Ty_, int Sz_>
 void random_vector(Rand_& rand, cv::Vec<Ty_, Sz_>& vec, Ty_ range)
 {
-    std::uniform_real_distribution<Ty_> distr{-1, 1};
-    vec[0] = distr(rand);
-    vec[1] = distr(rand);
-    vec[2] = distr(rand);
+    static const std::uniform_real_distribution<Ty_> distr{-1, 1};
+    for (int i = 0; i < Sz_; ++i) { vec[i] = distr(rand); }
     vec = cv::normalize(vec) * range;
 }
 

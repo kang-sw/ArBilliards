@@ -542,7 +542,7 @@ pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution
 
         auto& vertexes = i.marker_model;
 
-        auto world_tr = get_world_transform_matx_fast(table_pos, table_rot);
+        auto world_tr = get_transform_matx_fast(table_pos, table_rot);
         for (auto pt : vertexes) {
             Vec4f pt4;
             (Vec3f&)pt4 = pt;
@@ -1109,7 +1109,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
             Mat3b top_view_mat = table_mat(Rect((total_size - inner_size) / 2, inner_size));
             top_view_mat.setTo(Scalar{196, 74, 86});
 
-            auto inv_tr = get_world_transform_matx_fast(table_pos, table_rot).inv();
+            auto inv_tr = get_transform_matx_fast(table_pos, table_rot).inv();
             for (int iter = 0; auto& b : descs) {
                 int index = iter++;
                 int bidx = max(0, index - 1);

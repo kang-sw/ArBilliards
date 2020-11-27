@@ -50,15 +50,18 @@ PIPEPP_EXECUTOR(ball_finder_executor)
     PIPEPP_CATEGORY(kernel, "Kernels")
     {
         PIPEPP_OPTION(n_dots, 1600u,
-                      u8"커널을 구성하는 점의 개수입니다. 많을수록 정밀하지만, 느려집니다.",
-                      pipepp::verify::minimum(1u));
+                      u8"커널에서 양으로 평가되는 점의 개수입니다."
+                      " 음성 커널 또한 같은 개수로 생성됩니다.",
+                      pipepp::verify::minimum(1u)); 
+        PIPEPP_OPTION(random_seed, 42u);
         PIPEPP_OPTION(positive_weight_range, cv::Vec2f(0, 1),
                       u8"양의 가중치로 평가되는 커널 구간입니다.\n"
                       "조명 계산 이후 커널 반경을 스케일하는 방식으로 동작하며, 따라서 "
-                      " 공의 인식 반지름 자체를 넓히는 효과를 냅니다.",
+                      " 공의 인식 반지름 자체를 넓히는 효과를 냅니다.\n"
+                      "자동으로 128의 배수로 설정됩니다.",
                       pipepp::verify::minimum_all<cv::Vec2f>(0.f)
                         | pipepp::verify::ascending<cv::Vec2f>());
-        PIPEPP_OPTION(negative_weight_range, cv::Vec2f(0, 1),
+        PIPEPP_OPTION(negative_weight_range, cv::Vec2f(1, 2),
                       u8"음의 가중치로 평가되는 커널 구간입니다. \n"
                       "조명이 계산되지 않는 별도의 커널이며, 전형적인 circleOp 연산을 통해 생성됩니다. \n"
                       "단, 거리 계산 공식은 조명이 계산된 양의 커널과 똑같이 적용합니다. \n"
@@ -81,9 +84,9 @@ PIPEPP_EXECUTOR(ball_finder_executor)
 
     PIPEPP_CATEGORY(match, "Matching")
     {
-        PIPEPP_OPTION(color_space, "HSV"s,
-                      u8"매칭이 수행되는 색공간입니다",
-                      verify::color_space_string_verify);
+        PIPEPP_OPTION(color_space, "RGB"s,
+                      u8"매칭이 수행되는 색공간입니다. 고정됨",
+                      pipepp::verify::contains("RGB"s));
         PIPEPP_OPTION(error_base, 1.04f,
                       u8"에러 계산에 사용하는 지수의 밑입니다. 클수록 매칭이 엄격하게 평가됩니다.",
                       pipepp::verify::minimum(1.f));
@@ -92,6 +95,11 @@ PIPEPP_EXECUTOR(ball_finder_executor)
         PIPEPP_OPTION(negative_weight, 1.0f,
                       u8"Negative 커널의 픽셀에 얼마만큼의 음의 가중치를 부여할지 결정합니다.",
                       pipepp::verify::minimum(0.f));
+
+        PIPEPP_CATEGORY(optimization, "Grid")
+        {
+            PIPEPP_OPTION(grid_size, 64, u8"이미지 정사각 그리드의 픽셀 크기입니다. ");
+        };
     };
 
     PIPEPP_CATEGORY(search, "Searching")
@@ -127,8 +135,19 @@ PIPEPP_EXECUTOR(ball_finder_executor)
         std::vector<ball_position> positions;
     };
 
-    void operator()(pipepp::execution_context& ec, input_type const& i, output_type& o);
+    void operator()(pipepp::execution_context& ec, input_type const& in, output_type& o);
     static void link(shared_data & sd, input_type & i, pipepp::options & opt);
+
+public:
+    ball_finder_executor();
+    ~ball_finder_executor();
+
+private:
+    void _update_kernel(cv::Vec3f world_pos, cv::Vec3f world_rot);
+
+private:
+    struct impl;
+    std::unique_ptr<impl> _m;
 };
 
 } // namespace billiards::pipes

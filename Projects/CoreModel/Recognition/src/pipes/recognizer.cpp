@@ -243,12 +243,6 @@ pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_cont
 
         PIPEPP_STORE_DEBUG_DATA("Source RGB", out.rgb.clone());
         PIPEPP_STORE_DEBUG_DATA("Source HSV", out.hsv.clone());
-
-        cv::Mat ch[3];
-        cv::split(out.hsv, ch);
-        PIPEPP_STORE_DEBUG_DATA("HSV: H", ch[0]);
-        PIPEPP_STORE_DEBUG_DATA("HSV: S", ch[1]);
-        PIPEPP_STORE_DEBUG_DATA("HSV: V", ch[2]);
     }
 
     if (test_color_spaces(ec)) {
@@ -271,6 +265,21 @@ pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_cont
         testcode("YUV", "YUV", cv::COLOR_RGB2YUV);
         testcode("HLS", "HLS", cv::COLOR_RGB2HLS);
         testcode("YCrCb", "YRB", cv::COLOR_RGB2YCrCb);
+        testcode("XYZ", "XYZ", cv::COLOR_RGB2XYZ);
+
+        {
+            PIPEPP_ELAPSE_SCOPE("RGB, HSV")
+            cv::Mat ch[3];
+            cv::split(out.hsv, ch);
+            PIPEPP_STORE_DEBUG_DATA("HSV: H", ch[0].clone());
+            PIPEPP_STORE_DEBUG_DATA("HSV: S", ch[1].clone());
+            PIPEPP_STORE_DEBUG_DATA("HSV: V", ch[2].clone());
+
+            cv::split(out.rgb, ch);
+            PIPEPP_STORE_DEBUG_DATA("RGB: R", ch[0]);
+            PIPEPP_STORE_DEBUG_DATA("RGB: G", ch[1]);
+            PIPEPP_STORE_DEBUG_DATA("RGB: B", ch[2]);
+        }
     }
 
     out.img_size = cv::Size(width, height);
