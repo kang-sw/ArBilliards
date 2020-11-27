@@ -254,6 +254,9 @@ void billiards::pipes::input_resize::output_handler(pipepp::pipe_error, shared_d
         o.hsv.copyTo(sd.hsv);
 
         o.rgb.copyTo(sd.debug_mat);
+
+        using namespace kangsw::literals;
+        sd.store_image_in_colorspace("HSV"_hash, sd.hsv);
     }
 
     PIPEPP_ELAPSE_BLOCK("Table Area Edge Detection")

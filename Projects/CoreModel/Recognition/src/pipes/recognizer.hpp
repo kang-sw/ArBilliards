@@ -124,6 +124,7 @@ public:
     }
     void get_marker_points_model(std::vector<cv::Vec3f>& model) const;
     cv::Mat retrieve_image_in_colorspace(kangsw::hash_index hash);
+    void store_image_in_colorspace(kangsw::hash_index hash, cv::Mat v) { converted_resources_[hash] = std::move(v); }
 
     std::shared_ptr<shared_state> state_;
 

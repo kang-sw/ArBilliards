@@ -120,6 +120,7 @@ PIPEPP_EXECUTOR(ball_finder_executor)
     };    
 
     void operator()(pipepp::execution_context& ec, input_type& i, output_type& o);
+    void link(shared_data const& sd, input_type& i) {}
 };
 
 } // namespace billiards::pipes
