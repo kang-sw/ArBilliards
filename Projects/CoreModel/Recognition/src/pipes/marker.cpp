@@ -119,7 +119,6 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     auto& m = *impl_;
-    bool const option_dirty = ec.consume_option_dirty_flag();
     auto& imdesc = *in.p_imdesc;
     bool const show_debug = show_debug_mats(ec);
 
@@ -129,6 +128,7 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
     }
 
     // 옵션이 바뀐 경우 커널을 재생성합니다.
+    bool const option_dirty = ec.consume_option_dirty_flag();
     if (option_dirty) {
         PIPEPP_ELAPSE_SCOPE("Regenerate Kernels");
 

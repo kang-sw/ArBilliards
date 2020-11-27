@@ -212,7 +212,7 @@ PIPEPP_EXECUTOR(table_contour_geometric_search)
         PIPEPP_OPTION(min_area_ratio, 0.05, u8"전체 이미지 크기 대비, 유효한 것으로 계산되는 컨투어의 화면 넓이에 대한 비율입니다.");
     };
 
-    PIPEPP_CATEGORY(approx, "Approximation")
+    PIPEPP_CATEGORY(approx, "Approximation")  
     {
         PIPEPP_OPTION(epsilon0, 1.0, u8"컨투어 목록에 적용할 approxPolyDP() 함수 파라미터.", pipepp::verify::minimum(0.0));
         PIPEPP_OPTION(make_convex_hull, true);

@@ -229,7 +229,7 @@ pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_cont
         } else {
             out.rgb = std::move(rgb);
         }
-        rgb.copyTo(out.u_rgb);
+        out.rgb.copyTo(out.u_rgb);
     }
 
     PIPEPP_ELAPSE_BLOCK("Color convert")
