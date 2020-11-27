@@ -52,7 +52,7 @@ struct kernel_shader {
                   && kernel_pos_buf.extent.size() == kernel.extent.size());
 
         // Eye position은 암시적으로 원점입니다.
-        auto _kcp = value_cast<float3>(-kernel_center);
+        auto _kcp = value_cast<float3>(kernel_center);
         auto _lp = value_cast<float3>(light_pos);
 
         auto _bclor = value_cast<float3>(base_rgb);
@@ -75,7 +75,8 @@ struct kernel_shader {
               float3 p = kp + _kcp;
 
               // 시선 역방향 벡터 v가 노멀과 반대 방향을 보는 경우, 뒤집어줍니다.
-              if (m_::dot(-p, n) < 0.f) {
+              // 항상 Z=-1 방향을 봐야 합니다.
+              if (m_::dot(-float3(0, 0, p.z), n) < 0.f) {
                   p = _kcp - kp;
                   n = -n;
               }
@@ -104,7 +105,6 @@ struct kernel_shader {
 
               // 광원 조명 - 최종
               float3 C = c_d + c_s;
-              // +c_s;
 
               // 커널의 색공간 전환: 고정 사용
 
@@ -235,11 +235,8 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
     {
         cv::Vec3f world_pos = in.table_pos;
         cv::Vec3f world_rot = in.table_rot;
-
         auto inv_cam = imdesc.camera_transform.inv();
-        auto ball_color = colors::base_rgb(ec);
-        auto fresnel0 = colors::fresnel0(ec);
-        auto roughness = colors::roughness(ec);
+
         // 커널을 적용합니다.
         // 1. 중점 위치를 기준으로 모델 좌표의 광원을 먼저 월드 변환하고, 다시 카메라 시점으로 가져옵니다.
         // 2. 중점 좌표를 카메라 시점으로 가져옵니다.
@@ -247,6 +244,9 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
         using namespace std;
         using namespace cv;
         using namespace imgproc;
+        auto ball_color = colors::base_rgb(ec);
+        auto fresnel0 = colors::fresnel0(ec);
+        auto roughness = colors::roughness(ec);
 
         auto& m = *_m;
 
@@ -254,25 +254,21 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
         copy(m.lights_.begin(), m.lights_.end(), _lights.begin());
         span lights{_lights.begin(), m.lights_.size()};
 
+        auto world_tr = get_transform_matx_fast(world_pos, world_rot);
+
         Vec3f pivot_pos = world_pos;
         Vec3f pivot_rot = world_rot;
         world_to_camera(imdesc, pivot_rot, pivot_pos);
 
-        auto tr = get_transform_matx_fast(pivot_pos, pivot_rot);
-        auto crot_vec = normalize(pivot_pos.cross({0, 0, 1}));
-        auto angle = acosf(normalize(pivot_pos).dot({0, 0, 1}));
-        crot_vec *= angle;
-
-        auto centering_rotation = rodrigues(crot_vec);
-        centering_rotation = centering_rotation * submatx<0, 0, 3, 3>(tr);
-        copy_matx(tr, centering_rotation, 0, 0);
         for (auto& l : lights) {
-            l.pos = subvec<0, 3>(tr * concat_vec(l.pos, 1.f));
+            auto v = inv_cam * world_tr * concat_vec(l.pos, 1.f);
+            v[1] = -v[1];
+            l.pos = subvec<0, 3>(v);
         }
 
         helper::kernel_shader ks = {
           .kernel = *m.pkernel_src_coords_,
-          .kernel_center = centering_rotation * pivot_pos,
+          .kernel_center = pivot_pos,
           .base_rgb = ball_color,
           .fresnel0 = fresnel0,
           .roughness = roughness,
@@ -324,6 +320,7 @@ void billiards::pipes::ball_finder_executor::link(shared_data& sd, input_type& i
     i.table_rot = sd.table.rot;
     i.domain = sd.retrieve_image_in_colorspace(match::color_space(opt));
     i.p_imdesc = &sd.imdesc_bkup;
+    i.debug_mat = sd.debug_mat;
 
     // 중심 에어리어 마스크를 생성합니다.
     using namespace std;

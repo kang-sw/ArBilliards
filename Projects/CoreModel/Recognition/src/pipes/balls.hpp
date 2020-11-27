@@ -173,6 +173,7 @@ PIPEPP_EXECUTOR(ball_finder_executor)
 
         // 기타 기본 파라미터
         imgproc::img_t const* p_imdesc;
+        cv::Mat3b debug_mat;
     };
 
     struct output_type {
