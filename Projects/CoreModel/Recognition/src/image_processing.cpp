@@ -313,9 +313,8 @@ cv::Vec3f billiards::imgproc::set_filtered_table_rot(cv::Vec3f table_rot, cv::Ve
         new_rot = rotate_euler(new_rot, {0, (float)CV_PI, 0});
     }
 
-    return (1 - alpha) * table_rot + alpha * new_rot;
-
     if (norm(new_rot - table_rot) < jump_threshold) {
+        return (1 - alpha) * table_rot + alpha * new_rot;
     } else {
         return new_rot;
     }
@@ -324,8 +323,8 @@ cv::Vec3f billiards::imgproc::set_filtered_table_rot(cv::Vec3f table_rot, cv::Ve
 cv::Vec3f billiards::imgproc::set_filtered_table_pos(cv::Vec3f table_pos, cv::Vec3f new_pos, float alpha, float jump_threshold)
 {
     using namespace cv;
-    return (1 - alpha) * table_pos + alpha * new_pos;
     if (norm(new_pos - table_pos) < jump_threshold) {
+        return (1 - alpha) * table_pos + alpha * new_pos;
     } else {
         return new_pos;
     }
