@@ -73,6 +73,10 @@ PIPEPP_EXECUTOR(ball_finder_executor)
     {
         PIPEPP_OPTION(base_rgb, cv::Vec3b(255, 255, 232),
                       u8"공의 기본 RGB 색상입니다. 색상 계산 이후, 적합한 색공간으로 변환해 처리합니다.");
+        PIPEPP_OPTION(center_area_color_range_lo, cv::Vec3b(0, 0, 0),
+                      u8"중심이 될 수 있는 색상 영역을 결정합니다. HSV 색공간 기준");
+        PIPEPP_OPTION(center_area_color_range_hi, cv::Vec3b(0, 0, 0),
+                      u8"중심이 될 수 있는 색상 영역을 결정합니다. HSV 색공간 기준");
     };
 
     PIPEPP_CATEGORY(match, "Matching")
@@ -124,7 +128,7 @@ PIPEPP_EXECUTOR(ball_finder_executor)
     };
 
     void operator()(pipepp::execution_context& ec, input_type const& i, output_type& o);
-    static void link(shared_data & sd, input_type & i) {}
+    static void link(shared_data & sd, input_type & i, pipepp::options & opt);
 };
 
 } // namespace billiards::pipes

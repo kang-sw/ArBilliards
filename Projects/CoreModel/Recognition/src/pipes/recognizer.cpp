@@ -218,21 +218,22 @@ pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_cont
     auto width = std::min(src_size.width, desired_image_width(ec));
     auto height = int((int64_t)width * src_size.height / src_size.width);
 
-    PIPEPP_ELAPSE_BLOCK("Resizing")
+    PIPEPP_ELAPSE_BLOCK("RGBA to RGB")
     {
-        cv::UMat rgb;
+        cv::Mat rgb;
 
         cv::cvtColor(i.rgba, rgb, cv::COLOR_RGBA2RGB);
         if (width < src_size.width) {
-            cv::resize(rgb, out.u_rgb, {width, height});
+            PIPEPP_ELAPSE_SCOPE("Resizing");
+            cv::resize(rgb, out.rgb, {width, height});
         } else {
-            out.u_rgb = std::move(rgb);
+            out.rgb = std::move(rgb);
         }
+        rgb.copyTo(out.u_rgb);
     }
 
     PIPEPP_ELAPSE_BLOCK("Color convert")
     {
-        out.u_rgb.copyTo(out.rgb);
         cv::cvtColor(out.u_rgb, out.u_hsv, cv::COLOR_RGB2HSV);
         out.u_hsv.copyTo(out.hsv);
     }
