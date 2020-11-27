@@ -68,7 +68,7 @@ struct marker_search_to_solve {
 struct ball_position_mapping {
     int const index_offset;
 
-    void operator() (
+    void operator()(
       shared_data& sd,
       ball_finder_executor::output_type const& o) const
     {
@@ -194,6 +194,7 @@ cv::Mat billiards::pipes::shared_data::retrieve_image_in_colorspace(kangsw::hash
     int _ph0, to;
     imgproc::color_space_to_flag(hash, to, _ph0);
 
+    std::unique_lock _lck{lock_};
     if (to == -1) { return rgb; }
     auto [it, should_generate] = converted_resources_.try_emplace(hash);
 
@@ -202,6 +203,12 @@ cv::Mat billiards::pipes::shared_data::retrieve_image_in_colorspace(kangsw::hash
     }
 
     return it->second;
+}
+
+void billiards::pipes::shared_data::store_image_in_colorspace(kangsw::hash_index hash, cv::Mat v)
+{
+    std::unique_lock _lck{lock_};
+    converted_resources_.emplace(hash, std::move(v));
 }
 
 pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
