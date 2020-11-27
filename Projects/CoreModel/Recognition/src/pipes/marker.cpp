@@ -465,7 +465,7 @@ bool billiards::pipes::table_marker_finder::link(shared_data& sd, input_type& i,
     i.contour = sd.table.contour;
     sd.get_marker_points_model(i.marker_model);
 
-    auto colorspace = (filter::color_space(opt));
+    auto colorspace = (filter::filter_color_space(opt));
     i.domain = sd.retrieve_image_in_colorspace(colorspace);
     i.conv_domain = sd.retrieve_image_in_colorspace(filter::convolution_color_space(opt));
 

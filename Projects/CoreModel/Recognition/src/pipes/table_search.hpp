@@ -128,8 +128,8 @@ struct label_edge_detector {
     PIPEPP_CATEGORY(edge, "Edge")
     {
         PIPEPP_OPTION(pp_dilate_erode_count, 0u,
-                      u8"í´ëŸ¬ìŠ¤í„°ë¡œë¶€í„° ê³„ì‚°ëœ ì—ì§€ì˜ ë…¸ì´ì¦ˆë¥¼ ê°ì†Œì‹œí‚¤ê¸° ìœ„í•´ "
-                      "ê²½ê³„ì„ ì„ N ë²ˆ íŒ½ì°½ì‹œí‚¨ ë’¤ ë‹¤ì‹œ ì¹¨ì‹í•©ë‹ˆë‹¤.");
+                      u8"Å¬·¯½ºÅÍ·ÎºÎÅÍ °è»êµÈ ¿¡ÁöÀÇ ³ëÀÌÁî¸¦ °¨¼Ò½ÃÅ°±â À§ÇØ "
+                      "°æ°è¼±À» N ¹ø ÆØÃ¢½ÃÅ² µÚ ´Ù½Ã Ä§½ÄÇÕ´Ï´Ù.");
     };
 
     struct input_type {
@@ -144,7 +144,7 @@ struct label_edge_detector {
 };
 
 /**
- * ê²½ê³„ì„ ì„ íƒìƒ‰í•˜ëŠ” ì‹¤í–‰ê¸°
+ * °æ°è¼±À» Å½»öÇÏ´Â ½ÇÇà±â
  */
 class hough_line_executor {
     PIPEPP_DECLARE_OPTION_CLASS(hough_line_executor);
@@ -156,7 +156,7 @@ class hough_line_executor {
 
     PIPEPP_CATEGORY(hough, "Hough Lines")
     {
-        PIPEPP_OPTION(use_P_version, false, u8"í™œì„±í™” ì‹œ HoughLinesPë¥¼ ëŒ€ì‹  ì‚¬ìš©í•©ë‹ˆë‹¤.");
+        PIPEPP_OPTION(use_P_version, false, u8"È°¼ºÈ­ ½Ã HoughLinesP¸¦ ´ë½Å »ç¿ëÇÕ´Ï´Ù.");
         PIPEPP_OPTION(rho, 1.0, "", pipepp::verify::clamp(0.0, 1.0));
         PIPEPP_OPTION(theta, 180.0, "", pipepp::verify::clamp(1e-3, 180.0));
         PIPEPP_OPTION(threshold, 1, "", pipepp::verify::minimum(0));
@@ -187,13 +187,13 @@ public:
 };
 
 /**
- * TODO: êµ¬í˜„í•˜ê¸°
- * í´ëŸ¬ìŠ¤í„° ë¼ë²¨ ë°°ì—´ì˜ ê²½ê³„ì„  ì´ë¯¸ì§€ë¥¼ íšë“í•˜ê³ , ì—¬ê¸°ì„œ hough ë³€í™˜ì„ í†µí•´ ëª¨ë“  ì§ì„  í›„ë³´ë¥¼ ì°¾ìŠµë‹ˆë‹¤. ë§Œë‚˜ëŠ” ì§ì„ ë“¤ë¡œë¶€í„° ëª¨ë“  ì„ ë¶„ì„ ì°¾ì•„ë‚´ê³ , ì„ ë¶„ìœ¼ë¡œë¶€í„° êµ¬ì„±ë  ìˆ˜ ìžˆëŠ” ëª¨ë“  ë„í˜•ì„ ì°¾ì•„ëƒ…ë‹ˆë‹¤. ì´í›„ ê° ë„í˜•ì— ëŒ€í•´, ê° í´ëŸ¬ìŠ¤í„°ì˜ ì¤‘ì‹¬ì ì„ iterateí•´, í…Œì´ë¸” ìƒ‰ìƒê³¼ ê°€ê¹Œìš´ í´ëŸ¬ìŠ¤í„°ê°€ ê°€ìž¥ ë§Žì´ í¬í•¨ë˜ë©´ì„œ, í…Œì´ë¸” ìƒ‰ìƒì´ ì•„ë‹Œ í´ëŸ¬ìŠ¤í„°ë¥¼ ì „í˜€ í¬í•¨í•˜ì§€ ì•ŠëŠ” ê°€ìž¥ í° ë„í˜•ì„ ì°¾ì•„ëƒ…ë‹ˆë‹¤. ì´ê²ƒì´ í…Œì´ë¸”ì˜ í›„ë³´ ì‚¬ê°í˜•ì´ ë©ë‹ˆë‹¤.
+ * TODO: ±¸ÇöÇÏ±â
+ * Å¬·¯½ºÅÍ ¶óº§ ¹è¿­ÀÇ °æ°è¼± ÀÌ¹ÌÁö¸¦ È¹µæÇÏ°í, ¿©±â¼­ hough º¯È¯À» ÅëÇØ ¸ðµç Á÷¼± ÈÄº¸¸¦ Ã£½À´Ï´Ù. ¸¸³ª´Â Á÷¼±µé·ÎºÎÅÍ ¸ðµç ¼±ºÐÀ» Ã£¾Æ³»°í, ¼±ºÐÀ¸·ÎºÎÅÍ ±¸¼ºµÉ ¼ö ÀÖ´Â ¸ðµç µµÇüÀ» Ã£¾Æ³À´Ï´Ù. ÀÌÈÄ °¢ µµÇü¿¡ ´ëÇØ, °¢ Å¬·¯½ºÅÍÀÇ Áß½ÉÁ¡À» iterateÇØ, Å×ÀÌºí »ö»ó°ú °¡±î¿î Å¬·¯½ºÅÍ°¡ °¡Àå ¸¹ÀÌ Æ÷ÇÔµÇ¸é¼­, Å×ÀÌºí »ö»óÀÌ ¾Æ´Ñ Å¬·¯½ºÅÍ¸¦ ÀüÇô Æ÷ÇÔÇÏÁö ¾Ê´Â °¡Àå Å« µµÇüÀ» Ã£¾Æ³À´Ï´Ù. ÀÌ°ÍÀÌ Å×ÀÌºíÀÇ ÈÄº¸ »ç°¢ÇüÀÌ µË´Ï´Ù.
  *
- * ë³´ìˆ˜ì ì¸(ë„“ì€ ìŠ¤ë ˆìˆ„ë“œ) ê°’ìœ¼ë¡œ ì¶”ì¶œí•œ í…Œì´ë¸” ë§ˆìŠ¤í¬ ì˜ì—­ ë‚´ì—ì„œ, ëª¨ë“  ì§ì„  í›„ë³´ì˜ êµì ì„ ì°¾ìŠµë‹ˆë‹¤.
- * ê° êµì ì€ í…Œì´ë¸”ì˜ contour í›„ë³´ê°€ ë˜ë©°, 
- * í…Œì´ë¸” ìƒ‰ìƒ ë§ˆìŠ¤í¬ì—ì„œ ë³´ìˆ˜ì ì¸ ë°©ë²•ìœ¼ë¡œ ê°€ëŠ¥í•œ ëª¨ë“  ì»¨íˆ¬ì–´ë¥¼ ì¶”ì¶œí•˜ê³ , ApproxPolyDPë¥¼ ì ì€ ìˆ˜ì¤€ì—ì„œ ì ìš©í•œ ë’¤, ê°€ìž¥ ê¸´ ì»¨íˆ¬ì–´ 4ê°œ ì„ ë¶„ì„ êµ¬í•˜ê³  ì—°ìž¥ì„ ì˜ êµì  ëª©ë¡ì„ íšë“, ìƒˆë¡œìš´ ì»¨íˆ¬ì–´ë¡œ ì‚¼ìŠµë‹ˆë‹¤. (ê¸°í•˜ì  ë°©ë²•)
- * ë¶ˆì¶©ë¶„í•˜ë‹¤ë©´, superpixelì„ í™œìš©í•©ë‹ˆë‹¤. ê°€ê¸‰ì  ê°„ë‹¨í•˜ê²Œ êµ¬í˜„í•˜ê³  ë„˜ì–´ê°‘ì‹œë‹¤ ... ì‹œê°„ ë¶€ì¡±!
+ * º¸¼öÀûÀÎ(³ÐÀº ½º·¹¼ñµå) °ªÀ¸·Î ÃßÃâÇÑ Å×ÀÌºí ¸¶½ºÅ© ¿µ¿ª ³»¿¡¼­, ¸ðµç Á÷¼± ÈÄº¸ÀÇ ±³Á¡À» Ã£½À´Ï´Ù.
+ * °¢ ±³Á¡Àº Å×ÀÌºíÀÇ contour ÈÄº¸°¡ µÇ¸ç, 
+ * Å×ÀÌºí »ö»ó ¸¶½ºÅ©¿¡¼­ º¸¼öÀûÀÎ ¹æ¹ýÀ¸·Î °¡´ÉÇÑ ¸ðµç ÄÁÅõ¾î¸¦ ÃßÃâÇÏ°í, ApproxPolyDP¸¦ ÀûÀº ¼öÁØ¿¡¼­ Àû¿ëÇÑ µÚ, °¡Àå ±ä ÄÁÅõ¾î 4°³ ¼±ºÐÀ» ±¸ÇÏ°í ¿¬Àå¼±ÀÇ ±³Á¡ ¸ñ·ÏÀ» È¹µæ, »õ·Î¿î ÄÁÅõ¾î·Î »ï½À´Ï´Ù. (±âÇÏÀû ¹æ¹ý)
+ * ºÒÃæºÐÇÏ´Ù¸é, superpixelÀ» È°¿ëÇÕ´Ï´Ù. °¡±ÞÀû °£´ÜÇÏ°Ô ±¸ÇöÇÏ°í ³Ñ¾î°©½Ã´Ù ... ½Ã°£ ºÎÁ·!
  *
  */
 PIPEPP_EXECUTOR(table_contour_geometric_search)
@@ -209,14 +209,14 @@ PIPEPP_EXECUTOR(table_contour_geometric_search)
 
     PIPEPP_CATEGORY(filtering, "Filtering")
     {
-        PIPEPP_OPTION(min_area_ratio, 0.05, u8"ì „ì²´ ì´ë¯¸ì§€ í¬ê¸° ëŒ€ë¹„, ìœ íš¨í•œ ê²ƒìœ¼ë¡œ ê³„ì‚°ë˜ëŠ” ì»¨íˆ¬ì–´ì˜ í™”ë©´ ë„“ì´ì— ëŒ€í•œ ë¹„ìœ¨ìž…ë‹ˆë‹¤.");
+        PIPEPP_OPTION(min_area_ratio, 0.05, u8"ÀüÃ¼ ÀÌ¹ÌÁö Å©±â ´ëºñ, À¯È¿ÇÑ °ÍÀ¸·Î °è»êµÇ´Â ÄÁÅõ¾îÀÇ È­¸é ³ÐÀÌ¿¡ ´ëÇÑ ºñÀ²ÀÔ´Ï´Ù.");
     };
 
     PIPEPP_CATEGORY(approx, "Approximation")
     {
-        PIPEPP_OPTION(epsilon0, 1.0, u8"ì»¨íˆ¬ì–´ ëª©ë¡ì— ì ìš©í•  approxPolyDP() í•¨ìˆ˜ íŒŒë¼ë¯¸í„°.", pipepp::verify::minimum(0.0));
+        PIPEPP_OPTION(epsilon0, 1.0, u8"ÄÁÅõ¾î ¸ñ·Ï¿¡ Àû¿ëÇÒ approxPolyDP() ÇÔ¼ö ÆÄ¶ó¹ÌÅÍ.", pipepp::verify::minimum(0.0));
         PIPEPP_OPTION(make_convex_hull, true);
-        PIPEPP_OPTION(epsilon1, -1.0, u8"ì»¨ë²¡ìŠ¤ í— ì—°ì‚° ì´í›„ ì ìš©í•  approxPolyDP() íŒŒë¼ë¯¸í„°", pipepp::verify::minimum(0.0));
+        PIPEPP_OPTION(epsilon1, -1.0, u8"ÄÁº¤½º Çæ ¿¬»ê ÀÌÈÄ Àû¿ëÇÒ approxPolyDP() ÆÄ¶ó¹ÌÅÍ", pipepp::verify::minimum(0.0));
     };
 
     struct input_type {

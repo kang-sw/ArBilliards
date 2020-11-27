@@ -88,7 +88,7 @@ PIPEPP_EXECUTOR(table_marker_finder)
                       "[1] Lightness edge detector\n",
                       pipepp::verify::contains(0, 1));
 
-        PIPEPP_OPTION(color_space, "HSV"s, u8"마커의 필터를 적용할 색공간입니다.", verify::color_space_string_verify);
+        PIPEPP_OPTION(filter_color_space, "HSV"s, u8"유효 픽셀을 검출할 색공간입니다.", verify::color_space_string_verify);
         PIPEPP_OPTION(convolution_color_space, "HSV"s, u8"마커의 컨볼루션을 적용할 색공간입니다.", verify::color_space_string_verify);
 
         PIPEPP_CATEGORY(convolution, "Convolution")

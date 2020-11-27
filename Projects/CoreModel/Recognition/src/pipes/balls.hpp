@@ -109,6 +109,7 @@ PIPEPP_EXECUTOR(ball_finder_executor)
         cv::Mat3f domain;
 
         // 기타 기본 파라미터
+        imgproc::img_t const* p_imdesc;
     };
 
     struct output_type
