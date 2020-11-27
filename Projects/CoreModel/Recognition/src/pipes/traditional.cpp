@@ -189,6 +189,7 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
     auto& img = *i.img_ptr;
 
     o.confidence = 0;
+    o.can_jump = false;
     vector<Vec3f> obj_pts;
     get_table_model(obj_pts, i.table_fit_size);
 
