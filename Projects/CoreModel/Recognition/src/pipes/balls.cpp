@@ -4,9 +4,11 @@
 #include <amp_short_vectors.h>
 
 #include "../amp-math/helper.hxx"
+#include "kangsw/trivial.hxx"
 #include "pipepp/options.hpp"
 
-#undef max, min
+#undef max
+#undef min
 
 enum { NUM_TILES = 256 };
 
@@ -29,10 +31,10 @@ struct kernel_shader {
     Vec3f const& kernel_center;
 
     // 점광의 카메라 공간 트랜스폼입니다.
-    Vec3f const& light_pos;
+    Vec3f light_pos;
 
     // 점광의 프로퍼티 목록
-    Vec3f const& light_rgb;
+    Vec3f light_rgb;
 
     // 공의 프로퍼티 목록
     Vec3f const& base_rgb;
@@ -68,15 +70,16 @@ struct kernel_shader {
               namespace m_ = mathf;
               namespace fm_ = fast_math;
               // note. 카메라 위치는 항상 원점입니다.
-              float3 p = _kernel_src[idx];
-              float3 n = p - _kcp; // 좌표에서 커널 중심점을 뺀 값 = 노멀, 커널 길이는 항상 0이므로 ...
+              float3 n = _kernel_src[idx];
+              float3 p = n + _kcp;
 
               // 시선 역방향 벡터 v가 노멀과 반대 방향을 보는 경우, 뒤집어줍니다.
               float3 v = m_::normalize(-p);
-              if (m_::dot(v, n) < 0.f) {
+              /*if (m_::dot(v, n) < 0.f) {
                   p = p - 2.f * n;
                   n = -n;
-              }
+                  v = m_::normalize(-p);
+              }*/
 
               float3 L = m_::normalize(_lp - p);
 
@@ -105,8 +108,8 @@ struct kernel_shader {
               // 커널의 색공간 전환: 고정 사용
 
               // 값 저장
-              _o_kernel_rgb[idx] = C;
-              _o_kernel_pos[idx] = p.xy; // orthogonal projection
+              _o_kernel_rgb[idx] += C;
+              _o_kernel_pos[idx] = p.xy - _kcp.xy; // orthogonal projection
           });
     }
 };
@@ -118,17 +121,25 @@ using gpu_array = concurrency::array<Args_...>;
 using std::optional;
 using namespace concurrency::graphics::direct3d;
 
+struct point_light_t {
+    cv::Vec3f pos;
+    cv::Vec3f rgb;
+};
+
 struct billiards::pipes::ball_finder_executor::impl {
     std::vector<cv::Vec3f> pkernel_src_;
     std::vector<cv::Vec2f> nkernel_src_;
+    std::vector<point_light_t> lights_;
+
+    optional<gpu_array<float3>> pkernel_src_coords_;
 
     optional<gpu_array<float2>> nkernel_coords_;
     optional<gpu_array<float2>> pkernel_coords_;
-    optional<gpu_array<float3>> pkernel_rgb_;
+
+    optional<gpu_array<float3>> pkernel_colors_;
 };
 
-template <typename T> requires std::is_integral_v<T>
-  T n_align(T V, size_t N) { return (V + N - 1) / N * N; }
+template <typename T, typename R> requires std::is_integral_v<T> auto n_align(T V, R N) { return (V + N - 1) / N * N; }
 
 void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_context& ec, input_type const& in, output_type& o)
 {
@@ -139,6 +150,7 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
         return;
     }
 
+    auto& imdesc = *in.p_imdesc;
     bool const is_option_dirty = ec.consume_option_dirty_flag();
 
     if (debug::show_debug_mat(ec)) {
@@ -149,12 +161,13 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
     if (is_option_dirty) {
         // 양성 커널은 3D 점 집합입니다.
         auto n_kernel = n_align(kernel::n_dots(ec), NUM_TILES);
+        auto radius = kernel::ball_radius(ec);
         _m->pkernel_src_.clear();
         _m->nkernel_src_.clear();
 
         std::mt19937 rengine(kernel::random_seed(ec));
         for (auto _ : kangsw::counter(n_kernel)) {
-            imgproc::random_vector(rengine, _m->pkernel_src_.emplace_back(), 1.f);
+            imgproc::random_vector(rengine, _m->pkernel_src_.emplace_back(), radius);
         }
 
         // 음성 커널은 2D 벡터로 정의
@@ -164,10 +177,40 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
             imgproc::random_vector(
               rengine,
               _m->nkernel_src_.emplace_back(),
-              distr(rengine));
+              distr(rengine) * radius);
         }
 
         // 그래픽스 버퍼에 업로드
+        _m->nkernel_coords_.emplace(n_kernel, kangsw::ptr_cast<float2>(&_m->nkernel_src_[0]));
+        _m->pkernel_src_coords_.emplace(n_kernel, kangsw::ptr_cast<float3>(&_m->pkernel_src_[0]));
+        _m->pkernel_coords_.emplace(n_kernel);
+        _m->pkernel_colors_.emplace(n_kernel);
+    }
+
+    // 광원을 갱신합니다.
+    if (is_option_dirty) {
+        // 대상 위치와 회전에 커널을 둔 것으로 가정하고, 커널 위치를 카메라에 대한 상대 위치로 업데이트합니다.
+        struct light_t {
+            cv::Vec3f rgb, pos;
+        };
+
+        using lopts = colors::lights;
+        auto n_lights = colors::lights::n_lightings(ec);
+        light_t lights[5];
+        {
+            using l = lopts;
+            auto tup = std::make_tuple(l::l0{}, l::l1{}, l::l2{}, l::l3{}, l::l4{});
+            kangsw::tuple_for_each(
+              tup, [&]<typename Ty_ = l::l0>(Ty_ && arg, size_t i) {
+                  lights[i].pos = arg.pos(ec);
+                  lights[i].rgb = arg.rgb(ec);
+              });
+        }
+
+        _m->lights_.clear();
+        for (auto i : kangsw::counter(n_lights)) {
+            _m->lights_.emplace_back(lights[i].pos, lights[i].rgb);
+        }
     }
 
     // 템플릿 매칭을 수행합니다.
@@ -178,6 +221,88 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
     // 4. 0이 아닌 픽셀이 존재하면, 해당 그리드에 대해 셰이더 적용된 커널을 계산합니다.
     // 5.
     //
+
+    {
+        // 커널 초기화
+        using namespace concurrency;
+        array_view colors = *_m->pkernel_colors_;
+        parallel_for_each(
+          colors.extent,
+          [=](index<1> idx) restrict(amp) { colors[idx] = {}; });
+    }
+
+    {
+        cv::Vec3f world_pos = in.table_pos;
+        cv::Vec3f world_rot = in.table_rot;
+
+        auto inv_cam = imdesc.camera_transform.inv();
+        auto ball_color = colors::base_rgb(ec);
+        auto fresnel0 = colors::fresnel0(ec);
+        auto roughness = colors::roughness(ec);
+        // 커널을 적용합니다.
+        // 1. 중점 위치를 기준으로 모델 좌표의 광원을 먼저 월드 변환하고, 다시 카메라 시점으로 가져옵니다.
+        // 2. 중점 좌표를 카메라 시점으로 가져옵니다.
+        // 3. 커널 적용
+        using namespace std;
+        using namespace cv;
+        using namespace imgproc;
+
+        auto& m = *_m;
+
+        array<point_light_t, N_MAX_LIGHT> _lights;
+        copy(m.lights_.begin(), m.lights_.end(), _lights.begin());
+        span lights{_lights.begin(), m.lights_.size()};
+
+        auto world_tr = get_transform_matx_fast(world_pos, world_rot);
+        for (auto& l : lights) {
+            l.pos = subvec<0, 3>(inv_cam * (world_tr * concat_vec(l.pos, 1.f)).mul({1, -1.f, 1}));
+        }
+
+        Vec3f pivot_pos = world_pos;
+        Vec3f pivot_rot = world_rot;
+        world_to_camera(imdesc, pivot_rot, pivot_pos);
+
+        helper::kernel_shader ks = {
+          .kernel = *m.pkernel_src_coords_,
+          .kernel_center = pivot_pos,
+          .base_rgb = ball_color,
+          .fresnel0 = fresnel0,
+          .roughness = roughness,
+
+          .kernel_pos_buf = *m.pkernel_coords_,
+          .kernel_rgb_buf = *m.pkernel_colors_,
+        };
+
+        for (auto const& l : lights) {
+            ks.light_pos = l.pos;
+            ks.light_rgb = l.rgb;
+
+            ks();
+        }
+
+        // ~done
+
+        if (debug::show_debug_mat(ec)) {
+            // Download kernel
+            vector<float2> positions = *m.pkernel_coords_;
+            vector<float3> colors = *m.pkernel_colors_;
+
+            auto scale = debug::kernel_display_scale(ec);
+            Mat3b target(scale, scale, {0, 0, 0});
+            int mult = (scale / 4) / kernel::ball_radius(ec);
+            int ofst = scale / 2;
+            int rad = 0; // scale / 100;
+
+            for (auto [_p, _c] : kangsw::zip(positions, colors)) {
+                auto pos = Vec2i((mult * kangsw::value_cast<Vec2f>(_p)) + Vec2f(ofst, ofst));
+                auto col = Vec3b(255 * kangsw::value_cast<Vec3f>(_c));
+
+                circle(target, pos, rad, col, -1);
+            }
+
+            PIPEPP_STORE_DEBUG_DATA("Real time kernel", (Mat)target);
+        }
+    }
 }
 
 void billiards::pipes::ball_finder_executor::link(shared_data& sd, input_type& i, pipepp::options& opt)
@@ -221,7 +346,3 @@ billiards::pipes::ball_finder_executor::ball_finder_executor()
 }
 
 billiards::pipes::ball_finder_executor::~ball_finder_executor() = default;
-
-void billiards::pipes::ball_finder_executor::_update_kernel(cv::Vec3f world_pos, cv::Vec3f world_rot)
-{
-}

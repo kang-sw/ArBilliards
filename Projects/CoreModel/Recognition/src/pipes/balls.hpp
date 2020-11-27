@@ -1,8 +1,12 @@
 #pragma once
+#include <opencv2/core/base.hpp>
+
 #include "recognizer.hpp"
 
 namespace billiards::pipes {
 using namespace std::literals;
+
+enum { N_MAX_LIGHT = 5 };
 
 /**
  *  공 탐색은 개괄적으로 다음과 같은 절차를 따릅니다.
@@ -45,14 +49,17 @@ PIPEPP_EXECUTOR(ball_finder_executor)
     {
         PIPEPP_OPTION(show_debug_mat, false);
         PIPEPP_OPTION(show_realtime_kernel, false);
+        PIPEPP_OPTION(kernel_display_scale, 200u);
     };
 
     PIPEPP_CATEGORY(kernel, "Kernels")
     {
+        PIPEPP_OPTION(ball_radius, 0.03029f, u8"공의 반지름 in metric",
+                      pipepp::verify::minimum(0.f));
         PIPEPP_OPTION(n_dots, 1600u,
                       u8"커널에서 양으로 평가되는 점의 개수입니다."
                       " 음성 커널 또한 같은 개수로 생성됩니다.",
-                      pipepp::verify::minimum(1u)); 
+                      pipepp::verify::minimum(1u));
         PIPEPP_OPTION(random_seed, 42u);
         PIPEPP_OPTION(positive_weight_range, cv::Vec2f(0, 1),
                       u8"양의 가중치로 평가되는 커널 구간입니다.\n"
@@ -74,12 +81,56 @@ PIPEPP_EXECUTOR(ball_finder_executor)
 
     PIPEPP_CATEGORY(colors, "Colors")
     {
-        PIPEPP_OPTION(base_rgb, cv::Vec3b(255, 255, 232),
-                      u8"공의 기본 RGB 색상입니다. 색상 계산 이후, 적합한 색공간으로 변환해 처리합니다.");
+        PIPEPP_OPTION(base_rgb, cv::Vec3f(1, 1, 1),
+                      u8"공의 기본 RGB 색상입니다. 색상 계산 이후, 적합한 색공간으로 변환해 처리합니다.",
+                      pipepp::verify::minimum_all<cv::Vec3f>(0.f));
+        PIPEPP_OPTION(fresnel0, cv::Vec3f(0.05, 0.05, 0.05), "",
+                      pipepp::verify::minimum_all<cv::Vec3f>(0.f));
+        PIPEPP_OPTION(roughness, 0.05f, "", pipepp::verify::minimum(0.f));
         PIPEPP_OPTION(center_area_color_range_lo, cv::Vec3b(0, 0, 0),
                       u8"중심이 될 수 있는 색상 영역을 결정합니다. HSV 색공간 기준");
         PIPEPP_OPTION(center_area_color_range_hi, cv::Vec3b(0, 0, 0),
                       u8"중심이 될 수 있는 색상 영역을 결정합니다. HSV 색공간 기준");
+
+        PIPEPP_CATEGORY(lights, "Lights")
+        {
+            PIPEPP_OPTION(n_lightings, 1u,
+                          u8"조명의 개수입니다. 최대 5개 제한. \n"
+                          "조명의 위치는 Unity 좌표계에서, 테이블에 대한 상대 위치입니다."
+                          " 테이블의 상하 방향 인식은 항상 보장되지만, 전방과 후방 방향은 인식이 "
+                          " 갱신될 때마다 새로 설정될 가능성이 존재하므로 가급적 조명은"
+                          " Y축(종축)을 기준으로 대칭이 되게끔 배치해야 합니다.",
+                          pipepp::verify::maximum(5u));
+            PIPEPP_OPTION(ambient_rgb, cv::Vec3f(0.2, 0.2, 0.2),
+                          u8"환경 조명의 밝기입니다.",
+                          pipepp::verify::minimum_all<cv::Vec3f>(0.f));
+
+            PIPEPP_CATEGORY(l0, "0")
+            {
+                PIPEPP_OPTION(pos, cv::Vec3f(0, 1, 0));
+                PIPEPP_OPTION(rgb, cv::Vec3f(1, 1, 1), "", pipepp::verify::minimum_all<cv::Vec3f>(0.f));
+            };
+            PIPEPP_CATEGORY(l1, "1")
+            {
+                PIPEPP_OPTION(pos, cv::Vec3f(0, 1, 0));
+                PIPEPP_OPTION(rgb, cv::Vec3f(1, 1, 1), "", pipepp::verify::minimum_all<cv::Vec3f>(0.f));
+            };
+            PIPEPP_CATEGORY(l2, "2")
+            {
+                PIPEPP_OPTION(pos, cv::Vec3f(0, 1, 0));
+                PIPEPP_OPTION(rgb, cv::Vec3f(1, 1, 1), "", pipepp::verify::minimum_all<cv::Vec3f>(0.f));
+            };
+            PIPEPP_CATEGORY(l3, "3")
+            {
+                PIPEPP_OPTION(pos, cv::Vec3f(0, 1, 0));
+                PIPEPP_OPTION(rgb, cv::Vec3f(1, 1, 1), "", pipepp::verify::minimum_all<cv::Vec3f>(0.f));
+            };
+            PIPEPP_CATEGORY(l4, "4")
+            {
+                PIPEPP_OPTION(pos, cv::Vec3f(0, 1, 0));
+                PIPEPP_OPTION(rgb, cv::Vec3f(1, 1, 1), "", pipepp::verify::minimum_all<cv::Vec3f>(0.f));
+            };
+        };
     };
 
     PIPEPP_CATEGORY(match, "Matching")
@@ -141,9 +192,6 @@ PIPEPP_EXECUTOR(ball_finder_executor)
 public:
     ball_finder_executor();
     ~ball_finder_executor();
-
-private:
-    void _update_kernel(cv::Vec3f world_pos, cv::Vec3f world_rot);
 
 private:
     struct impl;
