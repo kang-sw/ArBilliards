@@ -301,7 +301,14 @@ cv::Vec3f billiards::imgproc::rotate_euler(cv::Vec3f target, cv::Vec3f rvec)
 
 cv::Vec3f billiards::imgproc::set_filtered_table_rot(cv::Vec3f table_rot, cv::Vec3f new_rot, float alpha, float jump_threshold)
 {
-    // 180도 회전한 경우, 다시 180도 돌려줍니다.
+    // 테이블 노멀이 위를 향하게 합니다. (아래를 향하면 뒤집어 줌)
+    cv::Vec3f up(0, 1, 0);
+    up = rodrigues(new_rot) * up;
+    if (up[1] < 0) {
+        new_rot = rotate_euler(new_rot, {CV_PI, 0, 0});
+    }
+
+    // 각 축에 대해, 180도 이상 차이나는 회전을 잡아줍니다.
     if (norm(table_rot - new_rot) > (170.0f) * CV_PI / 180.0f) {
         new_rot = rotate_euler(new_rot, {0, (float)CV_PI, 0});
     }
