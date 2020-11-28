@@ -99,7 +99,7 @@ struct kernel_shader {
               float3 c_d = _lclor * _bclor * lambert;
 
               // 반영 조명 계산
-              auto f0 = 1 - m_::Max(m_::dot(L, n), 0.f);
+              auto f0 = 1 - m_::Max(m_::dot(L, h), 0.f);
               float3 R_F = _fresnel + (1 - _fresnel) * f0 * f0 * f0 * f0 * f0;
 
               // 러프니스 계산
@@ -177,10 +177,13 @@ void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution
     Vec3f pivot_rot = loc_table_rot;
     auto tr = get_transform_matx_fast(pivot_pos, pivot_rot);
 
+    // loc_sample_pos -= pivot_pos.mul({1, 1, 0});
     for (auto& l : lights) {
         auto v = tr * concat_vec(l.pos, 1.f);
         l.pos = subvec<0, 3>(v);
+        // l.pos -= pivot_pos.mul({1, 1, 0});
     }
+    // pivot_pos.mul({0, 0, 1});
 
     // Apply ambient light first
     using namespace concurrency;
@@ -195,7 +198,7 @@ void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution
 
     helper::kernel_shader ks = {
       .kernel = *m.pkernel_src_coords,
-      .kernel_center = pivot_pos,
+      .kernel_center = loc_sample_pos,
       .base_rgb = ball_color,
       .fresnel0 = fresnel0,
       .roughness = roughness,
