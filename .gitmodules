@@ -10,3 +10,6 @@
 [submodule "Projects/CoreModel/third/gSLICr"]
 	path = Projects/CoreModel/third/gSLICr
 	url = https://github.com/carlren/gSLICr.git
+[submodule "Projects/CoreModel/third/templates"]
+	path = Projects/CoreModel/third/templates
+	url = https://github.com/kang-sw/templates.git
