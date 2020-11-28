@@ -122,7 +122,7 @@ void billiards::imgproc::project_points(std::vector<cv::Vec3f> const& points, cv
 cv::Matx44f billiards::imgproc::get_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot)
 {
     using namespace cv;
-    Matx44f world_transform = {};
+    auto world_transform = Matx44f::zeros();
     world_transform(3, 3) = 1.0f;
     {
         world_transform.val[3] = pos[0];

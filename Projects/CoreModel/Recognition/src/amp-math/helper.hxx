@@ -61,9 +61,9 @@ float3 rgb2xyz(float3 c) __GPU
       dot(c, f3(0.0000f, 0.0660f, 1.1120f))};
 }
 
+template <typename LTy_>
+auto Max(LTy_ const& l, LTy_ const& r) __GPU { return l > r ? l : r; }
 template <typename LTy_, typename RTy_>
-auto Max(LTy_ const& l, RTy_ const& r) __GPU { return l > r ? l : r; }
-template <typename LTy_, typename RTy_>
-auto Min(LTy_ const& l, RTy_ const& r) __GPU { return l < r ? l : r; }
+auto Min(LTy_ const& l, LTy_ const& r) __GPU { return l < r ? l : r; }
 
 } // namespace billiards::mathf

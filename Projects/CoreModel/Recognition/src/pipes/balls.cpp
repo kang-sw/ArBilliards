@@ -158,7 +158,7 @@ struct billiards::pipes::ball_finder_executor::impl {
 
 template <typename T, typename R> requires std::is_integral_v<T> auto n_align(T V, R N) { return ((V + N - 1) / N) * N; }
 
-void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution_context& ec, billiards::recognizer_t::frame_desc const& imdesc, cv::Vec3f world_pos, cv::Vec3f world_rot)
+void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution_context& ec, billiards::recognizer_t::frame_desc const& imdesc, cv::Vec3f loc_table_pos, cv::Vec3f loc_table_rot, cv ::Vec3f loc_sample_pos)
 {
     using namespace std;
     using namespace cv;
@@ -173,16 +173,12 @@ void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution
     copy(m.lights.begin(), m.lights.end(), _lights.begin());
     span lights{_lights.begin(), m.lights.size()};
 
-    auto world_tr = get_transform_matx_fast(world_pos, world_rot);
-
-    Vec3f pivot_pos = world_pos;
-    Vec3f pivot_rot = world_rot;
-    world_to_camera(imdesc, pivot_rot, pivot_pos);
-    auto inv_cam = imdesc.camera_transform.inv();
+    Vec3f pivot_pos = loc_table_pos;
+    Vec3f pivot_rot = loc_table_rot;
+    auto tr = get_transform_matx_fast(pivot_pos, pivot_rot);
 
     for (auto& l : lights) {
-        auto v = inv_cam * world_tr * concat_vec(l.pos, 1.f);
-        v[1] = -v[1];
+        auto v = tr * concat_vec(l.pos, 1.f);
         l.pos = subvec<0, 3>(v);
     }
 
@@ -192,7 +188,8 @@ void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution
     array_view colors = *_m->pkernel_colors;
     parallel_for_each(
       colors.extent,
-      [=, bc_ = kangsw::value_cast<float3>(ball_color)](index<1> idx) restrict(amp) {
+      [=, bc_ = kangsw::value_cast<float3>(ball_color)] //
+      (index<1> idx) restrict(amp) {
           colors[idx] = bc_ * ambient;
       });
 
@@ -202,7 +199,7 @@ void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution
       .base_rgb = ball_color,
       .fresnel0 = fresnel0,
       .roughness = roughness,
-      .ball_radius= kernel::ball_radius(ec),
+      .ball_radius = kernel::ball_radius(ec),
 
       .kernel_pos_buf = *m.pkernel_coords,
       .kernel_rgb_buf = *m.pkernel_colors,
@@ -233,7 +230,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     auto grid_size = match::optimize::grid_size(ec);
     {
         auto s = in.center_area_mask.size();
-        auto nx = n_align(s.width, grid_size) - s.width ;
+        auto nx = n_align(s.width, grid_size) - s.width;
         auto ny = n_align(s.height, grid_size) - s.height;
 
         if (nx || ny) {
@@ -253,6 +250,8 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     auto table_plane = plane_t::from_rp(in.table_rot, in.table_pos, {0, 1, 0});
     auto& imdesc = *in.p_imdesc;
     plane_to_camera(imdesc, table_plane, table_plane);
+    Vec3f local_table_pos = in.table_pos, local_table_rot = in.table_rot;
+    world_to_camera(imdesc, local_table_rot, local_table_pos);
 
     // Vector zipping ...
     struct {
@@ -286,6 +285,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     size_t grid_pxl_threshold = std::max<size_t>(1, match::optimize::grid_area_threshold(ec) * grid_size * grid_size);
     std::queue<array_view<float>> pending_suits; // 매 루프의 ~array_view()에서 sync 호출되는 것을 막기 위함
 
+    std::vector<Vec2i> _mcache_points;
     Rect roi_grid{0, 0, grid_size, grid_size};
     Mat1b grid;
     for (auto gidx : counter(center_mask.rows / grid_size, center_mask.cols / grid_size)) //
@@ -296,13 +296,15 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
 
         // -- 그리드 영역의 유효 픽셀 카운트
         auto start_idx = smpl.pos.size();
-        for (auto [row, col] : counter(grid_size, grid_size)) {
-            if (grid(row, col)) { smpl.pos.emplace_back(col, row); }
-        }
-        auto n_valid_pxls = smpl.pos.size() - start_idx;
+
+        _mcache_points.clear();
+        findNonZero(grid, _mcache_points);
+        smpl.pos.insert(smpl.pos.end(), _mcache_points.begin(), _mcache_points.end());
+
         smpl.distance.resize(smpl.pos.size());
         smpl.suits.resize(smpl.pos.size());
 
+        auto n_valid_pxls = smpl.pos.size() - start_idx;
         span pos{smpl.pos.begin() + start_idx, n_valid_pxls};
         span dists{smpl.distance.begin() + start_idx, n_valid_pxls};
         span suits{smpl.suits.begin() + start_idx, n_valid_pxls};
@@ -316,14 +318,11 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         float mean_distance = 0;
         float n_valid_centers = 0;
         for (auto [p, d] : kangsw::zip(pos, dists)) {
-            Vec3f dest(p[0] + roi_grid.x, p[1]  + roi_grid.y, 10.f); // 10미터 이상의 픽셀은 취급하지 않습니다.
+            Vec3f dest(p[0] + roi_grid.x, p[1] + roi_grid.y, 10.f); // 10미터 이상의 픽셀은 취급하지 않습니다.
             get_point_coord_3d(imdesc, dest[0], dest[1], 10.f);
             if (auto pt = table_plane.find_contact({}, dest)) {
                 // 월드 좌표로 변환
-                Vec3f world_pt = subvec<0, 3>(imdesc.camera_transform * concat_vec(*pt, 1.f));
-                world_pt[1] = -world_pt[1];
-
-                grid_center_pos += world_pt;
+                grid_center_pos += *pt;
                 screen_center_pos += p;
                 mean_distance += d = (*pt)[2]; // 거리 저장
 
@@ -335,7 +334,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         mean_distance /= n_valid_centers;
 
         // -- 그리드의 중점으로부터, 월드 좌표 계산해 커널 업데이트
-        _update_kernel_by(ec, imdesc, grid_center_pos, in.table_rot);
+        _update_kernel_by(ec, imdesc, local_table_pos, local_table_rot, grid_center_pos);
         auto& _pkernel_coords = _m->pkernel_coords.value();
         auto& _pkernel_colors = _m->pkernel_colors.value();
         auto& _nkernel_coords = _m->nkernel_coords.value();
@@ -377,7 +376,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         {
             roi_grid.y = gidx[0] * grid_size;
             roi_grid.x = gidx[1] * grid_size;
-            rectangle(debug, roi_grid + Size(1,1), {0.25, 0.25, 0.25});
+            rectangle(debug, roi_grid + Size(1, 1), {0.25, 0.25, 0.25});
         }
         PIPEPP_STORE_DEBUG_DATA("Grid Center Rendering Result", (Mat)debug);
     }
@@ -481,7 +480,9 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
 
         PIPEPP_ELAPSE_BLOCK("Update kernel then download")
         {
-            _update_kernel_by(ec, imdesc, in.table_pos, in.table_rot);
+            Vec3f loc_pos = in.table_pos, loc_rot = in.table_rot;
+            imgproc::world_to_camera(imdesc, loc_rot, loc_pos);
+            _update_kernel_by(ec, imdesc, loc_pos, loc_rot, loc_pos);
 
             positions = *m.pkernel_coords;
             colors = *m.pkernel_colors;

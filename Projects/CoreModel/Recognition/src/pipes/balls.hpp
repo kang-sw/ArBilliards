@@ -1,5 +1,11 @@
 #pragma once
 #include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
+#include <opencv2/core/base.hpp>
 
 #include "recognizer.hpp"
 
@@ -203,7 +209,7 @@ public:
     ~ball_finder_executor();
 
 private:
-    void _update_kernel_by(pipepp::execution_context & ec, imgproc::img_t const& imdesc, cv::Vec3f world_pos, cv::Vec3f world_rot);
+    void _update_kernel_by(pipepp::execution_context & ec, imgproc::img_t const& imdesc, cv::Vec3f , cv::Vec3f,cv::Vec3f);
     void _internal_loop(pipepp::execution_context& ec, input_type const& in, output_type& o);
 
 private:
