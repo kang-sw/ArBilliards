@@ -55,7 +55,7 @@ PIPEPP_EXECUTOR(ball_finder_executor)
     PIPEPP_CATEGORY(kernel, "Kernels")
     {
         PIPEPP_OPTION(ball_radius, 0.03029f, u8"공의 반지름 in metric",
-                      pipepp::verify::minimum(0.f));
+                      pipepp::verify::minimum(1e-4f));
         PIPEPP_OPTION(n_dots, 1600u,
                       u8"커널에서 양으로 평가되는 점의 개수입니다."
                       " 음성 커널 또한 같은 개수로 생성됩니다.",

@@ -13,7 +13,7 @@
 #undef max
 #undef min
 
-enum { NUM_TILES = 256 };
+enum { NUM_TILES = 128 };
 
 namespace helper {
 namespace {
@@ -44,6 +44,8 @@ struct kernel_shader {
     Vec3f const& fresnel0;
     float const roughness;
 
+    float const ball_radius;
+
     // 출력 커널입니다.
     // 길이는 반드시 kernel과 같아야 합니다.
     array_view<float_2> const& kernel_pos_buf;
@@ -67,6 +69,7 @@ struct kernel_shader {
         auto& _o_kernel_pos = kernel_pos_buf;
         auto& _o_kernel_rgb = kernel_rgb_buf;
 
+        auto _brad = ball_radius;
         parallel_for_each(
           kernel.extent,
           [=](index<1> idx) restrict(amp) {
@@ -113,7 +116,7 @@ struct kernel_shader {
 
               // 값 저장
               _o_kernel_rgb[idx] += C;
-              _o_kernel_pos[idx] = p.xy - _kcp.xy; // orthogonal projection
+              _o_kernel_pos[idx] = (p.xy - _kcp.xy) / _brad; // orthogonal projection
           });
     }
 };
@@ -153,7 +156,7 @@ struct billiards::pipes::ball_finder_executor::impl {
     optional<gpu_array<float3>> pkernel_colors;
 };
 
-template <typename T, typename R> requires std::is_integral_v<T> auto n_align(T V, R N) { return (V + N - 1) / N * N; }
+template <typename T, typename R> requires std::is_integral_v<T> auto n_align(T V, R N) { return ((V + N - 1) / N) * N; }
 
 void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution_context& ec, billiards::recognizer_t::frame_desc const& imdesc, cv::Vec3f world_pos, cv::Vec3f world_rot)
 {
@@ -199,6 +202,7 @@ void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution
       .base_rgb = ball_color,
       .fresnel0 = fresnel0,
       .roughness = roughness,
+      .ball_radius= kernel::ball_radius(ec),
 
       .kernel_pos_buf = *m.pkernel_coords,
       .kernel_rgb_buf = *m.pkernel_colors,
@@ -215,22 +219,27 @@ void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution
 void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_context& ec, billiards::pipes::ball_finder_executor::input_type const& in, billiards::pipes::ball_finder_executor::output_type& o)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
+    CV_Assert(_m->pkernel_src.size() == _m->nkernel_src.size());
 
     using std::span;
     using namespace cv;
     using namespace concurrency;
+    using namespace imgproc;
     using namespace kangsw::counters;
 
     // 중심 픽셀 영역을 그리드 도메인에 맞춥니다.
-    Mat1b centers;
+    Mat1b center_mask;
+    auto image_size = in.domain.size();
     auto grid_size = match::optimize::grid_size(ec);
     {
         auto s = in.center_area_mask.size();
-        auto nx = n_align(s.width, grid_size);
-        auto ny = n_align(s.width, grid_size);
+        auto nx = n_align(s.width, grid_size) - s.width ;
+        auto ny = n_align(s.height, grid_size) - s.height;
 
         if (nx || ny) {
-            cv::copyMakeBorder(in.center_area_mask, centers, 0, ny, 0, nx, cv::BORDER_DEFAULT);
+            cv::copyMakeBorder(in.center_area_mask, center_mask, 0, ny, 0, nx, cv::BORDER_CONSTANT);
+        } else {
+            center_mask = in.center_area_mask.isContinuous() ? in.center_area_mask : in.center_area_mask.clone();
         }
     }
 
@@ -240,7 +249,10 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
 
     // TODO ... color convert?
 
-    Rect roi_grid{0, 0, grid_size, grid_size};
+    // 테이블 평면
+    auto table_plane = plane_t::from_rp(in.table_rot, in.table_pos, {0, 1, 0});
+    auto& imdesc = *in.p_imdesc;
+    plane_to_camera(imdesc, table_plane, table_plane);
 
     // Vector zipping ...
     struct {
@@ -248,47 +260,127 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         vector<float> distance;
         vector<float> suits;
     } smpl;
-    smpl.pos.reserve(centers.size().area() / 10);
-    smpl.distance.reserve(centers.size().area() / 10);
-    smpl.suits.reserve(centers.size().area() / 10);
+    smpl.pos.reserve(center_mask.size().area() / 10);
+    smpl.distance.reserve(center_mask.size().area() / 10);
+    smpl.suits.reserve(center_mask.size().area() / 10);
 
+    // Intermediate buffer - 계산 결과를 저장할 버퍼입니다.
+    // grid_size*grid_size의 extent는 최대치로, 실제로는 해당 그리드 내의 유효 픽셀 개수만큼만 사용됩니다.
+    auto n_kernel_dots = _m->pkernel_src.size();
+    auto n_vertical_tiles = n_kernel_dots / NUM_TILES;
+    array<float, 2> gpu_intermediate_suits{int(grid_size * grid_size), (int)n_vertical_tiles};
+
+    // 디버그 정보 렌더 ...
+    bool const show_debug = debug::show_debug_mat(ec);
+    Mat3f debug;
+    optional<array_view<float3, 2>> u_debug;
+    if (show_debug) {
+        in.debug_mat.convertTo(debug, CV_32FC3, 1 / 255.f);
+        u_debug.emplace(debug.rows, debug.cols, debug.ptr<float3>());
+    }
+
+    // 공 반지름 ...
+    auto ball_radius = kernel::ball_radius(ec);
+
+    // GRID operation 수행
     size_t grid_pxl_threshold = std::max<size_t>(1, match::optimize::grid_area_threshold(ec) * grid_size * grid_size);
-    std::queue<array_view<float>> pending_suits;
+    std::queue<array_view<float>> pending_suits; // 매 루프의 ~array_view()에서 sync 호출되는 것을 막기 위함
 
-    for (Mat1b grid;
-         auto gidx : counter(domain.rows / grid_size, domain.cols / grid_size)) //
+    Rect roi_grid{0, 0, grid_size, grid_size};
+    Mat1b grid;
+    for (auto gidx : counter(center_mask.rows / grid_size, center_mask.cols / grid_size)) //
     {
-        roi_grid.x = gidx[0] * grid_size;
-        roi_grid.y = gidx[1] * grid_size;
-        grid = in.center_area_mask(roi_grid);
+        roi_grid.y = gidx[0] * grid_size;
+        roi_grid.x = gidx[1] * grid_size;
+        grid = center_mask(roi_grid);
 
         // -- 그리드 영역의 유효 픽셀 카운트
         auto start_idx = smpl.pos.size();
         for (auto [row, col] : counter(grid_size, grid_size)) {
-            if (grid(row, col)) { smpl.pos.emplace_back(row, col); }
+            if (grid(row, col)) { smpl.pos.emplace_back(col, row); }
         }
+        auto n_valid_pxls = smpl.pos.size() - start_idx;
         smpl.distance.resize(smpl.pos.size());
         smpl.suits.resize(smpl.pos.size());
 
-        span pos{smpl.pos.begin() + start_idx, smpl.pos.end()};
-        span dists{smpl.distance.begin() + start_idx, smpl.distance.end()};
-        span suits{smpl.suits.begin() + start_idx, smpl.suits.end()};
+        span pos{smpl.pos.begin() + start_idx, n_valid_pxls};
+        span dists{smpl.distance.begin() + start_idx, n_valid_pxls};
+        span suits{smpl.suits.begin() + start_idx, n_valid_pxls};
 
         //  +- 유효 픽셀이 일정 퍼센트 이하이면 그리드를 discard
-        if (smpl.pos.size() < grid_pxl_threshold) { continue; }
+        if (pos.size() < grid_pxl_threshold) { continue; }
 
         // -- 유효 픽셀 각각의 거리 계산(평면에 투사)
+        Vec3f grid_center_pos = {0, 0, 0}; // 좌표 벡터의 평균을 중점으로 삼습니다.
+        Vec2f screen_center_pos = {0, 0};  // 그리드 중점의 픽셀 좌표 표현
+        float mean_distance = 0;
+        float n_valid_centers = 0;
+        for (auto [p, d] : kangsw::zip(pos, dists)) {
+            Vec3f dest(p[0] + roi_grid.x, p[1]  + roi_grid.y, 10.f); // 10미터 이상의 픽셀은 취급하지 않습니다.
+            get_point_coord_3d(imdesc, dest[0], dest[1], 10.f);
+            if (auto pt = table_plane.find_contact({}, dest)) {
+                // 월드 좌표로 변환
+                Vec3f world_pt = subvec<0, 3>(imdesc.camera_transform * concat_vec(*pt, 1.f));
+                world_pt[1] = -world_pt[1];
 
+                grid_center_pos += world_pt;
+                screen_center_pos += p;
+                mean_distance += d = (*pt)[2]; // 거리 저장
+
+                ++n_valid_centers;
+            }
+        }
+        grid_center_pos /= n_valid_centers;
+        screen_center_pos /= n_valid_centers;
+        mean_distance /= n_valid_centers;
 
         // -- 그리드의 중점으로부터, 월드 좌표 계산해 커널 업데이트
-        cv::Vec2i center = roi_grid.tl() + (Point)roi_grid.size() / 2;
+        _update_kernel_by(ec, imdesc, grid_center_pos, in.table_rot);
+        auto& _pkernel_coords = _m->pkernel_coords.value();
+        auto& _pkernel_colors = _m->pkernel_colors.value();
+        auto& _nkernel_coords = _m->nkernel_coords.value();
+        auto grid_ofst = kangsw::value_cast<int2>(roi_grid.tl());
+        auto ball_pixel_radius = get_pixel_length(imdesc, ball_radius, 1.0f);
+
+        // 필요하다면, 디버그 데이터 렌더링
+        if (show_debug) {
+            parallel_for_each(
+              _pkernel_coords.extent,
+              [=, target = *u_debug,
+               local_center = kangsw::value_cast<float2>(screen_center_pos),
+               pkernel_coords = array_view{_pkernel_coords},
+               pkernel_colors = array_view{_pkernel_colors}] //
+              (index<1> sample) restrict(amp) {
+                  auto kernel_pos = pkernel_coords[sample];
+                  auto kernel_color = pkernel_colors[sample];
+
+                  kernel_pos = kernel_pos / mean_distance * ball_pixel_radius;
+                  auto center = int2(local_center + kernel_pos) + grid_ofst;
+
+                  if (0 <= center.x && center.x < image_size.width && //
+                      0 <= center.y && center.y < image_size.height)  //
+                  {
+                      target(center.y, center.x) = kernel_color;
+                  }
+              });
+        }
 
         // -- 각 유효 픽셀에 대해 커널 매칭 수행
         // 출력 데이터 셋 저장, array_view 삭제 시 동기화 방지하기 위해 큐에 먼저 넣어둠
-        auto& view = pending_suits.emplace(suits.size(), suits.data());
+        auto& view = pending_suits.emplace((int)suits.size(), (float*)suits.data());
     }
 
-    while (pending_suits.empty() == false) { pending_suits.front().synchronize(); }
+    while (pending_suits.empty() == false) { pending_suits.front().synchronize(), pending_suits.pop(); }
+    if (show_debug) {
+        u_debug->synchronize();
+        for (auto gidx : counter(center_mask.rows / grid_size, center_mask.cols / grid_size)) //
+        {
+            roi_grid.y = gidx[0] * grid_size;
+            roi_grid.x = gidx[1] * grid_size;
+            rectangle(debug, roi_grid + Size(1,1), {0.25, 0.25, 0.25});
+        }
+        PIPEPP_STORE_DEBUG_DATA("Grid Center Rendering Result", (Mat)debug);
+    }
 }
 
 void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_context& ec, input_type const& in, output_type& o)
@@ -398,7 +490,7 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
         PIPEPP_ELAPSE_SCOPE("Render kernel on sample space");
         auto scale = debug::kernel_display_scale(ec);
         Mat3f target(scale, scale, {0.4, 0.4, 0.4});
-        int mult = (scale / 4) / kernel::ball_radius(ec);
+        int mult = (scale / 4);
         int ofst = scale / 2;
         int rad = 0; // scale / 100;
 
