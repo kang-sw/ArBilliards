@@ -67,13 +67,6 @@ PIPEPP_EXECUTOR(ball_finder_executor)
                       " 음성 커널 또한 같은 개수로 생성됩니다.",
                       pipepp::verify::minimum(1u));
         PIPEPP_OPTION(random_seed, 42u);
-        PIPEPP_OPTION(positive_weight_range, cv::Vec2f(0, 1),
-                      u8"양의 가중치로 평가되는 커널 구간입니다.\n"
-                      "조명 계산 이후 커널 반경을 스케일하는 방식으로 동작하며, 따라서 "
-                      " 공의 인식 반지름 자체를 넓히는 효과를 냅니다.\n"
-                      "자동으로 128의 배수로 설정됩니다.",
-                      pipepp::verify::minimum_all<cv::Vec2f>(0.f)
-                        | pipepp::verify::ascending<cv::Vec2f>());
         PIPEPP_OPTION(negative_weight_range, cv::Vec2f(1, 2),
                       u8"음의 가중치로 평가되는 커널 구간입니다. \n"
                       "조명이 계산되지 않는 별도의 커널이며, 전형적인 circleOp 연산을 통해 생성됩니다. \n"

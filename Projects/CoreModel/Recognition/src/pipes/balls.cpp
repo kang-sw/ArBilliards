@@ -218,6 +218,19 @@ void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution
     }
 }
 
+namespace billiards {
+namespace {
+float evaluate_suitability(float3 col0, float3 col1, float3 weight, float err_base) __GPU
+{
+    using namespace concurrency;
+    float3 diff = col1 - col0;
+    diff = diff * diff * weight;
+    float distance = mathf::norm(diff);
+    return fast_math::powf(err_base, -distance);
+}
+} // namespace
+} // namespace billiards
+
 void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_context& ec, billiards::pipes::ball_finder_executor::input_type const& in, billiards::pipes::ball_finder_executor::output_type& o)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
@@ -259,10 +272,10 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     Vec3f local_table_pos = in.table_pos, local_table_rot = in.table_rot;
     world_to_camera(imdesc, local_table_rot, local_table_pos);
 
-    array_view _pkernel_coords = _m->pkernel_coords.value();
-    array_view _pkernel_colors = _m->pkernel_colors.value();
-    array_view _nkernel_coords = _m->nkernel_coords.value();
-    array_view _interm_suits = _m->_mbuf_interm_suits;
+    array_view _pkernel_coords = *_m->pkernel_coords;
+    array_view _pkernel_colors = *_m->pkernel_colors;
+    array_view _nkernel_coords = *_m->nkernel_coords;
+    array_view _interm_suits = *_m->_mbuf_interm_suits;
 
     // Vector zipping ...
     struct {
@@ -276,7 +289,8 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
 
     // Intermediate buffer - 계산 결과를 저장할 버퍼입니다.
     // grid_size*grid_size의 extent는 최대치로, 실제로는 해당 그리드 내의 유효 픽셀 개수만큼만 사용됩니다.
-    auto n_tot_kernels = _m->pkernel_src.size() * 2;
+    int n_tot_kernels = _m->pkernel_src.size() * 2;
+    int n_tot_tiles = n_tot_kernels / TILE_SIZE;
 
     // 디버그 정보 렌더 ...
     bool const show_debug = debug::show_debug_mat(ec);
@@ -290,6 +304,10 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     // TODO ... base color convert(for nkernel)
     auto ball_color = kangsw::value_cast<float3>(colors::base_rgb(ec));
     auto ball_radius = kernel::ball_radius(ec);
+
+    auto negative_weight = match::negative_weight(ec);
+    auto err_weight = value_cast<float3>(match::error_weight(ec));
+    auto err_base = match::error_base(ec);
 
     // GRID operation 수행
     size_t grid_pxl_threshold = std::max<size_t>(1, match::optimize::grid_area_threshold(ec) * grid_size * grid_size);
@@ -377,19 +395,65 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
           [=,
            o_suits = array_view{(int)suits.size(), suits.data()},
            grid_coords = array_view{(int)pos.size(), ptr_cast<int2>(pos.data())},
-           distances = array_view{(int)dists.size(), dists.data()}] //
-          (tiled_index<1, TILE_SIZE> tidx) restrict(amp)            //
+           distances = array_view{(int)dists.size(), dists.data()},
+           suitability_divider = float(n_tot_kernels / 2.0f)] //
+          (tiled_index<1, TILE_SIZE> tidx) __GPU_ONLY         //
           {
               tile_static float tile_suits[TILE_SIZE];
-              auto local_dst_index = tidx.local[1];
+              auto loc_tile_idx = tidx.local[1];
               auto smpl_idx = tidx.global[0];
               auto knel_idx = tidx.global[1];
+
+              auto _coord = grid_coords[smpl_idx];
+              auto pkcoord = _pkernel_coords[knel_idx];
+              auto nkcoord = _nkernel_coords[knel_idx];
+              auto pcoord = _coord + grid_ofst + int2(pkcoord / distances[smpl_idx] * ball_pixel_radius);
+              auto ncoord = _coord + grid_ofst + int2(nkcoord / distances[smpl_idx] * ball_pixel_radius);
+
+              float suit = 0;
+
+              if (0 <= pcoord.x && pcoord.x <= image_size.width && //
+                  0 <= pcoord.y && pcoord.y <= image_size.height)  //
+              {
+                  auto pcolor = _pkernel_colors[knel_idx];
+                  auto dcolor = u_domain(pcoord.y, pcoord.x);
+                  suit += evaluate_suitability(pcolor, dcolor, err_weight, err_base);
+              }
+
+              if (0 <= ncoord.x && ncoord.x <= image_size.width && //
+                  0 <= ncoord.y && ncoord.y <= image_size.height)  //
+              {
+                  auto ncolor = ball_color;
+                  auto dcolor = u_domain(ncoord.y, ncoord.x);
+                  suit -= negative_weight * evaluate_suitability(ncolor, dcolor, err_weight, err_base);
+              }
+
+              tile_suits[loc_tile_idx] = suit;
 
               tidx.barrier.wait_with_tile_static_memory_fence();
               // tile_suits 메모리 누산 --> interm_suits 각 슬롯에 저장
 
-              tidx.barrier.wait_with_all_memory_fence();
+              // 각 [타일]의 피봇 커널 스레드에 대해...
+              if (tidx.local[0] == 0 && tidx.local[1] == 0) {
+                  float suit_sum = 0;
+                  for (int i = 0; i < tidx.tile_dim1; ++i) {
+                      suit_sum += tile_suits[i];
+                  }
+
+                  _interm_suits(tidx.tile) = suit_sum;
+              }
+
+              tidx.barrier.wait_with_global_memory_fence();
               // interm_suits 메모리 누산 --> o_suits에 저장
+
+              // 각 [샘플(Dim0)]의 피봇 커널 스레드에 대해 ...
+              if (tidx.global[1] == 0) {
+                  float suit_sum = 0;
+                  for (int i = 0; i < n_tot_tiles; ++i) {
+                      suit_sum += _interm_suits(tidx.global[0], i);
+                  }
+                  o_suits(tidx.global[0]) = suit_sum / suitability_divider;
+              }
           });
     }
 
