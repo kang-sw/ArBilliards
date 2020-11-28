@@ -147,7 +147,7 @@ PIPEPP_EXECUTOR(ball_finder_executor)
                       u8"Negative 커널의 픽셀에 얼마만큼의 음의 가중치를 부여할지 결정합니다.",
                       pipepp::verify::minimum(0.f));
 
-        PIPEPP_CATEGORY(optimization, "Grid")
+        PIPEPP_CATEGORY(optimize, "Optimization")
         {
             PIPEPP_OPTION(grid_size, 64, u8"이미지 정사각 그리드의 픽셀 크기입니다. ");
         };
@@ -193,6 +193,9 @@ PIPEPP_EXECUTOR(ball_finder_executor)
 public:
     ball_finder_executor();
     ~ball_finder_executor();
+
+private:
+    void _update_kernel_by(pipepp::execution_context & ec, imgproc::img_t const& imdesc, cv::Vec3f world_pos, cv::Vec3f world_rot);
 
 private:
     struct impl;

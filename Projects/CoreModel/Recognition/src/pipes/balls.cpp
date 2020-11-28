@@ -142,6 +142,63 @@ struct billiards::pipes::ball_finder_executor::impl {
 
 template <typename T, typename R> requires std::is_integral_v<T> auto n_align(T V, R N) { return (V + N - 1) / N * N; }
 
+void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution_context& ec, billiards::recognizer_t::frame_desc const& imdesc, cv::Vec3f world_pos, cv::Vec3f world_rot)
+{
+    using namespace std;
+    using namespace cv;
+    using namespace imgproc;
+    auto ball_color = colors::base_rgb(ec);
+    auto fresnel0 = colors::fresnel0(ec);
+    auto roughness = colors::roughness(ec);
+    auto ambient = kangsw::value_cast<float3>(colors::lights::ambient_rgb(ec));
+    auto& m = *_m;
+
+    array<point_light_t, N_MAX_LIGHT> _lights;
+    copy(m.lights_.begin(), m.lights_.end(), _lights.begin());
+    span lights{_lights.begin(), m.lights_.size()};
+
+    auto world_tr = get_transform_matx_fast(world_pos, world_rot);
+
+    Vec3f pivot_pos = world_pos;
+    Vec3f pivot_rot = world_rot;
+    world_to_camera(imdesc, pivot_rot, pivot_pos);
+    auto inv_cam = imdesc.camera_transform.inv();
+
+    for (auto& l : lights) {
+        auto v = inv_cam * world_tr * concat_vec(l.pos, 1.f);
+        v[1] = -v[1];
+        l.pos = subvec<0, 3>(v);
+    }
+
+    // Apply ambient light first
+    using namespace concurrency;
+    using namespace kangsw;
+    array_view colors = *_m->pkernel_colors_;
+    parallel_for_each(
+      colors.extent,
+      [=, bc_ = kangsw::value_cast<float3>(ball_color)](index<1> idx) restrict(amp) {
+          colors[idx] = bc_ * ambient;
+      });
+
+    helper::kernel_shader ks = {
+      .kernel = *m.pkernel_src_coords_,
+      .kernel_center = pivot_pos,
+      .base_rgb = ball_color,
+      .fresnel0 = fresnel0,
+      .roughness = roughness,
+
+      .kernel_pos_buf = *m.pkernel_coords_,
+      .kernel_rgb_buf = *m.pkernel_colors_,
+    };
+
+    for (auto const& l : lights) {
+        ks.light_pos = l.pos;
+        ks.light_rgb = l.rgb;
+
+        ks();
+    }
+}
+
 void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_context& ec, input_type const& in, output_type& o)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
@@ -220,22 +277,13 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
     // 2. 모자라는 부분은 copyMakeBorder로 삽입 (Reflect
     // 3. center mask 상에서 각 그리드를 ROI화, 0이 아닌 픽셀을 찾습니다.
     // 4. 0이 아닌 픽셀이 존재하면, 해당 그리드에 대해 셰이더 적용된 커널을 계산합니다.
-    // 5.
-    //
+    auto grid_size = match::optimize::grid_size(ec);
+    cv::Mat3f domain;
+    // PIPEPP_ELAPSE_SCOPE("Insert border ")
 
-    {
-        // 커널 초기화
-        using namespace concurrency;
-        array_view colors = *_m->pkernel_colors_;
-        parallel_for_each(
-          colors.extent,
-          [=](index<1> idx) restrict(amp) { colors[idx] = 0; });
-    }
-
-    {
-        cv::Vec3f world_pos = in.table_pos;
-        cv::Vec3f world_rot = in.table_rot;
-        auto inv_cam = imdesc.camera_transform.inv();
+    // 테스트 코드 ...
+    if (debug::show_debug_mat(ec)) {
+        PIPEPP_ELAPSE_SCOPE("Render sample kernel on center");
 
         // 커널을 적용합니다.
         // 1. 중점 위치를 기준으로 모델 좌표의 광원을 먼저 월드 변환하고, 다시 카메라 시점으로 가져옵니다.
@@ -243,69 +291,37 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
         // 3. 커널 적용
         using namespace std;
         using namespace cv;
-        using namespace imgproc;
-        auto ball_color = colors::base_rgb(ec);
-        auto fresnel0 = colors::fresnel0(ec);
-        auto roughness = colors::roughness(ec);
-
         auto& m = *_m;
 
-        array<point_light_t, N_MAX_LIGHT> _lights;
-        copy(m.lights_.begin(), m.lights_.end(), _lights.begin());
-        span lights{_lights.begin(), m.lights_.size()};
+        vector<float2> positions;
+        vector<float3> colors;
 
-        auto world_tr = get_transform_matx_fast(world_pos, world_rot);
+        PIPEPP_ELAPSE_BLOCK("Update kernel then download")
+        {
+            _update_kernel_by(ec, imdesc, in.table_pos, in.table_rot);
 
-        Vec3f pivot_pos = world_pos;
-        Vec3f pivot_rot = world_rot;
-        world_to_camera(imdesc, pivot_rot, pivot_pos);
-
-        for (auto& l : lights) {
-            auto v = inv_cam * world_tr * concat_vec(l.pos, 1.f);
-            v[1] = -v[1];
-            l.pos = subvec<0, 3>(v);
+            positions = *m.pkernel_coords_;
+            colors = *m.pkernel_colors_;
         }
 
-        helper::kernel_shader ks = {
-          .kernel = *m.pkernel_src_coords_,
-          .kernel_center = pivot_pos,
-          .base_rgb = ball_color,
-          .fresnel0 = fresnel0,
-          .roughness = roughness,
+        PIPEPP_ELAPSE_SCOPE("Render kernel on sample space");
+        auto scale = debug::kernel_display_scale(ec);
+        Mat3f target(scale, scale, {0.4, 0.4, 0.4});
+        int mult = (scale / 4) / kernel::ball_radius(ec);
+        int ofst = scale / 2;
+        int rad = 0; // scale / 100;
 
-          .kernel_pos_buf = *m.pkernel_coords_,
-          .kernel_rgb_buf = *m.pkernel_colors_,
-        };
+        for_each_threads(kangsw::counter(positions.size()), [&](size_t i) {
+            auto _p = positions[i];
+            auto _c = colors[i];
 
-        for (auto const& l : lights) {
-            ks.light_pos = l.pos;
-            ks.light_rgb = l.rgb;
+            auto pos = Vec2i((mult * kangsw::value_cast<Vec2f>(_p)) + Vec2f(ofst, ofst));
+            auto col = kangsw::value_cast<Vec3f>(_c);
 
-            ks();
-        }
+            target((Point)pos) = col;
+        });
 
-        // ~done
-
-        if (debug::show_debug_mat(ec)) {
-            // Download kernel
-            vector<float2> positions = *m.pkernel_coords_;
-            vector<float3> colors = *m.pkernel_colors_;
-
-            auto scale = debug::kernel_display_scale(ec);
-            Mat3f target(scale, scale, {0.4, 0.4, 0.4});
-            int mult = (scale / 4) / kernel::ball_radius(ec);
-            int ofst = scale / 2;
-            int rad = 0; // scale / 100;
-
-            for (auto [_p, _c] : kangsw::zip(positions, colors)) {
-                auto pos = Vec2i((mult * kangsw::value_cast<Vec2f>(_p)) + Vec2f(ofst, ofst));
-                auto col = kangsw::value_cast<Vec3f>(_c);
-
-                target((Point)pos) = col;
-            }
-
-            PIPEPP_STORE_DEBUG_DATA("Real time kernel", (Mat)target);
-        }
+        PIPEPP_STORE_DEBUG_DATA("Real time kernel", (Mat)target);
     }
 }
 
