@@ -91,6 +91,7 @@ struct kernel_shader {
               float3 L = m_::normalize(_lp - p);
               float3 I = -L;
               float3 r = I - 2 * m_::dot(n, I) * n;
+              float3 h = m_::normalize(v + L);
 
               float lambert = m_::Max(m_::dot(L, n), 0.f);
 
@@ -98,16 +99,15 @@ struct kernel_shader {
               float3 c_d = _lclor * _bclor * lambert;
 
               // 반영 조명 계산
-              float3 R_F
-                = _fresnel + (1 - _fresnel) * m_::powi(1 - m_::Max(m_::dot(r, n), 0.f), 5);
+              auto f0 = 1 - m_::Max(m_::dot(L, n), 0.f);
+              float3 R_F = _fresnel + (1 - _fresnel) * f0 * f0 * f0 * f0 * f0;
 
               // 러프니스 계산
-              float3 h = m_::normalize(v + L);
               auto m = (1 - _m) * 256.f;
               float3 S = (m + 8.f) * (1.f / 8.f) * fm_::powf(m_::Max(0.f, m_::dot(n, h)), m);
 
               // 프레넬 및 러프니스 결합
-              float3 c_s = lambert * _bclor * (R_F * S);
+              float3 c_s = lambert * _lclor * (R_F * S);
 
               // 광원 조명 - 최종
               float3 C = c_d + c_s;
