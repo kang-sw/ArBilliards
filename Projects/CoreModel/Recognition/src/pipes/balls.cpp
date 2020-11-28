@@ -6,6 +6,7 @@
 #include <amp.h>
 #include <amp_math.h>
 #include <amp_short_vectors.h>
+#include <span>
 
 #include "kangsw/ndarray.hxx"
 
@@ -116,6 +117,15 @@ struct kernel_shader {
           });
     }
 };
+
+void rgb2yuv(array_view<float3> arv)
+{
+    parallel_for_each(
+      arv.extent,
+      [=](index<1> idx) restrict(amp) {
+          arv[idx] = mathf::rgb2yuv(arv[idx]);
+      });
+}
 } // namespace
 } // namespace helper
 
@@ -202,6 +212,85 @@ void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution
     }
 }
 
+void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_context& ec, billiards::pipes::ball_finder_executor::input_type const& in, billiards::pipes::ball_finder_executor::output_type& o)
+{
+    PIPEPP_REGISTER_CONTEXT(ec);
+
+    using std::span;
+    using namespace cv;
+    using namespace concurrency;
+    using namespace kangsw::counters;
+
+    // 중심 픽셀 영역을 그리드 도메인에 맞춥니다.
+    Mat1b centers;
+    auto grid_size = match::optimize::grid_size(ec);
+    {
+        auto s = in.center_area_mask.size();
+        auto nx = n_align(s.width, grid_size);
+        auto ny = n_align(s.width, grid_size);
+
+        if (nx || ny) {
+            cv::copyMakeBorder(in.center_area_mask, centers, 0, ny, 0, nx, cv::BORDER_DEFAULT);
+        }
+    }
+
+    // 색상 비교를 수행하는 도메인
+    cv::Mat3f domain = in.domain.isContinuous() ? in.domain : in.domain.clone();
+    array_view<float3, 2> u_domain(domain.rows, domain.cols, domain.ptr<float3>(0));
+
+    // TODO ... color convert?
+
+    Rect roi_grid{0, 0, grid_size, grid_size};
+
+    // Vector zipping ...
+    struct {
+        vector<Vec2i> pos;
+        vector<float> distance;
+        vector<float> suits;
+    } smpl;
+    smpl.pos.reserve(centers.size().area() / 10);
+    smpl.distance.reserve(centers.size().area() / 10);
+    smpl.suits.reserve(centers.size().area() / 10);
+
+    size_t grid_pxl_threshold = std::max<size_t>(1, match::optimize::grid_area_threshold(ec) * grid_size * grid_size);
+    std::queue<array_view<float>> pending_suits;
+
+    for (Mat1b grid;
+         auto gidx : counter(domain.rows / grid_size, domain.cols / grid_size)) //
+    {
+        roi_grid.x = gidx[0] * grid_size;
+        roi_grid.y = gidx[1] * grid_size;
+        grid = in.center_area_mask(roi_grid);
+
+        // -- 그리드 영역의 유효 픽셀 카운트
+        auto start_idx = smpl.pos.size();
+        for (auto [row, col] : counter(grid_size, grid_size)) {
+            if (grid(row, col)) { smpl.pos.emplace_back(row, col); }
+        }
+        smpl.distance.resize(smpl.pos.size());
+        smpl.suits.resize(smpl.pos.size());
+
+        span pos{smpl.pos.begin() + start_idx, smpl.pos.end()};
+        span dists{smpl.distance.begin() + start_idx, smpl.distance.end()};
+        span suits{smpl.suits.begin() + start_idx, smpl.suits.end()};
+
+        //  +- 유효 픽셀이 일정 퍼센트 이하이면 그리드를 discard
+        if (smpl.pos.size() < grid_pxl_threshold) { continue; }
+
+        // -- 유효 픽셀 각각의 거리 계산(평면에 투사)
+
+
+        // -- 그리드의 중점으로부터, 월드 좌표 계산해 커널 업데이트
+        cv::Vec2i center = roi_grid.tl() + (Point)roi_grid.size() / 2;
+
+        // -- 각 유효 픽셀에 대해 커널 매칭 수행
+        // 출력 데이터 셋 저장, array_view 삭제 시 동기화 방지하기 위해 큐에 먼저 넣어둠
+        auto& view = pending_suits.emplace(suits.size(), suits.data());
+    }
+
+    while (pending_suits.empty() == false) { pending_suits.front().synchronize(); }
+}
+
 void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_context& ec, input_type const& in, output_type& o)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
@@ -280,65 +369,8 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
     // 2. 모자라는 부분은 copyMakeBorder로 삽입 (Reflect
     // 3. center mask 상에서 각 그리드를 ROI화, 0이 아닌 픽셀을 찾습니다.
     // 4. 0이 아닌 픽셀이 존재하면, 해당 그리드에 대해 셰이더 적용된 커널을 계산합니다.
-    using namespace kangsw::counters;
     PIPEPP_ELAPSE_BLOCK("Iterate grids")
-    {
-        cv::Mat3f domain;
-        auto grid_size = match::optimize::grid_size(ec);
-        {
-            auto s = domain.size();
-            auto nx = n_align(s.width, grid_size);
-            auto ny = n_align(s.width, grid_size);
-
-            if (nx || ny) {
-                cv::copyMakeBorder(in.domain, domain, 0, ny, 0, nx, cv::BORDER_DEFAULT);
-            }
-        }
-
-        using namespace cv;
-        using namespace concurrency;
-        Mat1f _suitability(in.domain.size(), 0.f);
-        array_view<float, 2> u_suits(_suitability.rows, _suitability.cols, &_suitability(0));
-        array_view<float, 3> u_domain(domain.rows, domain.cols, 3, domain.ptr<float>(0));
-
-        Rect roi_grid{0, 0, grid_size, grid_size};
-
-        // Vector zipping ...
-        struct {
-            vector<Vec2i> pos;
-            vector<float> distance;
-        } smpl;
-        smpl.pos.reserve(roi_grid.area());
-        smpl.distance.reserve(roi_grid.area());
-
-        size_t grid_pxl_threshold = std::max<size_t>(1, match::optimize::grid_area_threshold(ec) * grid_size * grid_size);
-
-        for (Mat1b grid;
-             auto gidx : counter(domain.rows / grid_size, domain.cols / grid_size)) //
-        {
-            roi_grid.x = gidx[0] * grid_size;
-            roi_grid.y = gidx[1] * grid_size;
-            grid = in.center_area_mask(roi_grid);
-
-            // -- 그리드 영역의 유효 픽셀 카운트
-            smpl.pos.clear();
-            smpl.distance.clear();
-            for (auto [row, col] : counter(grid_size, grid_size)) {
-                if (grid(row, col)) { smpl.pos.emplace_back(row, col); }
-            }
-
-            //  +- 유효 픽셀이 일정 퍼센트 이하이면 그리드를 discard
-            if (smpl.pos.size() < grid_pxl_threshold) { continue; }
-
-            // -- 유효 픽셀 각각의 거리 계산(평면에 투사)
-
-
-            // -- 그리드의 중점으로부터, 월드 좌표 계산해 커널 업데이트
-            cv::Vec2i center = roi_grid.tl() + (Point)roi_grid.size() / 2;
-
-            // -- 각 유효 픽셀에 대해 커널 매칭 수행
-        }
-    }
+    _internal_loop(ec, in, o);
 
     // 테스트 코드 ...
     if (debug::show_debug_mat(ec)) {
