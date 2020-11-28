@@ -202,8 +202,8 @@ void copy_matx(cv::Matx<Ty_, r0, c0>& to, cv::Matx<Ty_, r1, c1> const& from, siz
 {
     static_assert(r0 >= r1);
     static_assert(c0 >= c1);
-    assert(r + r1 <= r0);
-    assert(c + c1 <= c0);
+    assert(row_ofst + r1 <= r0);
+    assert(col_ofst + c1 <= c0);
 
     for (size_t i = 0; i < r1; ++i) {
         for (size_t j = 0; j < c1; ++j) {
