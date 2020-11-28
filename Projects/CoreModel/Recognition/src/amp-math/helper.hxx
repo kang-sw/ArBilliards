@@ -43,6 +43,15 @@ float3 rgb2yuv(float3 c) __GPU
       dot(f3(0.615f, -0.51499f, -0.10001f), c)};
 }
 
+float3 yuv2rgb(float3 c) __GPU
+{
+    using f3 = float3;
+    return {
+      dot(f3(1, 0, 1.13983), c),
+      dot(f3(1, 0.39465, 0.58060), c),
+      dot(f3(1, 2.03211, 0), c)};
+}
+
 float3 rgb2xyz(float3 c) __GPU
 {
     using f3 = float3;

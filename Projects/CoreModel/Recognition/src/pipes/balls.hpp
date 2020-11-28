@@ -149,7 +149,15 @@ PIPEPP_EXECUTOR(ball_finder_executor)
 
         PIPEPP_CATEGORY(optimize, "Optimization")
         {
-            PIPEPP_OPTION(grid_size, 64, u8"이미지 정사각 그리드의 픽셀 크기입니다. ");
+            PIPEPP_OPTION(grid_size, 64,
+                          u8"이미지 정사각 그리드의 픽셀 크기입니다. "
+                          " 각각의 그리드마다 새로 커널 조명을 갱신하므로, 그리드의 크기가 작을수록 계산량이 많아집니다.",
+                          pipepp::verify::minimum(8));
+            PIPEPP_OPTION(grid_area_threshold, 0.5f,
+                          u8"그리드 영역 내에 존재하는, 유효 센터 픽셀의 비율이 어느 정도 이상일 때에만"
+                          " 실제 커널 연산을 수행합니다. 이는 잡음이 섞인 그리드에서 매번 커널을 새로 계산하는"
+                          " 낭비를 줄여줍니다.",
+                          pipepp::verify::clamp(0.f, 1.f));
         };
     };
 

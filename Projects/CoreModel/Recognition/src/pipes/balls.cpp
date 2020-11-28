@@ -7,6 +7,8 @@
 #include <amp_math.h>
 #include <amp_short_vectors.h>
 
+#include "kangsw/ndarray.hxx"
+
 #undef max
 #undef min
 
@@ -278,9 +280,65 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
     // 2. 모자라는 부분은 copyMakeBorder로 삽입 (Reflect
     // 3. center mask 상에서 각 그리드를 ROI화, 0이 아닌 픽셀을 찾습니다.
     // 4. 0이 아닌 픽셀이 존재하면, 해당 그리드에 대해 셰이더 적용된 커널을 계산합니다.
-    auto grid_size = match::optimize::grid_size(ec);
-    cv::Mat3f domain;
-    PIPEPP_ELAPSE_SCOPE("Insert border ");
+    using namespace kangsw::counters;
+    PIPEPP_ELAPSE_BLOCK("Iterate grids")
+    {
+        cv::Mat3f domain;
+        auto grid_size = match::optimize::grid_size(ec);
+        {
+            auto s = domain.size();
+            auto nx = n_align(s.width, grid_size);
+            auto ny = n_align(s.width, grid_size);
+
+            if (nx || ny) {
+                cv::copyMakeBorder(in.domain, domain, 0, ny, 0, nx, cv::BORDER_DEFAULT);
+            }
+        }
+
+        using namespace cv;
+        using namespace concurrency;
+        Mat1f _suitability(in.domain.size(), 0.f);
+        array_view<float, 2> u_suits(_suitability.rows, _suitability.cols, &_suitability(0));
+        array_view<float, 3> u_domain(domain.rows, domain.cols, 3, domain.ptr<float>(0));
+
+        Rect roi_grid{0, 0, grid_size, grid_size};
+
+        // Vector zipping ...
+        struct {
+            vector<Vec2i> pos;
+            vector<float> distance;
+        } smpl;
+        smpl.pos.reserve(roi_grid.area());
+        smpl.distance.reserve(roi_grid.area());
+
+        size_t grid_pxl_threshold = std::max<size_t>(1, match::optimize::grid_area_threshold(ec) * grid_size * grid_size);
+
+        for (Mat1b grid;
+             auto gidx : counter(domain.rows / grid_size, domain.cols / grid_size)) //
+        {
+            roi_grid.x = gidx[0] * grid_size;
+            roi_grid.y = gidx[1] * grid_size;
+            grid = in.center_area_mask(roi_grid);
+
+            // -- 그리드 영역의 유효 픽셀 카운트
+            smpl.pos.clear();
+            smpl.distance.clear();
+            for (auto [row, col] : counter(grid_size, grid_size)) {
+                if (grid(row, col)) { smpl.pos.emplace_back(row, col); }
+            }
+
+            //  +- 유효 픽셀이 일정 퍼센트 이하이면 그리드를 discard
+            if (smpl.pos.size() < grid_pxl_threshold) { continue; }
+
+            // -- 유효 픽셀 각각의 거리 계산(평면에 투사)
+
+
+            // -- 그리드의 중점으로부터, 월드 좌표 계산해 커널 업데이트
+            cv::Vec2i center = roi_grid.tl() + (Point)roi_grid.size() / 2;
+
+            // -- 각 유효 픽셀에 대해 커널 매칭 수행
+        }
+    }
 
     // 테스트 코드 ...
     if (debug::show_debug_mat(ec)) {
