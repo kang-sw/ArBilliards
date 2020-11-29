@@ -315,6 +315,10 @@ void billiards::pipes::input_resize::output_handler(pipepp::pipe_error, shared_d
         imgproc::carve_outermost_pixels(sd.table_hsv_filtered, 0);
         erode(sd.table_hsv_filtered, sd.table_filtered_edge, {});
         sd.table_filtered_edge = sd.table_hsv_filtered - sd.table_filtered_edge;
+
+        if (input_resize::show_sources(ec)) {
+            PIPEPP_STORE_DEBUG_DATA("Filtered mask", (cv::Mat)sd.table_hsv_filtered);
+        }
     }
 }
 

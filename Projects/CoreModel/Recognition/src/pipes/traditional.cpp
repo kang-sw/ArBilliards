@@ -324,6 +324,8 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
         project_contours(img, i.debug_mat, obj_pts, tvec, rvec, color, 2, {86, 58});
     }
 
+    PIPEPP_STORE_DEBUG_DATA_COND("Result", i.debug_mat.clone(), debug_show_mats(ec));
+
     return pipepp::pipe_error::ok;
 }
 

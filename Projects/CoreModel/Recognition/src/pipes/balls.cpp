@@ -6,6 +6,7 @@
 #include <amp.h>
 #include <amp_math.h>
 #include <amp_short_vectors.h>
+#include <random>
 #include <span>
 
 #include "kangsw/ndarray.hxx"
@@ -156,6 +157,10 @@ struct billiards::pipes::ball_finder_executor::impl {
     optional<gpu_array<float3>> pkernel_colors;
 
     optional<gpu_array<float, 2>> _mbuf_interm_suits;
+
+    vector<cv::Vec2i> _mbuf_pos;
+    vector<float> _mbuf_distance;
+    vector<float> _mbuf_suits;
 };
 
 template <typename T, typename R> requires std::is_integral_v<T> auto n_align(T V, R N) { return ((V + N - 1) / N) * N; }
@@ -278,14 +283,15 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     array_view _interm_suits = *_m->_mbuf_interm_suits;
 
     // Vector zipping ...
-    struct {
-        vector<Vec2i> pos;
-        vector<float> distance;
-        vector<float> suits;
-    } smpl;
-    smpl.pos.reserve(center_mask.size().area() / 10);
-    smpl.distance.reserve(center_mask.size().area() / 10);
-    smpl.suits.reserve(center_mask.size().area() / 10);
+    size_t max_cands_per_grid = match::optimize::max_pixels_per_grid(ec);
+    size_t max_concurrent_iteration = match::optimize::max_concurrent_kernels(ec);
+    Size grid_counts(center_mask.cols / grid_size, center_mask.rows / grid_size);
+    auto& sample_coords = _m->_mbuf_pos;
+    auto& sample_distance = _m->_mbuf_distance;
+    auto& sample_suitability = _m->_mbuf_suits;
+    sample_coords.reserve(max_cands_per_grid * grid_counts.area()), sample_coords.clear();
+    sample_distance.reserve(max_cands_per_grid * grid_counts.area()), sample_distance.clear();
+    sample_suitability.reserve(max_cands_per_grid * grid_counts.area()), sample_suitability.clear();
 
     // Intermediate buffer - 계산 결과를 저장할 버퍼입니다.
     // grid_size*grid_size의 extent는 최대치로, 실제로는 해당 그리드 내의 유효 픽셀 개수만큼만 사용됩니다.
@@ -313,34 +319,45 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     size_t grid_pxl_threshold = std::max<size_t>(1, match::optimize::grid_area_threshold(ec) * grid_size * grid_size);
     std::queue<array_view<float>> pending_suits; // 매 루프의 ~array_view()에서 sync 호출되는 것을 막기 위함
 
-    std::vector<Vec2i> _mcache_points;
     Rect roi_grid{0, 0, grid_size, grid_size};
     Mat1b grid;
-    for (auto gidx : counter(center_mask.rows / grid_size, center_mask.cols / grid_size)) //
+
+    std::vector<Vec2i> _mcache_points;
+    _mcache_points.reserve(roi_grid.area());
+    for (auto gidx : counter(grid_counts.height, grid_counts.width)) //
     {
         roi_grid.y = gidx[0] * grid_size;
         roi_grid.x = gidx[1] * grid_size;
         grid = center_mask(roi_grid);
 
         // -- 그리드 영역의 유효 픽셀 카운트
-        auto start_idx = smpl.pos.size();
+        auto start_idx = sample_coords.size();
 
         _mcache_points.clear();
         findNonZero(grid, _mcache_points);
-        for (auto& mp : _mcache_points) {
-            smpl.pos.emplace_back(mp + (Vec2i)roi_grid.tl());
+        if (_mcache_points.size() < grid_pxl_threshold) { continue; }
+
+        // 픽셀 개수가 그리드의 1/4가 될 때까지 솎아냅니다.
+        while (_mcache_points.size() > max_cands_per_grid) {
+            auto idx = rand() % _mcache_points.size();
+            std::swap(_mcache_points.back(), _mcache_points[idx]);
+            _mcache_points.pop_back();
         }
 
-        smpl.distance.resize(smpl.pos.size());
-        smpl.suits.resize(smpl.pos.size());
+        for (auto& mp : _mcache_points) {
+            sample_coords.emplace_back(mp + (Vec2i)roi_grid.tl());
+        }
 
-        auto n_valid_pxls = smpl.pos.size() - start_idx;
-        span pos{smpl.pos.begin() + start_idx, n_valid_pxls};
-        span dists{smpl.distance.begin() + start_idx, n_valid_pxls};
-        span suits{smpl.suits.begin() + start_idx, n_valid_pxls};
+        auto n_valid_pxls = _mcache_points.size();
+        sample_distance.insert(sample_distance.end(), n_valid_pxls, {});
+        sample_suitability.insert(sample_suitability.end(), n_valid_pxls, {});
+
+        span pos{sample_coords.begin() + start_idx, n_valid_pxls};
+        span dists{sample_distance.begin() + start_idx, n_valid_pxls};
+        span suits{sample_suitability.begin() + start_idx, n_valid_pxls};
 
         //  +- 유효 픽셀이 일정 퍼센트 이하이면 그리드를 discard
-        if (pos.size() < grid_pxl_threshold) { continue; }
+        while (pending_suits.size() > max_concurrent_iteration) { pending_suits.front().synchronize(), pending_suits.pop(); }
 
         // -- 유효 픽셀 각각의 거리 계산(평면에 투사)
         Vec3f grid_center_pos = {0, 0, 0}; // 좌표 벡터의 평균을 중점으로 삼습니다.
@@ -366,6 +383,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
 
         // 필요하다면, 디버그 데이터 렌더링
         if (show_grid_rep) {
+            // 그리드 3D 투영 결과 표시
             parallel_for_each(
               _pkernel_coords.extent,
               [=, target = *u_debug,
@@ -385,6 +403,19 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
                       target(center.y, center.x) = kernel_color;
                   }
               });
+
+            // Center candidate 맵 표시
+            parallel_for_each(
+              extent<1>((int)pos.size()),
+              [=,
+               target = *u_debug,
+               coords = array_view{(int)pos.size(), ptr_cast<int2>(pos.data())}] //
+              (index<1> idx) __GPU                                               //
+              {
+                  auto coord = coords[idx];
+                  target(coord.y, coord.x) += 0.334;
+              });
+
         }
 
         // -- 각 유효 픽셀에 대해 커널 매칭 수행
@@ -469,13 +500,12 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         PIPEPP_STORE_DEBUG_DATA("Grid Center Rendering Result", (Mat)debug);
     }
 
-    if (smpl.suits.empty() == false && debug::show_debug_mat(ec)) {
-        auto& [coord, _, suits] = smpl;
+    if (sample_suitability.empty() == false && debug::show_debug_mat(ec)) {
         Mat1f suit_map(image_size, 0);
 
-        for (auto idx : counter(coord.size())) {
-            Point pt = coord[idx];
-            auto& suit = suits[idx];
+        for (auto idx : counter(sample_coords.size())) {
+            Point pt = sample_coords[idx];
+            auto& suit = sample_suitability[idx];
 
             suit_map(pt) = suit;
         }
@@ -483,7 +513,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         PIPEPP_STORE_DEBUG_DATA("Suitability Field", (Mat)(suit_map * debug::suitability_map_scale(ec)));
     }
 
-    PIPEPP_STORE_DEBUG_DATA("Number of valid pixels", smpl.pos.size());
+    PIPEPP_STORE_DEBUG_DATA("Number of valid pixels", sample_coords.size());
     PIPEPP_STORE_DEBUG_DATA("Number of kernels", n_tot_kernels / 2);
     PIPEPP_STORE_DEBUG_DATA("Number of tiles", n_tot_tiles);
     PIPEPP_STORE_DEBUG_DATA("Default tile size", (size_t)TILE_SIZE);
@@ -538,7 +568,7 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
         auto grid_size = match::optimize::grid_size(ec);
         auto n_kernel_size_tot = 2 * n_kernel;
         auto n_tiles = n_kernel_size_tot / TILE_SIZE;
-        _m->_mbuf_interm_suits.emplace(int(grid_size * grid_size), (int)n_tiles);
+        _m->_mbuf_interm_suits.emplace(int(match::optimize::max_pixels_per_grid(ec)), (int)n_tiles);
         CV_Assert(n_kernel_size_tot % TILE_SIZE == 0);
     }
 

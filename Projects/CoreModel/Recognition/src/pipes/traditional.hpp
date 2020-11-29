@@ -23,9 +23,11 @@ struct table_edge_solver {
                        "Minimum required confidence value of full-PNP solver.");
 
     PIPEPP_OPTION_AUTO(debug_show_partial_glyphs, true, "Debug");
+    PIPEPP_OPTION_AUTO(debug_show_mats, true, "Debug");
 
     PIPEPP_OPTION_AUTO(enable_partial_solver, true, "Flag");
     PIPEPP_OPTION_AUTO(enable_partial_parallel_solve, true, "Flag");
+
 
     struct partial {
         PIPEPP_DECLARE_OPTION_CATEGORY("Partial");

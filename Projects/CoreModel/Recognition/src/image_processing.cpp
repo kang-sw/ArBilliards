@@ -632,9 +632,7 @@ void billiards::imgproc::color_space_to_flag(kangsw::hash_index cls, int& to, in
             to = cv::COLOR_RGB2BGR, from = cv::COLOR_BGR2RGB;
             break;
         case "RGB"_hash: [[fallthrough]];
-        default:
-            to = -1, from = -1;
-            break;
+        default: to = -1, from = -1; break;
     }
 }
 
