@@ -91,6 +91,10 @@ struct shared_data : pipepp::base_shared_context {
     PIPEPP_CATEGORY(ball, "Ball")
     {
         PIPEPP_OPTION(radius, 0.030239439175);
+        PIPEPP_OPTION(offset_from_table_plane, 0.002,
+                      u8"테이블 평면 매칭은 당구대의 쿠션 상단을 기준으로 이루어지지만,"
+                      " 실제 당구공은 테이블 평면보다 약간 아래쪽에 중심을 두고 있습니다."
+                      " 이를 보정하기 위해 테이블을 Y축으로 평행이동하는 값입니다.");
 
         PIPEPP_CATEGORY(movement, "Movement")
         {

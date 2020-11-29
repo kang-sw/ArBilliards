@@ -106,7 +106,7 @@ struct kernel_shader {
               if constexpr (DO_PERSPECTIVE_SEARCH) {
                   head_dir_cos = m_::dot(-p, n);
               } else {
-                  head_dir_cos = m_::dot(-float3(0, 0, p.z), n) ;
+                  head_dir_cos = m_::dot(-float3(0, 0, p.z), n);
               }
 
               if (head_dir_cos < 0.f) { //*/
@@ -783,8 +783,10 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
     }
 }
 
-void billiards::pipes::ball_finder_executor::link(shared_data& sd, input_type& i, pipepp::options& opt)
+void billiards::pipes::ball_finder_executor::link(shared_data& sd, pipepp::execution_context& _exec_cont, input_type& i, pipepp::options& opt)
 {
+    PIPEPP_REGISTER_CONTEXT(_exec_cont);
+
     if (sd.table.contour.empty()) {
         i.p_imdesc = nullptr;
         return;
@@ -809,14 +811,31 @@ void billiards::pipes::ball_finder_executor::link(shared_data& sd, input_type& i
     }
 
     // 테이블 영역 내에서, 공 색상에 해당하는 부분만을 중점 후보로 선택합니다.
-    Mat1b filtered, area_mask(roi.size(), 0);
-    imgproc::range_filter(sd.hsv(roi), filtered,
-                          colors::center_area_color_range_lo(opt),
-                          colors::center_area_color_range_hi(opt));
-    for (auto& pt : contour_copy) { pt -= (Vec2i)roi.tl(); }
-    drawContours(area_mask, vector{{contour_copy}}, -1, 255, -1);
-    i.center_area_mask.create(i.domain.size());
-    copyTo(filtered & area_mask, i.center_area_mask.setTo(0)(roi), {});
+    PIPEPP_ELAPSE_BLOCK("Center Selection")
+    {
+        Mat1b filtered, area_mask(roi.size(), 0);
+        imgproc::range_filter(sd.hsv(roi), filtered,
+                              colors::center_area_color_range_lo(opt),
+                              colors::center_area_color_range_hi(opt));
+        for (auto& pt : contour_copy) { pt -= (Vec2i)roi.tl(); }
+        drawContours(area_mask, vector{{contour_copy}}, -1, 255, -1);
+        i.center_area_mask.create(i.domain.size());
+        copyTo(filtered & area_mask, i.center_area_mask.setTo(0)(roi), {});
+    }
+
+    PIPEPP_ELAPSE_SCOPE("Dilate & Erode")
+    if (auto n_iter = match::n_center_dilate(opt)) {
+        dilate(i.center_area_mask, i.center_area_mask, {}, Point(-1, -1), n_iter);
+    }
+    if (auto n_iter = match::n_center_erode(opt)) {
+        erode(i.center_area_mask, i.center_area_mask, {}, Point(-1, -1), n_iter);
+    }
+
+    // 테이블 평면을 약간 끌어내립니다.
+    using namespace imgproc;
+    float shift = shared_data::ball::offset_from_table_plane(sd);
+    auto up = rodrigues(sd.table.rot) * Vec3f{0, shift, 0};
+    i.table_pos += up;
 }
 
 billiards::pipes::ball_finder_executor::ball_finder_executor()

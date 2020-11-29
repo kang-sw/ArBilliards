@@ -166,6 +166,15 @@ PIPEPP_EXECUTOR(ball_finder_executor)
                           " 낭비를 줄여줍니다.",
                           pipepp::verify::clamp(0.f, 1.f));
         };
+
+        PIPEPP_OPTION(n_center_dilate, 6u,
+                      u8"Center matrix의 설정 시 팽창 횟수입니다. 높일수록 더 많은 후보를 고려합니다."
+                      " 팽창 연산이 먼저 적용되므로, 다수의 팽창 연산을 통해 조명 반사 등으로 인한 공의"
+                      " 중심 후보 영역의 공백을 메움으로써 정밀도를 높일 수 있습니다.");
+        PIPEPP_OPTION(n_center_erode, 6u,
+                      u8"Center matrix의 설정 시 침식 횟수입니다. 높일수록 더 적은 후보를 고려합니다."
+                      " 팽창 이후 적용되므로, 팽창으로 인해 고려하게 된 무의미한 픽셀들을 제외시킬 수 있습니다."
+                      " 팽창 횟수보다 큰 값을 적용하면 성능이 향상되지만, valid한 중점이 지워질 수 있습니다.");
     };
 
     PIPEPP_CATEGORY(search, "Searching")
@@ -207,7 +216,7 @@ PIPEPP_EXECUTOR(ball_finder_executor)
     };
 
     void operator()(pipepp::execution_context& ec, input_type const& in, output_type& o);
-    static void link(shared_data & sd, input_type & i, pipepp::options & opt);
+    static void link(shared_data & sd, pipepp::execution_context& _exec_cont, input_type & i, pipepp::options & opt);
 
 public:
     ball_finder_executor();
