@@ -27,7 +27,7 @@ using namespace billiards;
 using namespace billiards::imgproc;
 using namespace kangsw;
 
-auto rgb_2_colorspace(float3 incolor) { return incolor; }
+auto cvt_const_clrspace(float3 incolor) __GPU { return mathf::rgb2yuv(incolor); }
 
 struct kernel_shader {
     // 입력 커널입니다. X, Y, Z 좌표를 나타냅니다.
@@ -264,11 +264,13 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         }
     }
 
-    // 색상 비교를 수행하는 도메인
+    // 색상 비교를 수행하는 도메인 ... 색공간 변환
     cv::Mat3f domain = in.domain.isContinuous() ? in.domain : in.domain.clone();
-    array_view<float3, 2> u_domain(domain.rows, domain.cols, domain.ptr<float3>(0));
-
-    // TODO ... domain color convert
+    array_view<float3, 2> u_domain(domain.rows, domain.cols, ptr_cast<float3>(&domain(0)));
+    parallel_for_each(u_domain.extent,
+                      [=](index<2> idx) __GPU {
+                          u_domain[idx] = helper::cvt_const_clrspace(u_domain[idx]);
+                      });
 
     // 테이블 평면
     auto table_plane = plane_t::from_rp(in.table_rot, in.table_pos, {0, 1, 0});
@@ -308,7 +310,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     }
 
     // TODO ... base color convert(for nkernel)
-    auto ball_color = kangsw::value_cast<float3>(colors::base_rgb(ec));
+    auto ball_color = helper::cvt_const_clrspace(value_cast<float3>(colors::base_rgb(ec)));
     auto ball_radius = kernel::ball_radius(ec);
 
     auto negative_weight = match::negative_weight(ec);
@@ -381,6 +383,12 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         _update_kernel_by(ec, imdesc, local_table_pos, local_table_rot, grid_center_pos);
         auto ball_pixel_radius = get_pixel_length(imdesc, ball_radius, 1.0f);
 
+        // 커널 색공간 변환
+        parallel_for_each(_pkernel_colors.extent,
+                          [=](index<1> idx) __GPU {
+                              _pkernel_colors[idx] = helper::cvt_const_clrspace(_pkernel_colors[idx]);
+                          });
+
         // 필요하다면, 디버그 데이터 렌더링
         if (show_grid_rep) {
             // 그리드 3D 투영 결과 표시
@@ -413,9 +421,8 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
               (index<1> idx) __GPU                                               //
               {
                   auto coord = coords[idx];
-                  target(coord.y, coord.x) += 0.334;
+                  target(coord.y, coord.x) += 0.15f;
               });
-
         }
 
         // -- 각 유효 픽셀에 대해 커널 매칭 수행
@@ -425,6 +432,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         parallel_for_each(
           interm_extent.tile<1, TILE_SIZE>(),
           [=,
+           pcolors = _pkernel_colors,
            coords = array_view{(int)pos.size(), ptr_cast<int2>(pos.data())},
            distances = array_view{(int)dists.size(), dists.data()},
            suitability_divider = float(n_tot_kernels / 2.0f)] //
@@ -446,7 +454,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
               if (0 <= pcoord.x && pcoord.x <= image_size.width && //
                   0 <= pcoord.y && pcoord.y <= image_size.height)  //
               {
-                  auto pcolor = _pkernel_colors[knel_idx];
+                  auto pcolor = pcolors[knel_idx];
                   auto dcolor = u_domain(pcoord.y, pcoord.x);
                   suit += evaluate_suitability(pcolor, dcolor, err_weight, err_base);
               }
@@ -662,7 +670,7 @@ void billiards::pipes::ball_finder_executor::link(shared_data& sd, input_type& i
 
     i.table_pos = sd.table.pos;
     i.table_rot = sd.table.rot;
-    i.domain = sd.retrieve_image_in_colorspace(match::color_space(opt));
+    sd.retrieve_image_in_colorspace(match::color_space(opt)).convertTo(i.domain, CV_32FC3, 1 / 255.f);
     i.p_imdesc = &sd.imdesc_bkup;
     i.debug_mat = sd.debug_mat;
 
