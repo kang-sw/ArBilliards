@@ -207,12 +207,19 @@ PIPEPP_EXECUTOR(table_contour_geometric_search)
         PIPEPP_OPTION(approxed_contour_color, (cv::Vec3b{0, 255, 255}));
     };
 
+    PIPEPP_CATEGORY(pp, "Preprocess")
+    {
+        PIPEPP_OPTION(prev_table_scale, 0.6,
+                      u8"테이블의 이전 위치를 어느 정도 스케일로 참고할지 결정합니다."
+                      " 0을 지정하면 이전 위치는 현재 위치에 영향을 주지 못합니다.");
+    };
+
     PIPEPP_CATEGORY(filtering, "Filtering")
     {
         PIPEPP_OPTION(min_area_ratio, 0.05, u8"전체 이미지 크기 대비, 유효한 것으로 계산되는 컨투어의 화면 넓이에 대한 비율입니다.");
     };
 
-    PIPEPP_CATEGORY(approx, "Approximation")  
+    PIPEPP_CATEGORY(approx, "Approximation")
     {
         PIPEPP_OPTION(epsilon0, 1.0, u8"컨투어 목록에 적용할 approxPolyDP() 함수 파라미터.", pipepp::verify::minimum(0.0));
         PIPEPP_OPTION(make_convex_hull, true);
@@ -222,6 +229,7 @@ PIPEPP_EXECUTOR(table_contour_geometric_search)
     struct input_type {
         cv::Mat1b edge_img;
         cv::Mat3b const* debug_rgb;
+        std::vector<cv::Vec2f> prev_contour;
     };
     struct output_type {
         std::vector<cv::Vec2f> contours;
@@ -232,4 +240,6 @@ PIPEPP_EXECUTOR(table_contour_geometric_search)
 private:
     std::vector<std::vector<cv::Vec2i>> contours_;
 };
+
+void table_contour_geometric_search_link(shared_data& sd, table_contour_geometric_search::input_type& o, pipepp::options&);
 } // namespace billiards::pipes

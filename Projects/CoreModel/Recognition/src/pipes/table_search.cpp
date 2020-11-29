@@ -517,3 +517,25 @@ pipepp::pipe_error billiards::pipes::table_contour_geometric_search::invoke(
 
     return {};
 }
+
+void billiards::pipes::table_contour_geometric_search_link(shared_data& sd, table_contour_geometric_search::input_type& i, pipepp::options& opt)
+{
+    i.debug_rgb = &(cv::Mat3b&)sd.debug_mat;
+    i.edge_img = sd.table_filtered_edge;
+
+    // 테이블의 이전 컨투어를 반환합니다.
+    using self = table_contour_geometric_search;
+    auto scale = self::pp::prev_table_scale(opt);
+    if (scale < 1e-6) {
+        i.prev_contour.clear();
+    } else {
+        using std::vector;
+        using namespace cv;
+        vector<Vec3f> model;
+        imgproc::get_table_model(model, scale * shared_data::table::size::fit(sd));
+        // sd.table.confidence;
+        // TODO: 직전 테이블 위치 검증하기
+        // TODO: 이전 테이블 위치의 축소된 모델의 컨투어를 입력으로 제공합니다. 이 컨투어는 다음 페이즈에서 각 컨투어 후보를 iterate할 때, intersection이 존재하는 컨투어를 골라내는 데 사용합니다. 이를 통해 서로 떨어진 다수의 컨투어들(당구대, 헤드셋 선 등으로 인해...)을 하나로 묶을 수 있습니다.
+        // TODO: 인터섹션 알고리즘 참고 @see https://darkpgmr.tistory.com/180?category=460967 ... (p0 x p1) x (p2 x p3) = (x, y, w) then x' = x/w, y' = y/w is intersection
+    }
+}

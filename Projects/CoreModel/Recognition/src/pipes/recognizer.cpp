@@ -99,11 +99,7 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         auto marker_search_proxy = pl->create("table marker search", 4, &pipepp::make_executor<table_marker_finder>);
         auto marker_solver_proxy = pl->create("table marker solver", 4, &pipepp::make_executor<marker_solver_OLD>);
 
-        input_proxy.link_output(contour_search_proxy,
-                                [](shared_data& sd, table_contour_geometric_search::input_type& i) {
-                                    i.debug_rgb = &(cv::Mat3b&)sd.debug_mat;
-                                    i.edge_img = sd.table_filtered_edge;
-                                });
+        input_proxy.link_output(contour_search_proxy, &table_contour_geometric_search_link);
 
         contour_search_proxy.add_output_handler(
           [](shared_data& sd,
