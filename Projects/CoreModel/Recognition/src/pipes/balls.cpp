@@ -297,7 +297,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
 
     // Intermediate buffer - 계산 결과를 저장할 버퍼입니다.
     // grid_size*grid_size의 extent는 최대치로, 실제로는 해당 그리드 내의 유효 픽셀 개수만큼만 사용됩니다.
-    int n_tot_kernels = _m->pkernel_src.size() * 2;
+    int n_tot_kernels = _m->pkernel_src.size();
     int n_tot_tiles = n_tot_kernels / TILE_SIZE;
 
     // 디버그 정보 렌더 ...
@@ -563,7 +563,7 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
             imgproc::random_vector(
               rengine,
               _m->nkernel_src.emplace_back(),
-              distr(rengine) * radius);
+              distr(rengine));
         }
 
         // 그래픽스 버퍼에 업로드
@@ -574,7 +574,7 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
 
         // 커널 메모리 할당
         auto grid_size = match::optimize::grid_size(ec);
-        auto n_kernel_size_tot = 2 * n_kernel;
+        auto n_kernel_size_tot = n_kernel;
         auto n_tiles = n_kernel_size_tot / TILE_SIZE;
         _m->_mbuf_interm_suits.emplace(int(match::optimize::max_pixels_per_grid(ec)), (int)n_tiles);
         CV_Assert(n_kernel_size_tot % TILE_SIZE == 0);
