@@ -27,8 +27,8 @@ struct ball_position_desc {
     cv::Vec3f pos;
     cv::Vec3f vel;
 
-    clock::time_point tp;
-    double dt(clock::time_point now) const { return std::chrono::duration<double, clock::period>(now - tp).count(); }
+    clock::time_point tp = clock::now();
+    double dt(clock::time_point now) const { return std::chrono::duration<double>(now - tp).count(); }
     cv::Vec3f ps(clock::time_point now) const { return dt(now) * vel + pos; }
 };
 
@@ -50,15 +50,21 @@ private:
 struct shared_data : pipepp::base_shared_context {
     // options
     PIPEPP_DECLARE_OPTION_CLASS(shared_data);
-    struct table {
-        struct size {
-            PIPEPP_DECLARE_OPTION_CATEGORY("Table.Size");
+
+    PIPEPP_CATEGORY(debug, "Debug"){};
+
+    PIPEPP_OPTION(camera_FOV, cv::Vec2d(84.855, 53.27));
+
+    PIPEPP_CATEGORY(table, "Table")
+    {
+        PIPEPP_CATEGORY(size, "Size")
+        {
             PIPEPP_OPTION(outer, cv::Vec2d(1.8, 0.98));
             PIPEPP_OPTION(inner, cv::Vec2d(1.653, 0.823));
             PIPEPP_OPTION(fit, cv::Vec2d(1.735, 0.915));
         };
-        struct filter {
-            PIPEPP_DECLARE_OPTION_CATEGORY("Table.Filter");
+        PIPEPP_CATEGORY(filter, "Filter")
+        {
             PIPEPP_OPTION(alpha_pos, 0.3);
             PIPEPP_OPTION(alpha_rot, 0.3);
             PIPEPP_OPTION(jump_threshold_distance, 0.1);
@@ -66,9 +72,8 @@ struct shared_data : pipepp::base_shared_context {
             PIPEPP_OPTION(color_lo, cv::Vec3b(175, 150, 60));
             PIPEPP_OPTION(color_hi, cv::Vec3b(10, 255, 255));
         };
-        struct marker {
-            PIPEPP_DECLARE_OPTION_CATEGORY("Table.Marker");
-
+        PIPEPP_CATEGORY(marker, "Marker")
+        {
             PIPEPP_OPTION(count_x, 9);
             PIPEPP_OPTION(count_y, 5);
             PIPEPP_OPTION(felt_width, 1.735f);
@@ -83,10 +88,25 @@ struct shared_data : pipepp::base_shared_context {
         };
     };
 
-    PIPEPP_OPTION_AUTO(camera_FOV, cv::Vec2d(84.855, 53.27), "Common");
+    PIPEPP_CATEGORY(ball, "Ball")
+    {
+        PIPEPP_OPTION(radius, 0.030239439175);
 
-    struct ball {
-        PIPEPP_OPTION_AUTO(radius, 0.030239439175, "Ball");
+        PIPEPP_CATEGORY(movement, "Movement")
+        {
+            PIPEPP_CATEGORY(correction, "Correction")
+            {
+                PIPEPP_OPTION(max_speed, 5.0f,
+                              u8"미터 단위의 1초당 최대 이동 속도입니다. 속도가 이를 넘어서면,"
+                              " 이전 페이즈의 이동을 다시 사용합니다. 순간적인 팝핑을 방지하기"
+                              " 위한 프로퍼티");
+                PIPEPP_OPTION(halted_tolerance, 0.01f,
+                              u8"얼마 이상의 거리를 움직였을 때 이동으로 간주할지 결정하는 거리입니다."
+                              " 해당 거리 안에서의 이동은 LPF에 의해 필터링됩니다.");
+                PIPEPP_OPTION(halt_filter_alpha, 0.2f,
+                              u8"공의 정지 상태 시 위치를 스무딩하는 LPF 알파 계수입니다.");
+            };
+        };
     };
 
     // data
@@ -110,7 +130,6 @@ public:
 
     struct {
         std::vector<cv::Vec2f> contour;
-
         cv::Vec3f pos, rot;
         float confidence;
     } table;
@@ -121,15 +140,26 @@ public:
         converted_resources_.clear();
         table.pos = state_->table.pos;
         table.rot = state_->table.rot;
+
+        balls_prev_ = state_->balls;
+        for (auto& v : balls_) { v.second = 0.f; }
     }
+
     void get_marker_points_model(std::vector<cv::Vec3f>& model) const;
     cv::Mat retrieve_image_in_colorspace(kangsw::hash_index hash);
     void store_image_in_colorspace(kangsw::hash_index hash, cv::Mat v);
     void update_ball_pos(size_t ball_idx, cv::Vec3f pos, float conf);
+    auto get_ball(size_t bidx) const -> ball_position_desc;
 
     std::shared_ptr<shared_state> state_;
 
+public:
+    void _on_all_ball_gathered() const;
+
 private:
+    ball_position_set balls_prev_;
+    std::pair<ball_position_desc, float> balls_[4];
+
     std::map<kangsw::hash_index, cv::Mat3b> converted_resources_;
     kangsw::spinlock lock_;
 };
@@ -191,6 +221,7 @@ struct output_pipe {
     {
         PIPEPP_OPTION(show_debug_mat, false);
         PIPEPP_OPTION(render_debug_glyphs, true);
+        PIPEPP_OPTION(table_top_view_scale, 640);
     };
 
     using input_type = shared_data*;

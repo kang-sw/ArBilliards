@@ -1,4 +1,6 @@
 #include "recognizer.hpp"
+#include <chrono>
+#include <cmath>
 
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/matx.hpp>
@@ -65,15 +67,6 @@ struct marker_search_to_solve {
     }
 };
 
-struct ball_position_mapping {
-    int const index_offset;
-
-    void operator()(
-      shared_data& sd,
-      ball_finder_executor::output_type const& o) const
-    {
-    }
-};
 } // namespace
 } // namespace billiards::pipes
 
@@ -135,7 +128,17 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
             marker_solver_proxy.link_output(ball_proxy, &ball_finder_executor::link);
 
             // 빨간 공이 2개이므로, 인덱스를 각각 0, 2, 3 부여합니다.
-            ball_proxy.add_output_handler(ball_position_mapping{IDX_OFFSET[ballidx]});
+            ball_proxy.add_output_handler(
+              [ball_index_offset = IDX_OFFSET[ballidx]] //
+              (shared_data & sd,
+               ball_finder_executor::output_type const& o) //
+              {
+                  for (auto idx = ball_index_offset;
+                       auto& pt : o.positions) //
+                  {
+                      sd.update_ball_pos(idx++, pt.position, pt.confidence);
+                  }
+              });
 
             // 출력 연결
             ball_proxy.link_output(output_pipe_proxy, &output_pipe::link_from_previous);
@@ -209,6 +212,47 @@ void billiards::pipes::shared_data::store_image_in_colorspace(kangsw::hash_index
 {
     std::unique_lock _lck{lock_};
     converted_resources_.emplace(hash, std::move(v));
+}
+
+void billiards::pipes::shared_data::update_ball_pos(size_t ball_idx, cv::Vec3f pos, float conf)
+{
+    if (ball_idx >= std::size(balls_)) { return; }
+
+    auto& [elem, confidence] = balls_[ball_idx];
+    elem.tp = launch_time_point();
+    elem.pos = pos;
+    confidence = conf;
+}
+
+billiards::pipes::ball_position_desc billiards::pipes::shared_data::get_ball(size_t bidx) const
+{
+    return balls_[bidx].second > 0 ? balls_[bidx].first : balls_prev_[bidx];
+}
+
+void billiards::pipes::shared_data::_on_all_ball_gathered() const
+{
+#if 0
+    auto previous = balls_prev_[ball_idx];
+    auto now = ball_position_desc::clock::now();
+    auto dt = previous.dt(now);
+
+    auto delta = cv::norm(pos - previous.pos);
+    auto spd = delta / dt;
+
+    using option = ball::movement::correction;
+    if (spd > option::max_speed(*this)) {
+        balls_[ball_idx].emplace(previous); // 이전 위치 계승
+    } else if (delta < option::halted_tolerance(*this)) {
+        auto alpha = option::halt_filter_alpha(*this) * conf;
+        auto newpos = previous.pos * (1 - alpha) + pos * alpha;
+        auto& elem = balls_[ball_idx].emplace();
+        elem.tp = launch_time_point();
+        elem.pos = newpos;
+        elem.vel = {}; // Suspend
+    } else {
+        // 그대로 적용
+    }
+#endif
 }
 
 pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
@@ -339,25 +383,68 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
     using namespace std;
     using namespace cv;
 
-    {
-        auto _lck = sd.state_->lock();
+    // 다 모인 공의 위치를 처리합니다.
+    sd._on_all_ball_gathered();
+
+    if (auto _lck = sd.state_->lock(); true) {
+
         sd.state_->table.pos = sd.table.pos;
         sd.state_->table.rot = sd.table.rot;
+        auto& balls = sd.state_->balls;
+
+        // 공의 위치 업데이트
+        for (auto idx : kangsw::counter(balls.size())) {
+            balls[idx] = sd.get_ball(idx);
+        }
     }
 
     if (debug::render_debug_glyphs(ec)) {
-        auto& pos = sd.table.pos;
-        auto& rot = sd.table.rot;
-        auto FOV = sd.camera_FOV(sd);
-        vector<Vec3f> model;
-        get_table_model(model, shared_data::table::size::fit(sd));
-        project_contours(imdesc, debug, model, pos, rot, {0, 255, 0}, 2, FOV);
-        get_table_model(model, shared_data::table::size::inner(sd));
-        project_contours(imdesc, debug, model, pos, rot, {221, 64, 0}, 2, FOV);
-        get_table_model(model, shared_data::table::size::outer(sd));
-        project_contours(imdesc, debug, model, pos, rot, {83, 0, 213}, 1, FOV);
+        { // Draw table info
+            auto& pos = sd.table.pos;
+            auto& rot = sd.table.rot;
+            auto FOV = sd.camera_FOV(sd);
+            vector<Vec3f> model;
+            get_table_model(model, shared_data::table::size::fit(sd));
+            project_contours(imdesc, debug, model, pos, rot, {0, 255, 0}, 1, FOV);
+            get_table_model(model, shared_data::table::size::inner(sd));
+            project_contours(imdesc, debug, model, pos, rot, {83, 0, 213}, 1, FOV);
+            get_table_model(model, shared_data::table::size::outer(sd));
+            project_contours(imdesc, debug, model, pos, rot, {221, 64, 0}, 1, FOV);
 
-        draw_axes(imdesc, debug, rot, pos, 0.1, 2);
+            draw_axes(imdesc, debug, rot, pos, 0.1, 2);
+        }
+
+        { // Draw ball info
+            float scale = debug::table_top_view_scale(ec);
+
+            int ball_rad_pxl = shared_data::ball::radius(sd) * scale;
+            Size total_size = (Point)(Vec2i)(shared_data::table::size::outer(sd) * scale);
+            Size fit_size = (Point)(Vec2i)(shared_data::table::size::fit(sd) * scale);
+            Size inner_size = (Point)(Vec2i)(shared_data::table::size::inner(sd) * scale);
+
+            Mat3b table_mat(total_size, Vec3b(118, 62, 62));
+            rectangle(table_mat, Rect((total_size - fit_size) / 2, fit_size), Scalar{26, 0, 243}, -1);
+
+            Mat3b top_view_mat = table_mat(Rect((total_size - inner_size) / 2, inner_size));
+            top_view_mat.setTo(Scalar{86, 74, 195});
+
+            auto inv_tr = get_transform_matx_fast(sd.table.pos, sd.table.rot).inv();
+            cv::Vec3b color_ROW[] = {{231, 11, 11}, {231, 106, 2}, {241, 241, 211}};
+            for (auto index : kangsw::counter(4)) {
+                int bidx = max(0, index - 1);
+                auto b = sd.get_ball(index);
+
+                Vec4f pos4 = imgproc::concat_vec(b.pos, 1.f);
+
+                pos4 = inv_tr * pos4;
+                auto pt = Point(-pos4[0] * scale, pos4[2] * scale) + (Point)inner_size / 2;
+
+                circle(top_view_mat, pt, ball_rad_pxl, color_ROW[bidx], -1);
+                putText(top_view_mat, to_string(index), pt + Point(-6, 11), FONT_HERSHEY_PLAIN, scale * 0.002, {0, 0, 0}, 2);
+            }
+
+            PIPEPP_STORE_DEBUG_DATA("Table Top View", (Mat)table_mat);
+        }
     }
 
     PIPEPP_STORE_DEBUG_DATA("Debug glyphs rendering", sd.debug_mat.clone());
