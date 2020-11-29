@@ -511,5 +511,9 @@ pipepp::pipe_error billiards::pipes::table_contour_geometric_search::invoke(
         table_contour = move(approx);
     }
 
+    if (debug::show_all_contours(ec) || debug::show_approx_0_contours(ec)) {
+        PIPEPP_STORE_DEBUG_DATA("Output", (Mat)debug.clone());
+    }
+
     return {};
 }

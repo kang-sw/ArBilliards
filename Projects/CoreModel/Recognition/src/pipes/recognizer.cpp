@@ -222,7 +222,7 @@ pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_cont
     {
         cv::Mat rgb;
 
-        cv::cvtColor(i.rgba, rgb, cv::COLOR_RGBA2RGB);
+        cv::cvtColor(i.rgba, rgb, cv::COLOR_BGRA2RGB);
         if (width < src_size.width) {
             PIPEPP_ELAPSE_SCOPE("Resizing");
             cv::resize(rgb, out.rgb, {width, height});

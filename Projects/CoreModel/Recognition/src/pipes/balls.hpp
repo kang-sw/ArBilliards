@@ -1,11 +1,5 @@
 #pragma once
 #include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
-#include <opencv2/core/base.hpp>
 
 #include "recognizer.hpp"
 
@@ -54,8 +48,14 @@ PIPEPP_EXECUTOR(ball_finder_executor)
     PIPEPP_CATEGORY(debug, "Debug")
     {
         PIPEPP_OPTION(show_debug_mat, false);
+        PIPEPP_OPTION(show_grid_representation, false,
+                      u8"Matching 과정에서, 각 그리드의 대표 중심점에 해당하는 커널을"
+                      " 디버그 화면에 렌더링합니다.");
+        PIPEPP_OPTION(draw_final_ball_position, false,
+                      u8"디버그 화면에 탐색된 공의 최종 위치를 렌더링합니다.");
         PIPEPP_OPTION(show_realtime_kernel, false);
         PIPEPP_OPTION(kernel_display_scale, 200u);
+        PIPEPP_OPTION(suitability_map_scale, 1.0);
     };
 
     PIPEPP_CATEGORY(kernel, "Kernels")
@@ -202,8 +202,8 @@ public:
     ~ball_finder_executor();
 
 private:
-    void _update_kernel_by(pipepp::execution_context & ec, imgproc::img_t const& imdesc, cv::Vec3f , cv::Vec3f,cv::Vec3f);
-    void _internal_loop(pipepp::execution_context& ec, input_type const& in, output_type& o);
+    void _update_kernel_by(pipepp::execution_context & ec, imgproc::img_t const& imdesc, cv::Vec3f, cv::Vec3f, cv::Vec3f);
+    void _internal_loop(pipepp::execution_context & ec, input_type const& in, output_type& o);
 
 private:
     struct impl;

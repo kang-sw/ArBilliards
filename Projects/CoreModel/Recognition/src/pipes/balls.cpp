@@ -225,7 +225,7 @@ float evaluate_suitability(float3 col0, float3 col1, float3 weight, float err_ba
     using namespace concurrency;
     float3 diff = col1 - col0;
     diff = diff * diff * weight;
-    float distance = mathf::norm(diff);
+    float distance = fast_math::sqrtf(diff.x + diff.y + diff.z);
     return fast_math::powf(err_base, -distance);
 }
 } // namespace
@@ -293,10 +293,10 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     int n_tot_tiles = n_tot_kernels / TILE_SIZE;
 
     // 디버그 정보 렌더 ...
-    bool const show_debug = debug::show_debug_mat(ec);
+    bool const show_grid_rep = debug::show_grid_representation(ec);
     Mat3f debug;
     optional<array_view<float3, 2>> u_debug;
-    if (show_debug) {
+    if (show_grid_rep) {
         in.debug_mat.convertTo(debug, CV_32FC3, 1 / 255.f);
         u_debug.emplace(debug.rows, debug.cols, debug.ptr<float3>());
     }
@@ -327,7 +327,9 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
 
         _mcache_points.clear();
         findNonZero(grid, _mcache_points);
-        smpl.pos.insert(smpl.pos.end(), _mcache_points.begin(), _mcache_points.end());
+        for (auto& mp : _mcache_points) {
+            smpl.pos.emplace_back(mp + (Vec2i)roi_grid.tl());
+        }
 
         smpl.distance.resize(smpl.pos.size());
         smpl.suits.resize(smpl.pos.size());
@@ -345,7 +347,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         Vec2i screen_center_pos = {0, 0};  // 그리드 중점의 픽셀 좌표 표현
         float mean_distance = 0;
         for (auto [p, d] : kangsw::zip(pos, dists)) {
-            Vec3f dest(p[0] + roi_grid.x, p[1] + roi_grid.y, 10.f); // 10미터 이상의 픽셀은 취급하지 않습니다.
+            Vec3f dest(p[0], p[1], 10.f); // 10미터 이상의 픽셀은 취급하지 않습니다.
             get_point_coord_3d(imdesc, dest[0], dest[1], 10.f);
             if (auto pt = table_plane.find_contact({}, dest)) {
                 // 월드 좌표로 변환
@@ -360,11 +362,10 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
 
         // -- 그리드의 중점으로부터, 월드 좌표 계산해 커널 업데이트
         _update_kernel_by(ec, imdesc, local_table_pos, local_table_rot, grid_center_pos);
-        auto grid_ofst = kangsw::value_cast<int2>(roi_grid.tl());
         auto ball_pixel_radius = get_pixel_length(imdesc, ball_radius, 1.0f);
 
         // 필요하다면, 디버그 데이터 렌더링
-        if (show_debug) {
+        if (show_grid_rep) {
             parallel_for_each(
               _pkernel_coords.extent,
               [=, target = *u_debug,
@@ -376,7 +377,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
                   auto kernel_color = pkernel_colors[sample];
 
                   kernel_pos = kernel_pos / mean_distance * ball_pixel_radius;
-                  auto center = int2(local_center + kernel_pos) + grid_ofst;
+                  auto center = int2(local_center + kernel_pos);
 
                   if (0 <= center.x && center.x < image_size.width && //
                       0 <= center.y && center.y < image_size.height)  //
@@ -388,13 +389,12 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
 
         // -- 각 유효 픽셀에 대해 커널 매칭 수행
         // 출력 데이터 셋 저장, ~array_view() 호출 시 동기화 방지하기 위해 큐에 먼저 넣어둠
-        auto& view = pending_suits.emplace((int)suits.size(), (float*)suits.data());
+        auto& o_suits = pending_suits.emplace((int)suits.size(), (float*)suits.data());
         extent<2> interm_extent(n_valid_pxls, n_tot_kernels);
         parallel_for_each(
           interm_extent.tile<1, TILE_SIZE>(),
           [=,
-           o_suits = array_view{(int)suits.size(), suits.data()},
-           grid_coords = array_view{(int)pos.size(), ptr_cast<int2>(pos.data())},
+           coords = array_view{(int)pos.size(), ptr_cast<int2>(pos.data())},
            distances = array_view{(int)dists.size(), dists.data()},
            suitability_divider = float(n_tot_kernels / 2.0f)] //
           (tiled_index<1, TILE_SIZE> tidx) __GPU_ONLY         //
@@ -404,11 +404,11 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
               auto smpl_idx = tidx.global[0];
               auto knel_idx = tidx.global[1];
 
-              auto _coord = grid_coords[smpl_idx];
+              auto _coord = coords[smpl_idx];
               auto pkcoord = _pkernel_coords[knel_idx];
               auto nkcoord = _nkernel_coords[knel_idx];
-              auto pcoord = _coord + grid_ofst + int2(pkcoord / distances[smpl_idx] * ball_pixel_radius);
-              auto ncoord = _coord + grid_ofst + int2(nkcoord / distances[smpl_idx] * ball_pixel_radius);
+              auto pcoord = _coord + int2(pkcoord / distances[smpl_idx] * ball_pixel_radius);
+              auto ncoord = _coord + int2(nkcoord / distances[smpl_idx] * ball_pixel_radius);
 
               float suit = 0;
 
@@ -443,7 +443,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
                   _interm_suits(tidx.tile) = suit_sum;
               }
 
-              tidx.barrier.wait_with_global_memory_fence();
+              tidx.barrier.wait_with_all_memory_fence();
               // interm_suits 메모리 누산 --> o_suits에 저장
 
               // 각 [샘플(Dim0)]의 피봇 커널 스레드에 대해 ...
@@ -458,7 +458,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     }
 
     while (pending_suits.empty() == false) { pending_suits.front().synchronize(), pending_suits.pop(); }
-    if (show_debug) {
+    if (show_grid_rep) {
         u_debug->synchronize();
         for (auto gidx : counter(center_mask.rows / grid_size, center_mask.cols / grid_size)) //
         {
@@ -468,6 +468,25 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         }
         PIPEPP_STORE_DEBUG_DATA("Grid Center Rendering Result", (Mat)debug);
     }
+
+    if (smpl.suits.empty() == false && debug::show_debug_mat(ec)) {
+        auto& [coord, _, suits] = smpl;
+        Mat1f suit_map(image_size, 0);
+
+        for (auto idx : counter(coord.size())) {
+            Point pt = coord[idx];
+            auto& suit = suits[idx];
+
+            suit_map(pt) = suit;
+        }
+
+        PIPEPP_STORE_DEBUG_DATA("Suitability Field", (Mat)(suit_map * debug::suitability_map_scale(ec)));
+    }
+
+    PIPEPP_STORE_DEBUG_DATA("Number of valid pixels", smpl.pos.size());
+    PIPEPP_STORE_DEBUG_DATA("Number of kernels", n_tot_kernels / 2);
+    PIPEPP_STORE_DEBUG_DATA("Number of tiles", n_tot_tiles);
+    PIPEPP_STORE_DEBUG_DATA("Default tile size", (size_t)TILE_SIZE);
 }
 
 void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_context& ec, input_type const& in, output_type& o)
@@ -559,7 +578,7 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
     _internal_loop(ec, in, o);
 
     // 테스트 코드 ...
-    if (debug::show_debug_mat(ec)) {
+    if (debug::show_realtime_kernel(ec)) {
         PIPEPP_ELAPSE_SCOPE("Render sample kernel on center");
 
         // 커널을 적용합니다.

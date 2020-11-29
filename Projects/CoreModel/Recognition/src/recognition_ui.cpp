@@ -469,6 +469,9 @@ void exec_ui()
                 decltype(shown_images)::element_type e;
                 e.first = fmt::format("{0}/{1}", basic_string, debug_data_entity.name);
                 e.second = *mat_ptr;
+                if (mat_ptr->channels() == 3) {
+                    cv::cvtColor(*mat_ptr, *mat_ptr, cv::COLOR_RGB2BGR);
+                }
                 shown_images.try_push(std::move(e));
                 return true;
             }
