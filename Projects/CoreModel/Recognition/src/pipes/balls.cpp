@@ -11,6 +11,7 @@
 
 #undef max
 #undef min
+#define DO_PERSPECTIVE_SEARCH 1
 
 #include "fmt/format.h"
 #include "kangsw/ndarray.hxx"
@@ -101,10 +102,14 @@ struct kernel_shader {
 
               // 시선 역방향 벡터 v가 노멀과 반대 방향을 보는 경우, 뒤집어줍니다.
               // 항상 Z=-1 방향을 봐야 합니다.
-              /*
-              if (m_::dot(-float3(0, 0, p.z), n) < 0.f) {
-              /*/
-              if (m_::dot(-p, n) < 0.f) { //*/
+              float head_dir_cos;
+              if constexpr (DO_PERSPECTIVE_SEARCH) {
+                  head_dir_cos = m_::dot(-p, n);
+              } else {
+                  head_dir_cos = m_::dot(-float3(0, 0, p.z), n) ;
+              }
+
+              if (head_dir_cos < 0.f) { //*/
                   p = _kcp - kp;
                   n = -n;
               }
@@ -134,19 +139,18 @@ struct kernel_shader {
               // 광원 조명 - 최종
               float3 C = c_d + c_s;
 
-              // 값 저장
-              _o_kernel_rgb[idx] += C;
-              /*
-               _o_kernel_pos[idx] = (p.xy - _kcp.xy) / _brad; // orthogonal projection
-              /*/
-              // Perform perspective transform
-              // 1. 이 점의 중심을 계산
-              float3 sp = _matx0 * p + _matx1 * p + _matx2 * p;
-              auto np = ((sp / sp.z).xy - float2(_cx, _cy) - _kcent.xy);
+              // 위치  저장
+              if constexpr (DO_PERSPECTIVE_SEARCH) {
+                  // 원근 투영 사용시, 상수 amplifier 적용합니다.
+                  float3 sp = _matx0 * p + _matx1 * p + _matx2 * p;
+                  auto np = ((sp / sp.z).xy - float2(_cx, _cy) - _kcent.xy);
+                  _o_kernel_pos[idx] = np * p.z / _brad * _amp;
+              } else {
+                  _o_kernel_pos[idx] = (p.xy - _kcp.xy) / _brad; // orthogonal projection
+              }
 
-              // 2.
-              _o_kernel_pos[idx] = np * p.z / _brad * _amp;
-              //*/
+              // 색상 저장
+              _o_kernel_rgb[idx] += C;
           });
     }
 };
