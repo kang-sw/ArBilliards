@@ -24,27 +24,27 @@
 #include "pipepp/pipeline.hpp"
 
 extern billiards::recognizer_t g_recognizer;
-static nlohmann::json g_props;
+static nlohmann::json          g_props;
 
 using namespace std;
 
 struct n_type {
-    mutex shows_lock;
+    mutex                          shows_lock;
     unordered_map<string, cv::Mat> shows;
-    nana::form fm{nana::API::make_center(800, 600)};
-    nana::listbox lb{fm};
-    map<string, nlohmann::json*> param_mappings;
-    atomic_bool dirty;
+    nana::form                     fm{nana::API::make_center(800, 600)};
+    nana::listbox                  lb{fm};
+    map<string, nlohmann::json*>   param_mappings;
+    atomic_bool                    dirty;
     struct {
-        atomic_bool is_recording;
-        shared_ptr<ostream> strm_out;
+        atomic_bool                      is_recording;
+        shared_ptr<ostream>              strm_out;
         chrono::system_clock::time_point pivot_time;
-        atomic_bool is_busy;
+        atomic_bool                      is_busy;
     } video;
 };
 
 struct video_frame {
-    float time_point;
+    float                               time_point;
     billiards::recognizer_t::frame_desc img;
 };
 
@@ -105,10 +105,10 @@ static istream& operator>>(istream& i, video_frame& v)
 struct video_frame_chunk {
     float time_point;
     struct {
-        cv::Matx44f camera_transform;
+        cv::Matx44f                                camera_transform;
         billiards::recognizer_t::camera_param_type camera;
-        cv::Vec3f camera_translation;
-        cv::Vec4f camera_orientation;
+        cv::Vec3f                                  camera_translation;
+        cv::Vec4f                                  camera_orientation;
     } img;
     vector<uint8_t> chnk_rgb;
     vector<uint8_t> chnk_depth;
@@ -142,10 +142,10 @@ static video_frame parse(video_frame_chunk const& va)
 {
     video_frame v;
     v.img.camera_orientation = va.img.camera_orientation;
-    v.img.camera = va.img.camera;
-    v.img.camera_transform = va.img.camera_transform;
+    v.img.camera             = va.img.camera;
+    v.img.camera_transform   = va.img.camera_transform;
     v.img.camera_translation = va.img.camera_translation;
-    v.time_point = va.time_point;
+    v.time_point             = va.time_point;
 
     cv::cvtColor(cv::imdecode(va.chnk_rgb, cv::IMREAD_COLOR), v.img.rgba, cv::COLOR_RGB2RGBA);
     cv::imdecode(va.chnk_depth, cv::IMREAD_GRAYSCALE).convertTo(v.img.depth, CV_32F, 1.f / (float)g_props["explorer"]["depth-alpha"]);
@@ -170,9 +170,9 @@ static string getImgType(int imgTypeInt)
 }
 
 struct mat_desc_row_t {
-    optional<bool> is_displaying = false;
-    string mat_name;
-    cv::Mat mat;
+    optional<bool>                   is_displaying = false;
+    string                           mat_name;
+    cv::Mat                          mat;
     chrono::system_clock::time_point tp;
 };
 
@@ -184,14 +184,14 @@ string time_to_from_string(chrono::system_clock::time_point tp)
 
     auto seconds = gap.count() % 60;
     auto minutes = gap.count() / 60 % 60;
-    auto hours = gap.count() / (60 * 60) % 24;
-    auto days = gap.count() / (60 * 60 * 24) % 7;
-    auto weeks = gap.count() / (60 * 60 * 24 * 7) % 4;
-    auto months = gap.count() / (60 * 60 * 24 * 7 * 4) % 12;
-    auto years = gap.count() / (60 * 60 * 24 * 7 * 4 * 12);
+    auto hours   = gap.count() / (60 * 60) % 24;
+    auto days    = gap.count() / (60 * 60 * 24) % 7;
+    auto weeks   = gap.count() / (60 * 60 * 24 * 7) % 4;
+    auto months  = gap.count() / (60 * 60 * 24 * 7 * 4) % 12;
+    auto years   = gap.count() / (60 * 60 * 24 * 7 * 4 * 12);
 
     long long values[] = {years, months, weeks, days, hours, minutes, seconds};
-    string tags[] = {"year", "month", "week", "day", "hour", "minute", "second"};
+    string    tags[]   = {"year", "month", "week", "day", "hour", "minute", "second"};
 
     for (int i = 0; i < _countof(values); ++i) {
         if (values[i]) {
@@ -219,8 +219,8 @@ static void json_recursive_substitute(json& to, json const& from)
 {
     int index = 0;
     for (auto& pair : to.items()) {
-        auto& value = pair.value();
-        json const* src = nullptr;
+        auto&       value = pair.value();
+        json const* src   = nullptr;
         {
             cout << "info: subtitute key " << pair.key();
             if (auto it = from.find(pair.key()); it != from.end()) {
@@ -251,21 +251,21 @@ static void json_recursive_substitute(json& to, json const& from)
 void exec_ui()
 {
     using namespace nana;
-    auto n = make_shared<n_type>();
-    n_weak = n;
+    auto n   = make_shared<n_type>();
+    n_weak   = n;
     form& fm = n->fm; // 주 폼
 
     // 변수 목록
     string AUTOSAVE_PATH = "arbilliards-autosave.json";
-    AUTOSAVE_PATH = (filesystem::current_path() / AUTOSAVE_PATH).string();
+    AUTOSAVE_PATH        = (filesystem::current_path() / AUTOSAVE_PATH).string();
     cout << "Autosave path set at " << AUTOSAVE_PATH << endl;
 
     string current_save_path = AUTOSAVE_PATH;
     string curtime_prefix;
     {
         time_t rtime;
-        tm t;
-        char buff[128];
+        tm     t;
+        char   buff[128];
         time(&rtime);
         localtime_s(&t, &rtime);
         strftime(buff, sizeof buff, "%Y-%m-%d %H %M %S", &t);
@@ -278,7 +278,7 @@ void exec_ui()
 
     // 타이틀바 창 업데이트 함수
     auto fm_caption_dirty = [&]() {
-        auto str = "AR Billiards Image Processing Core - "s;
+        auto str    = "AR Billiards Image Processing Core - "s;
         auto divide = current_save_path.find_last_of("\\");
         str += divide == npos ? current_save_path : current_save_path.substr(divide + 1);
         if (is_config_dirty) {
@@ -306,7 +306,7 @@ void exec_ui()
                 g_props["explorer"]["depth-alpha"] = 32;
 
                 current_save_path = path;
-                is_config_dirty = false;
+                is_config_dirty   = false;
                 state_messages.emplace("loaded configurations from file "s + path);
                 fm_caption_dirty();
 
@@ -322,7 +322,7 @@ void exec_ui()
     // 세이브 함수
     auto save_as = [&](string path) {
         ofstream strm(path);
-        json opts;
+        json     opts;
         g_recognizer.get_pipeline_instance().lock()->export_options(opts);
         opts["g_props"] = g_props;
         strm << opts.dump(4);
@@ -381,7 +381,7 @@ void exec_ui()
 
         if (auto paths = fb(); !paths.empty()) {
             auto path = paths.front();
-            auto res = load_from_path(path.string());
+            auto res  = load_from_path(path.string());
             reload_global_opts();
         }
     });
@@ -402,7 +402,7 @@ void exec_ui()
 
         if (ptr) {
             arg.item.value<mat_desc_row_t>().is_displaying = arg.item.checked();
-            n->dirty = true;
+            n->dirty                                       = true;
         }
     });
 
@@ -455,8 +455,8 @@ void exec_ui()
     // -- 파이프라인
     pipepp::gui::DEFAULT_DATA_FONT = paint::font{"consolas", 10.5};
     kangsw::atomic_queue<std::pair<std::string, cv::Mat>> shown_images{1024};
-    kangsw::atomic_queue<std::string> shutdown_images{1024};
-    pipepp::gui::pipeline_board pl_board(fm, {}, true);
+    kangsw::atomic_queue<std::string>                     shutdown_images{1024};
+    pipepp::gui::pipeline_board                           pl_board(fm, {}, true);
     pl_board.reset_pipeline(g_recognizer.get_pipeline_instance().lock());
     pl_board.bgcolor(colors::antique_white);
     // pl_board.main_connection_line_color = color(255, 255, 255);
@@ -467,7 +467,7 @@ void exec_ui()
         if (auto any_ptr = std::get_if<std::any>(&debug_data_entity.data)) {
             if (auto mat_ptr = std::any_cast<cv::Mat>(any_ptr)) {
                 decltype(shown_images)::element_type e;
-                e.first = fmt::format("{0}/{1}", basic_string, debug_data_entity.name);
+                e.first  = fmt::format("{0}/{1}", basic_string, debug_data_entity.name);
                 e.second = *mat_ptr;
                 if (mat_ptr->channels() == 3) {
                     cv::cvtColor(*mat_ptr, *mat_ptr, cv::COLOR_RGB2BGR);
@@ -505,7 +505,7 @@ void exec_ui()
 
         if (false) {
             std::cout << "\r";
-            auto pipe = g_recognizer.get_pipeline_instance().lock();
+            auto  pipe = g_recognizer.get_pipeline_instance().lock();
             auto& pool = pipe->_thread_pool();
             using std::chrono::duration;
 
@@ -530,8 +530,8 @@ void exec_ui()
 
     // -- 스냅샷 관련
     optional<billiards::recognizer_t::frame_desc> snapshot;
-    timer snapshot_loader{100ms};
-    button btn_snap_load(fm), btn_snapshot(fm), btn_snap_abort(fm);
+    timer                                         snapshot_loader{100ms};
+    button                                        btn_snap_load(fm), btn_snapshot(fm), btn_snap_abort(fm);
     btn_snap_load.caption("Load Snapshot (Alt+E)");
     btn_snapshot.caption("Capture Snapshot (Alt+C)");
     btn_snap_abort.caption("Abort Snapshot");
@@ -543,7 +543,7 @@ void exec_ui()
         fb.allow_multi_select(false);
 
         if (auto paths = fb(); paths.empty() == false) {
-            auto path = paths.front().string();
+            auto     path = paths.front().string();
             ifstream strm{path, ios::binary | ios::in};
 
             if (strm.is_open()) {
@@ -553,13 +553,13 @@ void exec_ui()
         }
     });
     btn_snapshot.events().click([&](auto) {
-        auto snap = g_recognizer.get_image_snapshot();
+        auto    snap = g_recognizer.get_image_snapshot();
         filebox fb(fm, false);
 
         for (int i = 0; i < 100; ++i) {
             auto start_path_str = fb.path().string();
             start_path_str.pop_back();
-            auto file_name = curtime_prefix + " ("s + to_string(i) + ").arbsnap"s;
+            auto file_name  = curtime_prefix + " ("s + to_string(i) + ").arbsnap"s;
             auto start_path = start_path_str / filesystem::path(file_name);
             if (!filesystem::exists(start_path)) {
                 fb.init_file(file_name);
@@ -571,7 +571,7 @@ void exec_ui()
         fb.allow_multi_select(false);
 
         if (auto paths = fb(); paths.empty() == false) {
-            auto path = paths.front().string();
+            auto     path = paths.front().string();
             ofstream strm{path, ios::binary | ios::out};
             strm << snap;
         }
@@ -585,11 +585,11 @@ void exec_ui()
     });
 
     // -- 로딩
-    button btn_video_load(fm), btn_video_record(fm), btn_video_playpause(fm);
+    button                    btn_video_load(fm), btn_video_record(fm), btn_video_playpause(fm);
     vector<video_frame_chunk> frame_chunks;
-    optional<video_frame> previous;
-    slider video_slider(fm);
-    bool is_playing_video = false;
+    optional<video_frame>     previous;
+    slider                    video_slider(fm);
+    bool                      is_playing_video = false;
 
     btn_video_load.caption("Load Video");
     btn_video_record.caption("Record Video");
@@ -617,9 +617,9 @@ void exec_ui()
         fb.allow_multi_select(false);
 
         if (auto paths = fb.show(); !paths.empty()) {
-            auto& path = paths.front();
-            n->video.strm_out = make_shared<ofstream>(path.string(), ios::out | ios::binary);
-            n->video.pivot_time = chrono::system_clock::now();
+            auto& path            = paths.front();
+            n->video.strm_out     = make_shared<ofstream>(path.string(), ios::out | ios::binary);
+            n->video.pivot_time   = chrono::system_clock::now();
             n->video.is_recording = true;
             btn_video_record.caption("Stop Recording");
             btn_video_record.bgcolor(colors::red);
@@ -687,10 +687,10 @@ void exec_ui()
                 video_slider.maximum(frame_chunks.size());
             }
             auto& vid_chnk = frame_chunks[video_slider.value() % frame_chunks.size()];
-            auto vid = parse(vid_chnk);
+            auto  vid      = parse(vid_chnk);
             if (previous) {
                 n->video.is_busy = true;
-                auto tm = clamp(vid.time_point - previous->time_point, 0.001f, 0.1f) * 0.75f;
+                auto tm          = clamp(vid.time_point - previous->time_point, 0.001f, 0.1f) * 0.75f;
                 g_recognizer.refresh_image(previous->img, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); });
                 video_player.interval(chrono::milliseconds((int)(is_playing_video ? tm * 1000.f : 100)));
             }
@@ -797,11 +797,11 @@ void exec_ui()
     layout.collocate();
 
     fm.events().move([&](auto) {
-        auto rect = rectangle(fm.pos(), fm.size());
+        auto rect                  = rectangle(fm.pos(), fm.size());
         g_props["window-position"] = (array<int, 4>&)rect;
     });
     fm.events().resized([&](auto) {
-        auto rect = rectangle(fm.pos(), fm.size());
+        auto rect                  = rectangle(fm.pos(), fm.size());
         g_props["window-position"] = (array<int, 4>&)rect;
         static_assert(sizeof rect == sizeof(array<int, 4>));
     });
@@ -830,14 +830,14 @@ void ui_on_refresh()
 
         if (n->video.is_recording) {
             assert(n->video.strm_out);
-            auto time = chrono::duration<float>(chrono::system_clock::now() - n->video.pivot_time).count();
-            video_frame f = {.time_point = time, .img = g_recognizer.get_image_snapshot()};
+            auto        time = chrono::duration<float>(chrono::system_clock::now() - n->video.pivot_time).count();
+            video_frame f    = {.time_point = time, .img = g_recognizer.get_image_snapshot()};
             *n->video.strm_out << f;
         } else if (n->video.strm_out) {
             n->video.strm_out.reset();
         }
 
         n->video.is_busy = false;
-        n->dirty = true;
+        n->dirty         = true;
     }
 }

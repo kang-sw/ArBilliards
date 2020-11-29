@@ -201,22 +201,22 @@ PIPEPP_EXECUTOR(ball_finder_executor)
 
         // 기타 기본 파라미터
         imgproc::img_t const* p_imdesc;
-        cv::Mat3b debug_mat;
+        cv::Mat3b             debug_mat;
     };
 
     struct output_type {
         struct ball_position {
             // 찾아낸 공의 월드 좌표 및 확신도입니다.
             cv::Vec3f position;
-            float confidence;
+            float     confidence;
         };
 
         // 다수의 출력을 포함할 수 있습니다.
         std::vector<ball_position> positions;
     };
 
-    void operator()(pipepp::execution_context& ec, input_type const& in, output_type& o);
-    static void link(shared_data & sd, pipepp::execution_context& _exec_cont, input_type & i, pipepp::options & opt);
+    void        operator()(pipepp::execution_context& ec, input_type const& in, output_type& o);
+    static void link(shared_data & sd, pipepp::execution_context & _exec_cont, input_type & i, pipepp::options & opt);
 
 public:
     ball_finder_executor();

@@ -32,8 +32,8 @@ template <typename Fn_>
 void circle_op(int cent_x, int cent_y, int radius, Fn_&& op)
 {
     int x = 0, y = radius;
-    int d = 1 - radius;             // 결정변수를 int로 변환
-    int delta_e = 3;                // E가 선택됐을 때 증분값
+    int d        = 1 - radius;      // 결정변수를 int로 변환
+    int delta_e  = 3;               // E가 선택됐을 때 증분값
     int delta_se = -2 * radius + 5; // SE가 선탣됐을 때 증분값
 
     op(cent_x + x, cent_y + y);
@@ -81,14 +81,14 @@ void random_vector(Rand_& rand, cv::Vec<Ty_, Sz_>& vec, Ty_ range)
     vec[0] = distr(rand);
     vec[1] = distr(rand);
     vec[2] = distr(rand);
-    vec = cv::normalize(vec) * range;
+    vec    = cv::normalize(vec) * range;
 }
 
 template <typename Ty_, typename Rand_>
 void discard_random_args(vector<Ty_>& iovec, size_t target_size, Rand_&& rengine)
 {
     while (iovec.size() > target_size) {
-        auto ridx = uniform_int_distribution<size_t>{0, iovec.size() - 1}(rengine);
+        auto ridx   = uniform_int_distribution<size_t>{0, iovec.size() - 1}(rengine);
         iovec[ridx] = move(iovec.back());
         iovec.pop_back();
     }
@@ -103,10 +103,10 @@ cv::Matx<Ty_, 3, 3> rodrigues(cv::Vec<Ty_, 3> v)
 
     using mat_t = cv::Matx<Ty_, 3, 3>;
 
-    auto O = cv::norm(v);
+    auto O            = cv::norm(v);
     auto [vx, vy, vz] = (v = v / O).val;
-    auto cosO = cos(O);
-    auto sinO = sin(O);
+    auto cosO         = cos(O);
+    auto sinO         = sin(O);
 
     mat_t V{0, -vz, vy, vz, 0, -vx, -vy, vx, 0};
     mat_t R = cosO * mat_t::eye() + sinO * V + (Ty_(1) - cosO) * v * v.t();
@@ -170,12 +170,12 @@ static cv::Matx44f get_world_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot)
 {
     using namespace cv;
     Matx44f world_transform = {};
-    world_transform(3, 3) = 1.0f;
+    world_transform(3, 3)   = 1.0f;
     {
-        world_transform.val[3] = pos[0];
-        world_transform.val[7] = pos[1];
+        world_transform.val[3]  = pos[0];
+        world_transform.val[7]  = pos[1];
         world_transform.val[11] = pos[2];
-        Matx33f rot_mat = rodrigues(rot);
+        Matx33f rot_mat         = rodrigues(rot);
         copyMatx(world_transform, rot_mat, 0, 0);
     }
     return world_transform;
@@ -193,7 +193,7 @@ static void cull_frustum_impl(vector<cv::Vec3f>& obj_pts, plane_t const* plane_p
     assert(obj_pts.size() >= 3);
 
     for (auto pl : planes) {
-        auto& o = obj_pts;
+        auto&          o            = obj_pts;
         constexpr auto SMALL_NUMBER = 1e-5f;
         // 평면 안의 점 찾기 ... 시작점
         int idx = -1;
@@ -255,7 +255,7 @@ static void cull_frustum_impl(vector<cv::Vec3f>& obj_pts, plane_t const* plane_p
                     // o[nnidx]는 평면 안에 있음
                     // 접점을 스폰하고 nidx폐기, 탈출
                     auto contact = pl.find_contact(o[nidx], o[nnidx]).value();
-                    o[nidx] = contact;
+                    o[nidx]      = contact;
                 }
 
                 idx = nnidx; // nidx는 검증 완료, nnidx에서 새로 시작
@@ -276,7 +276,7 @@ static void fit_contour_to_screen(vector<Ty_>& pts, cv::Rect screen)
     }
 
     // 4개의 평면 생성
-    auto tl = screen.tl(), br = screen.br();
+    auto    tl = screen.tl(), br = screen.br();
     plane_t planes[] = {
       {{+1, 0, 0}, -tl.x},
       {{-1, 0, 0}, +br.x},
@@ -388,12 +388,12 @@ static float contour_distance(vector<cv::Vec2f> const& ct_a, vector<cv::Vec2f>& 
         if (ct_b.empty()) { break; }
 
         float min_dist = numeric_limits<float>::max();
-        int min_idx = 0;
+        int   min_idx  = 0;
         for (int i = 0; i < ct_b.size(); ++i) {
             auto dist = cv::norm(ct_b[i] - pt, cv::NORM_L2SQR);
             if (dist < min_dist) {
                 min_dist = dist;
-                min_idx = i;
+                min_idx  = i;
             }
         }
 
@@ -417,12 +417,12 @@ static float contour_min_dist_for_each(vector<cv::Vec2f> const& ct_a, vector<cv:
         if (ct_b.empty()) { break; }
 
         float min_dist = numeric_limits<float>::max();
-        int min_idx = 0;
+        int   min_idx  = 0;
         for (int i = 0; i < ct_b.size(); ++i) {
             auto dist = cv::norm(ct_b[i] - pt, cv::NORM_L2SQR);
             if (dist < min_dist) {
                 min_dist = dist;
-                min_idx = i;
+                min_idx  = i;
             }
         }
 
@@ -454,18 +454,18 @@ struct timer_scope_t {
     {
         timer_scope_counter--;
         tm_.stop();
-        auto& arg = self_.elapsed_seconds[index_];
+        auto& arg  = self_.elapsed_seconds[index_];
         arg.second = chrono::microseconds((int64)tm_.getTimeMicro());
     }
 
     recognizer_impl_t& self_;
-    cv::TickMeter tm_;
-    int index_;
+    cv::TickMeter      tm_;
+    int                index_;
 };
 
 static bool is_border_pixel(cv::Rect img_size, cv::Vec2i pixel, int margin = 3)
 {
-    pixel = pixel - (cv::Vec2i)img_size.tl();
+    pixel  = pixel - (cv::Vec2i)img_size.tl();
     bool w = pixel[0] < margin || pixel[0] >= img_size.width - margin;
     bool h = pixel[1] < margin || pixel[1] >= img_size.height - margin;
     return w || h;
@@ -501,7 +501,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
     }
 
     struct candidate_t {
-        float error = numeric_limits<float>::max();
+        float     error = numeric_limits<float>::max();
         cv::Vec3f pos, rot;
     };
 
@@ -526,7 +526,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
 
         if (do_parallel) {
             cands.resize(p.num_candidates);
-            thread_local mt19937 rand{(unsigned)hash<thread::id>{}(this_thread::get_id())};
+            thread_local mt19937           rand{(unsigned)hash<thread::id>{}(this_thread::get_id())};
             thread_local vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
             thread_local vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
             for_each(execution::par_unseq, cands.begin(), cands.end(), [&](candidate_t& elem) {
@@ -543,7 +543,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
                     // 회전 벡터를 계산합니다.
                     // 회전은 급격하게 변하지 않고, 더 계산하기 까다로우므로 축을 고정하고 회전시킵니다.
                     random_vector(rand, r, distr_rot_axis(rand));
-                    r = normalize(r + init_rot); // 회전축에 variant 적용
+                    r                    = normalize(r + init_rot); // 회전축에 variant 적용
                     float new_rot_amount = norm(init_rot) + distr_rot(rand);
                     r *= new_rot_amount;
                 } else {
@@ -563,7 +563,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
                     cand.error = numeric_limits<float>::max();
                 } else {
                     float dist_min = contour_distance(input, ch_mapped);
-                    cand.error = dist_min;
+                    cand.error     = dist_min;
                 }
 
                 elem = cand;
@@ -571,12 +571,12 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         } else {
             vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
             vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
-            mt19937 rand(random_device{}());
+            mt19937           rand(random_device{}());
 
             while (cands.size() < p.num_candidates) {
                 candidate_t cand;
-                auto& p = cand.pos;
-                auto& r = cand.rot;
+                auto&       p = cand.pos;
+                auto&       r = cand.rot;
 
                 random_vector(rand, p, distr_pos(rand));
                 p += init_pos;
@@ -584,7 +584,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
                 // 회전 벡터를 계산합니다.
                 // 회전은 급격하게 변하지 않고, 더 계산하기 까다로우므로 축을 고정하고 회전시킵니다.
                 random_vector(rand, r, distr_rot_axis(rand));
-                r = normalize(r + init_rot); // 회전축에 variant 적용
+                r                    = normalize(r + init_rot); // 회전축에 variant 적용
                 float new_rot_amount = norm(init_rot) + distr_rot(rand);
                 r *= new_rot_amount;
 
@@ -612,7 +612,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
                 }
 
                 float dist_min = contour_distance(input, ch_mapped);
-                cand.error = dist_min;
+                cand.error     = dist_min;
             }
         }
 
@@ -632,15 +632,15 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
         }
     }
 
-    auto& suitable = cands.front();
+    auto&                         suitable = cands.front();
     transform_estimation_result_t res;
     res.confidence = pow(p.confidence_calc_base, -suitable.error);
-    res.position = suitable.pos;
-    res.rotation = suitable.rot;
+    res.position   = suitable.pos;
+    res.rotation   = suitable.rot;
 
     if (p.render_debug_glyphs && p.debug_render_mat.data) {
         vector<cv::Point> points;
-        auto ch_model = model;
+        auto              ch_model = model;
 
         project_model(img, points, res.position, res.rotation, ch_model, true, p.FOV.width, p.FOV.height);
         cv::drawContours(p.debug_render_mat, vector{{points}}, -1, {0, 0, 255}, 1);
@@ -652,7 +652,7 @@ optional<recognizer_impl_t::transform_estimation_result_t> recognizer_impl_t::es
 void recognizer_impl_t::project_contours(img_t const& img, const cv::Mat& rgb, vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color, int thickness)
 {
     vector<cv::Point> mapped;
-    cv::Vec2f FOV = m.props["FOV"];
+    cv::Vec2f         FOV = m.props["FOV"];
     project_model(img, mapped, pos, rot, model, true, FOV[0], FOV[1]);
 
     if (!mapped.empty()) {
@@ -682,17 +682,17 @@ void recognizer_impl_t::get_marker_points_model(std::vector<cv::Vec3f>& model)
         model = model_param["array"].get<vector<cv::Vec3f>>();
         model.resize(model_param["array-num"]);
     } else {
-        int num_x = model_param["count-x"];
-        int num_y = model_param["count-y"];
-        float felt_width = model_param["felt-width"];
-        float felt_height = model_param["felt-height"];
-        float dist_from_felt_long = model_param["dist-from-felt-long"];
+        int   num_x                = model_param["count-x"];
+        int   num_y                = model_param["count-y"];
+        float felt_width           = model_param["felt-width"];
+        float felt_height          = model_param["felt-height"];
+        float dist_from_felt_long  = model_param["dist-from-felt-long"];
         float dist_from_felt_short = model_param["dist-from-felt-short"];
-        float step = model_param["step"];
-        float width_shift_a = model_param["width-shift-a"];
-        float width_shift_b = model_param["width-shift-b"];
-        float height_shift_a = model_param["height-shift-a"];
-        float height_shift_b = model_param["height-shift-b"];
+        float step                 = model_param["step"];
+        float width_shift_a        = model_param["width-shift-a"];
+        float width_shift_b        = model_param["width-shift-b"];
+        float height_shift_a       = model_param["height-shift-a"];
+        float height_shift_b       = model_param["height-shift-b"];
 
         for (int i = -num_y / 2; i < num_y / 2 + 1; ++i) {
             model.emplace_back(-(dist_from_felt_short + felt_width / 2), 0, step * i + height_shift_a);
@@ -711,8 +711,8 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
     ELAPSE_SCOPE("Table Search");
 
     using namespace cv;
-    auto p = m.props;
-    auto tp = p["table"];
+    auto p          = m.props;
+    auto tp         = p["table"];
     auto image_size = varget(Size, Size_Image); // any_cast<Size>(vars["scaled-image-size"]);
 
     {
@@ -720,13 +720,13 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         auto tc = tp["contour"];
 
         vector<vector<Point>> candidates;
-        vector<Vec4i> hierarchy;
+        vector<Vec4i>         hierarchy;
         findContours(filtered, candidates, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_NONE);
 
         // 테이블 전체가 시야에 없을 때에도 위치를 추정할 수 있도록, 가장 큰 영역을 기록해둡니다.
-        auto max_size_arg = make_pair(-1, 0.0);
-        auto eps0 = tc["approx-epsilon-preprocess"];
-        auto eps1 = tc["approx-epsilon-convexhull"];
+        auto max_size_arg   = make_pair(-1, 0.0);
+        auto eps0           = tc["approx-epsilon-preprocess"];
+        auto eps1           = tc["approx-epsilon-convexhull"];
         auto size_threshold = (double)tc["area-threshold-ratio"] * image_size.area();
 
         // 사각형 컨투어 찾기
@@ -781,14 +781,14 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
     if (table_contour.size() == 4 && !is_any_border_point) {
         ELAPSE_SCOPE("CASE 1 - PNP Solver");
         vector<Vec3f> obj_pts;
-        Vec3d tvec;
-        Vec3d rvec;
+        Vec3d         tvec;
+        Vec3d         rvec;
 
         get_table_model(obj_pts, tp["size"]["fit"]);
 
         // tvec의 초기값을 지정해주기 위해, 깊이 이미지를 이용하여 당구대 중점 위치를 추정합니다.
-        bool estimation_valid = true;
-        vector<cv::Vec3d> table_points_3d = {};
+        bool              estimation_valid = true;
+        vector<cv::Vec3d> table_points_3d  = {};
         {
             // 카메라 파라미터는 컬러 이미지 기준이므로, 깊이 이미지 해상도를 일치시킵니다.
             cv::Mat depth = img.depth;
@@ -797,14 +797,14 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 
             // 당구대의 네 점의 좌표를 적절한 3D 좌표로 변환합니다.
             for (auto const& uv : table_contour) {
-                auto u = uv[0];
-                auto v = uv[1];
+                auto u        = uv[0];
+                auto v        = uv[1];
                 auto z_metric = depth.at<float>(v, u);
 
                 auto& pt = table_points_3d.emplace_back();
-                pt[2] = z_metric;
-                pt[0] = z_metric * ((u - c.cx) / c.fx);
-                pt[1] = z_metric * ((v - c.cy) / c.fy);
+                pt[2]    = z_metric;
+                pt[0]    = z_metric * ((u - c.cx) / c.fx);
+                pt[1]    = z_metric * ((v - c.cy) / c.fy);
             }
         }
         bool solve_successful = false;
@@ -853,12 +853,12 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
             }
 
             vector<vector<Vec2i>> contours;
-            vector<Vec2f> mapped;
+            vector<Vec2f>         mapped;
             project_model_local(img, mapped, vertexes, false, {});
             contours.emplace_back().assign(mapped.begin(), mapped.end());
 
             // 각 점을 비교하여 에러를 계산합니다.
-            auto& proj = contours.front();
+            auto&  proj      = contours.front();
             double error_sum = 0;
             for (size_t index = 0; index < 4; index++) {
                 Vec2f projpt = proj[index];
@@ -903,10 +903,10 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 
         auto tpa = tp["partial"];
 
-        int num_iteration = tpa["iteration"];
-        int num_candidates = tpa["candidates"];
-        float rot_axis_variant = tpa["rot-axis-variant"];
-        float rot_variant = tpa["rot-amount-variant"];
+        int   num_iteration        = tpa["iteration"];
+        int   num_candidates       = tpa["candidates"];
+        float rot_axis_variant     = tpa["rot-axis-variant"];
+        float rot_variant          = tpa["rot-amount-variant"];
         float pos_initial_distance = tpa["pos-variant"];
 
         int border_margin = tpa["border-margin"];
@@ -915,19 +915,19 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         points.assign(table_contour.begin(), table_contour.end());
         drawContours(debug, vector{{points}}, -1, {255, 0, 0}, 3);
 
-        vector<Vec2f> input = table_contour;
+        vector<Vec2f>                input = table_contour;
         transform_estimation_param_t param = {num_iteration, num_candidates, rot_axis_variant, rot_variant, pos_initial_distance, border_margin};
-        Vec2f FOV = p["FOV"];
-        param.FOV = {FOV[0], FOV[1]};
-        param.debug_render_mat = debug;
-        param.render_debug_glyphs = true;
-        param.do_parallel = tpa["do-parallel"];
-        param.iterative_narrow_ratio = tpa["iteration-narrow-coeff"];
+        Vec2f                        FOV   = p["FOV"];
+        param.FOV                          = {FOV[0], FOV[1]};
+        param.debug_render_mat             = debug;
+        param.render_debug_glyphs          = true;
+        param.do_parallel                  = tpa["do-parallel"];
+        param.iterative_narrow_ratio       = tpa["iteration-narrow-coeff"];
 
         // contour 컬링 사각형을 계산합니다.
         {
-            Vec2d offset = tpa["contour-curll-window"]["offset"];
-            Vec2d size = tpa["contour-curll-window"]["size"];
+            Vec2d offset   = tpa["contour-curll-window"]["offset"];
+            Vec2d size     = tpa["contour-curll-window"]["size"];
             Vec2i img_size = static_cast<Point>(debug.size());
 
             Rect r{(Point)(Vec2i)offset.mul(img_size), (Size)(Vec2i)size.mul(img_size)};
@@ -953,9 +953,9 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 
     // 마커 위치 투사
     if (pnp_failed) {
-        Vec2f fov = p["FOV"];
-        constexpr float DtoR = (CV_PI / 180.f);
-        auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
+        Vec2f           fov         = p["FOV"];
+        constexpr float DtoR        = (CV_PI / 180.f);
+        auto const      view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
 
         vector<Vec3f> vertexes;
         get_marker_points_model(vertexes);
@@ -964,7 +964,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         for (auto pt : vertexes) {
             Vec4f pt4;
             (Vec3f&)pt4 = pt;
-            pt4[3] = 1.0f;
+            pt4[3]      = 1.0f;
 
             pt4 = world_tr * pt4;
             draw_circle(img, (Mat&)debug, 0.01f, (Vec3f&)pt4, {255, 255, 255}, 2);
@@ -1007,16 +1007,16 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 }
             }
 
-            auto outer_contour = contour;
-            auto inner_contour = contour;
-            auto m = moments(contour);
-            auto center = Vec2f(m.m10 / m.m00, m.m01 / m.m00);
+            auto   outer_contour     = contour;
+            auto   inner_contour     = contour;
+            auto   m                 = moments(contour);
+            auto   center            = Vec2f(m.m10 / m.m00, m.m01 / m.m00);
             double frame_width_outer = tp["marker"]["frame-width-outer"];
             double frame_width_inner = tp["marker"]["frame-width-inner"];
 
             // 각 컨투어의 거리 값에 따라, 차등적으로 밀고 당길 거리를 지정합니다.
             for (int index = 0; index < contour.size(); ++index) {
-                Vec2i pt = contour[index];
+                Vec2i pt    = contour[index];
                 auto& outer = outer_contour[index];
                 auto& inner = inner_contour[index];
 
@@ -1030,7 +1030,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 // 평면과 해당 방향 시야가 이루는 각도 theta를 구하고, cos(theta)를 곱해 화면상의 픽셀 드래그를 구합니다.
                 Vec3f pt_dir(pt[0], pt[1], 1);
                 get_point_coord_3d(img, pt_dir[0], pt_dir[1], 1);
-                pt_dir = normalize(pt_dir);
+                pt_dir         = normalize(pt_dir);
                 auto cos_theta = abs(pt_dir.dot(table_plane.N));
                 drag_width_outer *= cos_theta;
                 drag_width_inner *= cos_theta;
@@ -1062,10 +1062,10 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         if (0) {
             ELAPSE_SCOPE("Filter Marker Range");
 
-            auto u_hsv = varget(UMat, UImg_HSV);
-            UMat u0, u1;
+            auto            u_hsv = varget(UMat, UImg_HSV);
+            UMat            u0, u1;
             array<Vec3d, 2> filter = tp["marker"]["filter"];
-            Mat1b range_filtered(u_hsv.size(), 0);
+            Mat1b           range_filtered(u_hsv.size(), 0);
 
             auto num_dilate = tp["marker"]["num-dilate-iteration"];
             filter_hsv(u_hsv, u0, (Vec3f)filter[0], (Vec3f)filter[1]);
@@ -1088,7 +1088,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
             float rad_max = tp["marker"]["detect-max-radius"];
             for (auto& ctr : contours) {
                 Point2f center;
-                float radius;
+                float   radius;
                 minEnclosingCircle(ctr, center, radius);
 
                 if (rad_min <= radius && radius <= rad_max) {
@@ -1098,14 +1098,14 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
             }
         } else {
             ELAPSE_SCOPE("Filter Marker Range");
-            auto u_hsv = varget(UMat, UImg_HSV);
+            auto         u_hsv = varget(UMat, UImg_HSV);
             vector<UMat> channels;
             split(u_hsv, channels);
 
             if (channels.size() >= 3) {
                 auto& u_value = channels[2];
-                UMat u0, u1;
-                UMat laplacian_mask(u_hsv.size(), CV_8U, {0});
+                UMat  u0, u1;
+                UMat  laplacian_mask(u_hsv.size(), CV_8U, {0});
 
                 // 샤프닝 적용 후 라플랑시안 적용
                 // GaussianBlur(u_value, u0, {}, double(tp["marker-filter"]["sharpen-sigma"]));
@@ -1125,14 +1125,14 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 vector<vector<Vec2i>> contours;
                 findContours(laplacian_mask, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, {});
 
-                float rad_min = tp["marker"]["detect-min-radius"];
-                float rad_max = tp["marker"]["detect-max-radius"];
+                float rad_min  = tp["marker"]["detect-min-radius"];
+                float rad_max  = tp["marker"]["detect-max-radius"];
                 float area_min = tp["marker"]["detect-area-threshold"];
                 for (auto& ctr : contours) {
                     // if (ctr.size() < 3) continue;
 
                     Point2f center;
-                    float radius;
+                    float   radius;
                     minEnclosingCircle(ctr, center, radius);
                     float area = contourArea(ctr);
 
@@ -1173,31 +1173,31 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
         //
         if (centers.empty() == false) {
             ELAPSE_SCOPE("Iterative Search");
-            auto& params = m.props;
-            auto& table_params = params["table"];
+            auto&         params       = m.props;
+            auto&         table_params = params["table"];
             vector<Vec3f> model; //  = table_params["marker"]["array"];
                                  // model.resize(table_params["marker"]["array-num"]);
             get_marker_points_model(model);
 
             struct candidate_t {
-                Vec3f rotation;
-                Vec3f position;
+                Vec3f  rotation;
+                Vec3f  position;
                 double suitability;
             };
 
             vector<candidate_t> candidates;
             candidates.push_back({table_rot, table_pos, 0});
 
-            Vec2f fov = params["FOV"];
-            constexpr float DtoR = (CV_PI / 180.f);
-            auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
+            Vec2f           fov         = params["FOV"];
+            constexpr float DtoR        = (CV_PI / 180.f);
+            auto const      view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
 
             mt19937 rengine(random_device{}());
-            float rotation_variant = table_params["marker-solver"]["var-rotation"];
-            float rotation_axis_variant = table_params["marker-solver"]["var-rotation-axis"];
-            float position_variant = table_params["marker-solver"]["var-position"];
-            int num_candidates = table_params["marker-solver"]["num-candidates"];
-            float error_base = table_params["marker-solver"]["error-base"];
+            float   rotation_variant      = table_params["marker-solver"]["var-rotation"];
+            float   rotation_axis_variant = table_params["marker-solver"]["var-rotation-axis"];
+            float   position_variant      = table_params["marker-solver"]["var-position"];
+            int     num_candidates        = table_params["marker-solver"]["num-candidates"];
+            float   error_base            = table_params["marker-solver"]["error-base"];
 
             auto const& detected = centers;
 
@@ -1218,9 +1218,9 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                     cand.position += pivot_candidate.position;
 
                     uniform_real_distribution<float> distr_rot{-rotation_variant, rotation_variant};
-                    auto rot_norm = norm(pivot_candidate.rotation);
-                    auto rot_amount = rot_norm + distr_rot(rengine);
-                    auto rotator = pivot_candidate.rotation / rot_norm;
+                    auto                             rot_norm   = norm(pivot_candidate.rotation);
+                    auto                             rot_amount = rot_norm + distr_rot(rengine);
+                    auto                             rotator    = pivot_candidate.rotation / rot_norm;
                     random_vector(rengine, cand.rotation, rotation_axis_variant);
                     cand.rotation = normalize(cand.rotation + rotator);
                     cand.rotation *= rot_amount;
@@ -1264,8 +1264,8 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
             }
 
             // 디버그 그리기
-            auto best = candidates.front();
-            auto vertexes = model;
+            auto          best     = candidates.front();
+            auto          vertexes = model;
             vector<Vec2f> projected;
             transform_to_camera(img, best.position, best.rotation, vertexes);
             project_model_points(img, projected, vertexes, true, view_planes);
@@ -1280,8 +1280,8 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
                 line(debug, pt - Point2f(0, 5), pt + Point2f(0, 5), {255, 255, 0}, 1);
             }
 
-            float ampl = tp["marker-solver"]["confidence-amplitude"];
-            float min_size = tp["marker-solver"]["min-valid-marker-size"];
+            float ampl       = tp["marker-solver"]["confidence-amplitude"];
+            float min_size   = tp["marker-solver"]["min-valid-marker-size"];
             float weight_sum = count_if(marker_weights.begin(), marker_weights.end(), [min_size](float v) { return v > min_size; });
             float apply_rate = min(1.0, ampl * best.suitability / max<double>(1, weight_sum));
             set_filtered_table_pos(best.position, apply_rate);
@@ -1301,8 +1301,8 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
     // 이전 테이블 위치를 렌더
     {
         vector<Vec3f> model;
-        auto pos = table_pos;
-        auto rot = table_rot;
+        auto          pos = table_pos;
+        auto          rot = table_rot;
 
         get_table_model(model, tp["size"]["inner"]);
         project_contours(img, debug, model, pos, rot, {255, 255, 255}, 1);
@@ -1323,7 +1323,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 cv::Vec3f recognizer_impl_t::set_filtered_table_pos(cv::Vec3f new_pos, float confidence, bool allow_jump)
 {
     if (!allow_jump || norm(new_pos - table_pos) < m.props["table"]["LPF"]["distance-jump-threshold"]) {
-        float alpha = (float)m.props["table"]["LPF"]["position"] * confidence;
+        float alpha      = (float)m.props["table"]["LPF"]["position"] * confidence;
         return table_pos = (1 - alpha) * table_pos + alpha * new_pos;
     } else {
         return table_pos = new_pos;
@@ -1345,7 +1345,7 @@ cv::Vec3f recognizer_impl_t::set_filtered_table_rot(cv::Vec3f new_rot, float con
     }*/
 
     if (!allow_jump || norm(new_rot - table_rot) < m.props["table"]["LPF"]["rotation-jump-threshold"]) {
-        float alpha = (float)m.props["table"]["LPF"]["rotation"] * confidence;
+        float alpha      = (float)m.props["table"]["LPF"]["rotation"] * confidence;
         return table_rot = (1 - alpha) * table_rot + alpha * new_rot;
     } else {
         return table_rot = new_rot;
@@ -1359,7 +1359,7 @@ void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, c
     world_transform.at<float>(3, 3) = 1.0f;
     {
         // Vec3f rot = (Vec3f&)desc.table.orientation;
-        auto tr_mat = world_transform({0, 3}, {3, 4});
+        auto tr_mat  = world_transform({0, 3}, {3, 4});
         auto rot_mat = world_transform({0, 3}, {0, 3});
         copyTo(pos, tr_mat, {});
         Rodrigues(rot, rot_mat);
@@ -1368,16 +1368,16 @@ void recognizer_impl_t::get_world_transform_matx(cv::Vec3f pos, cv::Vec3f rot, c
 
 void recognizer_impl_t::get_camera_matx(img_t const& img, cv::Mat& mat_cam, cv::Mat& mat_disto)
 {
-    auto& p = img.camera;
+    auto&  p       = img.camera;
     double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
-    double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
-    mat_cam = cv::Mat(3, 3, CV_64FC1, M).clone();
-    mat_disto = cv::Mat(4, 1, CV_64FC1, disto).clone();
+    double M[]     = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
+    mat_cam        = cv::Mat(3, 3, CV_64FC1, M).clone();
+    mat_disto      = cv::Mat(4, 1, CV_64FC1, disto).clone();
 }
 
 std::pair<cv::Matx33d, cv::Matx41d> recognizer_impl_t::get_camera_matx(img_t const& img)
 {
-    auto& p = img.camera;
+    auto&  p       = img.camera;
     double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
 
     double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
@@ -1445,8 +1445,8 @@ std::optional<cv::Mat> recognizer_impl_t::get_safe_ROI(cv::Mat const& mat, cv::R
 void recognizer_impl_t::get_point_coord_3d(img_t const& img, float& io_x, float& io_y, float z_metric)
 {
     auto& c = img.camera;
-    auto u = io_x;
-    auto v = io_y;
+    auto  u = io_x;
+    auto  v = io_y;
 
     io_x = z_metric * ((u - c.cx) / c.fx);
     io_y = z_metric * ((v - c.cy) / c.fy);
@@ -1455,9 +1455,9 @@ void recognizer_impl_t::get_point_coord_3d(img_t const& img, float& io_x, float&
 array<float, 2> recognizer_impl_t::get_uv_from_3d(img_t const& img, cv::Point3f const& coord_3d)
 {
     array<float, 2> result;
-    auto& [u, v] = result;
+    auto& [u, v]    = result;
     auto& [x, y, z] = coord_3d;
-    auto c = img.camera;
+    auto c          = img.camera;
 
     u = (c.fx * x) / z + c.cx;
     v = (c.fy * y) / z + c.cy;
@@ -1500,15 +1500,15 @@ void recognizer_impl_t::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::V
         pt = (rot * pt) + tvec;
 
         auto pt4 = (Vec4f&)pt;
-        pt4[3] = 1.0f, pt4[1] *= -1.0f;
-        pt4 = img.camera_transform * pt4;
-        pt = (Vec3f&)pt4;
+        pt4[3]   = 1.0f, pt4[1] *= -1.0f;
+        pt4      = img.camera_transform * pt4;
+        pt       = (Vec3f&)pt4;
     }
 
     Matx31f u = normalize(uvw[0] - uvw[3]);
     Matx31f v = normalize(uvw[1] - uvw[3]);
     Matx31f w = normalize(uvw[2] - uvw[3]);
-    tvec = uvw[3];
+    tvec      = uvw[3];
 
     Matx33f rmat;
     copyMatx(rmat, u, 0, 0);
@@ -1526,13 +1526,13 @@ cv::Vec3f recognizer_impl_t::rotate_local(cv::Vec3f target, cv::Vec3f rvec)
     Rodrigues(target, rotator);
     axes = rotator * axes;
 
-    auto roll = rvec[2] * axes.col(2);
+    auto roll  = rvec[2] * axes.col(2);
     auto pitch = rvec[0] * axes.col(0);
-    auto yaw = rvec[1] * axes.col(1);
+    auto yaw   = rvec[1] * axes.col(1);
 
-    Rodrigues(roll, rotator), axes = rotator * axes;
+    Rodrigues(roll, rotator), axes  = rotator * axes;
     Rodrigues(pitch, rotator), axes = rotator * axes;
-    Rodrigues(yaw, rotator), axes = rotator * axes;
+    Rodrigues(yaw, rotator), axes   = rotator * axes;
 
     Vec3f result;
     Rodrigues(axes, result);
@@ -1548,11 +1548,11 @@ void recognizer_impl_t::draw_axes(img_t const& img, cv::Mat& dest, cv::Vec3f rve
     vector<Vec2f> mapped;
     project_model(img, mapped, tvec, rvec, pts, false);
 
-    pair<int, int> pairs[] = {{0, 1}, {0, 2}, {0, 3}};
-    Scalar colors[] = {{0, 0, 255}, {0, 255, 0}, {255, 0, 0}};
+    pair<int, int> pairs[]  = {{0, 1}, {0, 2}, {0, 3}};
+    Scalar         colors[] = {{0, 0, 255}, {0, 255, 0}, {255, 0, 0}};
     for (int i = 0; i < 3; ++i) {
         auto [beg, end] = pairs[i];
-        auto color = colors[i];
+        auto color      = colors[i];
 
         Point pt_beg(mapped[beg][0], mapped[beg][1]);
         Point pt_end(mapped[end][0], mapped[end][1]);
@@ -1592,7 +1592,7 @@ plane_t plane_t::from_NP(cv::Vec3f N, cv::Vec3f P)
 plane_t plane_t::from_rp(cv::Vec3f rvec, cv::Vec3f tvec, cv::Vec3f up)
 {
     using namespace cv;
-    auto P = tvec;
+    auto    P       = tvec;
     Matx33f rotator = rodrigues(rvec);
     // Matx33f rotator;
     // Rodrigues(rvec, rotator);
@@ -1604,7 +1604,7 @@ plane_t& plane_t::transform(cv::Vec3f tvec, cv::Vec3f rvec)
 {
     using namespace cv;
 
-    auto P = -N * d;
+    auto    P = -N * d;
     Matx33f rotator;
     Rodrigues(rvec, rotator);
 
@@ -1616,7 +1616,7 @@ plane_t& plane_t::transform(cv::Vec3f tvec, cv::Vec3f rvec)
 
 float plane_t::calc(cv::Vec3f const& pt) const
 {
-    auto v = N.mul(pt);
+    auto v   = N.mul(pt);
     auto res = v[0] + v[1] + v[2] + d;
     return res; //abs(res) < 1e-6f ? 0 : res;
 }
@@ -1658,12 +1658,12 @@ void recognizer_impl_t::transform_to_camera(img_t const& img, cv::Vec3f world_po
 {
     // cv::Mat world_transform;
     // get_world_transform_matx(world_pos, world_rot, world_transform);
-    auto world_transform = get_world_transform_matx_fast(world_pos, world_rot);
+    auto world_transform      = get_world_transform_matx_fast(world_pos, world_rot);
     auto inv_camera_transform = img.camera_transform.inv();
 
     for (auto& opt : model_vertexes) {
         auto pt = (cv::Vec4f&)opt;
-        pt[3] = 1.0f;
+        pt[3]   = 1.0f;
 
         pt = inv_camera_transform * world_transform * pt;
 
@@ -1723,12 +1723,12 @@ void recognizer_impl_t::async_worker_thread()
         }
 
         opt_img_t img;
-        img_cb_t on_finish;
+        img_cb_t  on_finish;
         if (read_lock lck(img_cue_mtx); img_cue.has_value()) {
-            img = move(*img_cue);
+            img       = move(*img_cue);
             on_finish = move(img_cue_cb);
 
-            img_cue = {};
+            img_cue    = {};
             img_cue_cb = {};
         }
 
@@ -1757,8 +1757,8 @@ void recognizer_impl_t::async_worker_thread()
 void recognizer_impl_t::find_balls(nlohmann::json& desc)
 {
     using namespace cv;
-    auto& p = m.props;
-    auto table_contour = varget(vector<cv::Vec2f>, Var_TableContour);
+    auto& p             = m.props;
+    auto  table_contour = varget(vector<cv::Vec2f>, Var_TableContour);
 
     // -- 테이블 영역을 Perspective에서 Orthogonal하게 투영합니다.
     // (방법은 아직 연구가 필요 ..)
@@ -1783,7 +1783,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
     ELAPSE_SCOPE("Ball Tracking");
     auto b = p["ball"];
 
-    auto debug = varget(cv::Mat, Img_Debug);
+    auto     debug = varget(cv::Mat, Img_Debug);
     cv::UMat u_rgb;
     cv::UMat u_hsv;
 
@@ -1792,8 +1792,8 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
         return;
     }
     auto area_mask = varget(cv::Mat, Img_TableAreaMask)(ROI);
-    u_rgb = varget(cv::UMat, UImg_RGB)(ROI);
-    u_hsv = varget(cv::UMat, UImg_HSV)(ROI);
+    u_rgb          = varget(cv::UMat, UImg_RGB)(ROI);
+    u_hsv          = varget(cv::UMat, UImg_HSV)(ROI);
     show("Ball ROI Area Mask", area_mask);
 
     vector<cv::UMat> channels;
@@ -1809,7 +1809,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
     // - 선별된 인덱스와 value 채널로부터 강조된 경계선 이미지를 통해 각각의 점에 대해 경계 적합도를 검사합니다.
     ELAPSE_BLOCK("Ball Candidate Finding")
     {
-        auto& bm = b["common"];
+        auto&    bm = b["common"];
         cv::UMat u_match_map[3]; // 공의 각 색상에 대한 매치 맵입니다.
         cv::UMat u0, u1;         // 임시 변수 리스트
 
@@ -1824,12 +1824,12 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
         }
 
         // 각각의 색상에 대해 매칭을 수행합니다.
-        auto depth = (cv::Mat1f&)varget(cv::Mat, Img_Depth);
-        auto imdesc = varget(img_t, Imgdesc);
-        auto intr__balls__ = {b["red"], b["orange"], b["white"]};
-        auto balls = intr__balls__.begin();
-        char const* ball_names[] = {"Red", "Orange", "White"};
-        float ball_radius = bm["radius"];
+        auto        depth         = (cv::Mat1f&)varget(cv::Mat, Img_Depth);
+        auto        imdesc        = varget(img_t, Imgdesc);
+        auto        intr__balls__ = {b["red"], b["orange"], b["white"]};
+        auto        balls         = intr__balls__.begin();
+        char const* ball_names[]  = {"Red", "Orange", "White"};
+        float       ball_radius   = bm["radius"];
 
         // 테이블 평면 획득
         auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, 1, 0});
@@ -1840,8 +1840,8 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
 
         ELAPSE_BLOCK("Matching Field Generation")
         for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
-            auto& m = u_match_map[ball_idx];
-            cv::Scalar color = (cv::Vec2f)balls[ball_idx]["color"] / 255;
+            auto&      m      = u_match_map[ball_idx];
+            cv::Scalar color  = (cv::Vec2f)balls[ball_idx]["color"] / 255;
             cv::Scalar weight = (cv::Vec2f)balls[ball_idx]["weight-hue-sat"];
             weight /= norm(weight);
             auto ln_base = log((double)balls[ball_idx]["error-function-base"]);
@@ -1869,15 +1869,15 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
         // 이는 정규화된 목록으로, 실제 샘플을 추출할때는 추정 중점 위치에서 계산된 반지름을 곱한 뒤 적용합니다.
         vector<cv::Vec2f> normal_random_samples;
         vector<cv::Vec2f> normal_negative_samples;
-        auto& rs = bm["random-sample"];
+        auto&             rs = bm["random-sample"];
         ELAPSE_BLOCK("Random Sample Generation")
         {
             mt19937 rg{};
-            Vec2f positive_area_range = rs["positive-area"];
-            Vec2f negative_area_range = rs["negative-area"];
+            Vec2f   positive_area_range = rs["positive-area"];
+            Vec2f   negative_area_range = rs["negative-area"];
             for (auto& parea : {&positive_area_range, &negative_area_range}) {
                 auto& area = *parea;
-                area = area.mul(area);
+                area       = area.mul(area);
                 if (area[1] < area[0]) {
                     swap(area[1], area[0]);
                 }
@@ -1887,8 +1887,8 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
             uniform_real_distribution<float> distr_negative{negative_area_range[0], negative_area_range[1]};
 
             if (int rand_seed = (int)rs["seed"]; rand_seed != -1) { rg.seed(rand_seed); }
-            int circle_radius = rs["radius"];
-            float r0 = -(double)rs["rotate-angle"] * CV_PI / 180;
+            int         circle_radius = rs["radius"];
+            float       r0            = -(double)rs["rotate-angle"] * CV_PI / 180;
             cv::Matx22f rotator{cos(r0), -sin(r0), sin(r0), cos(r0)};
 
             circle_op(0, 0, circle_radius, [&](int xi, int yi) {
@@ -1898,12 +1898,12 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
                 normal_negative_samples.emplace_back(vec * sqrt(distr_negative(rg)));
 
                 vec[1] = vec[1] > 0 ? -vec[1] : vec[1];
-                vec = rotator * vec * sqrt(distr_positive(rg));
+                vec    = rotator * vec * sqrt(distr_positive(rg));
                 normal_random_samples.emplace_back(vec);
             });
 
             // 샘플을 시각화합니다.
-            int scale = p["others"]["random-sample-view-scale"];
+            int       scale = p["others"]["random-sample-view-scale"];
             cv::Mat3b random_sample_visualize(scale, scale);
             random_sample_visualize.setTo(0);
             for (auto& pt : normal_random_samples) {
@@ -1923,18 +1923,18 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
         pair<vector<cv::Point>, vector<float>> ball_candidates[3];
 
         array<Point, 4> ball_positions = {};
-        array<float, 4> ball_weights = {};
+        array<float, 4> ball_weights   = {};
 
         ELAPSE_BLOCK("Color/Edge Matching")
         for (int iter = 3; iter >= 0; --iter) {
-            auto bidx = max(0, iter - 1); // 0, 1 인덱스는 빨간 공 전용
-            auto& m = u_match_map[bidx];
+            auto      bidx = max(0, iter - 1); // 0, 1 인덱스는 빨간 공 전용
+            auto&     m    = u_match_map[bidx];
             cv::Mat1f match;
 
-            auto& bp = balls[bidx];
+            auto& bp                 = balls[bidx];
             auto& cand_suitabilities = ball_candidates[bidx].second;
-            auto& cand_indexes = ball_candidates[bidx].first;
-            int min_pixel_radius = max<int>(1, bm["min-pixel-radius"]);
+            auto& cand_indexes       = ball_candidates[bidx].first;
+            int   min_pixel_radius   = max<int>(1, bm["min-pixel-radius"]);
 
             ELAPSE_BLOCK("Preprocess: "s + ball_names[bidx])
             {
@@ -1975,7 +1975,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
                 // if 픽셀 반경이 이미지 경계선을 넘어가면 discard
                 {
                     cv::Point offset{ball_pxl_rad + 1, ball_pxl_rad + 1};
-                    cv::Rect image_bound{offset, ROI.size() - (Size)(offset + offset)};
+                    cv::Rect  image_bound{offset, ROI.size() - (Size)(offset + offset)};
 
                     if (!image_bound.contains(pt)) {
                         return;
@@ -2003,7 +2003,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
                 }
 
                 suitability /= normal_random_samples.size();
-                suitability_field(pt) = suitability;
+                suitability_field(pt)     = suitability;
                 cand_suitabilities[index] = suitability;
             };
 
@@ -2035,7 +2035,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
 
             if (*best > (float)bm["confidence-threshold"]) {
                 auto best_idx = best - cand_suitabilities.begin();
-                auto center = cand_indexes[best_idx];
+                auto center   = cand_indexes[best_idx];
 
                 auto rad_px = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
 
@@ -2044,7 +2044,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
                     // circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], 1);
 
                     ball_positions[iter] = center;
-                    ball_weights[iter] = *best;
+                    ball_weights[iter]   = *best;
 
                     // 빨간 공인 경우 ...
                     if (iter == 1) {
@@ -2066,7 +2066,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
             if (ball_weights[i] == 0) {
                 continue;
             }
-            auto pt = ball_positions[i] + ROI.tl();
+            auto  pt = ball_positions[i] + ROI.tl();
             Vec3f dst;
 
             // 공의 중점 방향으로 광선을 투사해 공의 카메라 기준 위치 획득
@@ -2087,7 +2087,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
 
                 auto distance = norm(ballpos[i] - ballpos[k]);
                 if (distance < ball_radius) {
-                    int min_elem = ball_weights[i] < ball_weights[k] ? i : k;
+                    int min_elem           = ball_weights[i] < ball_weights[k] ? i : k;
                     ball_weights[min_elem] = 0;
                 }
             }
@@ -2095,34 +2095,34 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
 
         // 공의 위치를 이전과 비교합니다.
         struct ball_position_desc_t {
-            Vec3f pos;
-            Vec3f vel;
+            Vec3f                            pos;
+            Vec3f                            vel;
             chrono::system_clock::time_point tp;
-            double dt(chrono::system_clock::time_point now) const { return chrono::duration<double, chrono::system_clock::period>(now - tp).count(); }
-            Vec3f ps(chrono::system_clock::time_point now) const { return dt(now) * vel + pos; }
+            double                           dt(chrono::system_clock::time_point now) const { return chrono::duration<double, chrono::system_clock::period>(now - tp).count(); }
+            Vec3f                            ps(chrono::system_clock::time_point now) const { return dt(now) * vel + pos; }
         };
 
         using ball_desc_set_t = array<ball_position_desc_t, 4>;
         ball_desc_set_t descs;
 
         if (varset(Var_PrevBallPos).has_value()) {
-            auto prev = varget(ball_desc_set_t, Var_PrevBallPos);
-            auto now = chrono::system_clock::now();
+            auto   prev            = varget(ball_desc_set_t, Var_PrevBallPos);
+            auto   now             = chrono::system_clock::now();
             double max_error_speed = bm["movement"]["max-error-speed"];
 
             // 만약 0번 공의 weight가 0인 경우, 즉 공이 하나만 감지된 경우
             // 1번 공의 감지된 위치와 캐시된 0, 1번 공 위치를 비교하고, 1번 공과 더 동떨어진 것을 선택합니다.
             if (ball_weights[0] == 0 && ball_weights[1]) {
-                auto p1 = ballpos[1];
-                auto diffs = {norm(p1 - prev[0].pos), norm(p1 - prev[1].pos)};
-                auto farther = distance(diffs.begin(), max_element(diffs.begin(), diffs.end()));
+                auto p1         = ballpos[1];
+                auto diffs      = {norm(p1 - prev[0].pos), norm(p1 - prev[1].pos)};
+                auto farther    = distance(diffs.begin(), max_element(diffs.begin(), diffs.end()));
                 ball_weights[0] = 0.51f; // magic number ...
-                ballpos[0] = prev[farther].pos;
+                ballpos[0]      = prev[farther].pos;
             }
 
             // 이전 위치와 비교해, 자리가 바뀐 경우를 처리합니다.
             if (ball_weights[1] && ball_weights[0]) {
-                auto p = ballpos[0],
+                auto p   = ballpos[0],
                      ps0 = prev[0].ps(now),
                      ps1 = prev[1].ps(now);
 
@@ -2132,7 +2132,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
                 }
             }
 
-            double alpha = bm["movement"]["position-LPF-alpha"];
+            double alpha     = bm["movement"]["position-LPF-alpha"];
             double jump_dist = bm["movement"]["jump-distance"];
             for (int i = 0; i < 4; ++i) {
                 auto& d = prev[i];
@@ -2141,8 +2141,8 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
                     continue;
                 }
 
-                auto dt = d.dt(now);
-                auto dp = ballpos[i] - d.pos;
+                auto dt          = d.dt(now);
+                auto dp          = ballpos[i] - d.pos;
                 auto vel_elapsed = dp / dt;
 
                 // 속도 차이가 오차 범위 이내일때만 이를 반영합니다.
@@ -2162,20 +2162,20 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
         } else {
             for (int i = 0; auto& d : descs) {
                 auto pos = ballpos[i++];
-                d = ball_position_desc_t{.pos = pos, .vel = {}, .tp = chrono::system_clock::now()};
+                d        = ball_position_desc_t{.pos = pos, .vel = {}, .tp = chrono::system_clock::now()};
             }
         }
-        varset(Var_PrevBallPos) = descs;
+        varset(Var_PrevBallPos)     = descs;
         char const* ball_name_dst[] = {"Red1", "Red2", "Orange", "White"};
         for (int i = 0; i < 4; ++i) {
-            auto& dst = desc[ball_name_dst[i]];
-            dst["Position"] = descs[i].pos;
+            auto& dst         = desc[ball_name_dst[i]];
+            dst["Position"]   = descs[i].pos;
             dst["Confidence"] = ball_weights[i];
 
             // 화면에 디버그용 그림을 그립니다.
             if (ball_weights[i]) {
                 draw_circle(imdesc, debug, ball_radius, descs[i].pos, color_ROW[max(i - 1, 0)], 1);
-                auto center = project_single_point(imdesc, descs[i].pos);
+                auto center  = project_single_point(imdesc, descs[i].pos);
                 auto pxl_rad = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
 
                 putText(debug, to_string(i + 1), center + Point(-7, -pxl_rad), FONT_HERSHEY_PLAIN, 1.3, {0, 0, 0}, 2);
@@ -2187,7 +2187,7 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
             Vec2f table = p["table"]["size"]["inner"];
             float scale = p["others"]["top-view-scale"];
 
-            int ball_rad_pxl = ball_radius * scale;
+            int  ball_rad_pxl       = ball_radius * scale;
             Size table_topview_size = (Point)(Vec2i)(table * scale);
 
             Mat3b top_view_mat(table_topview_size);
@@ -2196,16 +2196,16 @@ void recognizer_impl_t::find_balls(nlohmann::json& desc)
             auto inv_tr = get_world_transform_matx_fast(table_pos, table_rot).inv();
             for (int iter = 0; auto& b : descs) {
                 int index = iter++;
-                int bidx = max(0, index - 1);
+                int bidx  = max(0, index - 1);
 
                 if (ball_weights[index] == 0) {
                     continue;
                 }
 
                 Vec4f pos4 = (Vec4f&)b.pos;
-                pos4(3) = 1;
+                pos4(3)    = 1;
 
-                pos4 = inv_tr * pos4;
+                pos4    = inv_tr * pos4;
                 auto pt = Point(pos4[0] * scale, -pos4[2] * scale) + (Point)table_topview_size / 2;
 
                 circle(top_view_mat, pt, ball_rad_pxl, color_ROW[bidx], -1);
@@ -2222,36 +2222,36 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
     using namespace names;
     using namespace names;
     using namespace cv;
-    auto const& p = m.props;
+    auto const&    p    = m.props;
     nlohmann::json desc = {};
 
     // -- 시작 파라미터 전송
-    desc["Table"]["InnerWidth"] = p["table"]["size"]["inner"][0];
+    desc["Table"]["InnerWidth"]  = p["table"]["size"]["inner"][0];
     desc["Table"]["InnerHeight"] = p["table"]["size"]["inner"][1];
 
     // 깊이를 잘라내기 위한
     {
         array<Vec2f, 2> tf = p["table"]["filter"];
-        auto [min, max] = tf;
+        auto [min, max]    = tf;
         enum { H,
                S,
                V };
 
         desc["Table"]["EnableShaderApplyDepthOverride"] = p["unity"]["enable-table-depth-override"];
-        desc["Table"]["ShaderMinH"] = min[H] * (1 / 180.f);
-        desc["Table"]["ShaderMaxH"] = max[H] * (1 / 180.f);
-        desc["Table"]["ShaderMinS"] = min[S] * (1 / 255.f);
-        desc["Table"]["ShaderMaxS"] = max[S] * (1 / 255.f);
+        desc["Table"]["ShaderMinH"]                     = min[H] * (1 / 180.f);
+        desc["Table"]["ShaderMaxH"]                     = max[H] * (1 / 180.f);
+        desc["Table"]["ShaderMinS"]                     = min[S] * (1 / 255.f);
+        desc["Table"]["ShaderMaxS"]                     = max[S] * (1 / 255.f);
 
-        auto& u = p["unity"];
-        desc["BallRadius"] = u["phys"]["sim-ball-radius"];
-        desc["Phys"]["BallRestitution"] = u["phys"]["ball"]["restitution"];
-        desc["Phys"]["BallDamping"] = u["phys"]["ball"]["velocity-damping"];
+        auto& u                            = p["unity"];
+        desc["BallRadius"]                 = u["phys"]["sim-ball-radius"];
+        desc["Phys"]["BallRestitution"]    = u["phys"]["ball"]["restitution"];
+        desc["Phys"]["BallDamping"]        = u["phys"]["ball"]["velocity-damping"];
         desc["Phys"]["BallStaticFriction"] = u["phys"]["ball"]["roll-coeff-on-contact"];
-        desc["Phys"]["BallRollTime"] = u["phys"]["ball"]["roll-begin-time"];
-        desc["Phys"]["TableRestitution"] = u["phys"]["table"]["restitution"];
-        desc["Phys"]["TableRtoVCoeff"] = u["phys"]["table"]["roll-to-velocity-coeff"];
-        desc["Phys"]["TableVtoRCoeff"] = u["phys"]["table"]["velocity-to-roll-coeff"];
+        desc["Phys"]["BallRollTime"]       = u["phys"]["ball"]["roll-begin-time"];
+        desc["Phys"]["TableRestitution"]   = u["phys"]["table"]["restitution"];
+        desc["Phys"]["TableRtoVCoeff"]     = u["phys"]["table"]["roll-to-velocity-coeff"];
+        desc["Phys"]["TableVtoRCoeff"]     = u["phys"]["table"]["velocity-to-roll-coeff"];
 
         desc["CameraAnchorOffset"] = u["camera-anchor-offset-vector"];
     }
@@ -2266,8 +2266,8 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
     // 각종 파라미터 등 계산
     {
         // 테이블 오프셋 계산 ...
-        float height = p["table"]["cushion-height"];
-        float radius = p["ball"]["common"]["radius"];
+        float height              = p["table"]["cushion-height"];
+        float radius              = p["ball"]["common"]["radius"];
         varset(Float_TableOffset) = (height - radius);
     }
 
@@ -2287,14 +2287,14 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
         // 공용 머터리얼 셋업 시퀀스
         Size scaled_image_size;
 
-        Mat img_rgb_scaled;
+        Mat  img_rgb_scaled;
         UMat uimg_rgb_scaled;
         if ((bool)p["do-resize"]) {
             ELAPSE_SCOPE("RGB Downsampling");
-            scaled_image_size = Size((int)p["fast-process-width"], 0);
-            float image_scale = scaled_image_size.width / (float)img_rgb.cols;
+            scaled_image_size        = Size((int)p["fast-process-width"], 0);
+            float image_scale        = scaled_image_size.width / (float)img_rgb.cols;
             scaled_image_size.height = (int)(img_rgb.rows * image_scale);
-            varset(Size_Image) = scaled_image_size;
+            varset(Size_Image)       = scaled_image_size;
 
             // 스케일된 이미지 준비
             resize(img_rgb.getUMat(ACCESS_FAST), uimg_rgb_scaled, scaled_image_size, 0, 0, INTER_LINEAR);
@@ -2314,19 +2314,19 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
             img_rgb_scaled.copyTo(uimg_rgb_scaled);
         }
 
-        Mat img_hsv_scaled;
+        Mat  img_hsv_scaled;
         UMat uimg_hsv_scaled;
 
         // 색공간 변환 수행
         {
             ELAPSE_SCOPE("RGB to HSV Conversion");
-            varset(Img_RGB) = img_rgb_scaled;
+            varset(Img_RGB)  = img_rgb_scaled;
             varset(UImg_RGB) = uimg_rgb_scaled;
 
             cvtColor(uimg_rgb_scaled, uimg_hsv_scaled, COLOR_RGB2HSV);
             uimg_hsv_scaled.copyTo(img_hsv_scaled);
 
-            varset(Img_HSV) = img_hsv_scaled;
+            varset(Img_HSV)  = img_hsv_scaled;
             varset(UImg_HSV) = uimg_hsv_scaled;
 
             // UMat uimg_ycbcr_scaled;
@@ -2342,11 +2342,11 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
         {
             ELAPSE_SCOPE("Depth Mat resizing");
             UMat u_depth;
-            Mat depth;
+            Mat  depth;
             resize(imdesc_scaled.depth, u_depth, scaled_image_size);
             u_depth.copyTo(depth);
             varset(UImg_Depth) = u_depth;
-            varset(Img_Depth) = depth;
+            varset(Img_Depth)  = depth;
 
             imdesc_scaled.depth = depth;
         }
@@ -2360,9 +2360,9 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
     // 테이블 탐색을 위한 로직입니다.
     {
         ELAPSE_SCOPE("Table Tracking");
-        auto& tp = p["table"];
-        auto& u_hsv = varget(UMat, UImg_HSV);
-        auto image_size = varget(Size, Size_Image);
+        auto& tp         = p["table"];
+        auto& u_hsv      = varget(UMat, UImg_HSV);
+        auto  image_size = varget(Size, Size_Image);
 
         // -- 테이블 색상으로 필터링 수행
         UMat u_mask;
@@ -2377,7 +2377,7 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
 
             if (
               int prev_iter = tp["preprocess"]["dilate-erode-num-erode-prev"],
-              post_iter = tp["preprocess"]["dilate-erode-num-erode-post"];
+              post_iter     = tp["preprocess"]["dilate-erode-num-erode-post"];
               prev_iter + post_iter > 0 && prev_iter >= 0 && post_iter >= 0) {
                 ELAPSE_SCOPE("Dilate-Erode Noise Remove");
                 UMat u0, u1;
@@ -2431,10 +2431,10 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
             findNonZero(table_area, indexes);
 
             // RGB 히스토그램에서 가장 바깥쪽 픽셀을 드랍합니다.
-            Vec3d discard_rgb = p["table"]["preprocess"]["AWB-RGB-discard-rate"];
-            Vec3i discard_count = discard_rgb * (double)indexes.size() * 0.5;
-            array<int, 256> histo[3] = {};
-            auto img = (Mat3b&)varget(Mat, Img_RGB);
+            Vec3d           discard_rgb   = p["table"]["preprocess"]["AWB-RGB-discard-rate"];
+            Vec3i           discard_count = discard_rgb * (double)indexes.size() * 0.5;
+            array<int, 256> histo[3]      = {};
+            auto            img           = (Mat3b&)varget(Mat, Img_RGB);
 
             enum : int { R,
                          G,
@@ -2458,13 +2458,13 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
                 for (int sum = 0; pvt[0] < 128 && sum < discard_count[C]; sum += histo[C][pvt[0]++]) {}
                 for (int sum = 0; pvt[1] > 128 && sum < discard_count[C]; sum += histo[C][--pvt[1]]) {}
 
-                adds[C] = pvt[0];
+                adds[C]  = pvt[0];
                 mults[C] = 255 / (float)(pvt[1] - pvt[0]);
             }
 
             for (auto index : indexes) {
-                Vec3f pxl = img(index);
-                pxl = (pxl - adds).mul(mults);
+                Vec3f pxl  = img(index);
+                pxl        = (pxl - adds).mul(mults);
                 img(index) = pxl;
             }
         }
@@ -2479,7 +2479,7 @@ nlohmann::json recognizer_impl_t::proc_img(img_t const& imdesc_source)
         Rodrigues(Mat(imdesc_source.camera_transform)({0, 3}, {0, 3}), rot);
 
         auto imdesc = varget(img_t, Imgdesc);
-        auto debug = varget(Mat, Img_Debug);
+        auto debug  = varget(Mat, Img_Debug);
         draw_axes(imdesc, debug, rot, table_pos + Vec3f{0, 0.3f, 0}, 0.1f, 8);
     }
 
@@ -2508,8 +2508,8 @@ void recognizer_impl_t::plane_to_camera(img_t const& img, plane_t const& table_p
     N[3] = 0.f, P[3] = 1.f;
 
     cv::Matx44f camera_inv = img.camera_transform.inv();
-    N = camera_inv * N;
-    P = camera_inv * P;
+    N                      = camera_inv * N;
+    P                      = camera_inv * P;
 
     // CV 좌표계로 변환
     N[1] *= -1.f, P[1] *= -1.f;

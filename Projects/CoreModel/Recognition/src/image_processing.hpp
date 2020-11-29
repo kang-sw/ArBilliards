@@ -18,7 +18,7 @@ template <int Size_, typename Ty_>
 void from_json(const nlohmann::json& j, Vec<Ty_, Size_>& v)
 {
     std::array<Ty_, Size_> const& arr = j;
-    v = (cv::Vec<Ty_, Size_>&)arr;
+    v                                 = (cv::Vec<Ty_, Size_>&)arr;
 }
 
 template <typename Ty_>
@@ -65,14 +65,14 @@ using img_t = recognizer_t::frame_desc;
 
 struct plane_t {
     cv::Vec3f N;
-    float d;
+    float     d;
 
-    static plane_t from_NP(cv::Vec3f N, cv::Vec3f P);
-    static plane_t from_rp(cv::Vec3f rvec, cv::Vec3f tvec, cv::Vec3f up);
-    plane_t& transform(cv::Vec3f tvec, cv::Vec3f rvec);
-    float calc(cv::Vec3f const& pt) const;
-    bool has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
-    std::optional<float> calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
+    static plane_t           from_NP(cv::Vec3f N, cv::Vec3f P);
+    static plane_t           from_rp(cv::Vec3f rvec, cv::Vec3f tvec, cv::Vec3f up);
+    plane_t&                 transform(cv::Vec3f tvec, cv::Vec3f rvec);
+    float                    calc(cv::Vec3f const& pt) const;
+    bool                     has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
+    std::optional<float>     calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
     std::optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
 };
 
@@ -95,40 +95,40 @@ void world_to_camera(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec);
 auto rotate_euler(cv::Vec3f target, cv::Vec3f euler_rvec) -> cv::Vec3f;
 
 //
-auto set_filtered_table_rot(cv::Vec3f table_rot, cv::Vec3f new_rot, float alpha = 1.0f, float jump_threshold = FLT_MAX) -> cv::Vec3f;
-auto set_filtered_table_pos(cv::Vec3f table_pos, cv::Vec3f new_pos, float alpha = 1.0f, float jump_threshold = FLT_MAX) -> cv::Vec3f;
-void project_model(img_t const& img, std::vector<cv::Point>& mapped, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, float FOV_h, float FOV_v);
-void project_contours(img_t const& img, const cv::Mat& rgb, std::vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color, int thickness, cv::Vec2f FOV_deg);
-bool get_safe_ROI_rect(cv::Mat const& mat, cv::Rect& roi);
-float contour_distance(std::vector<cv::Vec2f> const& ct_a, std::vector<cv::Vec2f>& ct_b);
-void plane_to_camera(img_t const& img, plane_t const& table_plane, plane_t& table_plane_camera);
-void get_point_coord_3d(img_t const& img, float& io_x, float& io_y, float z_metric);
-auto get_uv_from_3d(img_t const& img, cv::Point3f const& coord_3d) -> std::array<float, 2>;
-float get_pixel_length(img_t const& img, float len_metric, float Z_metric);
-int get_pixel_length_on_contact(img_t const& imdesc, plane_t plane, cv::Point pt, float length);
-void carve_outermost_pixels(cv::InputOutputArray io, cv::Scalar as);
-void project_model_points(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
-void draw_circle(img_t const& img, cv::Mat const& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness);
-void generate_normalized_sparse_kernel(std::vector<cv::Vec<float, 2>>& normal_random_samples, std::vector<cv::Vec<float, 2>>& normal_negative_samples, cv::Vec2f positive_area_range, cv::Vec2f negative_area_range, int rand_seed, int circle_radius, double rotate_angle);
+auto      set_filtered_table_rot(cv::Vec3f table_rot, cv::Vec3f new_rot, float alpha = 1.0f, float jump_threshold = FLT_MAX) -> cv::Vec3f;
+auto      set_filtered_table_pos(cv::Vec3f table_pos, cv::Vec3f new_pos, float alpha = 1.0f, float jump_threshold = FLT_MAX) -> cv::Vec3f;
+void      project_model(img_t const& img, std::vector<cv::Point>& mapped, cv::Vec3f obj_pos, cv::Vec3f obj_rot, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, float FOV_h, float FOV_v);
+void      project_contours(img_t const& img, const cv::Mat& rgb, std::vector<cv::Vec3f> model, cv::Vec3f pos, cv::Vec3f rot, cv::Scalar color, int thickness, cv::Vec2f FOV_deg);
+bool      get_safe_ROI_rect(cv::Mat const& mat, cv::Rect& roi);
+float     contour_distance(std::vector<cv::Vec2f> const& ct_a, std::vector<cv::Vec2f>& ct_b);
+void      plane_to_camera(img_t const& img, plane_t const& table_plane, plane_t& table_plane_camera);
+void      get_point_coord_3d(img_t const& img, float& io_x, float& io_y, float z_metric);
+auto      get_uv_from_3d(img_t const& img, cv::Point3f const& coord_3d) -> std::array<float, 2>;
+float     get_pixel_length(img_t const& img, float len_metric, float Z_metric);
+int       get_pixel_length_on_contact(img_t const& imdesc, plane_t plane, cv::Point pt, float length);
+void      carve_outermost_pixels(cv::InputOutputArray io, cv::Scalar as);
+void      project_model_points(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
+void      draw_circle(img_t const& img, cv::Mat const& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness);
+void      generate_normalized_sparse_kernel(std::vector<cv::Vec<float, 2>>& normal_random_samples, std::vector<cv::Vec<float, 2>>& normal_negative_samples, cv::Vec2f positive_area_range, cv::Vec2f negative_area_range, int rand_seed, int circle_radius, double rotate_angle);
 cv::Point project_single_point(img_t const& img, cv::Vec3f vertex, bool is_world = true);
 
 std::string mat_info_str(cv::Mat const& i);
-void color_space_to_flag(kangsw::hash_index cls, int& to, int& from);
+void        color_space_to_flag(kangsw::hash_index cls, int& to, int& from);
 
 struct transform_estimation_param_t {
-    int num_iteration = 10;
-    int num_candidates = 64;
-    float rot_axis_variant = 0.05;
-    float rot_variant = 0.2f;
-    float pos_initial_distance = 0.5f;
-    int border_margin = 3;
-    cv::Size2f FOV = {90, 60};
-    float confidence_calc_base = 1.02f; // 에러 계산에 사용
-    float iterative_narrow_ratio = 0.6f;
+    int        num_iteration          = 10;
+    int        num_candidates         = 64;
+    float      rot_axis_variant       = 0.05;
+    float      rot_variant            = 0.2f;
+    float      pos_initial_distance   = 0.5f;
+    int        border_margin          = 3;
+    cv::Size2f FOV                    = {90, 60};
+    float      confidence_calc_base   = 1.02f; // 에러 계산에 사용
+    float      iterative_narrow_ratio = 0.6f;
 
     cv::Mat debug_render_mat;
-    bool render_debug_glyphs = true;
-    bool do_parallel = true;
+    bool    render_debug_glyphs = true;
+    bool    do_parallel         = true;
 
     cv::Rect contour_cull_rect;
 };
@@ -136,7 +136,7 @@ struct transform_estimation_param_t {
 struct transform_estimation_result_t {
     cv::Vec3f position;
     cv::Vec3f rotation;
-    float confidence;
+    float     confidence;
 };
 
 std::optional<transform_estimation_result_t> estimate_matching_transform(img_t const& img, std::vector<cv::Vec2f> const& input_param, std::vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& p);
@@ -173,10 +173,10 @@ cv::Matx<Ty_, 3, 3> rodrigues(cv::Vec<Ty_, 3> v)
 
     using mat_t = cv::Matx<Ty_, 3, 3>;
 
-    auto O = cv::norm(v);
+    auto O            = cv::norm(v);
     auto [vx, vy, vz] = (v = v / O).val;
-    auto cosO = cos(O);
-    auto sinO = sin(O);
+    auto cosO         = cos(O);
+    auto sinO         = sin(O);
 
     mat_t V{0, -vz, vy, vz, 0, -vx, -vy, vx, 0};
     mat_t R = cosO * mat_t::eye() + sinO * V + (Ty_(1) - cosO) * v * v.t();
@@ -217,8 +217,8 @@ auto submatx(cv::Matx<Ty_, SrcH_, SrcW_> const& src)
 {
     constexpr size_t row = RowOfst_;
     constexpr size_t col = ColOfst_;
-    constexpr size_t w = C_ == -1 ? SrcW_ - ColOfst_ : C_;
-    constexpr size_t h = R_ == -1 ? SrcH_ - RowOfst_ : R_;
+    constexpr size_t w   = C_ == -1 ? SrcW_ - ColOfst_ : C_;
+    constexpr size_t h   = R_ == -1 ? SrcH_ - RowOfst_ : R_;
     static_assert(row + h <= SrcH_ && col + w <= SrcW_);
 
     cv::Matx<Ty_, R_, C_> value;
@@ -242,7 +242,7 @@ void fit_contour_to_screen(std::vector<Ty_>& pts, cv::Rect screen)
     }
 
     // 4개의 평면 생성
-    auto tl = screen.tl(), br = screen.br();
+    auto    tl = screen.tl(), br = screen.br();
     plane_t planes[] = {
       {{+1, 0, 0}, -tl.x},
       {{-1, 0, 0}, +br.x},
@@ -278,12 +278,12 @@ static float contour_min_dist_for_each(std::vector<cv::Vec2f> const& ct_a, std::
         if (ct_b.empty()) { break; }
 
         float min_dist = std::numeric_limits<float>::max();
-        int min_idx = 0;
+        int   min_idx  = 0;
         for (int i = 0; i < ct_b.size(); ++i) {
             auto dist = cv::norm(ct_b[i] - pt, cv::NORM_L2SQR);
             if (dist < min_dist) {
                 min_dist = dist;
-                min_idx = i;
+                min_idx  = i;
             }
         }
 
@@ -299,8 +299,8 @@ template <typename Fn_>
 void circle_op(int cent_x, int cent_y, int radius, Fn_&& op)
 {
     int x = 0, y = radius;
-    int d = 1 - radius;             // 결정변수를 int로 변환
-    int delta_e = 3;                // E가 선택됐을 때 증분값
+    int d        = 1 - radius;      // 결정변수를 int로 변환
+    int delta_e  = 3;               // E가 선택됐을 때 증분값
     int delta_se = -2 * radius + 5; // SE가 선탣됐을 때 증분값
 
     op(cent_x + x, cent_y + y);
@@ -345,8 +345,8 @@ template <typename Fn_>
 void circle_op(int radius, Fn_&& op)
 {
     int x = 0, y = radius;
-    int d = 1 - radius;             // 결정변수를 int로 변환
-    int delta_e = 3;                // E가 선택됐을 때 증분값
+    int d        = 1 - radius;      // 결정변수를 int로 변환
+    int delta_e  = 3;               // E가 선택됐을 때 증분값
     int delta_se = -2 * radius + 5; // SE가 선탣됐을 때 증분값
 
     op(+x, +y), op(-x, +y), op(+x, -y), op(-x, -y);
@@ -380,7 +380,7 @@ void discard_random_args(std::vector<Ty_>& iovec, size_t target_size, Rand_&& re
 {
     using namespace std;
     while (iovec.size() > target_size) {
-        auto ridx = uniform_int_distribution<size_t>{0, iovec.size() - 1}(rengine);
+        auto ridx   = uniform_int_distribution<size_t>{0, iovec.size() - 1}(rengine);
         iovec[ridx] = move(iovec.back());
         iovec.pop_back();
     }
@@ -390,8 +390,8 @@ template <typename Ty_, size_t I_, size_t J_>
 cv::Vec<Ty_, I_ + J_> concat_vec(cv::Vec<Ty_, I_> const& a, cv::Vec<Ty_, I_> const& b)
 {
     cv::Vec<Ty_, I_ + J_> r;
-    constexpr auto _0_to_i = kangsw::iota{I_};
-    constexpr auto _i_to_j = kangsw::iota{I_, J_};
+    constexpr auto        _0_to_i = kangsw::iota{I_};
+    constexpr auto        _i_to_j = kangsw::iota{I_, J_};
     for (auto i : _0_to_i) { r(i) = a(i); }
     for (auto i : _i_to_j) { r(i) = b(i); }
 
@@ -402,7 +402,7 @@ template <typename Ty_, size_t I_, typename... Args_>
 decltype(auto) concat_vec(cv::Vec<Ty_, I_> const& a, Args_&&... args)
 {
     cv::Vec<Ty_, I_ + sizeof...(args)> r;
-    constexpr auto _0_to_i = kangsw::iota{I_};
+    constexpr auto                     _0_to_i = kangsw::iota{I_};
     for (auto i : _0_to_i) { r(i) = a(i); }
     auto tup = std::forward_as_tuple(std::forward<Args_>(args)...);
     kangsw::tuple_for_each(tup, [&](auto&& arg, size_t i) { r(I_ + i) = std::forward<decltype(arg)>(arg); });
@@ -414,7 +414,7 @@ template <typename Ty_, typename... Args_>
 decltype(auto) make_vec(Args_&&... args)
 {
     cv::Vec<Ty_, sizeof...(args)> r;
-    auto tup = std::make_tuple(std::forward<Args_>(args)...);
+    auto                          tup = std::make_tuple(std::forward<Args_>(args)...);
     kangsw::tuple_for_each(tup, [&](auto&& arg, size_t i) { r(i) = arg; });
 
     return r;
@@ -438,7 +438,7 @@ template <typename Ty_>
 cv::Mat_<Ty_> index_by(cv::Mat_<Ty_> const& sources, cv::Mat1i const& indexes)
 {
     cv::Mat_<Ty_> retval(indexes.size());
-    auto range = kangsw::iota{indexes.size().area()};
+    auto          range = kangsw::iota{indexes.size().area()};
     for (auto i : range) { retval(i) = sources(indexes(i)); }
     return retval;
 }

@@ -11,14 +11,14 @@
 
 struct SEEDS_setting {
     cv::Size sz;
-    int num_segs;
-    int num_levels;
+    int      num_segs;
+    int      num_levels;
 };
 
 using cv::ximgproc::SuperpixelSEEDS;
 
 struct billiards::pipes::superpixel_executor::implmentation {
-    SEEDS_setting setting_cache = {};
+    SEEDS_setting            setting_cache = {};
     cv::Ptr<SuperpixelSEEDS> engine;
 
     cv::Mat out_array;
@@ -32,7 +32,7 @@ pipepp::pipe_error billiards::pipes::superpixel_executor::invoke(pipepp::executi
     if (auto width = target_image_width(ec); width < i.rgb.cols) {
         PIPEPP_ELAPSE_SCOPE("Resize Image");
 
-        auto size = color_mat.size();
+        auto size  = color_mat.size();
         auto ratio = (double)width / size.width;
 
         size = cv::Size2d(size) * ratio;
@@ -49,7 +49,7 @@ pipepp::pipe_error billiards::pipes::superpixel_executor::invoke(pipepp::executi
         imgproc::color_space_to_flag(cls, convert_to, convert_from);
     }
 
-    o.color_convert_to = convert_to;
+    o.color_convert_to   = convert_to;
     o.color_convert_from = convert_from;
 
     if (convert_to != -1) {
@@ -59,10 +59,10 @@ pipepp::pipe_error billiards::pipes::superpixel_executor::invoke(pipepp::executi
     if (!true_SLIC_false_SEEDS(ec)) {
         auto& m = *impl_;
 
-        auto size = color_mat.size();
+        auto          size    = color_mat.size();
         SEEDS_setting setting = {
-          .sz = size,
-          .num_segs = num_segments(ec),
+          .sz         = size,
+          .num_segs   = num_segments(ec),
           .num_levels = num_levels(ec),
         };
 
@@ -96,8 +96,8 @@ pipepp::pipe_error billiards::pipes::superpixel_executor::invoke(pipepp::executi
 
         m.engine->getLabels(o.labels);
     } else {
-        int algos[] = {cv::ximgproc::SLICO, cv::ximgproc::MSLIC, cv::ximgproc::SLIC};
-        auto algo = algos[std::clamp(algo_index_SLICO_MSLIC_SLIC(ec), 0, 2)];
+        int                                   algos[] = {cv::ximgproc::SLICO, cv::ximgproc::MSLIC, cv::ximgproc::SLIC};
+        auto                                  algo    = algos[std::clamp(algo_index_SLICO_MSLIC_SLIC(ec), 0, 2)];
         cv::Ptr<cv::ximgproc::SuperpixelSLIC> engine;
 
         PIPEPP_ELAPSE_BLOCK("Create SLIC instance")
@@ -177,7 +177,7 @@ void billiards::pipes::superpixel_executor::output_handler(pipepp::pipe_error e,
 
 static void LABXY_to_RGB(cv::Mat_<cv::Vec<float, 5>> centers, cv::Mat3b& center_colors, int convert_from)
 {
-    cv::Mat tmp[5];
+    cv::Mat   tmp[5];
     cv::Mat3f t1;
     split(centers, tmp);
     merge(tmp, 3, t1);
@@ -192,12 +192,12 @@ pipepp::pipe_error billiards::pipes::kmeans_executor::invoke(pipepp::execution_c
     using namespace std;
     using namespace imgproc;
 
-    using Mat5f = Mat_<cv::Vec<float, 5>>;
-    auto& ic = in.clusters;
+    using Mat5f             = Mat_<cv::Vec<float, 5>>;
+    auto& ic                = in.clusters;
     auto& cluster_color_mat = ic.resized_cluster_color_mat;
     auto& spxl_labels = out.label_2d_spxl = ic.labels;
 
-    int num_labels = ic.num_labels;
+    int  num_labels     = ic.num_labels;
     auto spatial_weight = sqrt(spxl_labels.size().area());
 
     // k-means clustering을 수행합니다.
@@ -209,19 +209,19 @@ pipepp::pipe_error billiards::pipes::kmeans_executor::invoke(pipepp::execution_c
     PIPEPP_STORE_DEBUG_DATA("Initial number of superpixels", spxl_sum.size());
 
     auto _weights = weights_L_A_B_XY(ec);
-    auto weights = concat_vec(_weights, _weights[3]);
+    auto weights  = concat_vec(_weights, _weights[3]);
     subvec<3, 2>(weights) /= spatial_weight;
 
     PIPEPP_ELAPSE_BLOCK("Calculate sum/average of all channels")
     {
-        auto size = spxl_labels.size();
+        auto size              = spxl_labels.size();
         auto constexpr _0_to_3 = kangsw::iota{3};
         for (auto row : kangsw::iota{size.height}) {
             for (auto col : kangsw::iota{size.width}) {
                 auto color = cluster_color_mat(row, col);
                 auto index = spxl_labels(row, col);
 
-                auto& at = spxl_sum.at(index);
+                auto& at                   = spxl_sum.at(index);
                 auto& [l, a, b, x, y, cnt] = at.val;
                 subvec<0, 3>(at) += color;
                 x += col, y += row;
@@ -264,7 +264,7 @@ pipepp::pipe_error billiards::pipes::kmeans_executor::invoke(pipepp::execution_c
           kmeans::criteria::epsilon(ec),
         };
         int attempts = kmeans::attempts(ec);
-        int flag = kmeans::flag_centoring_true_RANDOM_false_PP(ec) ? KMEANS_RANDOM_CENTERS : KMEANS_PP_CENTERS;
+        int flag     = kmeans::flag_centoring_true_RANDOM_false_PP(ec) ? KMEANS_RANDOM_CENTERS : KMEANS_PP_CENTERS;
 
         Mat5f centers;
 
@@ -279,7 +279,7 @@ pipepp::pipe_error billiards::pipes::kmeans_executor::invoke(pipepp::execution_c
             Mat3b center_colors;
             LABXY_to_RGB(centers, center_colors, ic.color_convert_from);
             auto spxl_colors = index_by(center_colors, kmeans_labels);
-            auto colors = index_by(spxl_colors, spxl_labels);
+            auto colors      = index_by(spxl_colors, spxl_labels);
             PIPEPP_STORE_DEBUG_DATA("k-means result", (Mat)colors);
         }
     }
@@ -310,13 +310,13 @@ pipepp::pipe_error billiards::pipes::label_edge_detector::invoke(pipepp::executi
     PIPEPP_ELAPSE_BLOCK("Edge Calculation")
     {
         Mat1i expanded;
-        auto size = labels.size();
+        auto  size = labels.size();
         copyMakeBorder(labels, expanded, 0, 1, 0, 1, BORDER_CONSTANT, 0);
         carve_outermost_pixels(expanded({{}, size}), 0);
 
         auto find_border = [](cv::Size size, auto const& src /* expanded */, auto&& dst) {
             for (auto& [i, j] : ks::counter(size.height, size.width)) {
-                auto A = src(i, j);
+                auto       A = src(i, j);
                 bool const is_edge
                   = A != src(i + 1, j)
                     || A != src(i, j + 1)
@@ -358,8 +358,8 @@ pipepp::pipe_error billiards::pipes::hough_line_executor::invoke(pipepp::executi
     using namespace cv;
     using namespace imgproc;
     namespace ks = kangsw;
-    auto& edges = in.edges;
-    auto& debug = *in.dbg_mat;
+    auto& edges  = in.edges;
+    auto& debug  = *in.dbg_mat;
 
     PIPEPP_CAPTURE_DEBUG_DATA_COND((Mat)in.edges, debug::show_source_image(ec));
 
@@ -367,8 +367,8 @@ pipepp::pipe_error billiards::pipes::hough_line_executor::invoke(pipepp::executi
     PIPEPP_ELAPSE_BLOCK("Apply Hough")
     {
         vector<cv::Vec4i> lines;
-        bool const use_P = (hough::use_P_version(ec));
-        bool const do_visualize = (debug::show_found_lines(ec));
+        bool const        use_P        = (hough::use_P_version(ec));
+        bool const        do_visualize = (debug::show_found_lines(ec));
         if (use_P) {
             HoughLinesP(edges,
                         lines,
@@ -390,10 +390,10 @@ pipepp::pipe_error billiards::pipes::hough_line_executor::invoke(pipepp::executi
 
             if (do_visualize) {
                 for (size_t i = 0; i < result.size(); i++) {
-                    float rho = result[i][0], theta = result[i][1];
+                    float  rho = result[i][0], theta = result[i][1];
                     Vec4i& line = lines.emplace_back();
-                    auto& pt1 = subvec<0, 2>(line);
-                    auto& pt2 = subvec<2, 2>(line);
+                    auto&  pt1  = subvec<0, 2>(line);
+                    auto&  pt2  = subvec<2, 2>(line);
 
                     double a = cos(theta), b = sin(theta);
                     double x0 = a * rho, y0 = b * rho;
@@ -431,14 +431,14 @@ pipepp::pipe_error billiards::pipes::hough_line_executor::invoke(pipepp::executi
 
 pipepp::pipe_error billiards::pipes::table_contour_geometric_search::invoke(
   pipepp::execution_context& ec,
-  input_type const& in,
-  output_type& out)
+  input_type const&          in,
+  output_type&               out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
 
-    auto& edge_mat = in.edge_img;
+    auto& edge_mat      = in.edge_img;
     auto& table_contour = out.contours;
-    auto& debug = *in.debug_rgb;
+    auto& debug         = *in.debug_rgb;
 
     table_contour.clear();
 
@@ -465,7 +465,7 @@ pipepp::pipe_error billiards::pipes::table_contour_geometric_search::invoke(
 
         for (auto idx : ks::rcounter(contours_.size())) {
             auto& contour = contours_[idx];
-            auto area = areas[idx] = contourArea(contour);
+            auto  area = areas[idx] = contourArea(contour);
 
             if (area < threshold) {
                 ks::swap_remove(contours_, idx);
@@ -479,7 +479,7 @@ pipepp::pipe_error billiards::pipes::table_contour_geometric_search::invoke(
             }
             PIPEPP_ELAPSE_SCOPE("Approximate contour lines");
             auto max_elem = max_element(areas.begin(), areas.end());
-            auto idx = std::distance(areas.begin(), max_elem);
+            auto idx      = std::distance(areas.begin(), max_elem);
 
             auto& contour = contours_.at(idx);
             table_contour.assign(contour.begin(), contour.end());
@@ -521,7 +521,7 @@ pipepp::pipe_error billiards::pipes::table_contour_geometric_search::invoke(
 void billiards::pipes::table_contour_geometric_search_link(shared_data& sd, table_contour_geometric_search::input_type& i, pipepp::options& opt)
 {
     i.debug_rgb = &(cv::Mat3b&)sd.debug_mat;
-    i.edge_img = sd.table_filtered_edge;
+    i.edge_img  = sd.table_filtered_edge;
 
     // 테이블의 이전 컨투어를 반환합니다.
     using self = table_contour_geometric_search;

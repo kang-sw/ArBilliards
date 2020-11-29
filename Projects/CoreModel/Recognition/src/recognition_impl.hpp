@@ -16,21 +16,21 @@ namespace billiards {
 // 평면을 나타내는 타입입니다.
 struct plane_t {
     cv::Vec3f N;
-    float d;
+    float     d;
 
-    static plane_t from_NP(cv::Vec3f N, cv::Vec3f P);
-    static plane_t from_rp(cv::Vec3f rvec, cv::Vec3f tvec, cv::Vec3f up);
-    plane_t& transform(cv::Vec3f tvec, cv::Vec3f rvec);
-    float calc(cv::Vec3f const& pt) const;
-    bool has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
-    std::optional<float> calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
+    static plane_t           from_NP(cv::Vec3f N, cv::Vec3f P);
+    static plane_t           from_rp(cv::Vec3f rvec, cv::Vec3f tvec, cv::Vec3f up);
+    plane_t&                 transform(cv::Vec3f tvec, cv::Vec3f rvec);
+    float                    calc(cv::Vec3f const& pt) const;
+    bool                     has_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
+    std::optional<float>     calc_u(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
     std::optional<cv::Vec3f> find_contact(cv::Vec3f const& P1, cv::Vec3f const& P2) const;
 };
 
-using img_t = recognizer_t::frame_desc;
-using img_cb_t = recognizer_t::process_finish_callback_type;
-using opt_img_t = std::optional<img_t>;
-using read_lock = std::shared_lock<std::shared_mutex>;
+using img_t      = recognizer_t::frame_desc;
+using img_cb_t   = recognizer_t::process_finish_callback_type;
+using opt_img_t  = std::optional<img_t>;
+using read_lock  = std::shared_lock<std::shared_mutex>;
 using write_lock = std::unique_lock<std::shared_mutex>;
 
 /**
@@ -40,28 +40,28 @@ class recognizer_impl_t {
 public:
     recognizer_t& m;
 
-    std::thread worker;
-    std::atomic_bool worker_is_alive;
+    std::thread                 worker;
+    std::atomic_bool            worker_is_alive;
     std::condition_variable_any worker_event_wait;
-    std::mutex worker_event_wait_mtx;
+    std::mutex                  worker_event_wait_mtx;
 
-    opt_img_t img_cue;
+    opt_img_t         img_cue;
     std::shared_mutex img_cue_mtx;
-    img_cb_t img_cue_cb;
+    img_cb_t          img_cue_cb;
     std::shared_mutex img_snapshot_mtx;
-    img_t img_prev;
+    img_t             img_prev;
 
     std::unordered_map<std::string, cv::Mat> img_show;
     std::unordered_map<std::string, cv::Mat> img_show_queue;
-    std::shared_mutex img_show_mtx;
+    std::shared_mutex                        img_show_mtx;
 
     std::vector<std::pair<std::string, std::chrono::microseconds>> elapsed_seconds;
     std::vector<std::pair<std::string, std::chrono::microseconds>> elapsed_seconds_prev;
-    std::shared_mutex elapsed_seconds_mtx;
+    std::shared_mutex                                              elapsed_seconds_mtx;
 
     nlohmann::json prev_desc;
-    cv::Vec3f table_pos = {};
-    cv::Vec3f table_rot = {};
+    cv::Vec3f      table_pos = {};
+    cv::Vec3f      table_rot = {};
 
     cv::Vec3f ball_pos_prev[4] = {};
 
@@ -75,134 +75,134 @@ public:
         : m(owner)
     {
         worker_is_alive = true;
-        worker = std::thread(&recognizer_impl_t::async_worker_thread, this);
+        worker          = std::thread(&recognizer_impl_t::async_worker_thread, this);
 
         using nlohmann::json;
         using namespace cv;
         using namespace std;
 
-        json& params = m.props;
+        json& params       = m.props;
         params["__enable"] = true;
 
         params["fast-process-width"] = 540;
-        params["do-resize"] = false;
+        params["do-resize"]          = false;
 
-        params["others"]["top-view-scale"] = 540;
+        params["others"]["top-view-scale"]           = 540;
         params["others"]["random-sample-view-scale"] = 200;
 
         params["FOV"] = Vec2f{84.9f, 52.9f};
         {
             auto& b = params["ball"];
 
-            b["red"]["color"] = Vec2f{133, 135};
-            b["red"]["suitability-threshold"] = 0.35;
-            b["red"]["negative-weight"] = 1;
-            b["red"]["weight-hue-sat"] = Vec2f{2, 1};
-            b["red"]["error-function-base"] = 1.15;
+            b["red"]["color"]                               = Vec2f{133, 135};
+            b["red"]["suitability-threshold"]               = 0.35;
+            b["red"]["negative-weight"]                     = 1;
+            b["red"]["weight-hue-sat"]                      = Vec2f{2, 1};
+            b["red"]["error-function-base"]                 = 1.15;
             b["red"]["second-ball-erase-additional-radius"] = 7;
 
-            b["orange"]["color"] = Vec2f{85, 173};
+            b["orange"]["color"]                 = Vec2f{85, 173};
             b["orange"]["suitability-threshold"] = 0.35;
-            b["orange"]["negative-weight"] = 1;
-            b["orange"]["weight-hue-sat"] = Vec2f{2, 1};
-            b["orange"]["error-function-base"] = 1.15;
+            b["orange"]["negative-weight"]       = 1;
+            b["orange"]["weight-hue-sat"]        = Vec2f{2, 1};
+            b["orange"]["error-function-base"]   = 1.15;
 
-            b["white"]["color"] = Vec2f{40, 54};
+            b["white"]["color"]                 = Vec2f{40, 54};
             b["white"]["suitability-threshold"] = 0.35;
-            b["white"]["negative-weight"] = 1;
-            b["white"]["weight-hue-sat"] = Vec2f{2, 1};
-            b["white"]["error-function-base"] = 1.15;
+            b["white"]["negative-weight"]       = 1;
+            b["white"]["weight-hue-sat"]        = Vec2f{2, 1};
+            b["white"]["error-function-base"]   = 1.15;
 
-            auto& bm = b["common"];
-            bm["radius"] = 0.14 / CV_2PI;
-            bm["min-pixel-radius"] = 10;
-            bm["error-base"] = 1.15;
-            bm["movement"]["jump-distance"] = 0.05;
+            auto& bm                             = b["common"];
+            bm["radius"]                         = 0.14 / CV_2PI;
+            bm["min-pixel-radius"]               = 10;
+            bm["error-base"]                     = 1.15;
+            bm["movement"]["jump-distance"]      = 0.05;
             bm["movement"]["position-LPF-alpha"] = 0.04;
-            bm["movement"]["max-error-speed"] = 1.3;
+            bm["movement"]["max-error-speed"]    = 1.3;
 
-            bm["random-sample"]["do-parallel"] = true;
-            bm["random-sample"]["seed"] = 0;
-            bm["random-sample"]["radius"] = 100;
-            bm["random-sample"]["rotate-angle"] = 0;
+            bm["random-sample"]["do-parallel"]      = true;
+            bm["random-sample"]["seed"]             = 0;
+            bm["random-sample"]["radius"]           = 100;
+            bm["random-sample"]["rotate-angle"]     = 0;
             bm["random-sample"]["sample-max-cases"] = 1000;
-            bm["random-sample"]["positive-area"] = Vec2f{0.33, 1.0};
-            bm["random-sample"]["negative-area"] = Vec2f{1.1, 1.25};
-            bm["candidate-dilate-count"] = 6;
-            bm["candidate-erode-count"] = 11;
+            bm["random-sample"]["positive-area"]    = Vec2f{0.33, 1.0};
+            bm["random-sample"]["negative-area"]    = Vec2f{1.1, 1.25};
+            bm["candidate-dilate-count"]            = 6;
+            bm["candidate-erode-count"]             = 11;
 
-            bm["confidence-weight"] = 2.0f;
+            bm["confidence-weight"]    = 2.0f;
             bm["confidence-threshold"] = 0.15f;
         }
 
         {
             auto& t = params["table"];
 
-            t["size"]["fit"] = Vec2d{0.96, 0.51};
-            t["size"]["outer"] = Vec2d(1.31, 0.76);
-            t["size"]["inner"] = Vec2d(0.895, 0.447);
+            t["size"]["fit"]          = Vec2d{0.96, 0.51};
+            t["size"]["outer"]        = Vec2d(1.31, 0.76);
+            t["size"]["inner"]        = Vec2d(0.895, 0.447);
             t["confidence-threshold"] = 0.115;
 
             t["preprocess"]["dilate-erode-num-erode-prev"] = 25;
             t["preprocess"]["dilate-erode-num-erode-post"] = 25;
-            t["preprocess"]["AWB-RGB-discard-rate"] = Vec3d{0.02, 0.02, 0.02};
+            t["preprocess"]["AWB-RGB-discard-rate"]        = Vec3d{0.02, 0.02, 0.02};
 
-            auto& tc = t["contour"];
-            tc["area-threshold-ratio"] = 0.03;
+            auto& tc                        = t["contour"];
+            tc["area-threshold-ratio"]      = 0.03;
             tc["approx-epsilon-preprocess"] = 5;
             tc["approx-epsilon-convexhull"] = 5;
 
-            t["filter"] = {Vec3f{165, 150, 0}, Vec3f{15, 255, 255}};
+            t["filter"]         = {Vec3f{165, 150, 0}, Vec3f{15, 255, 255}};
             t["cushion-height"] = 0.025;
 
-            t["error-base"] = 1.02;
+            t["error-base"]         = 1.02;
             t["minimum-confidence"] = 0.15;
 
-            auto& tpa = t["partial"];
-            tpa["weight"] = 0.3;
-            tpa["iteration"] = 5;
-            tpa["iteration-narrow-coeff"] = 0.64;
-            tpa["candidates"] = 25;
-            tpa["rot-axis-variant"] = 0.015;
-            tpa["rot-amount-variant"] = 0.06;
-            tpa["pos-variant"] = 0.14;
-            tpa["border-margin"] = 3;
-            tpa["do-parallel"] = true;
+            auto& tpa                             = t["partial"];
+            tpa["weight"]                         = 0.3;
+            tpa["iteration"]                      = 5;
+            tpa["iteration-narrow-coeff"]         = 0.64;
+            tpa["candidates"]                     = 25;
+            tpa["rot-axis-variant"]               = 0.015;
+            tpa["rot-amount-variant"]             = 0.06;
+            tpa["pos-variant"]                    = 0.14;
+            tpa["border-margin"]                  = 3;
+            tpa["do-parallel"]                    = true;
             tpa["contour-curll-window"]["offset"] = Vec2d{0.0, 0.0};
-            tpa["contour-curll-window"]["size"] = Vec2d{1.0, 2.0 / 3};
+            tpa["contour-curll-window"]["size"]   = Vec2d{1.0, 2.0 / 3};
 
-            t["LPF"]["position"] = 0.1666;
-            t["LPF"]["rotation"] = 0.33;
-            t["LPF"]["distance-jump-threshold"] = 0.05;
-            t["LPF"]["rotation-jump-threshold"] = 0.05;
+            t["LPF"]["position"]                  = 0.1666;
+            t["LPF"]["rotation"]                  = 0.33;
+            t["LPF"]["distance-jump-threshold"]   = 0.05;
+            t["LPF"]["rotation-jump-threshold"]   = 0.05;
             t["LPF"]["jump-confidence-threshold"] = 0.94;
 
-            t["marker"]["radius"] = 0.006;
-            t["marker"]["frame-width-outer"] = 0.05;
-            t["marker"]["frame-width-inner"] = 0.02;
-            t["marker"]["num-insert-contours"] = 10;
-            t["marker"]["num-dilate-iteration"] = 10;
-            t["marker"]["detect-min-radius"] = 1;
-            t["marker"]["detect-max-radius"] = 15;
-            t["marker"]["detect-area-threshold"] = 1;
-            t["marker-filter"]["color"] = vector<Vec3d>{{0, 0, 65}, {30, 60, 255}};
-            t["marker-filter"]["laplacian-threshold"] = 0.07;
-            t["marker-filter"]["sharpen-sigma"] = 0.07;
-            t["marker"]["laplacian-threshold"] = 0.07;
-            t["marker"]["model"]["count-x"] = 9;
-            t["marker"]["model"]["count-y"] = 5;
-            t["marker"]["model"]["felt-width"] = 1.735;
-            t["marker"]["model"]["felt-height"] = 0.915;
-            t["marker"]["model"]["dist-from-felt-long"] = 0.015;
+            t["marker"]["radius"]                        = 0.006;
+            t["marker"]["frame-width-outer"]             = 0.05;
+            t["marker"]["frame-width-inner"]             = 0.02;
+            t["marker"]["num-insert-contours"]           = 10;
+            t["marker"]["num-dilate-iteration"]          = 10;
+            t["marker"]["detect-min-radius"]             = 1;
+            t["marker"]["detect-max-radius"]             = 15;
+            t["marker"]["detect-area-threshold"]         = 1;
+            t["marker-filter"]["color"]                  = vector<Vec3d>{{0, 0, 65}, {30, 60, 255}};
+            t["marker-filter"]["laplacian-threshold"]    = 0.07;
+            t["marker-filter"]["sharpen-sigma"]          = 0.07;
+            t["marker"]["laplacian-threshold"]           = 0.07;
+            t["marker"]["model"]["count-x"]              = 9;
+            t["marker"]["model"]["count-y"]              = 5;
+            t["marker"]["model"]["felt-width"]           = 1.735;
+            t["marker"]["model"]["felt-height"]          = 0.915;
+            t["marker"]["model"]["dist-from-felt-long"]  = 0.015;
             t["marker"]["model"]["dist-from-felt-short"] = 0.015;
-            t["marker"]["model"]["step"] = 0.205;
-            t["marker"]["model"]["width-shift-a"] = 0;
-            t["marker"]["model"]["width-shift-b"] = 0;
-            t["marker"]["model"]["height-shift-a"] = 0;
-            t["marker"]["model"]["height-shift-b"] = 0;
-            t["marker"]["model"]["array-enable"] = false;
-            t["marker"]["model"]["array-num"] = 28;
-            t["marker"]["model"]["array"] = vector<Vec3d>{{
+            t["marker"]["model"]["step"]                 = 0.205;
+            t["marker"]["model"]["width-shift-a"]        = 0;
+            t["marker"]["model"]["width-shift-b"]        = 0;
+            t["marker"]["model"]["height-shift-a"]       = 0;
+            t["marker"]["model"]["height-shift-b"]       = 0;
+            t["marker"]["model"]["array-enable"]         = false;
+            t["marker"]["model"]["array-num"]            = 28;
+            t["marker"]["model"]["array"]                = vector<Vec3d>{{
               {-0.8795, 0.0000, 0.4100},
               {-0.8795, 0.0000, 0.2050},
               {-0.8795, 0.0000, 0.0000},
@@ -233,29 +233,29 @@ public:
               {-0.8200, 0.0000, 0.4695},
             }};
 
-            t["marker-solver"]["confidence-amplitude"] = 2;
-            t["marker-solver"]["num-iteration"] = 5;
-            t["marker-solver"]["num-candidates"] = 165;
-            t["marker-solver"]["do-parallel"] = true;
-            t["marker-solver"]["var-position"] = 10.0;
-            t["marker-solver"]["var-rotation"] = 0.1;
-            t["marker-solver"]["var-rotation-axis"] = 0.05;
-            t["marker-solver"]["error-base"] = 1.14;
-            t["marker-solver"]["position-narrow-rate"] = 0.8;
-            t["marker-solver"]["rotation-narrow-rate"] = 0.8;
+            t["marker-solver"]["confidence-amplitude"]  = 2;
+            t["marker-solver"]["num-iteration"]         = 5;
+            t["marker-solver"]["num-candidates"]        = 165;
+            t["marker-solver"]["do-parallel"]           = true;
+            t["marker-solver"]["var-position"]          = 10.0;
+            t["marker-solver"]["var-rotation"]          = 0.1;
+            t["marker-solver"]["var-rotation-axis"]     = 0.05;
+            t["marker-solver"]["error-base"]            = 1.14;
+            t["marker-solver"]["position-narrow-rate"]  = 0.8;
+            t["marker-solver"]["rotation-narrow-rate"]  = 0.8;
             t["marker-solver"]["min-valid-marker-size"] = 1.2;
         }
 
         {
-            auto& u = params["unity"];
-            u["enable-table-depth-override"] = true;
-            u["camera-anchor-offset-vector"] = Vec3d{};
-            u["phys"]["sim-ball-radius"] = 0.02208169;
-            u["phys"]["ball"]["restitution"] = 0.77;
-            u["phys"]["ball"]["velocity-damping"] = 0.33;
-            u["phys"]["ball"]["roll-coeff-on-contact"] = 0.23;
-            u["phys"]["ball"]["roll-begin-time"] = 0.7;
-            u["phys"]["table"]["restitution"] = 0.73;
+            auto& u                                      = params["unity"];
+            u["enable-table-depth-override"]             = true;
+            u["camera-anchor-offset-vector"]             = Vec3d{};
+            u["phys"]["sim-ball-radius"]                 = 0.02208169;
+            u["phys"]["ball"]["restitution"]             = 0.77;
+            u["phys"]["ball"]["velocity-damping"]        = 0.33;
+            u["phys"]["ball"]["roll-coeff-on-contact"]   = 0.23;
+            u["phys"]["ball"]["roll-begin-time"]         = 0.7;
+            u["phys"]["table"]["restitution"]            = 0.73;
             u["phys"]["table"]["roll-to-velocity-coeff"] = 0.67;
             u["phys"]["table"]["velocity-to-roll-coeff"] = 0.2;
         }
@@ -302,16 +302,16 @@ public:
     /**
      * 주된 이미지 처리를 수행합니다.
      */
-    nlohmann::json proc_img(img_t const& imdesc_source);
+    nlohmann::json   proc_img(img_t const& imdesc_source);
     recognition_desc proc_img2(img_t const& img);
 
     /**
      * 테이블 위치를 찾습니다. 
      */
     void find_table(
-      img_t const& img,
-      const cv::Mat& debug,
-      const cv::UMat& filtered,
+      img_t const&            img,
+      const cv::Mat&          debug,
+      const cv::UMat&         filtered,
       std::vector<cv::Vec2f>& table_contour,
       nlohmann::json&);
 
@@ -321,19 +321,19 @@ public:
      */
 
     struct transform_estimation_param_t {
-        int num_iteration = 10;
-        int num_candidates = 64;
-        float rot_axis_variant = 0.05;
-        float rot_variant = 0.2f;
-        float pos_initial_distance = 0.5f;
-        int border_margin = 3;
-        cv::Size2f FOV = {90, 60};
-        float confidence_calc_base = 1.02f; // 에러 계산에 사용
-        float iterative_narrow_ratio = 0.6f;
+        int        num_iteration          = 10;
+        int        num_candidates         = 64;
+        float      rot_axis_variant       = 0.05;
+        float      rot_variant            = 0.2f;
+        float      pos_initial_distance   = 0.5f;
+        int        border_margin          = 3;
+        cv::Size2f FOV                    = {90, 60};
+        float      confidence_calc_base   = 1.02f; // 에러 계산에 사용
+        float      iterative_narrow_ratio = 0.6f;
 
         cv::Mat debug_render_mat;
-        bool render_debug_glyphs = true;
-        bool do_parallel = true;
+        bool    render_debug_glyphs = true;
+        bool    do_parallel         = true;
 
         cv::Rect contour_cull_rect;
     };
@@ -341,7 +341,7 @@ public:
     struct transform_estimation_result_t {
         cv::Vec3f position;
         cv::Vec3f rotation;
-        float confidence;
+        float     confidence;
     };
 
     static std::optional<transform_estimation_result_t> estimate_matching_transform(img_t const& img, std::vector<cv::Vec2f> const& input, std::vector<cv::Vec3f> model, cv::Vec3f init_pos, cv::Vec3f init_rot, transform_estimation_param_t const& param);
@@ -350,39 +350,39 @@ public:
      * 마커로부터 테이블 위치를 보정합니다.
      */
     void correct_table_pos(
-      img_t const& img,
-      recognition_desc& desc,
-      cv::Mat rgb,
-      cv::Rect ROI,
-      cv::Mat3b roi_rgb,
+      img_t const&           img,
+      recognition_desc&      desc,
+      cv::Mat                rgb,
+      cv::Rect               ROI,
+      cv::Mat3b              roi_rgb,
       std::vector<cv::Point> table_contour_partial);
 
     struct ball_find_result_t {
-        cv::Point img_center;
+        cv::Point   img_center;
         cv::Point3f ball_position;
-        float geometric_weight;
-        float color_weight;
-        float pixel_radius;
+        float       geometric_weight;
+        float       color_weight;
+        float       pixel_radius;
     };
 
     struct ball_find_parameter_t {
-        struct plane_t const* table_plane; // 광선을 투사할 테이블 평면입니다. 반드시 카메라 좌표계
-        cv::Mat precomputed_color_weights; // 미리 계산된 컬러 가중치 매트릭스.
-        cv::Mat blue_mask;                 // 파란색 테이블 마스크
-        cv::Rect ROI = {};
-        cv::Mat rgb_debug;
-        cv::Vec3f hsv_avg_filter_value; // 커널 계산에 사용할 색상 필터의 중간값
-        int memoization_steps;
+        struct plane_t const* table_plane;               // 광선을 투사할 테이블 평면입니다. 반드시 카메라 좌표계
+        cv::Mat               precomputed_color_weights; // 미리 계산된 컬러 가중치 매트릭스.
+        cv::Mat               blue_mask;                 // 파란색 테이블 마스크
+        cv::Rect              ROI = {};
+        cv::Mat               rgb_debug;
+        cv::Vec3f             hsv_avg_filter_value; // 커널 계산에 사용할 색상 필터의 중간값
+        int                   memoization_steps;
     };
 
     /**
      * 공의 이미지 상 중심을 찾습니다.
      */
     void find_ball_center(
-      img_t const& img,
-      std::vector<cv::Point> const& contours_src,
+      img_t const&                        img,
+      std::vector<cv::Point> const&       contours_src,
       struct ball_find_parameter_t const& params,
-      struct ball_find_result_t& result);
+      struct ball_find_result_t&          result);
     /** @} */
 
     /**
@@ -436,7 +436,7 @@ public:
     /**
      * 카메라 매트릭스를 획득합니다.
      */
-    static void get_camera_matx(img_t const& img, cv::Mat& mat_cam, cv::Mat& mat_disto);
+    static void                                get_camera_matx(img_t const& img, cv::Mat& mat_cam, cv::Mat& mat_disto);
     static std::pair<cv::Matx33d, cv::Matx41d> get_camera_matx(img_t const& img);
 
     /**

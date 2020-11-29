@@ -62,9 +62,9 @@ int main_DEPRECATED()
     {
         sl::InitParameters init_params;
         init_params.camera_resolution = sl::RESOLUTION::HD720;
-        init_params.sdk_verbose = true; // Disable verbose mode
-        init_params.camera_fps = 30;
-        init_params.coordinate_units = sl::UNIT::METER;
+        init_params.sdk_verbose       = true; // Disable verbose mode
+        init_params.camera_fps        = 30;
+        init_params.coordinate_units  = sl::UNIT::METER;
 
         // Open the camera
         sl::ERROR_CODE err = zed.open(init_params);
@@ -90,12 +90,12 @@ int main_DEPRECATED()
     }
 
     /* 카메라 인트린식 획득 */
-    auto CameraInfo = zed.getCameraInformation({960, 540});
+    auto    CameraInfo = zed.getCameraInformation({960, 540});
     cv::Mat CameraMat, DistortionMat;
     {
-        auto& p = CameraInfo.camera_configuration.calibration_parameters.left_cam;
-        double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
-        CameraMat = cv::Mat(3, 3, CV_64FC1, M);
+        auto&  p      = CameraInfo.camera_configuration.calibration_parameters.left_cam;
+        double M[]    = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};
+        CameraMat     = cv::Mat(3, 3, CV_64FC1, M);
         DistortionMat = cv::Mat(4, 1, CV_64FC1, p.disto);
     }
 
@@ -197,7 +197,7 @@ int main_DEPRECATED()
             vector<cv::Vec2f> FoundContours;
             {
                 // 먼저 에지 검출합니다.
-                Image = TableMask.clone();
+                Image  = TableMask.clone();
                 UImage = Image.getUMat(cv::ACCESS_RW);
                 {
                     cv::erode(UImage, UImage, {});
@@ -205,7 +205,7 @@ int main_DEPRECATED()
                 }
 
                 vector<vector<cv::Point>> Contours;
-                vector<cv::Vec4i> Hierarchy;
+                vector<cv::Vec4i>         Hierarchy;
                 cv::findContours(UImage, Contours, Hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
                 Frame.copyTo(UImage);
@@ -237,7 +237,7 @@ int main_DEPRECATED()
                     double constexpr table_x = 0.96, table_y = 0.51;
 
                     static double const span_x = atan(table_x) / fov_x, span_y = atan(table_y) / fov_y;
-                    int const res_x = span_x * UImage.cols, res_y = span_y * UImage.rows;
+                    int const           res_x = span_x * UImage.cols, res_y = span_y * UImage.rows;
 
                     double mult_x[] = {0.5, 0.5, 1.5, 1.5};
                     double mult_y[] = {1.5, 0.5, 1.5, 0.5};
@@ -335,8 +335,8 @@ int main_DEPRECATED()
 
                 /* 프레임 중앙에 거리 표시 */
                 {
-                    int y = PtCloud.rows / 2, x = PtCloud.cols / 2;
-                    auto Center = PtCloud.at<cv::Vec4f>(y, x);
+                    int  y = PtCloud.rows / 2, x = PtCloud.cols / 2;
+                    auto Center   = PtCloud.at<cv::Vec4f>(y, x);
                     Center.val[3] = 0;
                     float Dist;
                     Dist = sqrt(cv::sum(Center.mul(Center)).val[0]);
@@ -348,7 +348,7 @@ int main_DEPRECATED()
                 /* 당구대 각 귀퉁이 좌표 표시 */
                 for (auto& Point : FoundContours) {
                     cv::Point Pt(Point.val[0], Point.val[1] - 20);
-                    auto Coord = *(cv::Vec3f*)&PtCloud.at<cv::Vec4f>(Pt.y, Pt.x);
+                    auto      Coord = *(cv::Vec3f*)&PtCloud.at<cv::Vec4f>(Pt.y, Pt.x);
 
                     // 트랜슬레이션 계산
                     if (CameraTransform) {

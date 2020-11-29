@@ -78,7 +78,7 @@ void billiards::imgproc::cull_frustum_impl(std::vector<cv::Vec3f>& obj_pts, plan
                     // o[nnidx]는 평면 안에 있음
                     // 접점을 스폰하고 nidx폐기, 탈출
                     auto contact = pl.find_contact(o[nidx], o[nnidx]).value();
-                    o[nidx] = contact;
+                    o[nidx]      = contact;
                 }
 
                 idx = nnidx; // nidx는 검증 완료, nnidx에서 새로 시작
@@ -122,13 +122,13 @@ void billiards::imgproc::project_points(std::vector<cv::Vec3f> const& points, cv
 cv::Matx44f billiards::imgproc::get_transform_matx_fast(cv::Vec3f pos, cv::Vec3f rot)
 {
     using namespace cv;
-    auto world_transform = Matx44f::zeros();
+    auto world_transform  = Matx44f::zeros();
     world_transform(3, 3) = 1.0f;
     {
-        world_transform.val[3] = pos[0];
-        world_transform.val[7] = pos[1];
+        world_transform.val[3]  = pos[0];
+        world_transform.val[7]  = pos[1];
         world_transform.val[11] = pos[2];
-        Matx33f rot_mat = rodrigues(rot);
+        Matx33f rot_mat         = rodrigues(rot);
         copy_matx(world_transform, rot_mat, 0, 0);
     }
     return world_transform;
@@ -138,12 +138,12 @@ void billiards::imgproc::transform_points_to_camera(img_t const& img, cv::Vec3f 
 {
     // cv::Mat world_transform;
     // get_world_transform_matx(world_pos, world_rot, world_transform);
-    auto world_transform = get_transform_matx_fast(world_pos, world_rot);
+    auto world_transform      = get_transform_matx_fast(world_pos, world_rot);
     auto inv_camera_transform = img.camera_transform.inv();
 
     for (auto& opt : model_vertexes) {
         auto pt = (cv::Vec4f&)opt;
-        pt[3] = 1.0f;
+        pt[3]   = 1.0f;
 
         pt = inv_camera_transform * world_transform * pt;
 
@@ -202,11 +202,11 @@ void billiards::imgproc::draw_axes(img_t const& img, cv::Mat const& dest, cv::Ve
     vector<Vec2f> mapped;
     project_model(img, mapped, tvec, rvec, pts, false);
 
-    pair<int, int> pairs[] = {{0, 1}, {0, 2}, {0, 3}};
-    Scalar colors[] = {{0, 0, 255}, {0, 255, 0}, {255, 0, 0}};
+    pair<int, int> pairs[]  = {{0, 1}, {0, 2}, {0, 3}};
+    Scalar         colors[] = {{0, 0, 255}, {0, 255, 0}, {255, 0, 0}};
     for (int i = 0; i < 3; ++i) {
         auto [beg, end] = pairs[i];
-        auto color = colors[i];
+        auto color      = colors[i];
 
         Point pt_beg((int)mapped[beg][0], (int)mapped[beg][1]);
         Point pt_end((int)mapped[end][0], (int)mapped[end][1]);
@@ -229,15 +229,15 @@ void billiards::imgproc::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::
         pt = (rot * pt) + tvec;
 
         auto pt4 = (Vec4f&)pt;
-        pt4[3] = 1.0f, pt4[1] *= -1.0f;
-        pt4 = img.camera_transform * pt4;
-        pt = (Vec3f&)pt4;
+        pt4[3]   = 1.0f, pt4[1] *= -1.0f;
+        pt4      = img.camera_transform * pt4;
+        pt       = (Vec3f&)pt4;
     }
 
     Matx31f u = normalize(uvw[0] - uvw[3]);
     Matx31f v = normalize(uvw[1] - uvw[3]);
     Matx31f w = normalize(uvw[2] - uvw[3]);
-    tvec = uvw[3];
+    tvec      = uvw[3];
 
     Matx33f rmat;
     copy_matx(rmat, u, 0, 0);
@@ -250,7 +250,7 @@ void billiards::imgproc::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::
 void billiards::imgproc::world_to_camera(img_t const& img, cv::Vec3f& rvec, cv::Vec3f& tvec)
 {
     using namespace cv;
-    auto inv_cam = img.camera_transform.inv();
+    auto  inv_cam = img.camera_transform.inv();
     Vec3f uvw[4];
     uvw[0] = {0.1f, 0, 0};
     uvw[1] = {0, -0.1f, 0};
@@ -260,15 +260,15 @@ void billiards::imgproc::world_to_camera(img_t const& img, cv::Vec3f& rvec, cv::
     Matx33f rot = rodrigues(rvec);
 
     for (auto& pt : uvw) {
-        pt = (rot * pt) + tvec;
-        pt = subvec<0, 3>(inv_cam * concat_vec(pt, 1.f));
+        pt    = (rot * pt) + tvec;
+        pt    = subvec<0, 3>(inv_cam * concat_vec(pt, 1.f));
         pt[1] = -pt[1];
     }
 
     Matx31f u = normalize(uvw[0] - uvw[3]);
     Matx31f v = normalize(uvw[1] - uvw[3]);
     Matx31f w = normalize(uvw[2] - uvw[3]);
-    tvec = uvw[3];
+    tvec      = uvw[3];
 
     Matx33f rmat;
     copy_matx(rmat, u, 0, 0);
@@ -286,13 +286,13 @@ cv::Vec3f billiards::imgproc::rotate_euler(cv::Vec3f target, cv::Vec3f rvec)
     Rodrigues(target, rotator);
     axes = rotator * axes;
 
-    auto roll = rvec[2] * axes.col(2);
+    auto roll  = rvec[2] * axes.col(2);
     auto pitch = rvec[0] * axes.col(0);
-    auto yaw = rvec[1] * axes.col(1);
+    auto yaw   = rvec[1] * axes.col(1);
 
-    Rodrigues(roll, rotator), axes = rotator * axes;
+    Rodrigues(roll, rotator), axes  = rotator * axes;
     Rodrigues(pitch, rotator), axes = rotator * axes;
-    Rodrigues(yaw, rotator), axes = rotator * axes;
+    Rodrigues(yaw, rotator), axes   = rotator * axes;
 
     Vec3f result;
     Rodrigues(axes, result);
@@ -393,12 +393,12 @@ float billiards::imgproc::contour_distance(std::vector<cv::Vec2f> const& ct_a, s
         if (ct_b.empty()) { break; }
 
         float min_dist = std::numeric_limits<float>::max();
-        int min_idx = 0;
+        int   min_idx  = 0;
         for (int i = 0; i < ct_b.size(); ++i) {
             auto dist = cv::norm(ct_b[i] - pt, cv::NORM_L2SQR);
             if (dist < min_dist) {
                 min_dist = dist;
-                min_idx = i;
+                min_idx  = i;
             }
         }
 
@@ -417,8 +417,8 @@ void billiards::imgproc::plane_to_camera(img_t const& img, plane_t const& table_
     N[3] = 0.f, P[3] = 1.f;
 
     cv::Matx44f camera_inv = img.camera_transform.inv();
-    N = camera_inv * N;
-    P = camera_inv * P;
+    N                      = camera_inv * N;
+    P                      = camera_inv * P;
 
     // CV 좌표계로 변환
     N[1] *= -1.f, P[1] *= -1.f;
@@ -429,8 +429,8 @@ void billiards::imgproc::plane_to_camera(img_t const& img, plane_t const& table_
 void billiards::imgproc::get_point_coord_3d(img_t const& img, float& io_x, float& io_y, float z_metric)
 {
     auto& c = img.camera;
-    auto u = io_x;
-    auto v = io_y;
+    auto  u = io_x;
+    auto  v = io_y;
 
     io_x = z_metric * ((u - c.cx) / c.fx);
     io_y = z_metric * ((v - c.cy) / c.fy);
@@ -439,9 +439,9 @@ void billiards::imgproc::get_point_coord_3d(img_t const& img, float& io_x, float
 std::array<float, 2> billiards::imgproc::get_uv_from_3d(img_t const& img, cv::Point3f const& coord_3d)
 {
     std::array<float, 2> result;
-    auto& [u, v] = result;
+    auto& [u, v]    = result;
     auto& [x, y, z] = coord_3d;
-    auto c = img.camera;
+    auto c          = img.camera;
 
     u = (c.fx * x) / z + c.cx;
     v = (c.fy * y) / z + c.cy;
@@ -538,18 +538,18 @@ void billiards::imgproc::generate_normalized_sparse_kernel(std::vector<cv::Vec<f
 
     for (auto& parea : {&positive_area_range, &negative_area_range}) {
         auto& area = *parea;
-        area = area.mul(area);
+        area       = area.mul(area);
         if (area[1] < area[0]) {
             swap(area[1], area[0]);
         }
     }
 
-    std::mt19937 rg{};
+    std::mt19937                          rg{};
     std::uniform_real_distribution<float> distr_positive{positive_area_range[0], positive_area_range[1]};
     std::uniform_real_distribution<float> distr_negative{negative_area_range[0], negative_area_range[1]};
 
     if (rand_seed != -1) { rg.seed(rand_seed); }
-    float r0 = -rotate_angle * CV_PI / 180;
+    float       r0 = -rotate_angle * CV_PI / 180;
     cv::Matx22f rotator{cos(r0), -sin(r0), sin(r0), cos(r0)};
 
     circle_op(0, 0, circle_radius, [&](int xi, int yi) {
@@ -559,7 +559,7 @@ void billiards::imgproc::generate_normalized_sparse_kernel(std::vector<cv::Vec<f
         normal_negative_samples.emplace_back(vec * sqrt(distr_negative(rg)));
 
         vec[1] = vec[1] > 0 ? -vec[1] : vec[1];
-        vec = rotator * vec * sqrt(distr_positive(rg));
+        vec    = rotator * vec * sqrt(distr_positive(rg));
         normal_random_samples.emplace_back(vec);
     });
 }
@@ -582,7 +582,7 @@ cv::Point billiards::imgproc::project_single_point(img_t const& img, cv::Vec3f v
 
 std::string billiards::imgproc::mat_info_str(cv::Mat const& i)
 {
-    auto type = i.type();
+    auto        type = i.type();
     std::string r;
 
     uchar depth = type & CV_MAT_DEPTH_MASK;
@@ -669,7 +669,7 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
     }
 
     struct candidate_t {
-        float error = numeric_limits<float>::max();
+        float     error = numeric_limits<float>::max();
         cv::Vec3f pos, rot;
     };
 
@@ -695,7 +695,7 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
         if (do_parallel) {
             cands.resize(p.num_candidates);
             struct alignas(128) thread_context {
-                mt19937 rand;
+                mt19937           rand;
                 vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
                 vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
 
@@ -709,10 +709,10 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
               cands,
               [&](candidate_t& elem, size_t partition_index) {
                   candidate_t cand;
-                  auto& context = contexts[partition_index];
-                  auto& ch_mapped = context.ch_mapped;
-                  auto& ch_model = context.ch_model;
-                  auto& rand = context.rand;
+                  auto&       context   = contexts[partition_index];
+                  auto&       ch_mapped = context.ch_mapped;
+                  auto&       ch_model  = context.ch_model;
+                  auto&       rand      = context.rand;
 
                   // 첫 요소는 항상 기존의 값입니다.
                   if (&elem - cands.data() != 0) {
@@ -725,7 +725,7 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
                       // 회전 벡터를 계산합니다.
                       // 회전은 급격하게 변하지 않고, 더 계산하기 까다로우므로 축을 고정하고 회전시킵니다.
                       random_vector(rand, r, distr_rot_axis(rand));
-                      r = normalize(r + init_rot); // 회전축에 variant 적용
+                      r                    = normalize(r + init_rot); // 회전축에 variant 적용
                       float new_rot_amount = norm(init_rot) + distr_rot(rand);
                       r *= new_rot_amount;
                   } else {
@@ -744,7 +744,7 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
                   } else {
                       fit_contour_to_screen(ch_mapped, p.contour_cull_rect);
                       float dist_min = contour_distance(input, ch_mapped);
-                      cand.error = dist_min;
+                      cand.error     = dist_min;
                   }
 
                   elem = cand;
@@ -752,12 +752,12 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
         } else {
             vector<cv::Vec2f> ch_mapped; // 메모리 재할당 방지
             vector<cv::Vec3f> ch_model;  // 메모리 재할당 방지
-            mt19937 rand(random_device{}());
+            mt19937           rand(random_device{}());
 
             while (cands.size() < p.num_candidates) {
                 candidate_t cand;
-                auto& p = cand.pos;
-                auto& r = cand.rot;
+                auto&       p = cand.pos;
+                auto&       r = cand.rot;
 
                 random_vector(rand, p, distr_pos(rand));
                 p += init_pos;
@@ -765,7 +765,7 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
                 // 회전 벡터를 계산합니다.
                 // 회전은 급격하게 변하지 않고, 더 계산하기 까다로우므로 축을 고정하고 회전시킵니다.
                 random_vector(rand, r, distr_rot_axis(rand));
-                r = normalize(r + init_rot); // 회전축에 variant 적용
+                r                    = normalize(r + init_rot); // 회전축에 variant 적용
                 float new_rot_amount = norm(init_rot) + distr_rot(rand);
                 r *= new_rot_amount;
 
@@ -793,7 +793,7 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
                 }
 
                 float dist_min = contour_distance(input, ch_mapped);
-                cand.error = dist_min;
+                cand.error     = dist_min;
             }
         }
 
@@ -813,15 +813,15 @@ std::optional<billiards::imgproc::transform_estimation_result_t> billiards::imgp
         }
     }
 
-    auto& suitable = cands.front();
+    auto&                         suitable = cands.front();
     transform_estimation_result_t res;
     res.confidence = pow(p.confidence_calc_base, -suitable.error);
-    res.position = suitable.pos;
-    res.rotation = suitable.rot;
+    res.position   = suitable.pos;
+    res.rotation   = suitable.rot;
 
     if (p.render_debug_glyphs && p.debug_render_mat.data) {
         vector<cv::Point> points;
-        auto ch_model = model;
+        auto              ch_model = model;
 
         project_model(img, points, res.position, res.rotation, ch_model, true, p.FOV.width, p.FOV.height);
         cv::drawContours(p.debug_render_mat, vector{{points}}, -1, {0, 0, 255}, 1);
@@ -848,7 +848,7 @@ billiards::imgproc::plane_t billiards::imgproc::plane_t::from_NP(cv::Vec3f N, cv
 billiards::imgproc::plane_t billiards::imgproc::plane_t::from_rp(cv::Vec3f rvec, cv::Vec3f tvec, cv::Vec3f up)
 {
     using namespace cv;
-    auto P = tvec;
+    auto    P       = tvec;
     Matx33f rotator = rodrigues(rvec);
     // Matx33f rotator;
     // Rodrigues(rvec, rotator);
@@ -860,7 +860,7 @@ billiards::imgproc::plane_t& billiards::imgproc::plane_t::transform(cv::Vec3f tv
 {
     using namespace cv;
 
-    auto P = -N * d;
+    auto    P = -N * d;
     Matx33f rotator;
     Rodrigues(rvec, rotator);
 
@@ -872,7 +872,7 @@ billiards::imgproc::plane_t& billiards::imgproc::plane_t::transform(cv::Vec3f tv
 
 float billiards::imgproc::plane_t::calc(cv::Vec3f const& pt) const
 {
-    auto v = N.mul(pt);
+    auto v   = N.mul(pt);
     auto res = v[0] + v[1] + v[2] + d;
     return res; //abs(res) < 1e-6f ? 0 : res;
 }
@@ -914,7 +914,7 @@ void billiards::imgproc::range_filter(cv::InputArray input, cv::OutputArray outp
 {
     using namespace cv;
     if (max_hsv[0] < min_hsv[0]) {
-        Mat mask, hi, lo, temp;
+        Mat  mask, hi, lo, temp;
         auto filt_min = min_hsv, filt_max = max_hsv;
         filt_min[0] = 0, filt_max[0] = 255;
 
@@ -931,7 +931,7 @@ void billiards::imgproc::range_filter(cv::InputArray input, cv::OutputArray outp
 
 bool billiards::imgproc::is_border_pixel(cv::Rect img_size, cv::Vec2i pixel, int margin)
 {
-    pixel = pixel - (cv::Vec2i)img_size.tl();
+    pixel  = pixel - (cv::Vec2i)img_size.tl();
     bool w = pixel[0] < margin || pixel[0] >= img_size.width - margin;
     bool h = pixel[1] < margin || pixel[1] >= img_size.height - margin;
     return w || h;
@@ -952,7 +952,7 @@ void billiards::imgproc::get_table_model(std::vector<cv::Vec3f>& vertexes, cv::V
 
 std::pair<cv::Matx33d, cv::Matx41d> billiards::imgproc::get_camera_matx(billiards::recognizer_t::frame_desc const& img)
 {
-    auto& p = img.camera;
+    auto&  p       = img.camera;
     double disto[] = {0, 0, 0, 0}; // Since we use rectified image ...
 
     double M[] = {p.fx, 0, p.cx, 0, p.fy, p.cy, 0, 0, 1};

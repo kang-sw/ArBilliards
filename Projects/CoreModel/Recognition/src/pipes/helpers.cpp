@@ -5,15 +5,15 @@ cv::Mat3b billiards::pipes::helpers::kernel_visualizer::operator()(pipepp::execu
     PIPEPP_REGISTER_CONTEXT(ec);
 
     PIPEPP_ELAPSE_SCOPE("Kernel visualization");
-    auto scale = kernel_view_size;
-    auto mult = scale / 4;
-    auto radius = std::max(1, scale / 100);
-    cv::Mat3b kernel_view(scale, scale, {0, 0, 0});
-    cv::Point center(scale / 2, scale / 2);
+    auto       scale  = kernel_view_size;
+    auto       mult   = scale / 4;
+    auto       radius = std::max(1, scale / 100);
+    cv::Mat3b  kernel_view(scale, scale, {0, 0, 0});
+    cv::Point  center(scale / 2, scale / 2);
     cv::Scalar colors[] = {{0, 255, 0}, {0, 0, 255}};
 
     for (auto idx : kangsw::counter(vtxs.size())) {
-        auto vtx = vtxs[idx];
+        auto      vtx = vtxs[idx];
         cv::Point pt(vtx[0] * mult, -vtx[2] * mult);
         cv::circle(kernel_view, center + pt, radius, colors[idx >= positive_index_fence]);
     }
@@ -26,8 +26,8 @@ std::vector<cv::Vec3f> billiards::pipes::helpers::kernel_generator::operator()(p
     PIPEPP_REGISTER_CONTEXT(ec);
 
     // 컨투어 랜덤 샘플 피봇 재생성
-    std::mt19937 rand(random_seed);
-    auto& m = output;
+    std::mt19937           rand(random_seed);
+    auto&                  m = output;
     std::vector<cv::Vec3f> vtxs;
     vtxs.reserve(size_t((positive_integral_radius + negative_integral_radius) * CV_PI * 2));
 
@@ -58,9 +58,9 @@ std::vector<cv::Vec3f> billiards::pipes::helpers::kernel_generator::operator()(p
 
     if (show_debug) {
         helpers::kernel_visualizer kv;
-        kv.kernel_view_size = kernel_view_size;
+        kv.kernel_view_size     = kernel_view_size;
         kv.positive_index_fence = m.positive_index_fence;
-        kv.vtxs = vtxs;
+        kv.vtxs                 = vtxs;
 
         PIPEPP_STORE_DEBUG_DATA("Generated kernel", (cv::Mat)kv(ec));
     }

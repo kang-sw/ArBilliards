@@ -40,7 +40,7 @@ public:
     struct output_type {
         cv::Mat3b resized_cluster_color_mat;
         cv::Mat1i labels;
-        int num_labels;
+        int       num_labels;
 
         int color_convert_to;
         int color_convert_from;
@@ -55,7 +55,7 @@ public:
 private:
     struct implmentation;
     std::unique_ptr<implmentation> impl_;
-    int convert_to = -1, convert_from = -1;
+    int                            convert_to = -1, convert_from = -1;
 
 public:
     struct link {
@@ -110,12 +110,12 @@ public:
     using output_type = shared_data::cluster_type;
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& in, output_type& out);
-    static void link_from_previous(shared_data const& sd, superpixel_executor::output_type const& o, input_type& i);
-    static void output_handler(shared_data& sd, output_type const& o);
+    static void        link_from_previous(shared_data const& sd, superpixel_executor::output_type const& o, input_type& i);
+    static void        output_handler(shared_data& sd, output_type const& o);
 
 private:
     std::vector<cv::Vec<int32_t, 6>> spxl_sum;
-    std::vector<cv::Vec<float, 5>> spxl_kmeans_param;
+    std::vector<cv::Vec<float, 5>>   spxl_kmeans_param;
 };
 
 struct label_edge_detector {
@@ -175,7 +175,7 @@ class hough_line_executor {
 
 public:
     struct input_type {
-        cv::Mat1b edges;
+        cv::Mat1b      edges;
         cv::Mat const* dbg_mat = {};
     };
 
@@ -227,8 +227,8 @@ PIPEPP_EXECUTOR(table_contour_geometric_search)
     };
 
     struct input_type {
-        cv::Mat1b edge_img;
-        cv::Mat3b const* debug_rgb;
+        cv::Mat1b              edge_img;
+        cv::Mat3b const*       debug_rgb;
         std::vector<cv::Vec2f> prev_contour;
     };
     struct output_type {

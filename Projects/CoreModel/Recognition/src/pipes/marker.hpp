@@ -8,14 +8,14 @@ using namespace std::literals;
 namespace helpers {
 struct table_edge_extender {
     // inputs
-    cv::Vec3f table_rot, table_pos;
-    imgproc::img_t const* p_imdesc;
+    cv::Vec3f                  table_rot, table_pos;
+    imgproc::img_t const*      p_imdesc;
     std::span<const cv::Vec2f> table_contour;
 
     // opts
-    int num_insert_contour_vertexes = 5;
-    double table_border_range_outer = 0.06;
-    double table_border_range_inner = 0.06;
+    int    num_insert_contour_vertexes = 5;
+    double table_border_range_outer    = 0.06;
+    double table_border_range_inner    = 0.06;
 
     cv::Mat const* debug_mat = {};
 
@@ -129,18 +129,18 @@ PIPEPP_EXECUTOR(table_marker_finder)
         cv::Mat1b lightness; // marker::filter::method == 1일때만 값을 지정하는 밝기 채널입니다.
 
         imgproc::img_t const* p_imdesc;
-        cv::Vec3f init_table_pos;
-        cv::Vec3f init_table_rot;
+        cv::Vec3f             init_table_pos;
+        cv::Vec3f             init_table_rot;
 
         std::span<const cv::Vec2f> contour;
-        std::vector<cv::Vec3f> marker_model;
+        std::vector<cv::Vec3f>     marker_model;
     };
     struct output_type {
         cv::Mat1f marker_weight_map;
     };
 
     pipepp::pipe_error operator()(pipepp::execution_context& ec, input_type const& in, output_type& out);
-    static void link(shared_data& sd, input_type& i, pipepp::detail::option_base const& opt);
+    static void        link(shared_data & sd, input_type & i, pipepp::detail::option_base const& opt);
 
 public:
     table_marker_finder();

@@ -23,7 +23,7 @@ void build_traditional_path(pipepp::pipeline<billiards::pipes::shared_data, bill
         &billiards::pipes::table_edge_solver::link_from_previous,
         &pipepp::make_executor<billiards::pipes::table_edge_solver>);
     pnp_solver_proxy.add_output_handler(&billiards::pipes::table_edge_solver::output_handler);
-    pnp_solver_proxy.configure_tweaks().selective_input = true;
+    pnp_solver_proxy.configure_tweaks().selective_input  = true;
     pnp_solver_proxy.configure_tweaks().selective_output = true;
 
     // ---------------------------------------------------------------------------------
@@ -75,11 +75,11 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using namespace std;
-    cv::UMat u_filtered, u_edge, u0, u1;
-    cv::Vec3b filter[] = {table_color_filter_0_lo(ec), table_color_filter_1_hi(ec)};
+    cv::UMat          u_filtered, u_edge, u0, u1;
+    cv::Vec3b         filter[] = {table_color_filter_0_lo(ec), table_color_filter_1_hi(ec)};
     vector<cv::Vec2f> table_contour;
-    auto image_size = i.u_hsv.size();
-    auto& debug = i.debug_display;
+    auto              image_size = i.u_hsv.size();
+    auto&             debug      = i.debug_display;
 
     PIPEPP_ELAPSE_BLOCK("Edge detection")
     {
@@ -89,8 +89,8 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
             imgproc::carve_outermost_pixels(u_filtered, {0});
         }
 
-        auto prev_iter = max(0, preprocess::num_erode_prev(ec));
-        auto post_iter = max(0, preprocess::num_erode_post(ec));
+        auto prev_iter  = max(0, preprocess::num_erode_prev(ec));
+        auto post_iter  = max(0, preprocess::num_erode_post(ec));
         auto num_dilate = prev_iter + post_iter;
 
         if (num_dilate > 0) {
@@ -116,13 +116,13 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
     {
         using namespace cv;
         vector<vector<Vec2i>> candidates;
-        vector<Vec4i> hierarchy;
+        vector<Vec4i>         hierarchy;
         findContours(u_filtered, candidates, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_NONE);
 
         // 테이블 전체가 시야에 없을 때에도 위치를 추정할 수 있도록, 가장 큰 영역을 기록해둡니다.
-        auto max_size_arg = make_pair(-1, 0.0);
-        auto eps0 = approx_epsilon_preprocess(ec);
-        auto eps1 = approx_epsilon_convex_hull(ec);
+        auto max_size_arg   = make_pair(-1, 0.0);
+        auto eps0           = approx_epsilon_preprocess(ec);
+        auto eps1           = approx_epsilon_convex_hull(ec);
         auto size_threshold = area_threshold_ratio(ec) * image_size.area();
 
         // 사각형 컨투어 찾기
@@ -169,7 +169,7 @@ pipepp::pipe_error billiards::pipes::contour_candidate_search::invoke(pipepp::ex
 
 void billiards::pipes::contour_candidate_search::link_from_previous(shared_data const& sd, input_resize::output_type const& i, input_type& o)
 {
-    o.u_hsv = sd.u_hsv;
+    o.u_hsv         = sd.u_hsv;
     o.debug_display = sd.debug_mat;
 }
 
@@ -185,11 +185,11 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
     using namespace std;
     using namespace imgproc;
 
-    auto table_contour = *i.table_contour;
-    auto& img = *i.img_ptr;
+    auto  table_contour = *i.table_contour;
+    auto& img           = *i.img_ptr;
 
     o.confidence = 0;
-    o.can_jump = false;
+    o.can_jump   = false;
     vector<Vec3f> obj_pts;
     get_table_model(obj_pts, i.table_fit_size);
 
@@ -227,12 +227,12 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
 
             PIPEPP_ELAPSE_SCOPE("Projection");
             vector<vector<Vec2i>> contours;
-            vector<Vec2f> mapped;
+            vector<Vec2f>         mapped;
             project_model_local(img, mapped, vertexes, false, {});
             contours.emplace_back().assign(mapped.begin(), mapped.end());
 
             // 각 점을 비교하여 에러를 계산합니다.
-            auto& proj = contours.front();
+            auto&  proj      = contours.front();
             double error_sum = 0;
             for (size_t index = 0; index < 4; index++) {
                 Vec2f projpt = proj[index];
@@ -253,9 +253,9 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
             camera_to_world(img, rvec, tvec);
 
             o.confidence = max_confidence;
-            o.table_pos = tvec;
-            o.table_rot = rvec;
-            o.can_jump = true;
+            o.table_pos  = tvec;
+            o.table_rot  = rvec;
+            o.can_jump   = true;
 
             PIPEPP_STORE_DEBUG_DATA("Full PNP data confidence", o.confidence);
         }
@@ -270,26 +270,26 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
         auto init_pos = i.table_pos_init;
         auto init_rot = i.table_rot_init;
 
-        int num_iteration = partial::solver::iteration(ec);
-        int num_candidates = partial::solver::candidates(ec);
-        float rot_axis_variant = partial::solver::rotation_axis_variant(ec);
-        float rot_variant = partial::solver::rotation_amount_variant(ec);
+        int   num_iteration        = partial::solver::iteration(ec);
+        int   num_candidates       = partial::solver::candidates(ec);
+        float rot_axis_variant     = partial::solver::rotation_axis_variant(ec);
+        float rot_variant          = partial::solver::rotation_amount_variant(ec);
         float pos_initial_distance = partial::solver::distance_variant(ec);
 
-        vector<Vec2f> input = table_contour;
+        vector<Vec2f>                input = table_contour;
         transform_estimation_param_t param = {num_iteration, num_candidates, rot_axis_variant, rot_variant, pos_initial_distance, partial::solver::border_margin(ec)};
-        Vec2f FOV = i.FOV_degree;
-        param.FOV = {FOV[0], FOV[1]};
-        param.debug_render_mat = i.debug_mat;
-        param.render_debug_glyphs = true;
-        param.do_parallel = enable_partial_parallel_solve(ec);
-        param.iterative_narrow_ratio = partial::solver::iteration_narrow_rate(ec);
-        param.confidence_calc_base = partial::solver::error_function_base(ec);
+        Vec2f                        FOV   = i.FOV_degree;
+        param.FOV                          = {FOV[0], FOV[1]};
+        param.debug_render_mat             = i.debug_mat;
+        param.render_debug_glyphs          = true;
+        param.do_parallel                  = enable_partial_parallel_solve(ec);
+        param.iterative_narrow_ratio       = partial::solver::iteration_narrow_rate(ec);
+        param.confidence_calc_base         = partial::solver::error_function_base(ec);
 
         // contour 컬링 사각형을 계산합니다.
         {
-            Vec2d tl = partial::cull_window_top_left(ec);
-            Vec2d br = partial::cull_window_bottom_right(ec);
+            Vec2d tl       = partial::cull_window_top_left(ec);
+            Vec2d br       = partial::cull_window_bottom_right(ec);
             Vec2i img_size = static_cast<Point>(i.img_size);
 
             Rect r{(Point)(Vec2i)tl.mul(img_size), (Point)(Vec2i)br.mul(img_size)};
@@ -304,10 +304,10 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
         auto result = estimate_matching_transform(img, input, model, init_pos, init_rot, param);
 
         if (result.has_value()) {
-            auto& res = *result;
+            auto& res    = *result;
             o.confidence = res.confidence * partial::apply_weight(ec);
-            o.table_pos = res.position;
-            o.table_rot = res.rotation;
+            o.table_pos  = res.position;
+            o.table_rot  = res.rotation;
 
             o.can_jump = false;
             PIPEPP_STORE_DEBUG_DATA("Partial data confidence", res.confidence);
@@ -332,11 +332,11 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
 void billiards::pipes::table_edge_solver::link_from_previous(shared_data const& sd, input_type& o)
 {
     o = input_type{
-      .FOV_degree = sd.camera_FOV(sd),
-      .debug_mat = sd.debug_mat,
-      .img_ptr = &sd.imdesc_bkup,
-      .img_size = sd.debug_mat.size(),
-      .table_contour = &sd.table.contour,
+      .FOV_degree     = sd.camera_FOV(sd),
+      .debug_mat      = sd.debug_mat,
+      .img_ptr        = &sd.imdesc_bkup,
+      .img_size       = sd.debug_mat.size(),
+      .table_contour  = &sd.table.contour,
       .table_fit_size = shared_data::table::size::fit(sd),
       .table_pos_init = sd.table.pos,
       .table_rot_init = sd.table.rot};
@@ -346,9 +346,9 @@ void billiards::pipes::table_edge_solver::output_handler(pipepp::pipe_error, sha
 {
     float pos_alpha = shared_data::table::filter::alpha_pos(sd);
     float rot_alpha = shared_data::table::filter::alpha_rot(sd);
-    float jump_thr = !o.can_jump * 1e10 + shared_data::table::filter::jump_threshold_distance(sd);
-    sd.table.pos = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence, jump_thr);
-    sd.table.rot = imgproc::set_filtered_table_rot(sd.table.rot, o.table_rot, rot_alpha * o.confidence, jump_thr);
+    float jump_thr  = !o.can_jump * 1e10 + shared_data::table::filter::jump_threshold_distance(sd);
+    sd.table.pos    = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence, jump_thr);
+    sd.table.rot    = imgproc::set_filtered_table_rot(sd.table.rot, o.table_rot, rot_alpha * o.confidence, jump_thr);
 }
 
 pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
@@ -358,9 +358,9 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::ex
     using namespace std;
     using namespace imgproc;
 
-    auto& img = *i.img_ptr;
-    auto table_rot = i.table_rot_init;
-    auto table_pos = i.table_pos_init;
+    auto& img           = *i.img_ptr;
+    auto  table_rot     = i.table_rot_init;
+    auto  table_pos     = i.table_pos_init;
     auto& table_contour = *i.table_contour;
 
     auto& debug = *i.debug_mat;
@@ -389,16 +389,16 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::ex
             }
         }
 
-        auto outer_contour = contour;
-        auto inner_contour = contour;
-        auto m = moments(contour);
-        auto center = Vec2f(m.m10 / m.m00, m.m01 / m.m00);
+        auto   outer_contour     = contour;
+        auto   inner_contour     = contour;
+        auto   m                 = moments(contour);
+        auto   center            = Vec2f(m.m10 / m.m00, m.m01 / m.m00);
         double frame_width_outer = table_border_range_outer(ec);
         double frame_width_inner = table_border_range_inner(ec);
 
         // 각 컨투어의 거리 값에 따라, 차등적으로 밀고 당길 거리를 지정합니다.
         for (int index = 0; index < contour.size(); ++index) {
-            Vec2i pt = contour[index];
+            Vec2i pt    = contour[index];
             auto& outer = outer_contour[index];
             auto& inner = inner_contour[index];
 
@@ -412,7 +412,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::ex
             // 평면과 해당 방향 시야가 이루는 각도 theta를 구하고, cos(theta)를 곱해 화면상의 픽셀 드래그를 구합니다.
             Vec3f pt_dir(pt[0], pt[1], 1);
             get_point_coord_3d(img, pt_dir[0], pt_dir[1], 1);
-            pt_dir = normalize(pt_dir);
+            pt_dir         = normalize(pt_dir);
             auto cos_theta = abs(pt_dir.dot(table_plane.N));
             drag_width_outer *= cos_theta;
             drag_width_inner *= cos_theta;
@@ -448,14 +448,14 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::ex
 
     PIPEPP_ELAPSE_BLOCK("Filter Marker Range")
     {
-        auto& u_hsv = *i.u_hsv;
+        auto&        u_hsv = *i.u_hsv;
         vector<UMat> channels;
         split(u_hsv, channels);
 
         if (channels.size() >= 3) {
-            auto& u_value = channels[2];
-            UMat u0, u1;
-            UMat laplacian_mask(u_hsv.size(), CV_8U, {0});
+            auto&                 u_value = channels[2];
+            UMat                  u0, u1;
+            UMat                  laplacian_mask(u_hsv.size(), CV_8U, {0});
             vector<vector<Vec2i>> contours;
 
             // 샤프닝 적용 후 라플랑시안 적용
@@ -477,12 +477,12 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::ex
             }
 
             PIPEPP_ELAPSE_SCOPE("Select valid centers");
-            float rad_min = marker_area_min_rad(ec);
-            float rad_max = marker_area_max_rad(ec);
+            float rad_min  = marker_area_min_rad(ec);
+            float rad_max  = marker_area_max_rad(ec);
             float area_min = marker_area_min_size(ec);
             for (auto& ctr : contours) {
                 Point2f center;
-                float radius;
+                float   radius;
                 minEnclosingCircle(ctr, center, radius);
                 float area = contourArea(ctr);
 
@@ -502,14 +502,14 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::ex
 void billiards::pipes::DEPRECATED_marker_finder::link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o)
 {
     o = input_type{
-      .img_ptr = &sd.imdesc_bkup,
-      .img_size = sd.rgb.size(),
+      .img_ptr        = &sd.imdesc_bkup,
+      .img_size       = sd.rgb.size(),
       .table_pos_init = sd.table.pos,
       .table_rot_init = sd.table.rot,
-      .debug_mat = &sd.debug_mat,
-      .table_contour = &sd.table.contour,
-      .u_hsv = &sd.u_hsv,
-      .FOV_degree = sd.camera_FOV(sd)};
+      .debug_mat      = &sd.debug_mat,
+      .table_contour  = &sd.table.contour,
+      .u_hsv          = &sd.u_hsv,
+      .FOV_degree     = sd.camera_FOV(sd)};
 }
 
 pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
@@ -524,12 +524,12 @@ pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution
         return pipepp::pipe_error::warning;
     }
 
-    auto& img = *i.img_ptr;
-    auto table_rot = i.table_rot_init;
-    auto table_pos = i.table_pos_init;
+    auto& img           = *i.img_ptr;
+    auto  table_rot     = i.table_rot_init;
+    auto  table_pos     = i.table_pos_init;
     auto& table_contour = *i.p_table_contour;
 
-    auto& centers = i.markers;
+    auto& centers        = i.markers;
     auto& marker_weights = i.weights;
 
     auto& debug = *i.debug_mat;
@@ -539,9 +539,9 @@ pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution
 
     PIPEPP_ELAPSE_BLOCK("Render Markers")
     {
-        Vec2f fov = i.FOV_degree;
-        constexpr float DtoR = CV_PI / 180.f;
-        auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
+        Vec2f           fov         = i.FOV_degree;
+        constexpr float DtoR        = CV_PI / 180.f;
+        auto const      view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
 
         auto& vertexes = i.marker_model;
 
@@ -549,7 +549,7 @@ pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution
         for (auto pt : vertexes) {
             Vec4f pt4;
             (Vec3f&)pt4 = pt;
-            pt4[3] = 1.0f;
+            pt4[3]      = 1.0f;
 
             pt4 = world_tr * pt4;
             draw_circle(img, (Mat&)debug, 0.01f, (Vec3f&)pt4, {255, 255, 255}, 2);
@@ -561,26 +561,26 @@ pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution
         auto& model = i.marker_model;
 
         struct candidate_t {
-            Vec3f rotation;
-            Vec3f position;
+            Vec3f  rotation;
+            Vec3f  position;
             double suitability;
         };
 
         vector<candidate_t> candidates;
         candidates.push_back({table_rot, table_pos, 0});
 
-        Vec2f fov = i.FOV_degree;
-        constexpr float DtoR = (CV_PI / 180.f);
-        auto const view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
+        Vec2f           fov         = i.FOV_degree;
+        constexpr float DtoR        = (CV_PI / 180.f);
+        auto const      view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
 
         mt19937 rengine(random_device{}());
-        float rotation_variant = solver::variant_rot(ec);
-        float rotation_axis_variant = solver::variant_rot_axis(ec);
-        float position_variant = solver::variant_pos(ec);
-        int num_candidates = solver::num_cands(ec);
-        float error_base = solver::error_base(ec);
-        auto narrow_rate_pos = solver::narrow_rate_pos(ec);
-        auto narrow_rate_rot = solver::narrow_rate_rot(ec);
+        float   rotation_variant      = solver::variant_rot(ec);
+        float   rotation_axis_variant = solver::variant_rot_axis(ec);
+        float   position_variant      = solver::variant_pos(ec);
+        int     num_candidates        = solver::num_cands(ec);
+        float   error_base            = solver::error_base(ec);
+        auto    narrow_rate_pos       = solver::narrow_rate_pos(ec);
+        auto    narrow_rate_rot       = solver::narrow_rate_rot(ec);
 
         auto const& detected = centers;
 
@@ -602,9 +602,9 @@ pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution
                 cand.position += pivot_candidate.position;
 
                 uniform_real_distribution<float> distr_rot{-rotation_variant, rotation_variant};
-                auto rot_norm = norm(pivot_candidate.rotation);
-                auto rot_amount = rot_norm + distr_rot(rengine);
-                auto rotator = pivot_candidate.rotation / rot_norm;
+                auto                             rot_norm   = norm(pivot_candidate.rotation);
+                auto                             rot_amount = rot_norm + distr_rot(rengine);
+                auto                             rotator    = pivot_candidate.rotation / rot_norm;
                 random_vector(rengine, cand.rotation, rotation_axis_variant);
                 cand.rotation = normalize(cand.rotation + rotator);
                 cand.rotation *= rot_amount;
@@ -652,7 +652,7 @@ pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution
 
         PIPEPP_ELAPSE_BLOCK("Render debug glyphs")
         {
-            auto vertexes = model;
+            auto          vertexes = model;
             vector<Vec2f> projected;
             transform_points_to_camera(img, best.position, best.rotation, vertexes);
             project_model_points(img, projected, vertexes, true, view_planes);
@@ -668,16 +668,16 @@ pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution
             }
         }
 
-        float ampl = solver::confidence_amp(ec);
-        float min_size = solver::min_valid_marker_size(ec);
+        float ampl       = solver::confidence_amp(ec);
+        float min_size   = solver::min_valid_marker_size(ec);
         float weight_sum = count_if(marker_weights.begin(), marker_weights.end(), [min_size](float v) { return v > min_size; });
         float apply_rate = min(1.0, ampl * best.suitability / max<double>(1, weight_sum));
 
         putText(debug, (stringstream() << "marker confidence: " << apply_rate << " (" << best.suitability << "/ " << max<double>(8, detected.size()) << ")").str(), {0, 48}, FONT_HERSHEY_PLAIN, 1.0, {255, 255, 255});
 
         out.confidence = apply_rate;
-        out.table_pos = best.position;
-        out.table_rot = best.rotation;
+        out.table_pos  = best.position;
+        out.table_rot  = best.rotation;
     }
 
     return pipepp::pipe_error::ok;
@@ -686,16 +686,16 @@ pipepp::pipe_error billiards::pipes::marker_solver_OLD::invoke(pipepp::execution
 void billiards::pipes::marker_solver_OLD::link_from_previous(shared_data const& sd, DEPRECATED_marker_finder::output_type const& i, input_type& o)
 {
     o = input_type{
-      .img_ptr = &sd.imdesc_bkup,
-      .img_size = sd.rgb.size(),
-      .table_pos_init = sd.table.pos,
-      .table_rot_init = sd.table.rot,
-      .debug_mat = &sd.debug_mat,
+      .img_ptr         = &sd.imdesc_bkup,
+      .img_size        = sd.rgb.size(),
+      .table_pos_init  = sd.table.pos,
+      .table_rot_init  = sd.table.rot,
+      .debug_mat       = &sd.debug_mat,
       .p_table_contour = &sd.table.contour,
-      .u_hsv = &sd.u_hsv,
-      .FOV_degree = sd.camera_FOV(sd),
-      .markers = i.markers,
-      .weights = i.weights};
+      .u_hsv           = &sd.u_hsv,
+      .FOV_degree      = sd.camera_FOV(sd),
+      .markers         = i.markers,
+      .weights         = i.weights};
     sd.get_marker_points_model(o.marker_model);
 }
 
@@ -703,8 +703,8 @@ void billiards::pipes::marker_solver_OLD::output_handler(pipepp::pipe_error, sha
 {
     float pos_alpha = shared_data::table::filter::alpha_pos(sd);
     float rot_alpha = shared_data::table::filter::alpha_rot(sd);
-    sd.table.pos = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence);
-    sd.table.rot = imgproc::set_filtered_table_rot(sd.table.rot, o.table_rot, rot_alpha * o.confidence);
+    sd.table.pos    = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence);
+    sd.table.rot    = imgproc::set_filtered_table_rot(sd.table.rot, o.table_rot, rot_alpha * o.confidence);
 }
 
 pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::execution_context& ec, input_type const& input, output_type& out)
@@ -716,7 +716,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
 
     Mat1b table_area(input.img_size, 0);
     auto& table_contour = *input.table_contour;
-    auto& sd = *input.opt_shared;
+    auto& sd            = *input.opt_shared;
 
     auto debug = *input.debug_mat;
 
@@ -739,9 +739,9 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
         return pipepp::pipe_error::error;
     }
 
-    const auto u_rgb = input.u_rgb(ROI);
-    const auto u_hsv = input.u_hsv(ROI);
-    auto area_mask = table_area(ROI);
+    const auto u_rgb     = input.u_rgb(ROI);
+    const auto u_hsv     = input.u_hsv(ROI);
+    auto       area_mask = table_area(ROI);
 
     vector<cv::UMat> channels;
     split(u_hsv, channels);
@@ -761,9 +761,9 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
     }
 
     // 각각의 색상에 대해 매칭을 수행합니다.
-    auto imdesc = *input.imdesc;
+    auto        imdesc       = *input.imdesc;
     char const* ball_names[] = {"Red", "Orange", "White"};
-    float ball_radius = shared_data::ball::radius(sd);
+    float       ball_radius  = shared_data::ball::radius(sd);
 
     // 테이블 평면 획득
     auto table_plane = plane_t::from_rp(table_rot, table_pos, {0, 1, 0});
@@ -774,32 +774,32 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
     struct ball_desc {
         cv::Vec2f color;
         cv::Vec2f weight;
-        double error_fn_base;
-        double suitability_threshold;
-        double negative_weight;
-        double confidence_threshold;
+        double    error_fn_base;
+        double    suitability_threshold;
+        double    negative_weight;
+        double    confidence_threshold;
     } ball_descs[3];
 
     kangsw::tuple_for_each(
       std::make_tuple(field::red(), field::orange(), field::white()),
       [&]<typename Ty_ = field::red>(Ty_ arg, size_t index) {
           ball_descs[index] = ball_desc{
-            .color = Ty_::color(ec),
-            .weight = Ty_::weight_hs(ec),
-            .error_fn_base = Ty_::error_fn_base(ec),
+            .color                 = Ty_::color(ec),
+            .weight                = Ty_::weight_hs(ec),
+            .error_fn_base         = Ty_::error_fn_base(ec),
             .suitability_threshold = Ty_::suitability_threshold(ec),
-            .negative_weight = Ty_::matching_negative_weight(ec),
-            .confidence_threshold = Ty_::confidence_threshold(ec),
+            .negative_weight       = Ty_::matching_negative_weight(ec),
+            .confidence_threshold  = Ty_::confidence_threshold(ec),
           };
       });
 
     PIPEPP_ELAPSE_BLOCK("Matching Field Generation")
     for (int ball_idx = 0; ball_idx < 3; ++ball_idx) {
-        auto& m = u_match_map[ball_idx];
-        auto& bp = ball_descs[ball_idx];
-        cv::Scalar color = bp.color / 255.f;
-        cv::Scalar weight = bp.weight / norm(bp.weight);
-        auto ln_base = log(bp.error_fn_base);
+        auto&      m       = u_match_map[ball_idx];
+        auto&      bp      = ball_descs[ball_idx];
+        cv::Scalar color   = bp.color / 255.f;
+        cv::Scalar weight  = bp.weight / norm(bp.weight);
+        auto       ln_base = log(bp.error_fn_base);
 
         cv::subtract(m, color, u0);
         multiply(u0, u0, u1);
@@ -831,16 +831,16 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
 
         normal_random_samples_.clear();
         normal_negative_samples_.clear();
-        Vec2f positive_area_range = random_sample::positive_area(ec);
-        Vec2f negative_area_range = random_sample::negative_area(ec);
-        int rand_seed = random_sample::random_seed(ec), circle_radius = random_sample::integral_radius(ec);
+        Vec2f  positive_area_range = random_sample::positive_area(ec);
+        Vec2f  negative_area_range = random_sample::negative_area(ec);
+        int    rand_seed = random_sample::random_seed(ec), circle_radius = random_sample::integral_radius(ec);
         double rotate_angle = random_sample::rotate_angle(ec);
 
         generate_normalized_sparse_kernel(normal_random_samples_, normal_negative_samples_, positive_area_range, negative_area_range, rand_seed, circle_radius, rotate_angle);
 
         // 샘플을 시각화합니다.
         if (show_random_sample(ec)) {
-            int scale = random_sample_scale(ec);
+            int       scale = random_sample_scale(ec);
             cv::Mat3b random_sample_visualize(scale, scale);
             random_sample_visualize.setTo(0);
             for (auto& pt : normal_random_samples_) {
@@ -856,7 +856,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
         }
     }
 
-    auto const& normal_random_samples = normal_random_samples_;
+    auto const& normal_random_samples   = normal_random_samples_;
     auto const& normal_negative_samples = normal_negative_samples_;
 
     cv::Mat1f suitability_field{ROI.size()};
@@ -864,18 +864,18 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
     pair<vector<cv::Point>, vector<float>> ball_candidates[3];
 
     array<Point, 4> ball_positions = {};
-    array<float, 4> ball_weights = {};
+    array<float, 4> ball_weights   = {};
 
     PIPEPP_ELAPSE_BLOCK("Color/Edge Matching")
     for (int iter = 3; iter >= 0; --iter) {
-        auto bidx = max(0, iter - 1); // 0, 1 인덱스는 빨간 공 전용
-        auto& m = u_match_map[bidx];
+        auto      bidx = max(0, iter - 1); // 0, 1 인덱스는 빨간 공 전용
+        auto&     m    = u_match_map[bidx];
         cv::Mat1f match;
 
-        auto& bp = ball_descs[bidx];
+        auto& bp                 = ball_descs[bidx];
         auto& cand_suitabilities = ball_candidates[bidx].second;
-        auto& cand_indexes = ball_candidates[bidx].first;
-        int min_pixel_radius = max<int>(1, matching::min_pixel_radius(ec));
+        auto& cand_indexes       = ball_candidates[bidx].first;
+        int   min_pixel_radius   = max<int>(1, matching::min_pixel_radius(ec));
 
         {
             PIPEPP_ELAPSE_SCOPE_DYNAMIC(("Preprocess: "s + ball_names[bidx]).c_str())
@@ -916,7 +916,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
             // if 픽셀 반경이 이미지 경계선을 넘어가면 discard
             {
                 cv::Point offset{ball_pxl_rad + 1, ball_pxl_rad + 1};
-                cv::Rect image_bound{offset, ROI.size() - (Size)(offset + offset)};
+                cv::Rect  image_bound{offset, ROI.size() - (Size)(offset + offset)};
 
                 if (!image_bound.contains(pt)) {
                     return;
@@ -944,7 +944,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
             }
 
             suitability /= normal_random_samples.size();
-            suitability_field(pt) = suitability;
+            suitability_field(pt)     = suitability;
             cand_suitabilities[index] = suitability;
         };
 
@@ -974,7 +974,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
 
         if (*best > bp.confidence_threshold) {
             auto best_idx = best - cand_suitabilities.begin();
-            auto center = cand_indexes[best_idx];
+            auto center   = cand_indexes[best_idx];
 
             auto rad_px = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
 
@@ -983,7 +983,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
                 // circle(debug, center + ROI.tl(), rad_px, color_ROW[bidx], 1);
 
                 ball_positions[iter] = center;
-                ball_weights[iter] = *best;
+                ball_weights[iter]   = *best;
 
                 // 빨간 공인 경우 ...
                 if (iter == 1) {
@@ -1005,7 +1005,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
         if (ball_weights[i] == 0) {
             continue;
         }
-        auto pt = ball_positions[i] + ROI.tl();
+        auto  pt = ball_positions[i] + ROI.tl();
         Vec3f dst;
 
         // 공의 중점 방향으로 광선을 투사해 공의 카메라 기준 위치 획득
@@ -1026,7 +1026,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
 
             auto distance = norm(ballpos[i] - ballpos[k]);
             if (distance < ball_radius) {
-                int min_elem = ball_weights[i] < ball_weights[k] ? i : k;
+                int min_elem           = ball_weights[i] < ball_weights[k] ? i : k;
                 ball_weights[min_elem] = 0;
             }
         }
@@ -1036,23 +1036,23 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
     {
         // 공의 위치를 이전과 비교합니다.
         ball_position_set descs;
-        auto prev = input.prev_ball_pos;
-        auto now = chrono::system_clock::now();
-        double max_error_speed = movement::max_error_speed(ec);
+        auto              prev            = input.prev_ball_pos;
+        auto              now             = chrono::system_clock::now();
+        double            max_error_speed = movement::max_error_speed(ec);
 
         // 만약 0번 공의 weight가 0인 경우, 즉 공이 하나만 감지된 경우
         // 1번 공의 감지된 위치와 캐시된 0, 1번 공 위치를 비교하고, 1번 공과 더 동떨어진 것을 선택합니다.
         if (ball_weights[0] == 0 && ball_weights[1]) {
-            auto p1 = ballpos[1];
-            auto diffs = {norm(p1 - prev[0].pos), norm(p1 - prev[1].pos)};
-            auto farther = distance(diffs.begin(), max_element(diffs.begin(), diffs.end()));
+            auto p1         = ballpos[1];
+            auto diffs      = {norm(p1 - prev[0].pos), norm(p1 - prev[1].pos)};
+            auto farther    = distance(diffs.begin(), max_element(diffs.begin(), diffs.end()));
             ball_weights[0] = 0.51f; // magic number ...
-            ballpos[0] = prev[farther].pos;
+            ballpos[0]      = prev[farther].pos;
         }
 
         // 이전 위치와 비교해, 자리가 바뀐 경우를 처리합니다.
         if (ball_weights[1] && ball_weights[0]) {
-            auto p = ballpos[0],
+            auto p   = ballpos[0],
                  ps0 = prev[0].ps(now),
                  ps1 = prev[1].ps(now);
 
@@ -1062,17 +1062,17 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
             }
         }
 
-        double alpha = movement::alpha_position(ec);
+        double alpha     = movement::alpha_position(ec);
         double jump_dist = movement::jump_distance(ec);
         for (int i = 0; i < 4; ++i) {
-            auto& d = prev[i];
-            auto bidx = std::max(0, i - 1);
+            auto& d    = prev[i];
+            auto  bidx = std::max(0, i - 1);
             if (ball_weights[i] < ball_descs[bidx].confidence_threshold) {
                 continue;
             }
 
-            auto dt = d.dt(now);
-            auto dp = ballpos[i] - d.pos;
+            auto dt          = d.dt(now);
+            auto dp          = ballpos[i] - d.pos;
             auto vel_elapsed = dp / dt;
 
             // 속도 차이가 오차 범위 이내일때만 이를 반영합니다.
@@ -1091,7 +1091,7 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
 
             if (ball_weights[i] && show_debug_mat(ec)) {
                 draw_circle(imdesc, debug, ball_radius, descs[i].pos, color_ROW[max(i - 1, 0)], 1);
-                auto center = project_single_point(imdesc, descs[i].pos);
+                auto center  = project_single_point(imdesc, descs[i].pos);
                 auto pxl_rad = get_pixel_length_on_contact(imdesc, table_plane, center + ROI.tl(), ball_radius);
 
                 putText(debug, to_string(i + 1), center + Point(-7, -pxl_rad), FONT_HERSHEY_PLAIN, 1.3, {0, 0, 0}, 2);
@@ -1101,10 +1101,10 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
         if (show_debug_mat(ec)) {
             float scale = top_view_scale(ec);
 
-            int ball_rad_pxl = ball_radius * scale;
-            Size total_size = (Point)(Vec2i)(input.table_outer_size * scale);
-            Size fit_size = (Point)(Vec2i)(input.table_fit_size * scale);
-            Size inner_size = (Point)(Vec2i)(input.table_inner_size * scale);
+            int  ball_rad_pxl = ball_radius * scale;
+            Size total_size   = (Point)(Vec2i)(input.table_outer_size * scale);
+            Size fit_size     = (Point)(Vec2i)(input.table_fit_size * scale);
+            Size inner_size   = (Point)(Vec2i)(input.table_inner_size * scale);
 
             Mat3b table_mat(total_size, Vec3b(62, 62, 118));
             rectangle(table_mat, Rect((total_size - fit_size) / 2, fit_size), Scalar{243, 0, 26}, -1);
@@ -1115,16 +1115,16 @@ pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::exec
             auto inv_tr = get_transform_matx_fast(table_pos, table_rot).inv();
             for (int iter = 0; auto& b : descs) {
                 int index = iter++;
-                int bidx = max(0, index - 1);
+                int bidx  = max(0, index - 1);
 
                 if (ball_weights[index] == 0) {
                     continue;
                 }
 
                 Vec4f pos4 = (Vec4f&)b.pos;
-                pos4(3) = 1;
+                pos4(3)    = 1;
 
-                pos4 = inv_tr * pos4;
+                pos4    = inv_tr * pos4;
                 auto pt = Point(-pos4[0] * scale, pos4[2] * scale) + (Point)inner_size / 2;
 
                 circle(top_view_mat, pt, ball_rad_pxl, color_ROW[bidx], -1);

@@ -18,19 +18,19 @@ using namespace std;
 using nlohmann::json;
 
 billiards::recognizer_t g_recognizer;
-tcp_server g_app;
+tcp_server              g_app;
 
 void ui_on_refresh();
 
 // ================================================================================================
 struct image_desc_t {
-    array<float, 3> translation;
-    array<float, 4> orientation;
+    array<float, 3>  translation;
+    array<float, 4>  orientation;
     array<float, 16> transform;
-    int rgb_w;
-    int rgb_h;
-    int depth_w;
-    int depth_h;
+    int              rgb_w;
+    int              rgb_h;
+    int              depth_w;
+    int              depth_h;
 
     billiards::recognizer_t::camera_param_type camera;
 
@@ -39,15 +39,15 @@ struct image_desc_t {
 
 struct image_chunk_t {
     vector<char> chunk;
-    string_view rgb_view;
-    string_view depth_view;
+    string_view  rgb_view;
+    string_view  depth_view;
 };
 
 class image_retrieve_map_t {
 public:
-    using value_type = pair<optional<image_desc_t>, optional<image_chunk_t>>;
-    using stamp_type = int;
-    using lock_type = lock_guard<mutex>;
+    using value_type     = pair<optional<image_desc_t>, optional<image_chunk_t>>;
+    using stamp_type     = int;
+    using lock_type      = lock_guard<mutex>;
     using container_type = map<stamp_type, value_type>;
 
 public:
@@ -55,9 +55,9 @@ public:
     {
         lock_type lck(mtx_);
 
-        auto it = table_.try_emplace(stamp).first;
+        auto it            = table_.try_emplace(stamp).first;
         auto& [desc, ph__] = it->second;
-        desc = desc_in;
+        desc               = desc_in;
 
         async_try_proc_img(stamp, it);
     }
@@ -66,9 +66,9 @@ public:
     {
         lock_type lck(mtx_);
 
-        auto it = table_.try_emplace(stamp).first;
+        auto it            = table_.try_emplace(stamp).first;
         auto& [ph__, chnk] = it->second;
-        chnk = move(chunk_in);
+        chnk               = move(chunk_in);
 
         async_try_proc_img(stamp, it);
     }
@@ -97,7 +97,7 @@ private:
 
             image.camera_translation = *(cv::Vec3f*)&odesc->translation;
             image.camera_orientation = *(cv::Vec4f*)&odesc->orientation;
-            image.camera_transform = *(cv::Matx44f*)&odesc->transform;
+            image.camera_transform   = *(cv::Matx44f*)&odesc->transform;
             cv::Point rgb_size(odesc->rgb_w, odesc->rgb_h);
             cv::Point depth_size(odesc->depth_w, odesc->depth_h);
             image.rgba.create(rgb_size, CV_8UC4);
@@ -105,12 +105,12 @@ private:
             image.depth.create(depth_size, CV_32FC1);
             memcpy(image.depth.data, ochnk->depth_view.data(), ochnk->depth_view.size());
 
-            image.camera = odesc->camera;
+            image.camera         = odesc->camera;
             auto improc_callback = [sock = odesc->connection](billiards::recognizer_t::frame_desc const& image, json const& to_send) {
                 if (auto conn = sock.lock()) {
                     // 보낼 JSON 정리
                     auto p_str = make_shared<string>();
-                    *p_str = to_send.dump();
+                    *p_str     = to_send.dump();
                     p_str->push_back('\n');
 
                     conn->async_write_some(boost::asio::const_buffer(p_str->c_str(), p_str->length()), [p_str](boost::system::error_code ec, std::size_t cnt) {
@@ -128,7 +128,7 @@ private:
 
 private:
     map<stamp_type, value_type> table_;
-    mutex mtx_;
+    mutex                       mtx_;
 };
 
 static image_retrieve_map_t g_retrieve_map;
@@ -137,15 +137,15 @@ static image_retrieve_map_t g_retrieve_map;
 class json_handler_t {
 public:
     void operator()(boost::system::error_code const& ec,
-                    tcp_connection_desc connection,
-                    boost::asio::const_buffer data_in)
+                    tcp_connection_desc              connection,
+                    boost::asio::const_buffer        data_in)
     {
         if (ec) {
             cout << "log: image request connection lost\n";
             return;
         }
 
-        auto& json_raw = body->json_raw;
+        auto&       json_raw = body->json_raw;
         string_view data((char const*)data_in.data(), data_in.size());
         for (auto ch : data) {
             if (ch < 9) {
@@ -176,7 +176,7 @@ public:
 
 private:
     struct body_type {
-        string json_raw;
+        string                                                                   json_raw;
         std::function<void(tcp_connection_desc const& conn, json const& parsed)> json_handler;
     };
 
@@ -186,17 +186,17 @@ private:
 class binary_recv_channel_handler {
 public:
     void operator()(boost::system::error_code const& ec,
-                    tcp_connection_desc conn,
-                    boost::asio::const_buffer data_in)
+                    tcp_connection_desc              conn,
+                    boost::asio::const_buffer        data_in)
     {
         if (ec) {
             cout << "log: image receive connection lost\n";
             return;
         }
 
-        auto& bin = body->bin;
-        auto head = (char const*)data_in.data();
-        auto const end = head + data_in.size();
+        auto&      bin  = body->bin;
+        auto       head = (char const*)data_in.data();
+        auto const end  = head + data_in.size();
 
         // 한 번에 여러 chunk가 입력되는 상황에도 대비합니다.
         do {
@@ -215,9 +215,9 @@ public:
                     return;
                 }
 
-                int64_t ntotal = header[2] + header[3];
+                int64_t ntotal   = header[2] + header[3];
                 int64_t nto_read = ntotal - (bin.size() - 16);
-                int64_t nread = min(nto_read, end - head);
+                int64_t nread    = min(nto_read, end - head);
 
                 bin.insert(bin.end(), head, head + nread);
                 nto_read -= nread;
@@ -226,8 +226,8 @@ public:
                 if (nto_read == 0) {
                     // 모든 바이트를 읽어들이고, 완성 이미지 입력을 시도합니다.
                     image_chunk_t chnk;
-                    chnk.chunk = move(bin);
-                    chnk.rgb_view = string_view(chnk.chunk.data() + 16, header[2]);
+                    chnk.chunk      = move(bin);
+                    chnk.rgb_view   = string_view(chnk.chunk.data() + 16, header[2]);
                     chnk.depth_view = string_view(chnk.chunk.data() + 16 + header[2], header[3]);
 
                     g_retrieve_map.put_chunk(header[1], move(chnk));
@@ -264,12 +264,12 @@ static void on_image_request(tcp_connection_desc const& conn, json const& parsed
         image_desc_t desc;
         desc.orientation = parsed["Orientation"];
         desc.translation = parsed["Translation"];
-        desc.transform = parsed["Transform"];
-        desc.rgb_h = parsed["RgbH"];
-        desc.rgb_w = parsed["RgbW"];
-        desc.depth_w = parsed["DepthW"];
-        desc.depth_h = parsed["DepthH"];
-        desc.connection = conn.socket;
+        desc.transform   = parsed["Transform"];
+        desc.rgb_h       = parsed["RgbH"];
+        desc.rgb_w       = parsed["RgbW"];
+        desc.depth_w     = parsed["DepthW"];
+        desc.depth_h     = parsed["DepthH"];
+        desc.connection  = conn.socket;
 
         if (auto camera = parsed.find("Camera");
             camera != parsed.end()) {

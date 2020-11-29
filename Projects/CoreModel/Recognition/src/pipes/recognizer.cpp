@@ -495,8 +495,8 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
                 auto ball = sd.get_ball(idx);
                 auto conf = sd.get_ball_conf(idx);
 
-                auto bname = ball_names[idx];
-                desc[bname]["Position"] = ball.pos;
+                auto bname                = ball_names[idx];
+                desc[bname]["Position"]   = ball.pos;
                 desc[bname]["Confidence"] = conf;
             }
         }

@@ -6,10 +6,10 @@
 
 class billiards::recognizer_t::implementation {
 public:
-    recognizer_t& self;
+    recognizer_t&                                                              self;
     std::shared_ptr<pipepp::pipeline<pipes::shared_data, pipes::input_resize>> pipeline;
-    std::optional<frame_desc> param_pending;
-    kangsw::spinlock param_pending_lock;
+    std::optional<frame_desc>                                                  param_pending;
+    kangsw::spinlock                                                           param_pending_lock;
 
     std::shared_ptr<pipes::shared_state> shared_state = std::make_shared<pipes::shared_state>();
 };
@@ -27,7 +27,7 @@ void billiards::recognizer_t::initialize()
     if (m.pipeline) { throw pipepp::pipe_exception("Recognizer already initialized"); }
 
     auto& pl = m.pipeline;
-    pl = pipes::build_pipe();
+    pl       = pipes::build_pipe();
     pl->launch();
 }
 
@@ -46,9 +46,9 @@ void billiards::recognizer_t::refresh_image(frame_desc image, process_finish_cal
 {
     auto& m = *impl_;
     m.pipeline->suply(image, [&](pipes::shared_data& sty) {
-        sty.callback = std::move(callback);
+        sty.callback    = std::move(callback);
         sty.imdesc_bkup = image;
-        sty.state_ = impl_->shared_state;
+        sty.state_      = impl_->shared_state;
     });
 }
 
@@ -87,7 +87,7 @@ ostream& operator<<(ostream& strm, billiards::recognizer_t::frame_desc const& de
     write(desc.camera_translation);
     write(desc.camera_orientation);
 
-    auto rgba = desc.rgba.clone();
+    auto rgba  = desc.rgba.clone();
     auto depth = desc.depth.clone();
 
     write(rgba.rows);
@@ -117,9 +117,9 @@ istream& operator>>(istream& strm, billiards::recognizer_t::frame_desc& desc)
     read(desc.camera_translation);
     read(desc.camera_orientation);
 
-    int rgba_rows, rgba_cols, rgba_type;
+    int    rgba_rows, rgba_cols, rgba_type;
     size_t rgba_bytes;
-    int depth_rows, depth_cols, depth_type;
+    int    depth_rows, depth_cols, depth_type;
     size_t depth_bytes;
 
     read(rgba_rows);
@@ -133,11 +133,11 @@ istream& operator>>(istream& strm, billiards::recognizer_t::frame_desc& desc)
     read(depth_bytes);
 
     auto& rgba = desc.rgba;
-    rgba = cv::Mat(rgba_rows, rgba_cols, rgba_type);
+    rgba       = cv::Mat(rgba_rows, rgba_cols, rgba_type);
     strm.read((char*)rgba.data, rgba_bytes);
 
     auto& depth = desc.depth;
-    depth = cv::Mat(depth_rows, depth_cols, depth_type);
+    depth       = cv::Mat(depth_rows, depth_cols, depth_type);
     strm.read((char*)depth.data, depth_bytes);
 
     return strm;

@@ -28,7 +28,6 @@ struct table_edge_solver {
     PIPEPP_OPTION_AUTO(enable_partial_solver, true, "Flag");
     PIPEPP_OPTION_AUTO(enable_partial_parallel_solve, true, "Flag");
 
-
     struct partial {
         PIPEPP_DECLARE_OPTION_CATEGORY("Partial");
         struct solver {
@@ -52,13 +51,13 @@ struct table_edge_solver {
     struct input_type {
         cv::Vec2f FOV_degree;
 
-        cv::Mat debug_mat;
+        cv::Mat                         debug_mat;
         recognizer_t::frame_desc const* img_ptr;
 
         cv::Size img_size;
 
         std::vector<cv::Vec2f> const* table_contour;
-        cv::Vec2f table_fit_size;
+        cv::Vec2f                     table_fit_size;
 
         cv::Vec3f table_pos_init;
         cv::Vec3f table_rot_init;
@@ -67,13 +66,13 @@ struct table_edge_solver {
     struct output_type {
         cv::Vec3f table_pos;
         cv::Vec3f table_rot;
-        float confidence;
-        bool can_jump;
+        float     confidence;
+        bool      can_jump;
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
-    static void link_from_previous(shared_data const& sd, input_type& o);
-    static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
+    static void        link_from_previous(shared_data const& sd, input_type& o);
+    static void        output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
 };
 
 struct DEPRECATED_marker_finder {
@@ -93,12 +92,12 @@ struct DEPRECATED_marker_finder {
 
     struct input_type {
         imgproc::img_t const* img_ptr;
-        cv::Size img_size;
+        cv::Size              img_size;
 
         cv::Vec3f table_pos_init;
         cv::Vec3f table_rot_init;
 
-        cv::Mat const* debug_mat;
+        cv::Mat const*                debug_mat;
         std::vector<cv::Vec2f> const* table_contour;
 
         cv::UMat const* u_hsv;
@@ -108,11 +107,11 @@ struct DEPRECATED_marker_finder {
 
     struct output_type {
         std::vector<cv::Vec2f> markers;
-        std::vector<float> weights;
+        std::vector<float>     weights;
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
-    static void link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o);
+    static void        link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o);
 };
 
 struct marker_solver_OLD {
@@ -139,12 +138,12 @@ struct marker_solver_OLD {
 
     struct input_type {
         imgproc::img_t const* img_ptr;
-        cv::Size img_size;
+        cv::Size              img_size;
 
         cv::Vec3f table_pos_init;
         cv::Vec3f table_rot_init;
 
-        cv::Mat const* debug_mat;
+        cv::Mat const*                debug_mat;
         std::vector<cv::Vec2f> const* p_table_contour;
 
         cv::UMat const* u_hsv;
@@ -153,18 +152,18 @@ struct marker_solver_OLD {
 
         std::vector<cv::Vec3f> marker_model;
         std::vector<cv::Vec2f> markers;
-        std::vector<float> weights;
+        std::vector<float>     weights;
     };
 
     struct output_type {
         cv::Vec3f table_pos;
         cv::Vec3f table_rot;
-        float confidence;
+        float     confidence;
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
-    static void link_from_previous(shared_data const& sd, DEPRECATED_marker_finder::output_type const& i, input_type& o);
-    static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
+    static void        link_from_previous(shared_data const& sd, DEPRECATED_marker_finder::output_type const& i, input_type& o);
+    static void        output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
 };
 
 struct DEPRECATED_ball_search {
@@ -249,14 +248,14 @@ struct DEPRECATED_ball_search {
 
     struct input_type {
         pipepp::detail::option_base const* opt_shared;
-        imgproc::img_t const* imdesc;
-        cv::Mat const* debug_mat;
+        imgproc::img_t const*              imdesc;
+        cv::Mat const*                     debug_mat;
 
         ball_position_set prev_ball_pos;
 
         cv::UMat u_rgb, u_hsv;
 
-        cv::Size img_size;
+        cv::Size                      img_size;
         std::vector<cv::Vec2f> const* table_contour;
 
         cv::Vec3f table_pos;
@@ -271,8 +270,8 @@ struct DEPRECATED_ball_search {
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& input, output_type& out);
-    static void link_from_previous(shared_data const& sd, marker_solver_OLD::output_type const& i, input_type& o);
-    static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
+    static void        link_from_previous(shared_data const& sd, marker_solver_OLD::output_type const& i, input_type& o);
+    static void        output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
 
 private:
     std::vector<cv::Vec2f> normal_random_samples_;

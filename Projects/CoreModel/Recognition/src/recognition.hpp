@@ -32,8 +32,8 @@ public: /* exposed properties */
     nlohmann::json props;
 
     /* 주요 영상처리 프로퍼티 */
-    cv::Size actual_process_size = {800, 480};
-    cv::Size2f FOV = {84.9f, 52.9f};
+    cv::Size   actual_process_size = {800, 480};
+    cv::Size2f FOV                 = {84.9f, 52.9f};
 
 public:
     /* 카메라 파라미터 구조체 */
@@ -46,11 +46,11 @@ public:
      * 공급 이미지 서술 구조체
      */
     struct frame_desc {
-        cv::Vec3f camera_translation;
-        cv::Vec4f camera_orientation; // In Euler angles ..
+        cv::Vec3f             camera_translation;
+        cv::Vec4f             camera_orientation; // In Euler angles ..
         cv::Matx<float, 4, 4> camera_transform;
-        cv::Mat rgba;
-        cv::Mat depth;
+        cv::Mat               rgba;
+        cv::Mat               depth;
 
         camera_param_type camera;
     };
