@@ -43,6 +43,8 @@ struct kernel_shader {
     // 점광의 프로퍼티 목록
     Vec3f light_rgb;
 
+    
+
     // 공의 프로퍼티 목록
     Vec3f const& base_rgb;
     Vec3f const& fresnel0;
@@ -315,7 +317,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     auto ball_radius = kernel::ball_radius(ec);
 
     auto negative_weight = match::negative_weight(ec);
-    auto err_weight = value_cast<float3>(match::error_weight(ec));
+    auto err_weight = value_cast<float3>(normalize(match::error_weight(ec)));
     auto err_base = match::error_base(ec);
 
     // GRID operation 수행
@@ -341,13 +343,11 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         if (_mcache_points.size() < grid_pxl_threshold) { continue; }
 
         // 만약 다수의 그리드가 유효한 것으로 판단되면, 포인트를 솎아냅니다.
-        /* if (pending_suits.size() > max_concurrent_iteration) {
-            while (_mcache_points.size() > max_cands_per_grid) {
-                auto idx = rand() % _mcache_points.size();
-                std::swap(_mcache_points.back(), _mcache_points[idx]);
-                _mcache_points.pop_back();
-            }
-        }*/
+        while (_mcache_points.size() > max_cands_per_grid) {
+            auto idx = rand() % _mcache_points.size();
+            std::swap(_mcache_points.back(), _mcache_points[idx]);
+            _mcache_points.pop_back();
+        }
 
         for (auto& mp : _mcache_points) {
             sample_coords.emplace_back(mp + (Vec2i)roi_grid.tl());
@@ -453,6 +453,12 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
 
               float suit = 0;
 
+              // 경계선을 기준으로 반전합니다.
+              if (pcoord.y < 0) { pcoord.y = -pcoord.y; }
+              if (pcoord.y >= image_size.height) { pcoord.y = 2 * image_size.height - pcoord.y; }
+              if (pcoord.x < 0) { pcoord.x = -pcoord.x; }
+              if (pcoord.x >= image_size.width) { pcoord.x = 2 * image_size.width; }
+
               if (0 <= pcoord.x && pcoord.x <= image_size.width && //
                   0 <= pcoord.y && pcoord.y <= image_size.height)  //
               {
@@ -531,6 +537,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     PIPEPP_STORE_DEBUG_DATA("Default tile size", (size_t)TILE_SIZE);
 
     size_t search_range = sample_suitability.size();
+    auto conf_thres = search::confidence_threshold(ec);
     for (int ballidx = 0, max = search::n_balls(ec); ballidx < max; ++ballidx) //
     {
         // 모든 suitability를 iterate해, 가장 높은 엘리먼트를 찾습니다.
@@ -541,9 +548,12 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
             break;
         }
 
+        auto conf = *max_elem;
+        if (conf < conf_thres) { break; }
+
         auto center = sample_coords[max_index];
         auto depth = sample_distance[max_index];
-        auto conf = *max_elem;
+
         Vec3f spos(center[0], center[1], depth);
         auto _rot = local_table_rot;
         get_point_coord_3d(imdesc, spos[0], spos[1], spos[2]);
@@ -586,12 +596,10 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
                     debug3b(cent) = color3b;
                 }
             }
-        } else {
-            Mat3b debug3b = in.debug_mat;
-            Vec3b ballcolor = colors::base_rgb(ec) * 255.f;
-            draw_circle(imdesc, debug3b, ball_radius, spos, {0, 255, 0}, 1);
-            circle(debug3b, center, 2, {0, 255, 0}, 1);
         }
+
+        draw_circle(imdesc, in.debug_mat, ball_radius, spos, {0, 255, 0}, 1);
+        circle(in.debug_mat, center, 2, {0, 255, 0}, 1);
     }
 }
 

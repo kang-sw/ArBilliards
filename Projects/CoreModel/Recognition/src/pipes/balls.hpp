@@ -173,6 +173,8 @@ PIPEPP_EXECUTOR(ball_finder_executor)
         PIPEPP_OPTION(next_ball_erase_amp, 1.0,
                       u8"다음 공을 찾기 위해 현재 공의 suitability를 지울 때,"
                       " 공 반경의 얼마만큼의 비율을 다음 공의 후보에서 제할지 결정합니다.");
+        PIPEPP_OPTION(confidence_threshold, 0.25,
+                      u8"유효한 공으로 인식되는 데 필요한 최소한의 컨피던스입니다.");
     };
 
     struct input_type {

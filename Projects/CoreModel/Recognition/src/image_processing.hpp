@@ -108,7 +108,7 @@ float get_pixel_length(img_t const& img, float len_metric, float Z_metric);
 int get_pixel_length_on_contact(img_t const& imdesc, plane_t plane, cv::Point pt, float length);
 void carve_outermost_pixels(cv::InputOutputArray io, cv::Scalar as);
 void project_model_points(img_t const& img, std::vector<cv::Vec2f>& mapped_contour, std::vector<cv::Vec3f>& model_vertexes, bool do_cull, std::vector<plane_t> const& planes);
-void draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness);
+void draw_circle(img_t const& img, cv::Mat const& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness);
 void generate_normalized_sparse_kernel(std::vector<cv::Vec<float, 2>>& normal_random_samples, std::vector<cv::Vec<float, 2>>& normal_negative_samples, cv::Vec2f positive_area_range, cv::Vec2f negative_area_range, int rand_seed, int circle_radius, double rotate_angle);
 cv::Point project_single_point(img_t const& img, cv::Vec3f vertex, bool is_world = true);
 

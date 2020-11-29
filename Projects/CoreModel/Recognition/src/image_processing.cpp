@@ -518,7 +518,7 @@ void billiards::imgproc::project_model_points(img_t const& img, std::vector<cv::
     }
 }
 
-void billiards::imgproc::draw_circle(img_t const& img, cv::Mat& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness)
+void billiards::imgproc::draw_circle(img_t const& img, cv::Mat const& dest, float base_size, cv::Vec3f tvec_world, cv::Scalar color, int thickness)
 {
     using namespace cv;
     std::vector<Vec3f> pos{{0, 0, 0}};
