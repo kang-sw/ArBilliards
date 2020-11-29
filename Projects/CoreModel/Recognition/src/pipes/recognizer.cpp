@@ -217,6 +217,7 @@ pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_cont
     auto src_size = i.rgba.size();
     auto width = std::min(src_size.width, desired_image_width(ec));
     auto height = int((int64_t)width * src_size.height / src_size.width);
+    out.resized_scale = width / (float)src_size.width;
 
     PIPEPP_ELAPSE_BLOCK("RGBA to RGB")
     {
@@ -299,6 +300,12 @@ void billiards::pipes::input_resize::output_handler(pipepp::pipe_error, shared_d
         o.hsv.copyTo(sd.hsv);
 
         o.rgb.copyTo(sd.debug_mat);
+
+        for (auto& c = sd.imdesc_bkup.camera;
+             auto p : {&c.fx, &c.fy, &c.cx, &c.cy}) //
+        {
+            *p *= o.resized_scale;
+        }
 
         using namespace kangsw::literals;
         sd.store_image_in_colorspace("HSV"_hash, sd.hsv);

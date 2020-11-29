@@ -77,6 +77,7 @@ PIPEPP_EXECUTOR(ball_finder_executor)
                       " 집중시킬 수 있게 됩니다.",
                       pipepp::verify::minimum_all<cv::Vec2f>(0.f)
                         | pipepp::verify::ascending<cv::Vec2f>());
+        PIPEPP_OPTION(persp_linear_distance_amp, 1.f, u8"Perspective Projection 후 normalize된 커널의 증폭 계수");
     };
 
     PIPEPP_CATEGORY(colors, "Colors")

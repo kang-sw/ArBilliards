@@ -43,7 +43,10 @@ struct kernel_shader {
     // 점광의 프로퍼티 목록
     Vec3f light_rgb;
 
-    
+    // 카메라 벡터
+    float const cx, cy;
+    float const amplify;
+    float3 const proj_matx[3];
 
     // 공의 프로퍼티 목록
     Vec3f const& base_rgb;
@@ -75,6 +78,16 @@ struct kernel_shader {
         auto& _o_kernel_pos = kernel_pos_buf;
         auto& _o_kernel_rgb = kernel_rgb_buf;
 
+        auto _amp = amplify;
+        auto _cx = cx, _cy = cy;
+        float3 _matx0 = proj_matx[0];
+        float3 _matx1 = proj_matx[1];
+        float3 _matx2 = proj_matx[2];
+
+        // 커널의 중심 계산
+        auto _kcent = _matx0 * _kcp + _matx1 * _kcp + _matx2 * _kcp;
+        _kcent = (_kcent / _kcent.z - float3(cx, cy, 0));
+
         auto _brad = ball_radius;
         parallel_for_each(
           kernel.extent,
@@ -88,7 +101,10 @@ struct kernel_shader {
 
               // 시선 역방향 벡터 v가 노멀과 반대 방향을 보는 경우, 뒤집어줍니다.
               // 항상 Z=-1 방향을 봐야 합니다.
+              /*
               if (m_::dot(-float3(0, 0, p.z), n) < 0.f) {
+              /*/
+              if (m_::dot(-p, n) < 0.f) { //*/
                   p = _kcp - kp;
                   n = -n;
               }
@@ -120,7 +136,17 @@ struct kernel_shader {
 
               // 값 저장
               _o_kernel_rgb[idx] += C;
-              _o_kernel_pos[idx] = (p.xy - _kcp.xy) / _brad; // orthogonal projection
+              /*
+               _o_kernel_pos[idx] = (p.xy - _kcp.xy) / _brad; // orthogonal projection
+              /*/
+              // Perform perspective transform
+              // 1. 이 점의 중심을 계산
+              float3 sp = _matx0 * p + _matx1 * p + _matx2 * p;
+              auto np = ((sp / sp.z).xy - float2(_cx, _cy) - _kcent.xy);
+
+              // 2.
+              _o_kernel_pos[idx] = np * p.z / _brad * _amp;
+              //*/
           });
     }
 };
@@ -168,7 +194,9 @@ struct billiards::pipes::ball_finder_executor::impl {
 
 template <typename T, typename R> requires std::is_integral_v<T> auto n_align(T V, R N) { return ((V + N - 1) / N) * N; }
 
-void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution_context& ec, billiards::recognizer_t::frame_desc const& imdesc, cv::Vec3f loc_table_pos, cv::Vec3f loc_table_rot, cv ::Vec3f loc_sample_pos)
+void billiards::pipes::ball_finder_executor::_update_kernel_by(
+  pipepp::execution_context& ec, billiards::recognizer_t::frame_desc const& imdesc,
+  cv::Vec3f loc_table_pos, cv::Vec3f loc_table_rot, cv ::Vec3f loc_sample_pos)
 {
     using namespace std;
     using namespace cv;
@@ -187,13 +215,20 @@ void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution
     Vec3f pivot_rot = loc_table_rot;
     auto tr = get_transform_matx_fast(pivot_pos, pivot_rot);
 
-    // loc_sample_pos -= pivot_pos.mul({1, 1, 0});
+    // projection을 위한 준비 ..
+    auto& cam = imdesc.camera;
+    float ball_rad = kernel::ball_radius(ec);
+    auto [cmatx, _] = get_camera_matx(imdesc);
+    ;
+    float cx = cam.cx, cy = cam.cy;
+    float3 cam_r0 = (float3)kangsw::value_cast<double3>(submatx<0, 0, 1, 3>(cmatx));
+    float3 cam_r1 = (float3)kangsw::value_cast<double3>(submatx<1, 0, 1, 3>(cmatx));
+    float3 cam_r2 = (float3)kangsw::value_cast<double3>(submatx<2, 0, 1, 3>(cmatx));
+
     for (auto& l : lights) {
         auto v = tr * concat_vec(l.pos, 1.f);
         l.pos = subvec<0, 3>(v);
-        // l.pos -= pivot_pos.mul({1, 1, 0});
     }
-    // pivot_pos.mul({0, 0, 1});
 
     // Apply ambient light first
     using namespace concurrency;
@@ -209,10 +244,16 @@ void billiards::pipes::ball_finder_executor::_update_kernel_by(pipepp::execution
     helper::kernel_shader ks = {
       .kernel = *m.pkernel_src_coords,
       .kernel_center = loc_sample_pos,
+
+      .cx = cx,
+      .cy = cy,
+      .amplify = kernel::persp_linear_distance_amp(ec),
+      .proj_matx = {cam_r0, cam_r1, cam_r2},
+
       .base_rgb = ball_color,
       .fresnel0 = fresnel0,
       .roughness = roughness,
-      .ball_radius = kernel::ball_radius(ec),
+      .ball_radius = ball_rad,
 
       .kernel_pos_buf = *m.pkernel_coords,
       .kernel_rgb_buf = *m.pkernel_colors,
@@ -721,6 +762,7 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
         int ofst = scale / 2;
         int rad = 0; // scale / 100;
 
+        Rect bound({}, Size(scale, scale));
         for_each_threads(kangsw::counter(positions.size()), [&](size_t i) {
             auto _p = positions[i];
             auto _c = colors[i];
@@ -728,7 +770,9 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
             auto pos = Vec2i((mult * kangsw::value_cast<Vec2f>(_p)) + Vec2f(ofst, ofst));
             auto col = kangsw::value_cast<Vec3f>(_c);
 
-            target((Point)pos) = col;
+            if (bound.contains(pos)) {
+                target((Point)pos) = col;
+            }
         });
 
         PIPEPP_STORE_DEBUG_DATA("Real time kernel", (Mat)target);

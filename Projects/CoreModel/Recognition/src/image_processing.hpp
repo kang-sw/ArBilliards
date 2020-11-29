@@ -212,18 +212,18 @@ void copy_matx(cv::Matx<Ty_, r0, c0>& to, cv::Matx<Ty_, r1, c1> const& from, siz
     }
 }
 
-template <size_t RowOfst_, size_t ColOfst_, size_t W_ = -1, size_t H_ = -1, typename Ty_, size_t SrcW_, size_t SrcH_>
+template <size_t RowOfst_, size_t ColOfst_, size_t R_ = -1, size_t C_ = -1, typename Ty_, size_t SrcW_, size_t SrcH_>
 auto submatx(cv::Matx<Ty_, SrcH_, SrcW_> const& src)
 {
     constexpr size_t row = RowOfst_;
     constexpr size_t col = ColOfst_;
-    constexpr size_t w = W_ == -1 ? SrcW_ - ColOfst_ : W_;
-    constexpr size_t h = H_ == -1 ? SrcH_ - RowOfst_ : H_;
+    constexpr size_t w = C_ == -1 ? SrcW_ - ColOfst_ : C_;
+    constexpr size_t h = R_ == -1 ? SrcH_ - RowOfst_ : R_;
     static_assert(row + h <= SrcH_ && col + w <= SrcW_);
 
-    cv::Matx<Ty_, W_, H_> value;
-    for (auto r : kangsw::iota(row, row + h)) {
-        for (auto c : kangsw::iota(col, col + w)) {
+    cv::Matx<Ty_, R_, C_> value;
+    for (auto r : kangsw::iota(h)) {
+        for (auto c : kangsw::iota(w)) {
             value(r, c) = src(r + row, c + col);
         }
     }

@@ -148,6 +148,7 @@ struct input_resize {
         cv::Mat hsv;
         cv::UMat u_rgb;
         cv::UMat u_hsv;
+        float resized_scale;
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
