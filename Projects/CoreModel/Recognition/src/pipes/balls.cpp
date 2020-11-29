@@ -340,12 +340,14 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         findNonZero(grid, _mcache_points);
         if (_mcache_points.size() < grid_pxl_threshold) { continue; }
 
-        // 픽셀 개수가 그리드의 1/4가 될 때까지 솎아냅니다.
-        while (_mcache_points.size() > max_cands_per_grid) {
-            auto idx = rand() % _mcache_points.size();
-            std::swap(_mcache_points.back(), _mcache_points[idx]);
-            _mcache_points.pop_back();
-        }
+        // 만약 다수의 그리드가 유효한 것으로 판단되면, 포인트를 솎아냅니다.
+        /* if (pending_suits.size() > max_concurrent_iteration) {
+            while (_mcache_points.size() > max_cands_per_grid) {
+                auto idx = rand() % _mcache_points.size();
+                std::swap(_mcache_points.back(), _mcache_points[idx]);
+                _mcache_points.pop_back();
+            }
+        }*/
 
         for (auto& mp : _mcache_points) {
             sample_coords.emplace_back(mp + (Vec2i)roi_grid.tl());
@@ -524,7 +526,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     }
 
     PIPEPP_STORE_DEBUG_DATA("Number of valid pixels", sample_coords.size());
-    PIPEPP_STORE_DEBUG_DATA("Number of kernels", n_tot_kernels / 2);
+    PIPEPP_STORE_DEBUG_DATA("Number of kernels", n_tot_kernels);
     PIPEPP_STORE_DEBUG_DATA("Number of tiles", n_tot_tiles);
     PIPEPP_STORE_DEBUG_DATA("Default tile size", (size_t)TILE_SIZE);
 
@@ -560,7 +562,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
 
             auto pack = kangsw::zip(sample_coords, sample_distance, sample_suitability);
             auto pivot = std::partition(
-              pack.begin(), pack.end(),
+              pack.begin(), pack.begin() + search_range,
               [&, range = pixel_radius * discard_amp](auto tup) {
                   auto pos = std::get<0>(tup);
                   return cv::norm(center, pos, NORM_L2) > range;
@@ -569,7 +571,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
             search_range = pivot - pack.begin();
         }
 
-        if (debug::show_debug_mat(ec)) {
+        if (debug::render_3dresult_on_debug_mat(ec)) {
             // debug mat에 공의 최종 위치를 렌더링합니다.
             _update_kernel_by(ec, imdesc, local_table_pos, local_table_rot, local_ball_pos);
             vector<float2> coords = *_m->pkernel_coords;
@@ -584,6 +586,11 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
                     debug3b(cent) = color3b;
                 }
             }
+        } else {
+            Mat3b debug3b = in.debug_mat;
+            Vec3b ballcolor = colors::base_rgb(ec) * 255.f;
+            draw_circle(imdesc, debug3b, ball_radius, spos, {0, 255, 0}, 1);
+            circle(debug3b, center, 2, {0, 255, 0}, 1);
         }
     }
 }

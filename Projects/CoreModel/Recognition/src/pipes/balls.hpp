@@ -48,6 +48,7 @@ PIPEPP_EXECUTOR(ball_finder_executor)
     PIPEPP_CATEGORY(debug, "Debug")
     {
         PIPEPP_OPTION(show_debug_mat, false);
+        PIPEPP_OPTION(render_3dresult_on_debug_mat, false);
         PIPEPP_OPTION(show_grid_representation, false,
                       u8"Matching 과정에서, 각 그리드의 대표 중심점에 해당하는 커널을"
                       " 디버그 화면에 렌더링합니다.");

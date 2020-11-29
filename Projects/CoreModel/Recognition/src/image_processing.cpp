@@ -527,7 +527,7 @@ void billiards::imgproc::draw_circle(img_t const& img, cv::Mat& dest, float base
     project_model(img, pt, tvec_world, {0, 1, 0}, pos, false);
 
     float size = get_pixel_length(img, base_size, pos[0][2]);
-    if (size > 1) {
+    if (size > 1 && size < 1e4) {
         circle(dest, Point(pt[0][0], pt[0][1]), size, color, thickness);
     }
 }
