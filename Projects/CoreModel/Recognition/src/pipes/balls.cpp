@@ -9,10 +9,11 @@
 #include <random>
 #include <span>
 
-#include "kangsw/ndarray.hxx"
-
 #undef max
 #undef min
+
+#include "fmt/format.h"
+#include "kangsw/ndarray.hxx"
 
 enum { TILE_SIZE = 1024 };
 
@@ -383,12 +384,6 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         _update_kernel_by(ec, imdesc, local_table_pos, local_table_rot, grid_center_pos);
         auto ball_pixel_radius = get_pixel_length(imdesc, ball_radius, 1.0f);
 
-        // 커널 색공간 변환
-        parallel_for_each(_pkernel_colors.extent,
-                          [=](index<1> idx) __GPU {
-                              _pkernel_colors[idx] = helper::cvt_const_clrspace(_pkernel_colors[idx]);
-                          });
-
         // 필요하다면, 디버그 데이터 렌더링
         if (show_grid_rep) {
             // 그리드 3D 투영 결과 표시
@@ -425,14 +420,19 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
               });
         }
 
+        // 커널 색공간 변환
+        parallel_for_each(_pkernel_colors.extent,
+                          [=](index<1> idx) __GPU {
+                              _pkernel_colors[idx] = helper::cvt_const_clrspace(_pkernel_colors[idx]);
+                          });
+
         // -- 각 유효 픽셀에 대해 커널 매칭 수행
         // 출력 데이터 셋 저장, ~array_view() 호출 시 동기화 방지하기 위해 큐에 먼저 넣어둠
         auto& o_suits = pending_suits.emplace((int)suits.size(), (float*)suits.data());
         extent<2> interm_extent(n_valid_pxls, n_tot_kernels);
         parallel_for_each(
           interm_extent.tile<1, TILE_SIZE>(),
-          [=,
-           pcolors = _pkernel_colors,
+          [=, pcolors = _pkernel_colors,
            coords = array_view{(int)pos.size(), ptr_cast<int2>(pos.data())},
            distances = array_view{(int)dists.size(), dists.data()},
            suitability_divider = float(n_tot_kernels / 2.0f)] //
@@ -508,7 +508,9 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
         PIPEPP_STORE_DEBUG_DATA("Grid Center Rendering Result", (Mat)debug);
     }
 
-    if (sample_suitability.empty() == false && debug::show_debug_mat(ec)) {
+    if (sample_suitability.empty()) { return; }
+
+    if (debug::show_debug_mat(ec)) {
         Mat1f suit_map(image_size, 0);
 
         for (auto idx : counter(sample_coords.size())) {
@@ -525,17 +527,74 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
     PIPEPP_STORE_DEBUG_DATA("Number of kernels", n_tot_kernels / 2);
     PIPEPP_STORE_DEBUG_DATA("Number of tiles", n_tot_tiles);
     PIPEPP_STORE_DEBUG_DATA("Default tile size", (size_t)TILE_SIZE);
+
+    size_t search_range = sample_suitability.size();
+    for (int ballidx = 0, max = search::n_balls(ec); ballidx < max; ++ballidx) //
+    {
+        // 모든 suitability를 iterate해, 가장 높은 엘리먼트를 찾습니다.
+        auto max_elem = std::max_element(sample_suitability.begin(), sample_suitability.begin() + search_range);
+        auto max_index = max_elem - sample_suitability.begin();
+
+        if (max_elem == sample_suitability.begin() + search_range) {
+            break;
+        }
+
+        auto center = sample_coords[max_index];
+        auto depth = sample_distance[max_index];
+        auto conf = *max_elem;
+        Vec3f spos(center[0], center[1], depth);
+        auto _rot = local_table_rot;
+        get_point_coord_3d(imdesc, spos[0], spos[1], spos[2]);
+        auto local_ball_pos = spos;
+        camera_to_world(imdesc, _rot, spos);
+
+        auto& nelem = o.positions.emplace_back();
+        nelem.confidence = conf;
+        nelem.position = spos;
+
+        PIPEPP_STORE_DEBUG_DATA_DYNAMIC_STR(fmt::format("Pos <{}> ", ballidx).c_str(), spos << ", " << conf);
+
+        int pixel_radius = get_pixel_length(imdesc, ball_radius, depth);
+        if (ballidx + 1 < max) { // 다음 공이 있을 때에만 찾아낸 공을 후보에서 제외합니다.
+            auto discard_amp = search::next_ball_erase_amp(ec);
+
+            auto pack = kangsw::zip(sample_coords, sample_distance, sample_suitability);
+            auto pivot = std::partition(
+              pack.begin(), pack.end(),
+              [&, range = pixel_radius * discard_amp](auto tup) {
+                  auto pos = std::get<0>(tup);
+                  return cv::norm(center, pos, NORM_L2) > range;
+              });
+
+            search_range = pivot - pack.begin();
+        }
+
+        if (debug::show_debug_mat(ec)) {
+            // debug mat에 공의 최종 위치를 렌더링합니다.
+            _update_kernel_by(ec, imdesc, local_table_pos, local_table_rot, local_ball_pos);
+            vector<float2> coords = *_m->pkernel_coords;
+            vector<float3> colors = *_m->pkernel_colors;
+
+            Mat3b debug3b = in.debug_mat;
+            Rect img_rect({}, debug3b.size());
+            for (auto [coord, color] : kangsw::zip(coords, colors)) {
+                Point cent = center + (Vec2i)value_cast<Vec2f>(coord * pixel_radius);
+                if (img_rect.contains(cent)) {
+                    auto color3b = (Vec3b)value_cast<Vec3f>(color * 255.f);
+                    debug3b(cent) = color3b;
+                }
+            }
+        }
+    }
 }
 
 void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_context& ec, input_type const& in, output_type& o)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
     using namespace std::literals;
-    if (!in.p_imdesc) {
-        o.positions.clear();
-        return;
-    }
+    o.positions.clear();
 
+    if (!in.p_imdesc || search::n_balls(ec) == 0) { return; }
     auto& imdesc = *in.p_imdesc;
     bool const is_option_dirty = ec.consume_option_dirty_flag();
 
@@ -615,7 +674,7 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
     PIPEPP_ELAPSE_BLOCK("Iterate grids")
     _internal_loop(ec, in, o);
 
-    // 테스트 코드 ...
+    // 샘플 커널 그리기 ...
     if (debug::show_realtime_kernel(ec)) {
         PIPEPP_ELAPSE_SCOPE("Render sample kernel on center");
 
@@ -670,7 +729,7 @@ void billiards::pipes::ball_finder_executor::link(shared_data& sd, input_type& i
 
     i.table_pos = sd.table.pos;
     i.table_rot = sd.table.rot;
-    sd.retrieve_image_in_colorspace(match::color_space(opt)).convertTo(i.domain, CV_32FC3, 1 / 255.f);
+    sd.rgb.convertTo(i.domain, CV_32FC3, 1 / 255.f);
     i.p_imdesc = &sd.imdesc_bkup;
     i.debug_mat = sd.debug_mat;
 

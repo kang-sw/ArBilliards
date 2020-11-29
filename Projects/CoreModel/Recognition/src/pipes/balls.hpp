@@ -168,8 +168,10 @@ PIPEPP_EXECUTOR(ball_finder_executor)
 
     PIPEPP_CATEGORY(search, "Searching")
     {
-        PIPEPP_OPTION(n_balls, 1,
-                      u8"찾아낼 공의 개수입니다.");
+        PIPEPP_OPTION(n_balls, 1, u8"찾아낼 공의 개수입니다.");
+        PIPEPP_OPTION(next_ball_erase_amp, 1.0,
+                      u8"다음 공을 찾기 위해 현재 공의 suitability를 지울 때,"
+                      " 공 반경의 얼마만큼의 비율을 다음 공의 후보에서 제할지 결정합니다.");
     };
 
     struct input_type {
@@ -208,7 +210,7 @@ public:
     ~ball_finder_executor();
 
 private:
-    void _update_kernel_by(pipepp::execution_context & ec, imgproc::img_t const& imdesc, cv::Vec3f, cv::Vec3f, cv::Vec3f);
+    void _update_kernel_by(pipepp::execution_context & ec, imgproc::img_t const& imdesc, cv::Vec3f loc_table_pos, cv::Vec3f loc_table_rot, cv::Vec3f loc_sample_pos);
     void _internal_loop(pipepp::execution_context & ec, input_type const& in, output_type& o);
 
 private:
