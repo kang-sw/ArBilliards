@@ -752,8 +752,14 @@ void billiards::pipes::ball_finder_executor::operator()(pipepp::execution_contex
         PIPEPP_ELAPSE_BLOCK("Update kernel then download")
         {
             Vec3f loc_pos = in.table_pos, loc_rot = in.table_rot;
+            Vec3f kernel_pos = loc_pos;
             imgproc::world_to_camera(imdesc, loc_rot, loc_pos);
-            _update_kernel_by(ec, imdesc, loc_pos, loc_rot, loc_pos);
+            if (o.positions.empty() == false) {
+                kernel_pos = o.positions.front().position;
+                loc_rot = in.table_rot;
+                imgproc::world_to_camera(imdesc, loc_rot, kernel_pos);
+            }
+            _update_kernel_by(ec, imdesc, loc_pos, loc_rot, kernel_pos);
 
             positions = *m.pkernel_coords;
             colors = *m.pkernel_colors;
