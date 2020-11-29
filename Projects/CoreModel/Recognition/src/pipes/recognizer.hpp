@@ -28,8 +28,8 @@ struct ball_position_desc {
     cv::Vec3f vel;
 
     clock::time_point tp = clock::now();
-    double dt(clock::time_point now) const { return std::chrono::duration<double>(now - tp).count(); }
-    cv::Vec3f ps(clock::time_point now) const { return dt(now) * vel + pos; }
+    double            dt(clock::time_point now) const { return std::chrono::duration<double>(now - tp).count(); }
+    cv::Vec3f         ps(clock::time_point now) const { return dt(now) * vel + pos; }
 };
 
 using ball_position_set = std::array<ball_position_desc, 4>;
@@ -115,13 +115,13 @@ struct shared_data : pipepp::base_shared_context {
 
     // data
 public:
-    recognizer_t::frame_desc imdesc_bkup;
+    recognizer_t::frame_desc                   imdesc_bkup;
     recognizer_t::process_finish_callback_type callback;
 
     cv::Mat debug_mat;
 
-    cv::Mat cluster_color_mat;
-    cv::Mat rgb, hsv;
+    cv::Mat  cluster_color_mat;
+    cv::Mat  rgb, hsv;
     cv::UMat u_rgb, u_hsv;
 
     cv::Mat1b table_hsv_filtered;
@@ -134,8 +134,8 @@ public:
 
     struct {
         std::vector<cv::Vec2f> contour;
-        cv::Vec3f pos, rot;
-        float confidence;
+        cv::Vec3f              pos, rot;
+        float                  confidence;
     } table;
 
 public:
@@ -149,11 +149,12 @@ public:
         for (auto& v : balls_) { v.second = 0.f; }
     }
 
-    void get_marker_points_model(std::vector<cv::Vec3f>& model) const;
+    void    get_marker_points_model(std::vector<cv::Vec3f>& model) const;
     cv::Mat retrieve_image_in_colorspace(kangsw::hash_index hash);
-    void store_image_in_colorspace(kangsw::hash_index hash, cv::Mat v);
-    void update_ball_pos(size_t ball_idx, cv::Vec3f pos, float conf);
-    auto get_ball(size_t bidx) const -> ball_position_desc;
+    void    store_image_in_colorspace(kangsw::hash_index hash, cv::Mat v);
+    void    update_ball_pos(size_t ball_idx, cv::Vec3f pos, float conf);
+    auto    get_ball(size_t bidx) const -> ball_position_desc;
+    auto    get_ball_conf(size_t bidx) { return balls_[bidx].second; }
 
     std::shared_ptr<shared_state> state_;
 
@@ -161,11 +162,11 @@ public:
     void _on_all_ball_gathered() const;
 
 private:
-    ball_position_set balls_prev_;
+    ball_position_set                    balls_prev_;
     std::pair<ball_position_desc, float> balls_[4];
 
     std::map<kangsw::hash_index, cv::Mat3b> converted_resources_;
-    kangsw::spinlock lock_;
+    kangsw::spinlock                        lock_;
 };
 
 struct input_resize {
@@ -178,15 +179,15 @@ struct input_resize {
     using input_type = recognizer_t::frame_desc;
     struct output_type {
         cv::Size img_size;
-        cv::Mat rgb;
-        cv::Mat hsv;
+        cv::Mat  rgb;
+        cv::Mat  hsv;
         cv::UMat u_rgb;
         cv::UMat u_hsv;
-        float resized_scale;
+        float    resized_scale;
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
-    static void output_handler(pipepp::pipe_error, shared_data& sd, pipepp::execution_context& ec, output_type const& o);
+    static void        output_handler(pipepp::pipe_error, shared_data& sd, pipepp::execution_context& ec, output_type const& o);
 };
 
 struct contour_candidate_search {
@@ -206,7 +207,7 @@ struct contour_candidate_search {
     };
 
     struct input_type {
-        cv::Mat debug_display;
+        cv::Mat  debug_display;
         cv::UMat u_hsv;
     };
     struct output_type {
@@ -214,8 +215,8 @@ struct contour_candidate_search {
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
-    static void link_from_previous(shared_data const&, input_resize::output_type const&, input_type&);
-    static void output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
+    static void        link_from_previous(shared_data const&, input_resize::output_type const&, input_type&);
+    static void        output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
 };
 
 struct output_pipe {
@@ -228,12 +229,33 @@ struct output_pipe {
         PIPEPP_OPTION(table_top_view_scale, 640);
     };
 
-    using input_type = shared_data*;
+    PIPEPP_CATEGORY(legacy, "Legacy")
+    {
+        PIPEPP_CATEGORY(unity, "Unity")
+        {
+            PIPEPP_OPTION(enable_table_depth_override, true);
+            PIPEPP_OPTION(anchor_offset_vector, true);
+
+            PIPEPP_CATEGORY(phys, "Phys")
+            {
+                PIPEPP_OPTION(simulation_ball_radius, 0.0302);
+                PIPEPP_OPTION(ball_restitution, 0.64);
+                PIPEPP_OPTION(velocity_damping, 0.77);
+                PIPEPP_OPTION(roll_coeff_on_contact, 0.77);
+                PIPEPP_OPTION(roll_begin_time, 0.77);
+                PIPEPP_OPTION(table_restitution, 0.77);
+                PIPEPP_OPTION(table_roll_to_velocity_coeff, 0.77);
+                PIPEPP_OPTION(table_velocity_to_roll_coeff, 0.77);
+            };
+        };
+    };
+
+    using input_type  = shared_data*;
     using output_type = nullptr_t;
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
-    static void link_from_previous(shared_data& sd, input_type& i) { i = &sd; }
-    static auto factory() { return pipepp::make_executor<output_pipe>(); }
+    static void        link_from_previous(shared_data& sd, input_type& i) { i = &sd; }
+    static auto        factory() { return pipepp::make_executor<output_pipe>(); }
 };
 
 } // namespace billiards::pipes

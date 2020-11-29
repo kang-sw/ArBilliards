@@ -25,9 +25,9 @@ struct marker_search_to_solve {
     PIPEPP_DECLARE_OPTION_CLASS(table_marker_finder);
 
     static void link(
-      shared_data& sd,
+      shared_data&                            sd,
       table_marker_finder::output_type const& o,
-      marker_solver_OLD::input_type& i)
+      marker_solver_OLD::input_type&          i)
     {
         if (o.marker_weight_map.empty()) {
             i.p_table_contour = nullptr;
@@ -35,14 +35,14 @@ struct marker_search_to_solve {
         }
 
         i = marker_solver_OLD::input_type{
-          .img_ptr = &sd.imdesc_bkup,
-          .img_size = sd.rgb.size(),
-          .table_pos_init = sd.table.pos,
-          .table_rot_init = sd.table.rot,
-          .debug_mat = &sd.debug_mat,
+          .img_ptr         = &sd.imdesc_bkup,
+          .img_size        = sd.rgb.size(),
+          .table_pos_init  = sd.table.pos,
+          .table_rot_init  = sd.table.rot,
+          .debug_mat       = &sd.debug_mat,
           .p_table_contour = &sd.table.contour,
-          .u_hsv = &sd.u_hsv,
-          .FOV_degree = sd.camera_FOV(sd)};
+          .u_hsv           = &sd.u_hsv,
+          .FOV_degree      = sd.camera_FOV(sd)};
         sd.get_marker_points_model(i.marker_model);
 
         // Weight map으로부터 마커 목록 찾기
@@ -95,14 +95,14 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     // ALL PIPES
     {
         auto contour_search_proxy = pl->create("table contour searcher", 4, &pipepp::make_executor<table_contour_geometric_search>);
-        auto pnp_solver_proxy = pl->create("solve table edge", 4, &pipepp::make_executor<table_edge_solver>);
-        auto marker_search_proxy = pl->create("table marker search", 4, &pipepp::make_executor<table_marker_finder>);
-        auto marker_solver_proxy = pl->create("table marker solver", 4, &pipepp::make_executor<marker_solver_OLD>);
+        auto pnp_solver_proxy     = pl->create("solve table edge", 4, &pipepp::make_executor<table_edge_solver>);
+        auto marker_search_proxy  = pl->create("table marker search", 4, &pipepp::make_executor<table_marker_finder>);
+        auto marker_solver_proxy  = pl->create("table marker solver", 4, &pipepp::make_executor<marker_solver_OLD>);
 
         input_proxy.link_output(contour_search_proxy, &table_contour_geometric_search_link);
 
         contour_search_proxy.add_output_handler(
-          [](shared_data& sd,
+          [](shared_data&                                       sd,
              table_contour_geometric_search::output_type const& o) {
               sd.table.contour = o.contours;
           });
@@ -115,9 +115,9 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
 
         marker_solver_proxy.add_output_handler(&marker_solver_OLD::output_handler);
         for (auto ballidx : kangsw::counter(3)) {
-            constexpr char const* BALL_NAME[] = {"Red", "Orange", "White"};
-            constexpr int IDX_OFFSET[] = {0, 2, 3};
-            auto ball_proxy = pl->create(fmt::format("ball finder: {}", BALL_NAME[ballidx]),
+            constexpr char const* BALL_NAME[]  = {"Red", "Orange", "White"};
+            constexpr int         IDX_OFFSET[] = {0, 2, 3};
+            auto                  ball_proxy   = pl->create(fmt::format("ball finder: {}", BALL_NAME[ballidx]),
                                          4, &pipepp::make_executor<ball_finder_executor>);
 
             // 이전 출력 연결
@@ -129,7 +129,7 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
               (shared_data & sd,
                ball_finder_executor::output_type const& o) //
               {
-                  for (auto idx = ball_index_offset;
+                  for (auto  idx = ball_index_offset;
                        auto& pt : o.positions) //
                   {
                       sd.update_ball_pos(idx++, pt.position, pt.confidence);
@@ -177,7 +177,7 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         "table contour search",
         1,
         [](shared_data& sd, label_edge_detector::output_type const& o, hough_line_executor::input_type& i) {
-            i.edges = o.edges;
+            i.edges   = o.edges;
             i.dbg_mat = &sd.debug_mat;
         },
         &pipepp::make_executor<hough_line_executor>);
@@ -215,9 +215,9 @@ void billiards::pipes::shared_data::update_ball_pos(size_t ball_idx, cv::Vec3f p
     if (ball_idx >= std::size(balls_)) { return; }
 
     auto& [elem, confidence] = balls_[ball_idx];
-    elem.tp = launch_time_point();
-    elem.pos = pos;
-    confidence = conf;
+    elem.tp                  = launch_time_point();
+    elem.pos                 = pos;
+    confidence               = conf;
 }
 
 billiards::pipes::ball_position_desc billiards::pipes::shared_data::get_ball(size_t bidx) const
@@ -254,9 +254,9 @@ void billiards::pipes::shared_data::_on_all_ball_gathered() const
 pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
-    auto src_size = i.rgba.size();
-    auto width = std::min(src_size.width, desired_image_width(ec));
-    auto height = int((int64_t)width * src_size.height / src_size.width);
+    auto src_size     = i.rgba.size();
+    auto width        = std::min(src_size.width, desired_image_width(ec));
+    auto height       = int((int64_t)width * src_size.height / src_size.width);
     out.resized_scale = width / (float)src_size.width;
 
     PIPEPP_ELAPSE_BLOCK("RGBA to RGB")
@@ -342,7 +342,7 @@ void billiards::pipes::input_resize::output_handler(pipepp::pipe_error, shared_d
         o.rgb.copyTo(sd.debug_mat);
 
         for (auto& c = sd.imdesc_bkup.camera;
-             auto p : {&c.fx, &c.fy, &c.cx, &c.cy}) //
+             auto  p : {&c.fx, &c.fy, &c.cx, &c.cy}) //
         {
             *p *= o.resized_scale;
         }
@@ -372,8 +372,8 @@ void billiards::pipes::input_resize::output_handler(pipepp::pipe_error, shared_d
 pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
 {
     PIPEPP_REGISTER_CONTEXT(ec);
-    auto& sd = *i;
-    auto& debug = sd.debug_mat;
+    auto& sd     = *i;
+    auto& debug  = sd.debug_mat;
     auto& imdesc = sd.imdesc_bkup;
     using namespace imgproc;
     using namespace std;
@@ -386,7 +386,7 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
 
         sd.state_->table.pos = sd.table.pos;
         sd.state_->table.rot = sd.table.rot;
-        auto& balls = sd.state_->balls;
+        auto& balls          = sd.state_->balls;
 
         // 공의 위치 업데이트
         for (auto idx : kangsw::counter(balls.size())) {
@@ -396,9 +396,9 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
 
     if (debug::render_debug_glyphs(ec)) {
         { // Draw table info
-            auto& pos = sd.table.pos;
-            auto& rot = sd.table.rot;
-            auto FOV = sd.camera_FOV(sd);
+            auto&         pos = sd.table.pos;
+            auto&         rot = sd.table.rot;
+            auto          FOV = sd.camera_FOV(sd);
             vector<Vec3f> model;
             get_table_model(model, shared_data::table::size::fit(sd));
             project_contours(imdesc, debug, model, pos, rot, {0, 255, 0}, 1, FOV);
@@ -413,10 +413,10 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
         { // Draw ball info
             float scale = debug::table_top_view_scale(ec);
 
-            int ball_rad_pxl = shared_data::ball::radius(sd) * scale;
-            Size total_size = (Point)(Vec2i)(shared_data::table::size::outer(sd) * scale);
-            Size fit_size = (Point)(Vec2i)(shared_data::table::size::fit(sd) * scale);
-            Size inner_size = (Point)(Vec2i)(shared_data::table::size::inner(sd) * scale);
+            int  ball_rad_pxl = shared_data::ball::radius(sd) * scale;
+            Size total_size   = (Point)(Vec2i)(shared_data::table::size::outer(sd) * scale);
+            Size fit_size     = (Point)(Vec2i)(shared_data::table::size::fit(sd) * scale);
+            Size inner_size   = (Point)(Vec2i)(shared_data::table::size::inner(sd) * scale);
 
             Mat3b table_mat(total_size, Vec3b(118, 62, 62));
             rectangle(table_mat, Rect((total_size - fit_size) / 2, fit_size), Scalar{26, 0, 243}, -1);
@@ -424,15 +424,15 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
             Mat3b top_view_mat = table_mat(Rect((total_size - inner_size) / 2, inner_size));
             top_view_mat.setTo(Scalar{86, 74, 195});
 
-            auto inv_tr = get_transform_matx_fast(sd.table.pos, sd.table.rot).inv();
+            auto      inv_tr      = get_transform_matx_fast(sd.table.pos, sd.table.rot).inv();
             cv::Vec3b color_ROW[] = {{231, 11, 11}, {231, 106, 2}, {241, 241, 211}};
             for (auto index : kangsw::counter(4)) {
-                int bidx = max(0, index - 1);
-                auto b = sd.get_ball(index);
+                int  bidx = max(0, index - 1);
+                auto b    = sd.get_ball(index);
 
                 Vec4f pos4 = imgproc::concat_vec(b.pos, 1.f);
 
-                pos4 = inv_tr * pos4;
+                pos4    = inv_tr * pos4;
                 auto pt = Point(-pos4[0] * scale, pos4[2] * scale) + (Point)inner_size / 2;
 
                 circle(top_view_mat, pt, ball_rad_pxl, color_ROW[bidx], -1);
@@ -444,6 +444,64 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
     }
 
     PIPEPP_STORE_DEBUG_DATA("Debug glyphs rendering", sd.debug_mat.clone());
+
+    PIPEPP_ELAPSE_BLOCK("Output callback execution")
+    {
+        nlohmann::json output_to_unity;
+        {
+            auto& desc       = output_to_unity;
+            using table_size = shared_data::table::size;
+
+            // -- 시작 파라미터 전송
+            auto inner                   = table_size::inner(sd);
+            desc["Table"]["InnerWidth"]  = inner[0];
+            desc["Table"]["InnerHeight"] = inner[1];
+
+            {
+                using table_filter = shared_data::table::filter;
+
+                Vec3f tf[2]     = {table_filter::color_lo(ec), table_filter::color_hi(ec)};
+                auto [min, max] = tf;
+                enum { H,
+                       S,
+                       V };
+
+                using unity                                     = legacy::unity;
+                desc["Table"]["EnableShaderApplyDepthOverride"] = unity::enable_table_depth_override(ec);
+                desc["Table"]["ShaderMinH"]                     = min[H] * (1 / 180.f);
+                desc["Table"]["ShaderMaxH"]                     = max[H] * (1 / 180.f);
+                desc["Table"]["ShaderMinS"]                     = min[S] * (1 / 255.f);
+                desc["Table"]["ShaderMaxS"]                     = max[S] * (1 / 255.f);
+
+                using phys                         = unity::phys;
+                desc["BallRadius"]                 = phys::simulation_ball_radius(ec);
+                desc["Phys"]["BallRestitution"]    = phys::ball_restitution(ec);
+                desc["Phys"]["BallDamping"]        = phys::velocity_damping(ec);
+                desc["Phys"]["BallStaticFriction"] = phys::roll_coeff_on_contact(ec);
+                desc["Phys"]["BallRollTime"]       = phys::roll_begin_time(ec);
+                desc["Phys"]["TableRestitution"]   = phys::table_restitution(ec);
+                desc["Phys"]["TableRtoVCoeff"]     = phys::table_roll_to_velocity_coeff(ec);
+                desc["Phys"]["TableVtoRCoeff"]     = phys::table_velocity_to_roll_coeff(ec);
+
+                desc["CameraAnchorOffset"] = unity::anchor_offset_vector(ec);
+            }
+
+            desc["Table"]["Translation"] = sd.table.pos;
+            desc["Table"]["Orientation"] = sd.table.rot;
+            desc["Table"]["Confidence"]  = sd.table.confidence; //TODO: 테이블 confidence 설정 로직 작성
+
+            char const* ball_names[] = {"Red1", "Red2", "Orange", "White"};
+            for (auto idx : kangsw::counter(4)) {
+                auto ball = sd.get_ball(idx);
+                auto conf = sd.get_ball_conf(idx);
+
+                auto bname = ball_names[idx];
+                desc[bname]["Position"] = ball.pos;
+                desc[bname]["Confidence"] = conf;
+            }
+        }
+        sd.callback(sd.imdesc_bkup, output_to_unity);
+    }
     return pipepp::pipe_error::ok;
 }
 
@@ -451,17 +509,17 @@ void billiards::pipes::shared_data::get_marker_points_model(std::vector<cv::Vec3
 {
     auto& ec = *this;
 
-    int num_x = table::marker::count_x(ec);
-    int num_y = table::marker::count_y(ec);
-    float felt_width = table::marker::felt_width(ec);
-    float felt_height = table::marker::felt_height(ec);
-    float dist_from_felt_long = table::marker::dist_from_felt_long(ec);
+    int   num_x                = table::marker::count_x(ec);
+    int   num_y                = table::marker::count_y(ec);
+    float felt_width           = table::marker::felt_width(ec);
+    float felt_height          = table::marker::felt_height(ec);
+    float dist_from_felt_long  = table::marker::dist_from_felt_long(ec);
     float dist_from_felt_short = table::marker::dist_from_felt_short(ec);
-    float step = table::marker::step(ec);
-    float width_shift_a = table::marker::width_shift_a(ec);
-    float width_shift_b = table::marker::width_shift_b(ec);
-    float height_shift_a = table::marker::height_shift_a(ec);
-    float height_shift_b = table::marker::height_shift_b(ec);
+    float step                 = table::marker::step(ec);
+    float width_shift_a        = table::marker::width_shift_a(ec);
+    float width_shift_b        = table::marker::width_shift_b(ec);
+    float height_shift_a       = table::marker::height_shift_a(ec);
+    float height_shift_b       = table::marker::height_shift_b(ec);
 
     for (int i = -num_y / 2; i < num_y / 2 + 1; ++i) {
         model.emplace_back(-(dist_from_felt_short + felt_width / 2), 0, step * i + height_shift_a);

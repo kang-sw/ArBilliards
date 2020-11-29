@@ -1317,7 +1317,7 @@ void recognizer_impl_t::find_table(img_t const& img, const cv::Mat& debug, const
 
     desc["Table"]["Translation"] = table_pos;
     desc["Table"]["Orientation"] = (Vec4f&)table_rot;
-    desc["Table"]["Confidence"] = confidence;
+    desc["Table"]["Confidence"]  = confidence;
 }
 
 cv::Vec3f recognizer_impl_t::set_filtered_table_pos(cv::Vec3f new_pos, float confidence, bool allow_jump)
