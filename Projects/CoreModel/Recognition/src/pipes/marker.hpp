@@ -16,6 +16,7 @@ struct table_edge_extender {
     int    num_insert_contour_vertexes = 5;
     double table_border_range_outer    = 0.06;
     double table_border_range_inner    = 0.06;
+    bool   should_draw                 = true;
 
     cv::Mat const* debug_mat = {};
 
@@ -69,6 +70,10 @@ PIPEPP_EXECUTOR(table_marker_finder)
 
     PIPEPP_CATEGORY(pp, "Preprocessing")
     {
+        PIPEPP_OPTION(use_all_non_blue_area, true,
+                      u8"True를 지정하면, 현재 당구대의 컨투어 영역이 아닌 파란색 픽셀이 존재하는 모든 영역에서"
+                      " 마커 후보를 탐색합니다.");
+
         PIPEPP_OPTION(num_inserted_contours, 5,
                       u8"마커 탐색을 위해 당구대 각 정점을 확장할 때, "
                       "새롭게 삽입할 컨투어 정점의 개수입니다. 영상 처리 자체에 미치는 영향은 미미합니다.");
@@ -79,6 +84,11 @@ PIPEPP_EXECUTOR(table_marker_finder)
                       u8"당구대의 펠트 경계부터 안쪽으로 마커 영역 마스크를 설정하는 데 사용합니다.\n"
                       "일반적으로 0을 지정하면 충분합니다.\n"
                       "meter 단위");
+
+        PIPEPP_CATEGORY(m2, "All Area"){
+            PIPEPP_OPTION(approx_epsilon, 1.0,
+                          u8"모든 영역의 컨투어를 계산하고 근사할 때적용할 epsilon 계수입니다.");
+        };
     };
 
     PIPEPP_CATEGORY(filter, "Filtering")
@@ -126,7 +136,8 @@ PIPEPP_EXECUTOR(table_marker_finder)
         cv::Mat3b domain;
         cv::Mat3b conv_domain;
 
-        cv::Mat1b lightness; // marker::filter::method == 1일때만 값을 지정하는 밝기 채널입니다.
+        cv::Mat1b lightness;   // marker::filter::method == 1일때만 값을 지정하는 밝기 채널입니다.
+        cv::Mat1b all_none_blue; //
 
         imgproc::img_t const* p_imdesc;
         cv::Vec3f             init_table_pos;
@@ -140,7 +151,8 @@ PIPEPP_EXECUTOR(table_marker_finder)
     };
 
     pipepp::pipe_error operator()(pipepp::execution_context& ec, input_type const& in, output_type& out);
-    static void        link(shared_data & sd, input_type & i, pipepp::detail::option_base const& opt);
+    static void        link(shared_data & sd, pipepp::execution_context & ec,
+                            input_type & i, pipepp::detail::option_base const& opt);
 
 public:
     table_marker_finder();

@@ -36,7 +36,6 @@ void billiards::pipes::helpers::table_edge_extender::operator()(pipepp::executio
     auto&      debug             = *debug_mat;
 
     {
-        PIPEPP_ELAPSE_SCOPE("Calculate Table Contour Mask");
         vector<Vec2f> contour;
 
         // 테이블 평면 획득
@@ -72,14 +71,18 @@ void billiards::pipes::helpers::table_edge_extender::operator()(pipepp::executio
             auto& outer = outer_contour[index];
             auto& inner = inner_contour[index];
 
-            float drag_width_outer = table_border_range_outer * 100;
-            float drag_width_inner = table_border_range_inner * 100;
             // 거리 획득
             // auto depth = img.depth.at<float>((Point)pt);
             // auto drag_width_outer = min(300.f, get_pixel_length(img, frame_width_outer, depth));
             // auto drag_width_inner = min(300.f, get_pixel_length(img, frame_width_inner, depth));
-            // get_pixel_length_on_contact(img, table_plane, pt, frame_width_outer);
-            // get_pixel_length_on_contact(img, table_plane, pt, frame_width_inner);
+
+            /*/
+            float drag_width_outer = table_border_range_outer * 100;
+            float drag_width_inner = table_border_range_inner * 100;
+            /*/
+            float drag_width_outer = get_pixel_length_on_contact(img, table_plane, pt, frame_width_outer);
+            float drag_width_inner = get_pixel_length_on_contact(img, table_plane, pt, frame_width_inner);
+            //*/
 
             // 평면과 해당 방향 시야가 이루는 각도 theta를 구하고, cos(theta)를 곱해 화면상의 픽셀 드래그를 구합니다.
             Vec3f pt_dir(pt[0], pt[1], 1);
@@ -94,23 +97,25 @@ void billiards::pipes::helpers::table_edge_extender::operator()(pipepp::executio
             drag_width_inner = clamp<float>(drag_width_inner, 1, 100);
 
             auto direction = /*normalize*/ (outer - center);
-            outer += direction * drag_width_outer / mass;
+            outer += direction * drag_width_outer / mass; // 질량으로 나누어 direction을 노멀라이즈합니다.
             if (!is_border_pixel({{}, marker_area_mask.size()}, inner)) {
                 inner -= direction * drag_width_inner / mass;
             }
         }
 
-        vector<Vec2i> drawer;
-        drawer.assign(outer_contour.begin(), outer_contour.end());
-        drawContours(marker_area_mask, vector{{drawer}}, -1, 255, -1);
-        if (draw_debug_glyphs) {
-            drawContours(debug, vector{{drawer}}, -1, {0, 0, 0}, 2);
-        }
+        if (should_draw) {
+            vector<Vec2i> drawer;
+            drawer.assign(outer_contour.begin(), outer_contour.end());
+            drawContours(marker_area_mask, vector{{drawer}}, -1, 255, -1);
+            if (draw_debug_glyphs) {
+                drawContours(debug, vector{{drawer}}, -1, {0, 0, 0}, 2);
+            }
 
-        drawer.assign(inner_contour.begin(), inner_contour.end());
-        drawContours(marker_area_mask, vector{{drawer}}, -1, 0, -1);
-        if (draw_debug_glyphs) {
-            drawContours(debug, vector{{drawer}}, -1, {0, 0, 0}, 2);
+            drawer.assign(inner_contour.begin(), inner_contour.end());
+            drawContours(marker_area_mask, vector{{drawer}}, -1, 0, -1);
+            if (draw_debug_glyphs) {
+                drawContours(debug, vector{{drawer}}, -1, {0, 0, 0}, 2);
+            }
         }
     }
 }
@@ -215,23 +220,30 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
     cv::Mat3b pp_filter_domain;
     PIPEPP_ELAPSE_BLOCK("Table contour area extension")
     {
-        helpers::table_edge_extender tee = {
-          .table_rot                   = in.init_table_rot,
-          .table_pos                   = in.init_table_pos,
-          .p_imdesc                    = in.p_imdesc,
-          .table_contour               = in.contour,
-          .num_insert_contour_vertexes = pp::num_inserted_contours(ec),
-          .table_border_range_outer    = pp::marker_range_outer(ec),
-          .table_border_range_inner    = pp::marker_range_inner(ec),
-          .debug_mat                   = (cv::Mat*)&in.debug,
-        };
-        tee(ec, area_mask);
-        PIPEPP_STORE_DEBUG_DATA_COND("Marker Area Mask", (cv::Mat)area_mask, show_debug);
+        if (in.all_none_blue.empty() == false) {
+            PIPEPP_STORE_DEBUG_DATA("All none-blue area mask", (cv::Mat)in.all_none_blue);
+            roi              = cv::Rect({}, in.domain.size());
+            area_mask        = in.all_none_blue;
+            pp_filter_domain = in.domain;
+        } else {
+            helpers::table_edge_extender tee = {
+              .table_rot                   = in.init_table_rot,
+              .table_pos                   = in.init_table_pos,
+              .p_imdesc                    = in.p_imdesc,
+              .table_contour               = in.contour,
+              .num_insert_contour_vertexes = pp::num_inserted_contours(ec),
+              .table_border_range_outer    = pp::marker_range_outer(ec),
+              .table_border_range_inner    = pp::marker_range_inner(ec),
+              .debug_mat                   = (cv::Mat*)&in.debug,
+            };
+            tee(ec, area_mask);
+            PIPEPP_STORE_DEBUG_DATA_COND("Marker Area Mask", (cv::Mat)area_mask, show_debug);
 
-        roi = cv::boundingRect(tee.output.outer_contour);
-        imgproc::get_safe_ROI_rect(in.domain, roi);
-        area_mask        = area_mask(roi);
-        pp_filter_domain = in.domain(roi);
+            roi = cv::boundingRect(tee.output.outer_contour);
+            imgproc::get_safe_ROI_rect(in.domain, roi);
+            area_mask        = area_mask(roi);
+            pp_filter_domain = in.domain(roi);
+        }
     }
 
     // 유효 픽셀만을 필터링합니다. 두 가지 메소드 중 하나를 적용하게 됩니다.
@@ -459,8 +471,9 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
     return {};
 }
 
-void billiards::pipes::table_marker_finder::link(shared_data& sd, input_type& i, pipepp::detail::option_base const& opt)
+void billiards::pipes::table_marker_finder::link(shared_data& sd, pipepp::execution_context& ec, input_type& i, pipepp::detail::option_base const& opt)
 {
+    PIPEPP_REGISTER_CONTEXT(ec);
     if (sd.table.contour.empty()) {
         i.contour = {};
         return;
@@ -495,6 +508,56 @@ void billiards::pipes::table_marker_finder::link(shared_data& sd, input_type& i,
         }
     } else {
         i.lightness = {};
+    }
+
+    if (pp::use_all_non_blue_area(opt)) {
+        PIPEPP_ELAPSE_SCOPE("Table Marker Finder Preprocessing");
+        // 존재하는 모든 non-blue 경계선을 확장합니다.
+        using namespace std;
+        using namespace cv;
+        auto edge = sd.table_filtered_edge;
+
+        Mat1b                 mask(i.domain.size(), 0);
+        vector<vector<Vec2i>> all_contours;
+        vector<Vec2i>         approxed;
+        vector<Vec2f>         approxedf;
+
+        findContours(edge, all_contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+        vector<vector<Vec2i>> inners;
+        vector<vector<Vec2i>> outers;
+        inners.reserve(all_contours.size()), outers.reserve(all_contours.size());
+
+        helpers::table_edge_extender ext = {
+          .table_rot                   = sd.table.rot,
+          .table_pos                   = sd.table.pos,
+          .p_imdesc                    = &sd.imdesc_bkup,
+          .table_contour               = {},
+          .num_insert_contour_vertexes = pp::num_inserted_contours(opt),
+          .table_border_range_outer    = pp::marker_range_outer(opt),
+          .table_border_range_inner    = pp::marker_range_inner(opt),
+          .should_draw                 = false};
+
+        auto eps = pp::m2::approx_epsilon(opt);
+        for (auto& contour : all_contours) {
+            approxPolyDP(contour, approxed, eps, true);
+            if (approxed.size() < 3) { continue; }
+            approxedf.assign(approxed.begin(), approxed.end());
+            ext.table_contour = approxedf;
+            ext(ec, mask);
+
+            inners.emplace_back().assign(ext.output.inner_contour.begin(), ext.output.inner_contour.end());
+            outers.emplace_back().assign(ext.output.outer_contour.begin(), ext.output.outer_contour.end());
+
+            ext.output.inner_contour.clear();
+            ext.output.outer_contour.clear();
+        }
+
+        drawContours(mask, outers, -1, 255, -1);
+        drawContours(mask, inners, -1, 0, -1);
+
+        i.all_none_blue = mask;
+    } else {
+        i.all_none_blue = {};
     }
 }
 
