@@ -465,16 +465,16 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
     PIPEPP_ELAPSE_BLOCK("Output callback execution")
     {
         nlohmann::json output_to_unity;
+        using std::chrono::duration;
         {
             auto& desc       = output_to_unity;
             using table_size = shared_data::table::size;
 
-            // -- 시작 파라미터 전송
-            auto inner                   = table_size::inner(sd);
-            desc["Table"]["InnerWidth"]  = inner[0];
-            desc["Table"]["InnerHeight"] = inner[1];
-
+            if (auto now = clock::now();
+                duration<float>(now - latest_setting_refresh_).count()
+                > legacy::setting_refresh_interval(ec)) //
             {
+                latest_setting_refresh_ = now;
                 using table_filter = shared_data::table::filter;
 
                 Vec3f tf[2]     = {table_filter::color_lo(sd), table_filter::color_hi(sd)};
@@ -483,12 +483,17 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
                        S,
                        V };
 
-                using unity                                     = legacy::unity;
-                desc["Table"]["EnableShaderApplyDepthOverride"] = unity::enable_table_depth_override(ec);
-                desc["Table"]["ShaderMinH"]                     = min[H] * (1 / 180.f);
-                desc["Table"]["ShaderMaxH"]                     = max[H] * (1 / 180.f);
-                desc["Table"]["ShaderMinS"]                     = min[S] * (1 / 255.f);
-                desc["Table"]["ShaderMaxS"]                     = max[S] * (1 / 255.f);
+                // -- 시작 파라미터 전송
+                auto inner                        = table_size::inner(sd);
+                desc["TableProps"]["InnerWidth"]  = inner[0];
+                desc["TableProps"]["InnerHeight"] = inner[1];
+
+                using unity                                          = legacy::unity;
+                desc["TableProps"]["EnableShaderApplyDepthOverride"] = unity::enable_table_depth_override(ec);
+                desc["TableProps"]["ShaderMinH"]                     = min[H] * (1 / 180.f);
+                desc["TableProps"]["ShaderMaxH"]                     = max[H] * (1 / 180.f);
+                desc["TableProps"]["ShaderMinS"]                     = min[S] * (1 / 255.f);
+                desc["TableProps"]["ShaderMaxS"]                     = max[S] * (1 / 255.f);
 
                 using phys                         = unity::phys;
                 desc["BallRadius"]                 = phys::simulation_ball_radius(ec);

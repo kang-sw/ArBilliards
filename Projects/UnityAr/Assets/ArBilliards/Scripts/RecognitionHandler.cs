@@ -65,7 +65,11 @@ public class RecognitionHandler : MonoBehaviour
 			public float[] Translation;
 			public float[] Orientation;
 			public float Confidence;
+		}
 
+		[Serializable]
+		public class TablePropertyDesc
+		{
 			public float InnerWidth;
 			public float InnerHeight;
 
@@ -78,6 +82,7 @@ public class RecognitionHandler : MonoBehaviour
 		}
 
 		public TableRecognitionDesc Table;
+		public TablePropertyDesc TableProps;
 
 		[Serializable]
 		public class BallRecognitionDesc
@@ -202,23 +207,13 @@ public class RecognitionHandler : MonoBehaviour
 		}
 
 		// 설정 등을 복사해옵니다.
-		if (recog.Table != null)
+
+		if (recog.CameraAnchorOffset != null)
 		{
-			Simulator.BallRadius = recog.BallRadius;
-			Simulator.TableWidth = recog.Table.InnerWidth;
-			Simulator.TableHeight = recog.Table.InnerHeight;
-
-			if (eyeframeMatRenderer != null)
-			{
-				eyeframeMatRenderer.sharedMaterial.SetInt("_EnableTableDepthOverride", recog.Table.EnableShaderApplyDepthOverride ? 1 : 0);
-				eyeframeMatRenderer.sharedMaterial.SetVector(TableHSVH, new Vector4(recog.Table.ShaderMinH, recog.Table.ShaderMaxH));
-				eyeframeMatRenderer.sharedMaterial.SetVector(TableHSVS, new Vector4(recog.Table.ShaderMinS, recog.Table.ShaderMaxS));
-			}
-
 			if (TablePillarTransforms != null)
 			{
-				var w = recog.Table.InnerWidth * .5f;
-				var h = recog.Table.InnerHeight * .5f;
+				var w = recog.TableProps.InnerWidth * .5f;
+				var h = recog.TableProps.InnerHeight * .5f;
 				var offsets = new Vector3[]
 				{
 					new Vector3(w, 0, h),
@@ -232,19 +227,33 @@ public class RecognitionHandler : MonoBehaviour
 					TablePillarTransforms[i].localPosition = offsets[i];
 				}
 			}
-		}
 
-		if (recog.Phys != null)
-		{
-			var phys = recog.Phys;
-			Simulator.BallRestitution = phys.BallRestitution;
-			Simulator.BallDamping = phys.BallDamping;
-			Simulator.BallStaticFriction = phys.BallStaticFriction;
-			Simulator.BallRollTime = phys.BallRollTime;
-			Simulator.TableRestitution = phys.TableRestitution;
-			Simulator.TableRollFriction = phys.TableRtoVCoeff;
-			Simulator.TableVelocityFriction = phys.TableVtoRCoeff;
+			Simulator.BallRadius = recog.BallRadius;
+			Simulator.TableWidth = recog.TableProps.InnerWidth;
+			Simulator.TableHeight = recog.TableProps.InnerHeight;
+
+			if (eyeframeMatRenderer != null)
+			{
+				eyeframeMatRenderer.sharedMaterial.SetInt(
+					"_EnableTableDepthOverride", recog.TableProps.EnableShaderApplyDepthOverride ? 1 : 0);
+				eyeframeMatRenderer.sharedMaterial.SetVector(
+					TableHSVH, new Vector4(recog.TableProps.ShaderMinH, recog.TableProps.ShaderMaxH));
+				eyeframeMatRenderer.sharedMaterial.SetVector(
+					TableHSVS, new Vector4(recog.TableProps.ShaderMinS, recog.TableProps.ShaderMaxS));
+			}
+
+			{
+				var phys = recog.Phys;
+				Simulator.BallRestitution = phys.BallRestitution;
+				Simulator.BallDamping = phys.BallDamping;
+				Simulator.BallStaticFriction = phys.BallStaticFriction;
+				Simulator.BallRollTime = phys.BallRollTime;
+				Simulator.TableRestitution = phys.TableRestitution;
+				Simulator.TableRollFriction = phys.TableRtoVCoeff;
+				Simulator.TableVelocityFriction = phys.TableVtoRCoeff;
+			}
 		}
+		 
 
 		if (recog.CameraAnchorOffset != null && recog.CameraAnchorOffset.Length == 3 && CameraAnchorOffset)
 		{

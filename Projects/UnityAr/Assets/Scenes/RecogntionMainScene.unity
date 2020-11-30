@@ -709,6 +709,26 @@ PrefabInstance:
       propertyPath: camTransform
       value: 
       objectReference: {fileID: 1359819197}
+    - target: {fileID: 1999053810251362573, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: b384f231fa782044a826340074e9dfa7, type: 2}
+    - target: {fileID: 1999053810251362575, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1.653
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810251362575, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.823
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810251362576, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 1999053810412700374, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: LookTransform

@@ -232,6 +232,8 @@ struct output_pipe {
 
     PIPEPP_CATEGORY(legacy, "Legacy")
     {
+        PIPEPP_OPTION(setting_refresh_interval, 3.0f);
+
         PIPEPP_CATEGORY(unity, "Unity")
         {
             PIPEPP_OPTION(enable_table_depth_override, true);
@@ -257,6 +259,10 @@ struct output_pipe {
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
     static void        link_from_previous(shared_data& sd, input_type& i) { i = &sd; }
     static auto        factory() { return pipepp::make_executor<output_pipe>(); }
+
+private:
+    using clock = std::chrono::system_clock;
+    clock::time_point latest_setting_refresh_;
 };
 
 } // namespace billiards::pipes
