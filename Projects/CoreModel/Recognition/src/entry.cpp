@@ -17,10 +17,11 @@
 using namespace std;
 using nlohmann::json;
 
+tcp_connection_desc     g_latest_conn;
 billiards::recognizer_t g_recognizer;
 tcp_server              g_app;
 
-void ui_on_refresh();
+void ui_on_refresh(billiards::recognizer_t::frame_desc const* fd);
 
 // ================================================================================================
 struct image_desc_t {
@@ -106,23 +107,28 @@ private:
             memcpy(image.depth.data, ochnk->depth_view.data(), ochnk->depth_view.size());
 
             image.camera         = odesc->camera;
-            auto improc_callback = [sock = odesc->connection](billiards::recognizer_t::frame_desc const& image, json const& to_send) {
-                if (auto conn = sock.lock()) {
-                    // 보낼 JSON 정리
-                    auto p_str = make_shared<string>();
-                    *p_str     = to_send.dump();
-                    p_str->push_back('\n');
+            auto improc_callback = [sock = odesc->connection] //
+              (billiards::recognizer_t::frame_desc const& image, json const& to_send) {
+                  if (auto conn = sock.lock()) {
+                      // 보낼 JSON 정리
+                      auto p_str = make_shared<string>();
+                      *p_str     = to_send.dump();
+                      p_str->push_back('\n');
 
-                    conn->async_write_some(boost::asio::const_buffer(p_str->c_str(), p_str->length()), [p_str](boost::system::error_code ec, std::size_t cnt) {
-                        //cout << ec << "::" << cnt << " bytes sent\n";
-                    });
+                      conn->async_write_some(
+                        boost::asio::const_buffer(p_str->c_str(), p_str->length()),
+                        [p_str](boost::system::error_code ec, std::size_t cnt) {
+                            //cout << ec << "::" << cnt << " bytes sent\n";
+                        });
 
-                    ui_on_refresh();
-                }
-            };
+                      ui_on_refresh(&image);
+                  }
+              };
             g_recognizer.refresh_image(image, move(improc_callback));
 
-            table_.erase(it);
+            if (lock_type lck(mtx_); true) {
+                table_.erase(it);
+            }
         }
     }
 
@@ -308,9 +314,10 @@ int main(void)
           "0.0.0.0",
           16667,
           {},
-          [](boost::system::error_code const& err, tcp_connection_desc, tcp_server::read_handler_type& out_handler) {
+          [](boost::system::error_code const& err, tcp_connection_desc tcon, tcp_server::read_handler_type& out_handler) {
               cout << "info: connection established for image request channel \n";
-              out_handler = json_handler_t(&on_image_request);
+              out_handler   = json_handler_t(&on_image_request);
+              g_latest_conn = tcon;
           },
           65536);
     }

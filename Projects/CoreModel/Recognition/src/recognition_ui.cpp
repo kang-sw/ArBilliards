@@ -22,7 +22,9 @@
 #include "pipepp/gui/option_panel.hpp"
 #include "pipepp/gui/pipeline_board.hpp"
 #include "pipepp/pipeline.hpp"
+#include "tcp_server.hpp"
 
+extern tcp_connection_desc     g_latest_conn;
 extern billiards::recognizer_t g_recognizer;
 static nlohmann::json          g_props;
 
@@ -248,6 +250,19 @@ static void json_recursive_substitute(json& to, json const& from)
     }
 }
 
+static const auto recognizer_handler = [](auto&& imdsc, nlohmann::json const& data) {
+    if (auto conn = g_latest_conn.socket.lock()) {
+        auto p_data = make_shared<string>(data.dump());
+        p_data->push_back('\n');
+        conn->async_write_some(
+          boost::asio::const_buffer{p_data->c_str(), p_data->size()},
+          [p_data](auto&&, auto&&) {});
+    }
+
+    ui_on_refresh(&imdsc);
+};
+
+void ui_on_refresh(billiards::recognizer_t::frame_desc const* fd);
 void exec_ui()
 {
     using namespace nana;
@@ -578,7 +593,7 @@ void exec_ui()
     });
     snapshot_loader.elapse([&]() {
         if (snapshot) {
-            g_recognizer.refresh_image(*snapshot, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); });
+            g_recognizer.refresh_image(*snapshot, recognizer_handler);
         } else {
             snapshot_loader.stop();
         }
@@ -691,7 +706,9 @@ void exec_ui()
             if (previous) {
                 n->video.is_busy = true;
                 auto tm          = clamp(vid.time_point - previous->time_point, 0.001f, 0.1f) * 0.75f;
-                g_recognizer.refresh_image(previous->img, [](auto&, auto&) { void ui_on_refresh(); ui_on_refresh(); });
+
+                g_recognizer.refresh_image(previous->img, recognizer_handler);
+
                 video_player.interval(chrono::milliseconds((int)(is_playing_video ? tm * 1000.f : 100)));
             }
             previous = vid;
@@ -819,7 +836,7 @@ void exec_ui()
     n.reset();
 }
 
-void ui_on_refresh()
+void ui_on_refresh(billiards::recognizer_t::frame_desc const* fd)
 {
     if (auto n = n_weak.lock(); n) {
         {
@@ -831,7 +848,7 @@ void ui_on_refresh()
         if (n->video.is_recording) {
             assert(n->video.strm_out);
             auto        time = chrono::duration<float>(chrono::system_clock::now() - n->video.pivot_time).count();
-            video_frame f    = {.time_point = time, .img = g_recognizer.get_image_snapshot()};
+            video_frame f    = {.time_point = time, .img = *fd};
             *n->video.strm_out << f;
         } else if (n->video.strm_out) {
             n->video.strm_out.reset();

@@ -460,7 +460,7 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
             {
                 using table_filter = shared_data::table::filter;
 
-                Vec3f tf[2]     = {table_filter::color_lo(ec), table_filter::color_hi(ec)};
+                Vec3f tf[2]     = {table_filter::color_lo(sd), table_filter::color_hi(sd)};
                 auto [min, max] = tf;
                 enum { H,
                        S,

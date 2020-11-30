@@ -234,7 +234,7 @@ struct output_pipe {
         PIPEPP_CATEGORY(unity, "Unity")
         {
             PIPEPP_OPTION(enable_table_depth_override, true);
-            PIPEPP_OPTION(anchor_offset_vector, true);
+            PIPEPP_OPTION(anchor_offset_vector, cv::Vec3f(0, 0, 0));
 
             PIPEPP_CATEGORY(phys, "Phys")
             {

@@ -100,8 +100,10 @@ void channel_type::start(size_t buflen)
                 auto  found_it = srv.io_strands.find(strand_group_hash);
 
                 if (found_it == srv.io_strands.end()) {
-                    auto [it, succeeded] = srv.io_strands.try_emplace(strand_group_hash, make_unique<io_context::strand>(*srv.io));
-                    found_it             = it;
+                    auto [it, succeeded]
+                      = srv.io_strands.try_emplace(strand_group_hash,
+                                                   make_unique<io_context::strand>(*srv.io));
+                    found_it = it;
                 }
 
                 m.strand = found_it->second.get();
@@ -128,7 +130,12 @@ void channel_type::start(size_t buflen)
         ~connection_handler_type() noexcept = default;
     };
 
-    connection_handler_type handler = {.body = std::make_shared<connection_handler_type::body_type>(connection_handler_type::body_type{*this, nullptr, std::make_shared<tcp::socket>(io()), std::vector<char>()})};
+    connection_handler_type handler = {
+      .body = std::make_shared<connection_handler_type::body_type>(
+        connection_handler_type::body_type{*this,
+                                           nullptr,
+                                           std::make_shared<tcp::socket>(io()),
+                                           std::vector<char>()})};
     handler.body->membuf.resize(buflen);
     acpt_.async_accept(*handler.body->socket, move(handler));
 }
@@ -151,7 +158,10 @@ void tcp_server::open_channel(std::string_view ip_expr, uint16_t port, tcp_serve
     }
 
     auto& m       = *pimpl_;
-    auto& channel = m.channels.emplace_back(make_unique<channel_type>(channel_type(m, tcp::acceptor(*m.io, tcp::endpoint(make_address(ip_expr), port)), std::move(on_assign_strand_group), std::move(on_accept))));
+    auto& channel = m.channels.emplace_back(
+      make_unique<channel_type>(
+        channel_type(m, tcp::acceptor(*m.io, tcp::endpoint(make_address(ip_expr), port)),
+                     std::move(on_assign_strand_group), std::move(on_accept))));
 
     channel->start(default_buffer_size);
 }
