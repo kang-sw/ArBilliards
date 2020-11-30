@@ -240,30 +240,82 @@ auto billiards::pipes::shared_data::get_ball_raw(size_t bidx) const -> ball_posi
     return balls_[bidx].second > 0 ? balls_[bidx].first : balls_prev_[bidx];
 }
 
-void billiards::pipes::shared_data::_on_all_ball_gathered() const
+void billiards::pipes::shared_data::_on_all_ball_gathered()
 {
-#if 0
-    auto previous = balls_prev_[ball_idx];
-    auto now = ball_position_desc::clock::now();
-    auto dt = previous.dt(now);
+    using namespace cv;
+    using namespace std;
+    using kangsw::counter;
 
-    auto delta = cv::norm(pos - previous.pos);
-    auto spd = delta / dt;
-
-    using option = ball::movement::correction;
-    if (spd > option::max_speed(*this)) {
-        balls_[ball_idx].emplace(previous); // 이전 위치 계승
-    } else if (delta < option::halted_tolerance(*this)) {
-        auto alpha = option::halt_filter_alpha(*this) * conf;
-        auto newpos = previous.pos * (1 - alpha) + pos * alpha;
-        auto& elem = balls_[ball_idx].emplace();
-        elem.tp = launch_time_point();
-        elem.pos = newpos;
-        elem.vel = {}; // Suspend
-    } else {
-        // 그대로 적용
+    float ball_weights[4];
+    Vec3f ballpos[4];
+    for (auto idx : counter(std::size(ball_weights))) {
+        ball_weights[idx] = balls_[idx].second;
+        ballpos[idx]      = balls_[idx].first.pos;
     }
-#endif
+
+    using movement = ball::movement::correction;
+    auto& ec       = *this;
+
+    // 공의 위치를 이전과 비교합니다.
+    ball_position_set descs;
+    auto              prev            = balls_prev_;
+    auto              now             = chrono::system_clock::now();
+    double            max_error_speed = movement::max_speed(ec);
+
+    // 만약 0번 공의 weight가 0인 경우, 즉 공이 하나만 감지된 경우
+    // 1번 공의 감지된 위치와 캐시된 0, 1번 공 위치를 비교하고, 1번 공과 더 동떨어진 것을 선택합니다.
+    if (ball_weights[0] == 0 && ball_weights[1]) {
+        auto p1         = ballpos[1];
+        auto diffs      = {norm(p1 - prev[0].pos), norm(p1 - prev[1].pos)};
+        auto farther    = distance(diffs.begin(), max_element(diffs.begin(), diffs.end()));
+        ball_weights[0] = 0.51f; // magic number ...
+        ballpos[0]      = prev[farther].pos;
+    }
+
+    // 이전 위치와 비교해, 자리가 바뀐 경우를 처리합니다.
+    if (ball_weights[1] && ball_weights[0]) {
+        auto p   = ballpos[0],
+             ps0 = prev[0].ps(now),
+             ps1 = prev[1].ps(now);
+
+        if (norm(ps1 - p) < norm(ps0 - p)) {
+            swap(ballpos[0], ballpos[1]);
+            swap(ball_weights[0], ball_weights[1]);
+        }
+    }
+
+    double alpha     = movement::halt_filter_alpha(ec);
+    double jump_dist = movement::halted_tolerance(ec);
+    for (int i = 0; i < 4; ++i) {
+        auto& d    = prev[i];
+        auto  bidx = std::max(0, i - 1);
+        if (ball_weights[i] < 1e-6) {
+            continue;
+        }
+
+        auto dt          = d.dt(now);
+        auto dp          = ballpos[i] - d.pos;
+        auto vel_elapsed = dp / dt;
+
+        // 속도 차이가 오차 범위 이내일때만 이를 반영합니다.
+        // 속도가 오차 범위를 벗어난 경우 현재 위치와 속도를 갱신하지 않습니다.
+        //
+        if (norm(vel_elapsed - d.vel) < max_error_speed) {
+            // 만약 jump distance보다 위치 변화가 적다면, LPF로 위치를 누적합니다.
+            if (norm(dp) < jump_dist) {
+                ballpos[i] = d.pos + (ballpos[i] - d.pos) * alpha;
+            }
+
+            descs[i] = ball_position_desc{.pos = ballpos[i], .vel = vel_elapsed, .tp = launch_time_point()};
+        } else {
+            ball_weights[i] = 0;
+        }
+    }
+
+    for (auto idx : counter(size(ball_weights))) {
+        balls_[idx].first  = descs[idx];
+        balls_[idx].second = ball_weights[idx];
+    }
 }
 
 pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
@@ -475,7 +527,7 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
                 > legacy::setting_refresh_interval(ec)) //
             {
                 latest_setting_refresh_ = now;
-                using table_filter = shared_data::table::filter;
+                using table_filter      = shared_data::table::filter;
 
                 Vec3f tf[2]     = {table_filter::color_lo(sd), table_filter::color_hi(sd)};
                 auto [min, max] = tf;

@@ -155,12 +155,12 @@ public:
     void    update_ball_pos(size_t ball_idx, cv::Vec3f pos, float conf);
     auto    get_ball(size_t bidx) const -> ball_position_desc;
     auto    get_ball_raw(size_t bidx) const -> ball_position_desc;
-    auto    get_ball_conf(size_t bidx) { return balls_[bidx].second; }
+    auto    get_ball_conf(size_t bidx) const { return balls_[bidx].second; }
 
     std::shared_ptr<shared_state> state_;
 
 public:
-    void _on_all_ball_gathered() const;
+    void _on_all_ball_gathered();
 
 private:
     ball_position_set                    balls_prev_;
