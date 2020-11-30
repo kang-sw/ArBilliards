@@ -133,6 +133,16 @@
           "name": "CMAKE_CXX_FLAGS_DEBUG",
           "value": "/MDd /Zi /Ob2 /Od",
           "type": "STRING"
+        },
+        {
+          "name": "PhysX_INCLUDE_DIR",
+          "value": "D:\\Repositories\\PhysX\\physx\\install\\vc15win64\\PhysX\\include",
+          "type": "PATH"
+        },
+        {
+          "name": "PhysX_LIBRARY_DIR",
+          "value": "D:\\Repositories\\PhysX\\physx\\install\\vc15win64\\PhysX\\bin\\win.x86_64.vc142.md\\release",
+          "type": "PATH"
         }
       ]
     },

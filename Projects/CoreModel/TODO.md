@@ -17,7 +17,10 @@
 			events: EventNode[]
 			
 			struct PathNodeSet{
-				
+				timeStamp: float
+				position: Vec3
+				velocity: Vec3
+				angularVelocity: Vec3
 			}
 
 			struct EventNode{
