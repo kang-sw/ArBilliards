@@ -141,7 +141,7 @@ public class JsonIPC : MonoBehaviour
 
 	// Update is called once per frame
 	void Update()
-	{ 
+	{
 		if (JsonRecognitionResult != null)
 		{
 			var JsonStr = JsonRecognitionResult;
@@ -172,6 +172,12 @@ public class JsonIPC : MonoBehaviour
 			return;
 		}
 
+		try
+		{
+			Cmd.RdS.ReadLineAsync().ContinueWith(OnAsyncResultJsonLineRecv);
+		}
+		catch (Exception) { }
+
 		if (TrackingTransform && Zed.IsZEDReady && !bProcessingAsyncReadback)
 		{
 			// Debug.Log(JsonUtility.ToJson(Tracking));
@@ -195,9 +201,9 @@ public class JsonIPC : MonoBehaviour
 				};
 			}
 
-			if (Pixels == null)
+			if (!Pixels)
 				Pixels = Zed.zedCamera.CreateTextureImageType(VIEW.LEFT);
-			if (Depths == null)
+			if (!Depths)
 				Depths = Zed.zedCamera.CreateTextureMeasureType(MEASURE.DEPTH);
 
 			O.RgbW = Pixels.width;
@@ -259,11 +265,6 @@ public class JsonIPC : MonoBehaviour
 			var PixelReadRequest = AsyncGPUReadback.Request(Pixels, 0, PixelCallback);
 			var DepthReadRequest = AsyncGPUReadback.Request(Depths, 0, DepthCallback);
 
-			try
-			{
-				Cmd.RdS.ReadLineAsync().ContinueWith(OnAsyncResultJsonLineRecv);
-			}
-			catch (InvalidOperationException) { }
 		}
 	}
 

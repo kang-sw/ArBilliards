@@ -213,6 +213,10 @@ void billiards::pipes::shared_data::store_image_in_colorspace(kangsw::hash_index
 void billiards::pipes::shared_data::update_ball_pos(size_t ball_idx, cv::Vec3f pos, float conf)
 {
     if (ball_idx >= std::size(balls_)) { return; }
+    // 공의 좌표를 테이블 기준으로 변환해서 저장.
+    using namespace imgproc;
+    auto tr_inv = imgproc::get_transform_matx_fast(table.pos, table.rot).inv();
+    pos         = subvec<0, 3>(tr_inv * concat_vec(pos, 1.f));
 
     auto& [elem, confidence] = balls_[ball_idx];
     elem.tp                  = launch_time_point();
@@ -221,6 +225,17 @@ void billiards::pipes::shared_data::update_ball_pos(size_t ball_idx, cv::Vec3f p
 }
 
 billiards::pipes::ball_position_desc billiards::pipes::shared_data::get_ball(size_t bidx) const
+{
+    auto ball = balls_[bidx].second > 0 ? balls_[bidx].first : balls_prev_[bidx];
+
+    // 공의 좌표를 월드 기준으로 변환 후 내보냄
+    using namespace imgproc;
+    auto tr  = get_transform_matx_fast(table.pos, table.rot);
+    ball.pos = subvec<0, 3>(tr * concat_vec(ball.pos, 1.f));
+    return ball;
+}
+
+auto billiards::pipes::shared_data::get_ball_raw(size_t bidx) const -> ball_position_desc
 {
     return balls_[bidx].second > 0 ? balls_[bidx].first : balls_prev_[bidx];
 }
@@ -390,7 +405,9 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
 
         // 공의 위치 업데이트
         for (auto idx : kangsw::counter(balls.size())) {
-            balls[idx] = sd.get_ball(idx);
+            // 공의 좌표를 테이블 기준으로 변환해서 저장합니다.
+            if (sd.get_ball_conf(idx) < 1e-6f) { continue; }
+            balls[idx] = sd.get_ball_raw(idx);
         }
     }
 
@@ -488,7 +505,7 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
 
             desc["Table"]["Translation"] = sd.table.pos;
             desc["Table"]["Orientation"] = sd.table.rot;
-            desc["Table"]["Confidence"]  = sd.table.confidence; //TODO: 테이블 confidence 설정 로직 작성
+            desc["Table"]["Confidence"]  = sd.table.confidence;
 
             char const* ball_names[] = {"Red1", "Red2", "Orange", "White"};
             for (auto idx : kangsw::counter(4)) {

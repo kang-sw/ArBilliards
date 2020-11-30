@@ -592,7 +592,7 @@ PrefabInstance:
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
       propertyPath: inputType
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
@@ -694,6 +694,16 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1999053809086491766, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053809649160519, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 1999053809856864291, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
       propertyPath: camTransform
@@ -778,6 +788,16 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: BilliardsManager
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810839942397, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810884917789, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 663baa869fdc6a342856b54d68f78961, type: 3}
