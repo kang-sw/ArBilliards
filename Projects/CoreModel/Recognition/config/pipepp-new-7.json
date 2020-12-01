@@ -1,0 +1,598 @@
+{
+    "___pipes": {
+        "ball finder: Orange": {
+            "Colors.Lights.0.pos": [
+                -3,
+                -24,
+                -3
+            ],
+            "Colors.Lights.0.rgb": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "Colors.Lights.1.pos": [
+                3,
+                -24,
+                3
+            ],
+            "Colors.Lights.1.rgb": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "Colors.Lights.2.pos": [
+                0.0,
+                1.0,
+                0.0
+            ],
+            "Colors.Lights.2.rgb": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "Colors.Lights.3.pos": [
+                0.0,
+                1.0,
+                0.0
+            ],
+            "Colors.Lights.3.rgb": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "Colors.Lights.4.pos": [
+                0.0,
+                1.0,
+                0.0
+            ],
+            "Colors.Lights.4.rgb": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "Colors.Lights.ambient_rgb": [
+                0.2,
+                0.1,
+                0.1
+            ],
+            "Colors.Lights.n_lightings": 2,
+            "Colors.base_rgb": [
+                0.8,
+                0.6,
+                0.1
+            ],
+            "Colors.center_area_color_range_hi": [
+                40,
+                255,
+                255
+            ],
+            "Colors.center_area_color_range_lo": [
+                0,
+                110,
+                0
+            ],
+            "Colors.fresnel0": [
+                0.05,
+                0.05,
+                0.05
+            ],
+            "Colors.roughness": 0.05,
+            "Debug.draw_final_ball_position": false,
+            "Debug.kernel_display_scale": 200,
+            "Debug.render_3dresult_on_debug_mat": true,
+            "Debug.show_debug_mat": false,
+            "Debug.show_grid_representation": false,
+            "Debug.show_realtime_kernel": true,
+            "Debug.suitability_map_scale": 2,
+            "Kernels.ball_radius": 0.0302,
+            "Kernels.n_dots": 1,
+            "Kernels.negative_weight_range": [
+                1.04,
+                1.2
+            ],
+            "Kernels.persp_linear_distance_amp": 1.414,
+            "Kernels.random_seed": 42,
+            "Matching.Optimization.grid_area_threshold": 0.01,
+            "Matching.Optimization.grid_size": 128,
+            "Matching.Optimization.max_concurrent_kernels": 5,
+            "Matching.Optimization.max_pixels_per_grid": 4096,
+            "Matching.color_space": "RGB",
+            "Matching.error_base": 2444,
+            "Matching.error_weight": [
+                0,
+                1,
+                1
+            ],
+            "Matching.n_center_dilate": 6,
+            "Matching.n_center_erode": 6,
+            "Matching.negative_weight": 1.0,
+            "Searching.confidence_threshold": 0.25,
+            "Searching.n_balls": 1,
+            "Searching.next_ball_erase_amp": 1.0
+        },
+        "ball finder: Red": {
+            "Colors.Lights.0.pos": [
+                1,
+                -24,
+                1
+            ],
+            "Colors.Lights.0.rgb": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "Colors.Lights.1.pos": [
+                -1,
+                -24,
+                -1
+            ],
+            "Colors.Lights.1.rgb": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "Colors.Lights.2.pos": [
+                -3,
+                4,
+                3
+            ],
+            "Colors.Lights.2.rgb": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "Colors.Lights.3.pos": [
+                3,
+                4,
+                -3
+            ],
+            "Colors.Lights.3.rgb": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "Colors.Lights.4.pos": [
+                -3,
+                4,
+                -3
+            ],
+            "Colors.Lights.4.rgb": [
+                0.5,
+                0.5,
+                0.5
+            ],
+            "Colors.Lights.ambient_rgb": [
+                0.2,
+                0.2,
+                0.2
+            ],
+            "Colors.Lights.n_lightings": 2,
+            "Colors.base_rgb": [
+                1,
+                0.2,
+                0.2
+            ],
+            "Colors.center_area_color_range_hi": [
+                0,
+                255,
+                255
+            ],
+            "Colors.center_area_color_range_lo": [
+                150,
+                140,
+                30
+            ],
+            "Colors.fresnel0": [
+                0.02,
+                0.02,
+                0.02
+            ],
+            "Colors.roughness": 0.3,
+            "Debug.draw_final_ball_position": false,
+            "Debug.kernel_display_scale": 128,
+            "Debug.render_3dresult_on_debug_mat": false,
+            "Debug.show_debug_mat": false,
+            "Debug.show_grid_representation": true,
+            "Debug.show_realtime_kernel": false,
+            "Debug.suitability_map_scale": 1.414,
+            "Kernels.ball_radius": 0.0302,
+            "Kernels.n_dots": 256,
+            "Kernels.negative_weight_range": [
+                1.05,
+                1.1
+            ],
+            "Kernels.persp_linear_distance_amp": 1.414,
+            "Kernels.random_seed": 42,
+            "Matching.Optimization.grid_area_threshold": 0.01,
+            "Matching.Optimization.grid_size": 128,
+            "Matching.Optimization.max_concurrent_kernels": 5,
+            "Matching.Optimization.max_pixels_per_grid": 2048,
+            "Matching.color_space": "RGB",
+            "Matching.error_base": 3000.0,
+            "Matching.error_weight": [
+                0.03,
+                1,
+                1
+            ],
+            "Matching.n_center_dilate": 6,
+            "Matching.n_center_erode": 6,
+            "Matching.negative_weight": 5,
+            "Searching.confidence_threshold": 0.25,
+            "Searching.n_balls": 2,
+            "Searching.next_ball_erase_amp": 1.0
+        },
+        "ball finder: White": {
+            "Colors.Lights.0.pos": [
+                -3,
+                -10,
+                3
+            ],
+            "Colors.Lights.0.rgb": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "Colors.Lights.1.pos": [
+                3,
+                -10,
+                -3
+            ],
+            "Colors.Lights.1.rgb": [
+                0.7,
+                0.7,
+                0.7
+            ],
+            "Colors.Lights.2.pos": [
+                0.0,
+                1.0,
+                0.0
+            ],
+            "Colors.Lights.2.rgb": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "Colors.Lights.3.pos": [
+                0.0,
+                1.0,
+                0.0
+            ],
+            "Colors.Lights.3.rgb": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "Colors.Lights.4.pos": [
+                0.0,
+                1.0,
+                0.0
+            ],
+            "Colors.Lights.4.rgb": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "Colors.Lights.ambient_rgb": [
+                0.15,
+                0.15,
+                0.15
+            ],
+            "Colors.Lights.n_lightings": 2,
+            "Colors.base_rgb": [
+                0.95,
+                0.95,
+                0.89
+            ],
+            "Colors.center_area_color_range_hi": [
+                255,
+                80,
+                255
+            ],
+            "Colors.center_area_color_range_lo": [
+                0,
+                0,
+                90
+            ],
+            "Colors.fresnel0": [
+                0.05000000074505806,
+                0.05000000074505806,
+                0.05000000074505806
+            ],
+            "Colors.roughness": 0.9,
+            "Debug.draw_final_ball_position": false,
+            "Debug.kernel_display_scale": 200,
+            "Debug.render_3dresult_on_debug_mat": false,
+            "Debug.show_debug_mat": false,
+            "Debug.show_grid_representation": false,
+            "Debug.show_realtime_kernel": true,
+            "Debug.suitability_map_scale": 1.0,
+            "Kernels.ball_radius": 0.03029000014066696,
+            "Kernels.n_dots": 10.0,
+            "Kernels.negative_weight_range": [
+                1.0,
+                1.3
+            ],
+            "Kernels.persp_linear_distance_amp": 1.414,
+            "Kernels.random_seed": 42,
+            "Matching.Optimization.grid_area_threshold": 0.01,
+            "Matching.Optimization.grid_size": 128,
+            "Matching.Optimization.max_concurrent_kernels": 4,
+            "Matching.Optimization.max_pixels_per_grid": 3072,
+            "Matching.color_space": "RGB",
+            "Matching.error_base": 3000.0,
+            "Matching.error_weight": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "Matching.n_center_dilate": 6,
+            "Matching.n_center_erode": 6,
+            "Matching.negative_weight": 1.0,
+            "Searching.confidence_threshold": 0.25,
+            "Searching.n_balls": 1,
+            "Searching.next_ball_erase_amp": 1.0
+        },
+        "input": {
+            ".desired_image_width": 1280,
+            "Debug.show_sources": false,
+            "Debug.test_color_spaces": false
+        },
+        "output": {
+            "Debug.render_debug_glyphs": true,
+            "Debug.show_debug_mat": true,
+            "Debug.table_top_view_scale": 640,
+            "Legacy.Unity.Phys.ball_restitution": 0.64,
+            "Legacy.Unity.Phys.roll_begin_time": 0.77,
+            "Legacy.Unity.Phys.roll_coeff_on_contact": 0.77,
+            "Legacy.Unity.Phys.simulation_ball_radius": 0.0302,
+            "Legacy.Unity.Phys.table_restitution": 0.77,
+            "Legacy.Unity.Phys.table_roll_to_velocity_coeff": 0.77,
+            "Legacy.Unity.Phys.table_velocity_to_roll_coeff": 0.77,
+            "Legacy.Unity.Phys.velocity_damping": 0.77,
+            "Legacy.Unity.anchor_offset_vector": [
+                0,
+                0.0,
+                0.02
+            ],
+            "Legacy.Unity.enable_table_depth_override": true,
+            "Legacy.setting_refresh_interval": 3.0
+        },
+        "solve table edge": {
+            "Debug.debug_show_mats": true,
+            "Debug.debug_show_partial_glyphs": false,
+            "Flag.enable_partial_parallel_solve": true,
+            "Flag.enable_partial_solver": false,
+            "Partial.Cull.cull_window_bottom_right": [
+                0.99,
+                0.9
+            ],
+            "Partial.Cull.cull_window_top_left": [
+                0.01,
+                0.02
+            ],
+            "Partial.Solver.border_margin": 3,
+            "Partial.Solver.candidates": 2000,
+            "Partial.Solver.distance_variant": 0.12,
+            "Partial.Solver.error_function_base": 1.1,
+            "Partial.Solver.iteration": 5,
+            "Partial.Solver.iteration_narrow_rate": 0.5,
+            "Partial.Solver.rotation_amount_variant": 0.05,
+            "Partial.Solver.rotation_axis_variant": 0.05,
+            "Partial.apply_weight": 0.2,
+            "PnP.pnp_conf_threshold": 0.6,
+            "PnP.pnp_error_exp_fn_base": 1.06
+        },
+        "table contour searcher": {
+            "Approximation.epsilon0": 11,
+            "Approximation.epsilon1": 24,
+            "Approximation.make_convex_hull": true,
+            "Debug.approxed_contour_color": [
+                255,
+                255,
+                0
+            ],
+            "Debug.contour_color": [
+                255,
+                255,
+                255
+            ],
+            "Debug.show_all_contours": true,
+            "Debug.show_approx_0_contours": true,
+            "Debug.show_input": true,
+            "Filtering.min_area_ratio": 0.05,
+            "Preprocess.prev_table_scale": 0.6
+        },
+        "table marker search": {
+            ".marker_radius": 0.01,
+            ".show_debug_mats": true,
+            "Debug.current_kernel_view_scale": 9,
+            "Debug.depth_view_multiply": 0.3,
+            "Debug.kernel_view_size": 220,
+            "Debug.suitability_view_multiply": 1,
+            "Filtering.Convolution.color_distance_error_base": 2,
+            "Filtering.Convolution.negative_kernel_weight": 1,
+            "Filtering.Convolution.pivot_color": [
+                40,
+                0,
+                255
+            ],
+            "Filtering.Convolution.pivot_color_weight": [
+                0,
+                10,
+                10
+            ],
+            "Filtering.Method 0: Range Filter.range_hi": [
+                255,
+                100,
+                255
+            ],
+            "Filtering.Method 0: Range Filter.range_lo": [
+                0,
+                0,
+                155
+            ],
+            "Filtering.Method 1: Laplacian Filter.enable_gpu": false,
+            "Filtering.Method 1: Laplacian Filter.holl_fill_num_dilate": 0,
+            "Filtering.Method 1: Laplacian Filter.holl_fill_num_erode": 0,
+            "Filtering.Method 1: Laplacian Filter.threshold": 0.4,
+            "Filtering.convolution_color_space": "HSV",
+            "Filtering.filter_color_space": "HSV",
+            "Filtering.method": 0,
+            "Kernel.generator_negative_radius": 55,
+            "Kernel.generator_positive_radius": 25,
+            "Kernel.negative_area": [
+                1,
+                1.3
+            ],
+            "Kernel.positive_area": [
+                0.1,
+                1.0
+            ],
+            "Kernel.random_seed": 6,
+            "Preprocessing.All Area.approx_epsilon": 45,
+            "Preprocessing.marker_range_inner": 0.4,
+            "Preprocessing.marker_range_outer": 0.7,
+            "Preprocessing.num_inserted_contours": 5,
+            "Preprocessing.use_all_non_blue_area": true
+        },
+        "table marker solver": {
+            "Solver.confidence_amp": 0.2,
+            "Solver.do_parallel": true,
+            "Solver.error_base": 1.08,
+            "Solver.iteration": 3,
+            "Solver.min_valid_marker_size": 1,
+            "Solver.narrow_rate_pos": 0.5,
+            "Solver.narrow_rate_rot": 0.5,
+            "Solver.num_cands": 1333,
+            "Solver.num_iter": 8,
+            "Solver.variant_pos": 0.33,
+            "Solver.variant_rot": 0.35,
+            "Solver.variant_rot_axis": 0.1,
+            "debug.enable_debug_glyphs": true,
+            "debug.enable_debug_mats": true
+        }
+    },
+    "___shared": {
+        ".camera_FOV": [
+            84.855,
+            53.27
+        ],
+        "Ball.Movement.Correction.halt_filter_alpha": 0.20000000298023224,
+        "Ball.Movement.Correction.halted_tolerance": 0.009999999776482582,
+        "Ball.Movement.Correction.max_speed": 5.0,
+        "Ball.offset_from_table_plane": 0.002,
+        "Ball.radius": 0.030239439175,
+        "Ballradius": 0.0302,
+        "Common.camera_FOV": [
+            84.855,
+            53.27
+        ],
+        "Commoncamera_FOV": [
+            84.855,
+            53.27
+        ],
+        "Processing.Clustering.Preprocess.enable_hsv_adjust": false,
+        "Processing.Clustering.Preprocess.enable_hsv_filter": false,
+        "Processing.Clustering.Preprocess.v_add": 0,
+        "Processing.Clustering.Preprocess.v_mult": 0.45,
+        "Table.Filter.alpha_pos": 0.2,
+        "Table.Filter.alpha_rot": 0.2,
+        "Table.Filter.color_hi": [
+            200,
+            255,
+            255
+        ],
+        "Table.Filter.color_lo": [
+            110,
+            150,
+            60
+        ],
+        "Table.Filter.jump_threshold_distance": 0.5,
+        "Table.Filteralpha_pos": 0.8,
+        "Table.Filteralpha_rot": 0.8,
+        "Table.Filterjump_threshold_distance": 0.1,
+        "Table.Marker.count_x": 9,
+        "Table.Marker.count_y": 5,
+        "Table.Marker.dist_from_felt_long": 0.01,
+        "Table.Marker.dist_from_felt_short": 0.012,
+        "Table.Marker.felt_height": 0.9150000214576721,
+        "Table.Marker.felt_width": 1.7350000143051147,
+        "Table.Marker.height_shift_a": 0.0,
+        "Table.Marker.height_shift_b": 0,
+        "Table.Marker.step": 0.20600000023841858,
+        "Table.Marker.width_shift_a": 0.0,
+        "Table.Marker.width_shift_b": 0.0,
+        "Table.Markercount_x": 9,
+        "Table.Markercount_y": 5,
+        "Table.Markerdist_from_felt_long": 0.012000000104308128,
+        "Table.Markerdist_from_felt_short": 0.012000000104308128,
+        "Table.Markerfelt_height": 0.9150000214576721,
+        "Table.Markerfelt_width": 1.7350000143051147,
+        "Table.Markerheight_shift_a": 0.0,
+        "Table.Markerheight_shift_b": 0.009999999776482582,
+        "Table.Markerstep": 0.20600000023841858,
+        "Table.Markerwidth_shift_a": 0.0,
+        "Table.Markerwidth_shift_b": 0.0,
+        "Table.Size.fit": [
+            1.735,
+            0.915
+        ],
+        "Table.Size.inner": [
+            1.653,
+            0.823
+        ],
+        "Table.Size.outer": [
+            1.799,
+            0.99
+        ],
+        "Table.Sizefit": [
+            1.735,
+            0.915
+        ],
+        "Table.Sizeinner": [
+            1.653,
+            0.823
+        ],
+        "Table.Sizeinnter": [
+            1.653,
+            0.823
+        ],
+        "Table.Sizeouter": [
+            1.84,
+            1.0
+        ],
+        "ballradius": 0.030239439175,
+        "commoncamera_FOV": [
+            84.855,
+            53.27
+        ],
+        "tablealpha_pos": 0.3,
+        "tablealpha_rot": 0.3,
+        "tablefit": [
+            1.735,
+            0.915
+        ],
+        "tableinnter": [
+            1.653,
+            0.823
+        ],
+        "tablejump_threshold_distance": 0.1,
+        "tableouter": [
+            1.8,
+            0.98
+        ]
+    },
+    "___suspended": null,
+    "g_props": {
+        "explorer": {
+            "depth-alpha": 32
+        },
+        "window-position": [
+            2465,
+            186,
+            772,
+            1106
+        ]
+    }
+}

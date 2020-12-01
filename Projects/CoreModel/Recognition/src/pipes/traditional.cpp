@@ -348,7 +348,8 @@ void billiards::pipes::table_edge_solver::output_handler(pipepp::pipe_error, sha
     float rot_alpha = shared_data::table::filter::alpha_rot(sd);
     float jump_thr  = !o.can_jump * 1e10 + shared_data::table::filter::jump_threshold_distance(sd);
     sd.table.pos    = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence, jump_thr);
-    sd.table.rot    = imgproc::set_filtered_table_rot(sd.table.rot, o.table_rot, rot_alpha * o.confidence);
+    if (jump_thr < 1e3 && pos_alpha > jump_thr) { jump_thr = 0; }
+    sd.table.rot        = imgproc::set_filtered_table_rot(sd.table.rot, o.table_rot, rot_alpha * o.confidence, jump_thr);
     sd.table.confidence = std::max(sd.table.confidence, o.confidence);
 }
 
@@ -704,9 +705,15 @@ void billiards::pipes::marker_solver_OLD::output_handler(pipepp::pipe_error, sha
 {
     float pos_alpha = shared_data::table::filter::alpha_pos(sd);
     float rot_alpha = shared_data::table::filter::alpha_rot(sd);
-    sd.table.pos    = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence);
-    sd.table.rot    = imgproc::set_filtered_table_rot(sd.table.rot, o.table_rot, rot_alpha * o.confidence);
-    sd.table.confidence = std::max(sd.table.confidence, o.confidence);
+    auto& prv_pos   = sd.state_->table_tr_context.pos;
+    auto& prv_rot   = sd.state_->table_tr_context.rot;
+    bool  do_jump   = false;
+    if (sd.table.confidence > 0.5 && cv::norm(prv_pos, sd.table.pos) > 1) {
+        do_jump = true;
+    }
+    prv_pos = sd.table.pos = imgproc::set_filtered_table_pos(prv_pos, o.table_pos, pos_alpha * o.confidence, do_jump ? 0 : 1e9);
+    prv_rot = sd.table.rot = imgproc::set_filtered_table_rot(prv_rot, o.table_rot, rot_alpha * o.confidence, do_jump ? 0 : 1e9);
+    sd.table.confidence    = std::max(sd.table.confidence, o.confidence);
 }
 
 pipepp::pipe_error billiards::pipes::DEPRECATED_ball_search::invoke(pipepp::execution_context& ec, input_type const& input, output_type& out)

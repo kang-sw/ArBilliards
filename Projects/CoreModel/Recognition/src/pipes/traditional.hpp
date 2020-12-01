@@ -164,6 +164,8 @@ struct marker_solver_OLD {
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
     static void        link_from_previous(shared_data const& sd, DEPRECATED_marker_finder::output_type const& i, input_type& o);
     static void        output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
+
+private:
 };
 
 struct DEPRECATED_ball_search {
