@@ -29,7 +29,7 @@ using namespace billiards;
 using namespace billiards::imgproc;
 using namespace kangsw;
 
-auto cvt_const_clrspace(float3 incolor) __GPU { return mathf::rgb2yuv(incolor); }
+auto cvt_const_clrspace(float3 rgb) __GPU { return mathf::rgb2lab(rgb) * float3(1 / 100.f, 1 / 256.f, 1 / 256.f) + float3(0, 0.5f, 0.5f); }
 
 struct kernel_shader {
     // 입력 커널입니다. X, Y, Z 좌표를 나타냅니다.
@@ -319,6 +319,16 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
                       [=](index<2> idx) __GPU {
                           u_domain[idx] = helper::cvt_const_clrspace(u_domain[idx]);
                       });
+
+    if (debug::show_debug_mat(ec)) {
+        u_domain.synchronize();
+        cv::Mat channels[3];
+        split(domain, channels);
+        PIPEPP_STORE_DEBUG_DATA("Color converted domain img", (Mat)domain);
+        PIPEPP_STORE_DEBUG_DATA("Color converted domain ch 0", channels[0]);
+        PIPEPP_STORE_DEBUG_DATA("Color converted domain ch 1", channels[1]);
+        PIPEPP_STORE_DEBUG_DATA("Color converted domain ch 2", channels[2]);
+    }
 
     // 테이블 평면
     auto  table_plane = plane_t::from_rp(in.table_rot, in.table_pos, {0, 1, 0});
