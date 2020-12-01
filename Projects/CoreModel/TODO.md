@@ -3,38 +3,16 @@
 ## Recognition
 ### 개요
 영상 처리 프로그램
+- 테이블 위치 팝핑 너무 심함
+- 공 인식 잘 안 됨(색공간 바꾸기?)
 - 마커 인식 노이즈 줄이기
 	- 마커 solver GPU 이용하게 개선
 - (큐대 인식하기 ... 가능하면!)
 
 ## BilliardPhysicsCore
 - 피직스 시뮬레이션 모듈 구현
-- API:
-	PlaceBall(index, pos)
-	HitBall(index, pos) returns TraceRecord
-		struct TraceRecord {
-			paths: PathNodeSet[]
-			events: EventNode[]
-			
-			struct PathNodeSet{
-				timeStamp: float
-				position: Vec3
-				velocity: Vec3
-				angularVelocity: Vec3
-			}
-
-			struct EventNode{
-				a, b: ColliderInfo
-				contactPos: Vec3
-
-				struct ColliderInfo {
-					index : Int
-					Pos : Vec3
-					Vel : Vec3
-					AngVel : Vec3
-				}
-			}
-		}
+- Boost.Python으로 호출 가능한 모듈 만들기, Pybullet 기반 평가 모듈
+	- 평가 모듈 API: PlaceBall(index, pos), EvalBall(indesc, power, phi, xshift)
 
 ## Unity
 

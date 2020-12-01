@@ -162,4 +162,6 @@ private:
     struct impl;
     std::unique_ptr<impl> impl_;
 };
+
+
 } // namespace billiards::pipes

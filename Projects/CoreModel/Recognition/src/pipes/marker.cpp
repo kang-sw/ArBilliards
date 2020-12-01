@@ -380,7 +380,7 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
     //      1) intermediate[m, n] = colorDist(domain[n.(x,y) / m.distance], pvtColor)
     //      2) weight[m] = sum(intermediate[m, :]
     PIPEPP_ELAPSE_BLOCK("Apply sparse kernel convolution")
-    if (valid_marker_pixels.empty()) {
+    if (valid_marker_pixels.empty() == false) {
         using namespace concurrency;
         using namespace graphics;
         using namespace kangsw;

@@ -94,10 +94,10 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
     //      CASE A: TRADITIONAL CONTOUR SEARCH
     // ALL PIPES
     {
-        auto contour_search_proxy = pl->create("table contour searcher", 4, &pipepp::make_executor<table_contour_geometric_search>);
-        auto pnp_solver_proxy     = pl->create("solve table edge", 4, &pipepp::make_executor<table_edge_solver>);
-        auto marker_search_proxy  = pl->create("table marker search", 4, &pipepp::make_executor<table_marker_finder>);
-        auto marker_solver_proxy  = pl->create("table marker solver", 4, &pipepp::make_executor<marker_solver_OLD>);
+        auto contour_search_proxy = pl->create("table contour searcher", 1, &pipepp::make_executor<table_contour_geometric_search>);
+        auto pnp_solver_proxy     = pl->create("solve table edge", 1, &pipepp::make_executor<table_edge_solver>);
+        auto marker_search_proxy  = pl->create("table marker search", 1, &pipepp::make_executor<table_marker_finder>);
+        auto marker_solver_proxy  = pl->create("table marker solver", 1, &pipepp::make_executor<marker_solver_OLD>);
 
         input_proxy.link_output(contour_search_proxy, &table_contour_geometric_search_link);
 
@@ -118,7 +118,7 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
             constexpr char const* BALL_NAME[]  = {"Red", "Orange", "White"};
             constexpr int         IDX_OFFSET[] = {0, 2, 3};
             auto                  ball_proxy   = pl->create(fmt::format("ball finder: {}", BALL_NAME[ballidx]),
-                                         4, &pipepp::make_executor<ball_finder_executor>);
+                                         2, &pipepp::make_executor<ball_finder_executor>);
 
             // 이전 출력 연결
             marker_solver_proxy.link_output(ball_proxy, &ball_finder_executor::link);
