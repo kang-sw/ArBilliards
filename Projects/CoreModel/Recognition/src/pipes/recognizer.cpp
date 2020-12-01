@@ -317,9 +317,8 @@ void billiards::pipes::shared_data::_on_all_ball_gathered()
         balls_[idx].first  = descs[idx];
         balls_[idx].second = ball_weights[idx];
 
-        balls_prev_[idx] = balls_[idx].first;   
+        balls_prev_[idx] = balls_[idx].first;
     }
-
 }
 
 pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
@@ -520,6 +519,8 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
 
     PIPEPP_ELAPSE_BLOCK("Output callback execution")
     {
+        // 출력 전, 테이블 위치 오프셋
+
         nlohmann::json output_to_unity;
         using std::chrono::duration;
         {
@@ -564,8 +565,10 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
 
                 desc["CameraAnchorOffset"] = unity::anchor_offset_vector(ec);
             }
+            auto ofst = legacy::unity::table_output_offset(ec);
+            ofst      = rodrigues(sd.table.rot) * ofst;
 
-            desc["Table"]["Translation"] = sd.table.pos;
+            desc["Table"]["Translation"] = sd.table.pos + ofst;
             desc["Table"]["Orientation"] = sd.table.rot;
             desc["Table"]["Confidence"]  = sd.table.confidence;
 

@@ -96,23 +96,23 @@ struct shared_data : pipepp::base_shared_context {
     {
         PIPEPP_OPTION(radius, 0.030239439175);
         PIPEPP_OPTION(offset_from_table_plane, 0.002,
-                      u8"í…Œì´ë¸” í‰ë©´ ë§¤ì¹­ì€ ë‹¹êµ¬ëŒ€ì˜ ì¿ ì…˜ ìƒë‹¨ì„ ê¸°ì¤€ìœ¼ë¡œ ì´ë£¨ì–´ì§€ì§€ë§Œ,"
-                      " ì‹¤ì œ ë‹¹êµ¬ê³µì€ í…Œì´ë¸” í‰ë©´ë³´ë‹¤ ì•½ê°„ ì•„ëž˜ìª½ì— ì¤‘ì‹¬ì„ ë‘ê³  ìžˆìŠµë‹ˆë‹¤."
-                      " ì´ë¥¼ ë³´ì •í•˜ê¸° ìœ„í•´ í…Œì´ë¸”ì„ Yì¶•ìœ¼ë¡œ í‰í–‰ì´ë™í•˜ëŠ” ê°’ìž…ë‹ˆë‹¤.");
+                      u8"Å×ÀÌºí Æò¸é ¸ÅÄªÀº ´ç±¸´ëÀÇ Äí¼Ç »ó´ÜÀ» ±âÁØÀ¸·Î ÀÌ·ç¾îÁöÁö¸¸,"
+                      " ½ÇÁ¦ ´ç±¸°øÀº Å×ÀÌºí Æò¸éº¸´Ù ¾à°£ ¾Æ·¡ÂÊ¿¡ Áß½ÉÀ» µÎ°í ÀÖ½À´Ï´Ù."
+                      " ÀÌ¸¦ º¸Á¤ÇÏ±â À§ÇØ Å×ÀÌºíÀ» YÃàÀ¸·Î ÆòÇàÀÌµ¿ÇÏ´Â °ªÀÔ´Ï´Ù.");
 
         PIPEPP_CATEGORY(movement, "Movement")
         {
             PIPEPP_CATEGORY(correction, "Correction")
             {
                 PIPEPP_OPTION(max_speed, 5.0f,
-                              u8"ë¯¸í„° ë‹¨ìœ„ì˜ 1ì´ˆë‹¹ ìµœëŒ€ ì´ë™ ì†ë„ìž…ë‹ˆë‹¤. ì†ë„ê°€ ì´ë¥¼ ë„˜ì–´ì„œë©´,"
-                              " ì´ì „ íŽ˜ì´ì¦ˆì˜ ì´ë™ì„ ë‹¤ì‹œ ì‚¬ìš©í•©ë‹ˆë‹¤. ìˆœê°„ì ì¸ íŒí•‘ì„ ë°©ì§€í•˜ê¸°"
-                              " ìœ„í•œ í”„ë¡œí¼í‹°");
+                              u8"¹ÌÅÍ ´ÜÀ§ÀÇ 1ÃÊ´ç ÃÖ´ë ÀÌµ¿ ¼ÓµµÀÔ´Ï´Ù. ¼Óµµ°¡ ÀÌ¸¦ ³Ñ¾î¼­¸é,"
+                              " ÀÌÀü ÆäÀÌÁîÀÇ ÀÌµ¿À» ´Ù½Ã »ç¿ëÇÕ´Ï´Ù. ¼ø°£ÀûÀÎ ÆËÇÎÀ» ¹æÁöÇÏ±â"
+                              " À§ÇÑ ÇÁ·ÎÆÛÆ¼");
                 PIPEPP_OPTION(halted_tolerance, 0.01f,
-                              u8"ì–¼ë§ˆ ì´ìƒì˜ ê±°ë¦¬ë¥¼ ì›€ì§ì˜€ì„ ë•Œ ì´ë™ìœ¼ë¡œ ê°„ì£¼í• ì§€ ê²°ì •í•˜ëŠ” ê±°ë¦¬ìž…ë‹ˆë‹¤."
-                              " í•´ë‹¹ ê±°ë¦¬ ì•ˆì—ì„œì˜ ì´ë™ì€ LPFì— ì˜í•´ í•„í„°ë§ë©ë‹ˆë‹¤.");
+                              u8"¾ó¸¶ ÀÌ»óÀÇ °Å¸®¸¦ ¿òÁ÷¿´À» ¶§ ÀÌµ¿À¸·Î °£ÁÖÇÒÁö °áÁ¤ÇÏ´Â °Å¸®ÀÔ´Ï´Ù."
+                              " ÇØ´ç °Å¸® ¾È¿¡¼­ÀÇ ÀÌµ¿Àº LPF¿¡ ÀÇÇØ ÇÊÅÍ¸µµË´Ï´Ù.");
                 PIPEPP_OPTION(halt_filter_alpha, 0.2f,
-                              u8"ê³µì˜ ì •ì§€ ìƒíƒœ ì‹œ ìœ„ì¹˜ë¥¼ ìŠ¤ë¬´ë”©í•˜ëŠ” LPF ì•ŒíŒŒ ê³„ìˆ˜ìž…ë‹ˆë‹¤.");
+                              u8"°øÀÇ Á¤Áö »óÅÂ ½Ã À§Ä¡¸¦ ½º¹«µùÇÏ´Â LPF ¾ËÆÄ °è¼öÀÔ´Ï´Ù.");
             };
         };
     };
@@ -133,7 +133,7 @@ public:
 
     struct cluster_type {
         cv::Mat1i label_2d_spxl;
-        cv::Mat1i label_cluster_1darray; // super pixelì˜ ëŒ€ì‘ë˜ëŠ” array ì§‘í•©
+        cv::Mat1i label_cluster_1darray; // super pixelÀÇ ´ëÀÀµÇ´Â array ÁýÇÕ
     } cluster;
 
     struct {
@@ -253,6 +253,9 @@ struct output_pipe {
                 PIPEPP_OPTION(table_roll_to_velocity_coeff, 0.77);
                 PIPEPP_OPTION(table_velocity_to_roll_coeff, 0.77);
             };
+
+            PIPEPP_OPTION(table_output_offset, cv::Vec3f{}, 
+                          u8"Å×ÀÌºí À§Ä¡¸¦ ¾ó¸¶¸¸Å­ ¿ÀÇÁ¼Â ½ÃÄÑ Ãâ·ÂÇÒÁö °áÁ¤ÇÕ´Ï´Ù.");
         };
     };
 

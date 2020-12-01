@@ -336,26 +336,31 @@
         "input": {
             ".desired_image_width": 1280,
             "Debug.show_sources": false,
-            "Debug.test_color_spaces": true
+            "Debug.test_color_spaces": false
         },
         "output": {
             "Debug.render_debug_glyphs": true,
             "Debug.show_debug_mat": true,
             "Debug.table_top_view_scale": 640,
-            "Legacy.Unity.Phys.ball_restitution": 0.64,
+            "Legacy.Unity.Phys.ball_restitution": 0.77,
             "Legacy.Unity.Phys.roll_begin_time": 0.77,
-            "Legacy.Unity.Phys.roll_coeff_on_contact": 0.77,
-            "Legacy.Unity.Phys.simulation_ball_radius": 0.0302,
-            "Legacy.Unity.Phys.table_restitution": 0.77,
-            "Legacy.Unity.Phys.table_roll_to_velocity_coeff": 0.77,
-            "Legacy.Unity.Phys.table_velocity_to_roll_coeff": 0.77,
-            "Legacy.Unity.Phys.velocity_damping": 0.77,
+            "Legacy.Unity.Phys.roll_coeff_on_contact": 0.23,
+            "Legacy.Unity.Phys.simulation_ball_radius": 0.03,
+            "Legacy.Unity.Phys.table_restitution": 0.73,
+            "Legacy.Unity.Phys.table_roll_to_velocity_coeff": 0.67,
+            "Legacy.Unity.Phys.table_velocity_to_roll_coeff": 0.2,
+            "Legacy.Unity.Phys.velocity_damping": 0.33,
             "Legacy.Unity.anchor_offset_vector": [
                 0,
                 0.0,
                 0.02
             ],
             "Legacy.Unity.enable_table_depth_override": true,
+            "Legacy.Unity.table_output_offset": [
+                0,
+                -0.005,
+                0.0
+            ],
             "Legacy.setting_refresh_interval": 3.0
         },
         "solve table edge": {
