@@ -6,7 +6,9 @@
 #include <opencv2/core/matx.hpp>
 #include <random>
 
+#include "../amp-math/helper.hxx"
 #include "../image_processing.hpp"
+#include "fmt/core.h"
 #include "helpers.hpp"
 
 #undef max
@@ -567,3 +569,306 @@ billiards::pipes::table_marker_finder::table_marker_finder()
 }
 
 billiards::pipes::table_marker_finder::~table_marker_finder() = default;
+
+// ----------------------------------------------------------------------------------------------------
+//
+//
+//
+// ----------------------------------------------------------------------------------------------------
+
+using namespace concurrency::graphics::direct3d;
+template <typename Ty_, int Rank_ = 1> using gpu_array = concurrency::array<Ty_, Rank_>;
+using std::optional;
+
+namespace billiards {
+namespace {
+
+template <typename Ty_>
+Ty_ get_align(Ty_ target, int64_t align)
+{
+    return ((target + align - 1) / align) * align;
+}
+
+constexpr auto randgen(uint32_t init_seed) __GPU
+{
+    return [seed = init_seed]() mutable __GPU {
+        seed = mathf::wang_hash(seed);
+        return seed / float(UINT32_MAX);
+    };
+}
+
+auto transform_point(float3& io_pt, float3 tvec, float3 rvec) __GPU
+{
+    io_pt = mathf::rodrigues(rvec) * io_pt + tvec;
+}
+
+} // namespace
+} // namespace billiards
+
+using concurrency::array_view;
+
+struct billiards::pipes::marker_solver_gpu::impl_type {
+    optional<gpu_array<float, 2>> _mbuf_interm_suit; // tvec by rvec 크기의 버퍼입니다.
+    optional<gpu_array<int2, 2>>  _mbuf_interm_best; // tvec by rvec 크기의 버퍼입니다.
+    optional<gpu_array<float3>>   _mbuf_tvecs;
+    optional<gpu_array<float3>>   _mbuf_rvecs;
+    optional<gpu_array<float3>>   _mbuf_model;
+
+    void _generate_vectors(
+      cv::Vec3f init_location, cv::Vec3f init_rotation,
+      float var_loc, float var_rot, float var_axis)
+    {
+        using namespace concurrency;
+        using namespace kangsw::misc;
+
+        float  irotlen = cv::norm(init_rotation);
+        uint   seed    = seed_;
+        float3 iloc    = value_cast<float3>(init_location);
+        float3 irotn   = value_cast<float3>(init_rotation) / irotlen;
+
+        parallel_for_each(
+          _mbuf_rvecs->extent,
+          [          =,
+           dst_tvecs = array_view(*_mbuf_tvecs),
+           dst_rvecs = array_view(*_mbuf_rvecs)] //
+          (index<1> idx) __GPU {
+              auto r = randgen(seed + idx[0]);
+
+              float3 tvec;
+              tvec.x         = r() * var_loc;
+              tvec.y         = r() * var_loc;
+              tvec.z         = r() * var_loc;
+              dst_tvecs[idx] = tvec + iloc;
+
+              float3 rvaxis;
+              rvaxis.x = r() * var_loc;
+              rvaxis.y = r() * var_loc;
+              rvaxis.z = r() * var_loc;
+
+              float3 rvec    = mathf::normalize(irotn + rvaxis);
+              dst_rvecs[idx] = rvec * (irotlen + r() * var_rot);
+          });
+
+        seed_ = mathf::wang_hash(seed_);
+    }
+
+    float _perform_solve(cv::Matx33f           proj_mat,
+                         array_view<float, 2>& weight_map,
+                         cv::Vec3f&            tvec_best,
+                         cv::Vec3f&            rvec_best)
+    {
+        using namespace concurrency;
+        using namespace kangsw::misc;
+        using namespace mathf::types;
+
+        array_view u_interm_suit = *_mbuf_interm_suit;
+        array_view u_interm_best = *_mbuf_interm_best;
+        array_view u_model       = *_mbuf_model;
+        array_view u_tvecs       = *_mbuf_tvecs;
+        array_view u_rvecs       = *_mbuf_rvecs;
+
+        float3             tv_rv_suit_00[3];
+        array_view<float3> u_best(3, tv_rv_suit_00);
+
+        u_best.discard_data();
+
+        int const n_models = u_model.extent[0];
+        auto      img_size = weight_map.extent;
+
+        matx33f proj = value_cast<matx33f>(proj_mat);
+
+        parallel_for_each(
+          extent<2>(u_tvecs.extent[0], u_rvecs.extent[0]).tile<TILE_SIZE, TILE_SIZE>(),
+          [=](tiled_index<TILE_SIZE, TILE_SIZE> tidx) __GPU_ONLY //
+          {
+              tile_static float local_suits[TILE_SIZE][TILE_SIZE];
+              {
+                  auto   gidx     = tidx.global;
+                  float3 tvec     = u_tvecs[gidx[0]];
+                  float3 rvec     = u_rvecs[gidx[1]];
+                  float  suit_sum = 0.f;
+
+                  for (int midx = 0; midx < n_models; ++midx) {
+                      auto mpos = u_model[midx];
+                      transform_point(mpos, tvec, rvec);
+                      int2 sample((mpos = proj * mpos).xy / mpos.z);
+
+                      if (0 <= sample.x && sample.x < img_size[1] && //
+                          0 <= sample.y && sample.y < img_size[0])   //
+                      {
+                          suit_sum += weight_map(sample.y, sample.x);
+                          weight_map(sample.y, sample.x) = 1.0f;
+                      }
+                  }
+
+                  local_suits[tidx.local[0]][tidx.local[1]] = suit_sum;
+              }
+
+              tidx.barrier.wait_with_tile_static_memory_fence();
+
+              // Find local best
+              if (tidx.local[0] == 0 && tidx.local[1] == 0) {
+                  int   best_t = 0, best_r = 0;
+                  float max_suit = 0;
+
+                  for (int t = 0; t < TILE_SIZE; ++t) {
+                      for (int r = 0; r < TILE_SIZE; ++r) {
+                          if (auto suit = local_suits[t][r];
+                              suit > max_suit) //
+                          {
+                              max_suit = suit;
+                              best_t   = t;
+                              best_r   = r;
+                          }
+                      }
+                  }
+
+                  int t0 = tidx.tile[0];
+                  int t1 = tidx.tile[1];
+                  best_t = best_t + TILE_SIZE * t0;
+                  best_r = best_r + TILE_SIZE * t1;
+
+                  u_interm_suit(t0, t1) = max_suit;
+                  auto& r               = u_interm_best(t0, t1);
+                  r.x                   = best_r;
+                  r.y                   = best_t;
+              }
+
+              tidx.barrier.wait_with_all_memory_fence();
+              if (tidx.global[0] == 0 && tidx.global[1] == 0) {
+                  auto  bests  = u_interm_suit.extent;
+                  int   best_0 = 0, best_1 = 0;
+                  float max_suit = 0;
+
+                  for (int tile_i = 0; tile_i < bests[0]; ++tile_i) {
+                      for (int tile_j = 0; tile_j < bests[1]; ++tile_j) {
+                          if (auto suit = u_interm_suit(tile_i, tile_j);
+                              suit > max_suit) //
+                          {
+                              best_0 = tile_i, best_1 = tile_j;
+                              max_suit = suit;
+                          }
+                      }
+                  }
+
+                  auto best_idx = u_interm_best(best_0, best_1);
+                  u_best[0]     = u_tvecs[best_idx.y];
+                  u_best[1]     = u_rvecs[best_idx.x];
+                  u_best[2].x   = max_suit;
+                  u_best[2].yz  = {};
+              }
+          });
+
+        u_best.synchronize();
+
+        tvec_best = value_cast<cv::Vec3f>(tv_rv_suit_00[0]);
+        rvec_best = value_cast<cv::Vec3f>(tv_rv_suit_00[1]);
+        return tv_rv_suit_00[2].x;
+    }
+
+private:
+    int seed_ = 0;
+};
+
+void billiards::pipes::marker_solver_gpu::operator()(pipepp::execution_context& ec, input_type const& i, output_type& o)
+{
+    PIPEPP_REGISTER_CONTEXT(ec);
+
+    // 출력 초기화
+    o.confidence = 0;
+
+    if (ec.consume_option_dirty_flag()) {
+        // 변경된 옵션에 따라 버퍼 재생성
+        int tvec_vars = get_align(std::max(1u, solve::num_location_cands(ec)), TILE_SIZE);
+        int rvec_vars = get_align(std::max(1u, solve::num_rotation_cands(ec)), TILE_SIZE);
+
+        _m->_mbuf_tvecs.emplace(tvec_vars);
+        _m->_mbuf_rvecs.emplace(rvec_vars);
+
+        _m->_mbuf_interm_suit.emplace(tvec_vars / TILE_SIZE, rvec_vars / TILE_SIZE);
+        _m->_mbuf_interm_best.emplace(tvec_vars / TILE_SIZE, rvec_vars / TILE_SIZE);
+
+        PIPEPP_STORE_DEBUG_DATA("Number of TVEC cands", tvec_vars);
+        PIPEPP_STORE_DEBUG_DATA("Number of RVEC cands", rvec_vars);
+        PIPEPP_STORE_DEBUG_DATA("Number of all candidates", tvec_vars * rvec_vars);
+    }
+
+    if (i.marker_model.empty()) { return; }
+    if (i.marker_weight_map.empty()) { return; }
+
+    PIPEPP_ELAPSE_BLOCK("Perform match")
+    {
+        // Upload model
+        {
+            auto& md = i.marker_model;
+            _m->_mbuf_model.emplace(int(md.size()), kangsw::ptr_cast<float3>(md.data()));
+        }
+        auto  tpos     = i.init_local_table_pos;
+        auto  trot     = i.init_local_table_rot;
+        float cur_suit = solve::suitability_threshold(ec);
+
+        float var_loc  = solve::var_location(ec);
+        float var_rot  = solve::var_rotation_deg(ec) * CV_PI / 180.0;
+        float var_axis = solve::var_axis(ec);
+
+        float const narrow_loc = solve::location_narrow_rate(ec);
+        float const narrow_rot = solve::rotation_narrow_rate(ec);
+        float const narrow_axe = solve::axis_narrow_rate(ec);
+
+        auto& imdesc = *i.p_imdesc;
+        auto  _map   = i.marker_weight_map;
+
+        if (_map.isContinuous() == false) _map = _map.clone();
+        array_view<float, 2> u_weight_map(_map.rows, _map.cols, &_map(0));
+
+        for (int iter = 0, max_iter = solve::num_iteration(ec);
+             iter < max_iter; ++iter) //
+        {
+            PIPEPP_ELAPSE_SCOPE_DYNAMIC(fmt::format("Iteration {}", iter).c_str());
+
+            _m->_generate_vectors(tpos, trot, var_loc, var_rot, var_axis);
+
+            auto prev_pos = tpos, prev_rot = trot;
+            auto suitability
+              = _m->_perform_solve(imgproc::get_camera_matx(imdesc).first, u_weight_map, tpos, trot)
+                / i.marker_model.size();
+
+            PIPEPP_STORE_DEBUG_DATA_DYNAMIC(fmt::format("Accuracy ({})", iter).c_str(), suitability);
+
+            if (suitability < cur_suit) {
+                tpos = prev_pos;
+                trot = prev_rot;
+                break;
+            }
+
+            cur_suit = suitability;
+            var_loc *= narrow_loc;
+            var_rot *= narrow_rot;
+            var_axis *= narrow_axe;
+        }
+
+        PIPEPP_CAPTURE_DEBUG_DATA((cv::Mat)_map);
+
+        // TODO: output 구조체 채우기
+    }
+}
+
+void billiards::pipes::marker_solver_gpu::link(shared_data& sd, table_marker_finder::output_type const& o, input_type& i)
+{
+    i.p_imdesc             = &sd.imdesc_bkup;
+    i.init_local_table_pos = sd.table.pos;
+    i.init_local_table_rot = sd.table.rot;
+
+    i.marker_weight_map = o.marker_weight_map;
+    i.debug_mat         = sd.debug_mat;
+
+    imgproc::world_to_camera(sd.imdesc_bkup, i.init_local_table_rot, i.init_local_table_pos);
+    sd.get_marker_points_model(i.marker_model);
+}
+
+billiards::pipes::marker_solver_gpu::marker_solver_gpu()
+    : _m(std::make_unique<impl_type>())
+{
+}
+
+billiards::pipes::marker_solver_gpu::~marker_solver_gpu() = default;

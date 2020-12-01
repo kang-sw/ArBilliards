@@ -2,6 +2,10 @@
 #include "../image_processing.hpp"
 #include "recognizer.hpp"
 
+namespace pipepp {
+class execution_context;
+}
+
 namespace billiards::pipes {
 using namespace std::literals;
 
@@ -85,7 +89,8 @@ PIPEPP_EXECUTOR(table_marker_finder)
                       "일반적으로 0을 지정하면 충분합니다.\n"
                       "meter 단위");
 
-        PIPEPP_CATEGORY(m2, "All Area"){
+        PIPEPP_CATEGORY(m2, "All Area")
+        {
             PIPEPP_OPTION(approx_epsilon, 1.0,
                           u8"모든 영역의 컨투어를 계산하고 근사할 때적용할 epsilon 계수입니다.");
         };
@@ -136,7 +141,7 @@ PIPEPP_EXECUTOR(table_marker_finder)
         cv::Mat3b domain;
         cv::Mat3b conv_domain;
 
-        cv::Mat1b lightness;   // marker::filter::method == 1일때만 값을 지정하는 밝기 채널입니다.
+        cv::Mat1b lightness;     // marker::filter::method == 1일때만 값을 지정하는 밝기 채널입니다.
         cv::Mat1b all_none_blue; //
 
         imgproc::img_t const* p_imdesc;
@@ -163,5 +168,60 @@ private:
     std::unique_ptr<impl> impl_;
 };
 
+/**
+ * GPU를 활용하는 solver입니다. GPU에서 candidate를 생성하고 투영하여, tvec 및 rvec, suitability sum 리스트를 생성합니다.
+ */
+PIPEPP_EXECUTOR(marker_solver_gpu)
+{
+    static constexpr int TILE_LONG_SIZE = 1024;
+    static constexpr int TILE_SIZE      = 32;
 
+    PIPEPP_CATEGORY(debug, "Debug"){
+        PIPEPP_OPTION(draw_position_trace, false);
+        PIPEPP_OPTION(draw_result, true);
+    };
+
+    PIPEPP_CATEGORY(solve, "Solve")
+    {
+        PIPEPP_OPTION(num_iteration, 5u, u8"Iteration 횟수입니다. 부하를 선형적으로 증가시킵니다.");
+        PIPEPP_OPTION(num_location_cands, 324u, u8"Iteration 당 고려할 후보의 개수입니다. 자동으로 타일 단위로 잘립니다.");
+        PIPEPP_OPTION(num_rotation_cands, 128u, u8"Iteration당 고려할 회전의 개수입니다. 자동으로 타일 단위로 자릅니다.");
+        PIPEPP_OPTION(var_axis, 0.001, u8"각 후보가 시작 위치에서 얼마만큼 축을 변동할지 결정합니다.");
+        PIPEPP_OPTION(var_rotation_deg, 12.0, u8"각 후보의 회전축의 norm 변동 폭을 결정합니다. degree 단위");
+        PIPEPP_OPTION(var_location, 0.1, u8"각 후보의 이동량의 변동 폭을 결정합니다.");
+        PIPEPP_OPTION(rotation_narrow_rate, 0.4, u8"각 iteration당, 감소시킬 회전 폭입니다.");
+        PIPEPP_OPTION(location_narrow_rate, 0.4, u8"각 iteration당, 감소시킬 위치 폭입니다.");
+        PIPEPP_OPTION(axis_narrow_rate, 0.4, u8"각 iteration당, 감소시킬 위치 폭입니다.");
+
+        PIPEPP_OPTION(suitability_threshold, 0.1, u8"iteration을 이어갈 최소한의 suitability");
+    };
+
+    struct input_type {
+        cv::Mat1f marker_weight_map;
+        cv::Vec3f init_local_table_pos;
+        cv::Vec3f init_local_table_rot;
+
+        imgproc::img_t const* p_imdesc;
+        cv::Mat3b             debug_mat;
+
+        std::vector<cv::Vec3f> marker_model;
+    };
+
+    struct output_type {
+        cv::Vec3f local_table_pos;
+        cv::Vec3f local_table_rot;
+        float     confidence;
+    };
+
+    void        operator()(pipepp::execution_context& ec, input_type const& i, output_type& o);
+    static void link(shared_data & sd, table_marker_finder::output_type const& o, input_type& i);
+
+public:
+    marker_solver_gpu();
+    ~marker_solver_gpu();
+
+private:
+    struct impl_type;
+    std::unique_ptr<impl_type> _m;
+};
 } // namespace billiards::pipes

@@ -405,7 +405,7 @@ decltype(auto) concat_vec(cv::Vec<Ty_, I_> const& a, Args_&&... args)
     constexpr auto                     _0_to_i = kangsw::iota{I_};
     for (auto i : _0_to_i) { r(i) = a(i); }
     auto tup = std::forward_as_tuple(std::forward<Args_>(args)...);
-    kangsw::tuple_for_each(tup, [&](auto&& arg, size_t i) { r(I_ + i) = std::forward<decltype(arg)>(arg); });
+    kangsw::tuple_for_each(tup, [&](auto&& arg, int i) { r(I_ + i) = std::forward<decltype(arg)>(arg); });
 
     return r;
 }
