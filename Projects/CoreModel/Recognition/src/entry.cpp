@@ -124,7 +124,12 @@ private:
                       ui_on_refresh(&image);
                   }
               };
-            g_recognizer.refresh_image(image, move(improc_callback));
+
+            try {
+                g_recognizer.refresh_image(image, move(improc_callback));
+            } catch (exception& e) {
+                cout << "Exception: " << e.what() << endl;
+            }
 
             table_.erase(it);
         }
@@ -340,9 +345,9 @@ int main(void)
         g_recognizer.initialize();
         exec_ui();
 
-        g_recognizer.destroy();
-        this_thread::sleep_for(100ms);
         g_app.abort();
+        this_thread::sleep_for(100ms);
+        g_recognizer.destroy();
         this_thread::sleep_for(100ms);
     } catch (exception e) {
         cout << e.what() << endl;
