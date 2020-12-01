@@ -41,7 +41,8 @@ public class RecognitionHandler : MonoBehaviour
 	public SimHandler Simulator;
 
 	[Header("Environment Parameter Apply Target")]
-	public Renderer eyeframeMatRenderer;
+	public Renderer leftEyeframeMatRenderer;
+	public Renderer rightEyeframeMatRenderer;
 
 	#endregion
 
@@ -232,13 +233,23 @@ public class RecognitionHandler : MonoBehaviour
 			Simulator.TableWidth = recog.TableProps.InnerWidth;
 			Simulator.TableHeight = recog.TableProps.InnerHeight;
 
-			if (eyeframeMatRenderer != null)
+			if (leftEyeframeMatRenderer != null)
 			{
-				eyeframeMatRenderer.sharedMaterial.SetInt(
+				leftEyeframeMatRenderer.sharedMaterial.SetInt(
 					"_EnableTableDepthOverride", recog.TableProps.EnableShaderApplyDepthOverride ? 1 : 0);
-				eyeframeMatRenderer.sharedMaterial.SetVector(
+				leftEyeframeMatRenderer.sharedMaterial.SetVector(
 					TableHSVH, new Vector4(recog.TableProps.ShaderMinH, recog.TableProps.ShaderMaxH));
-				eyeframeMatRenderer.sharedMaterial.SetVector(
+				leftEyeframeMatRenderer.sharedMaterial.SetVector(
+					TableHSVS, new Vector4(recog.TableProps.ShaderMinS, recog.TableProps.ShaderMaxS));
+			}
+
+			if (rightEyeframeMatRenderer != null)
+			{
+				rightEyeframeMatRenderer.sharedMaterial.SetInt(
+					"_EnableTableDepthOverride", recog.TableProps.EnableShaderApplyDepthOverride ? 1 : 0);
+				rightEyeframeMatRenderer.sharedMaterial.SetVector(
+					TableHSVH, new Vector4(recog.TableProps.ShaderMinH, recog.TableProps.ShaderMaxH));
+				rightEyeframeMatRenderer.sharedMaterial.SetVector(
 					TableHSVS, new Vector4(recog.TableProps.ShaderMinS, recog.TableProps.ShaderMaxS));
 			}
 
@@ -253,7 +264,7 @@ public class RecognitionHandler : MonoBehaviour
 				Simulator.TableVelocityFriction = phys.TableVtoRCoeff;
 			}
 		}
-		 
+
 
 		if (recog.CameraAnchorOffset != null && recog.CameraAnchorOffset.Length == 3 && CameraAnchorOffset)
 		{

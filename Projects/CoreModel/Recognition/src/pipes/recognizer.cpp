@@ -309,6 +309,7 @@ void billiards::pipes::shared_data::_on_all_ball_gathered()
             descs[i] = ball_position_desc{.pos = ballpos[i], .vel = vel_elapsed, .tp = launch_time_point()};
         } else {
             ball_weights[i] = 0;
+            descs[i]        = prev[i];
         }
     }
 
@@ -524,7 +525,8 @@ pipepp::pipe_error billiards::pipes::output_pipe::invoke(pipepp::execution_conte
 
             if (auto now = clock::now();
                 duration<float>(now - latest_setting_refresh_).count()
-                > legacy::setting_refresh_interval(ec)) //
+                  > legacy::setting_refresh_interval(ec)
+                || ec.consume_option_dirty_flag()) //
             {
                 latest_setting_refresh_ = now;
                 using table_filter      = shared_data::table::filter;

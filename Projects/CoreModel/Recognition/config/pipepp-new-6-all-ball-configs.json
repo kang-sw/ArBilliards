@@ -351,11 +351,12 @@
             "Legacy.Unity.Phys.table_velocity_to_roll_coeff": 0.77,
             "Legacy.Unity.Phys.velocity_damping": 0.77,
             "Legacy.Unity.anchor_offset_vector": [
+                0,
                 0.0,
-                0.0,
-                0.0
+                0.02
             ],
-            "Legacy.Unity.enable_table_depth_override": true
+            "Legacy.Unity.enable_table_depth_override": true,
+            "Legacy.setting_refresh_interval": 3.0
         },
         "solve table edge": {
             "Debug.debug_show_mats": true,
@@ -449,9 +450,11 @@
                 1.0
             ],
             "Kernel.random_seed": 6,
+            "Preprocessing.All Area.approx_epsilon": 45,
             "Preprocessing.marker_range_inner": 0.4,
             "Preprocessing.marker_range_outer": 0.7,
-            "Preprocessing.num_inserted_contours": 5
+            "Preprocessing.num_inserted_contours": 5,
+            "Preprocessing.use_all_non_blue_area": true
         },
         "table marker solver": {
             "Solver.confidence_amp": 1,
@@ -586,9 +589,9 @@
             "depth-alpha": 32
         },
         "window-position": [
-            2096,
-            138,
-            1078,
+            2218,
+            178,
+            772,
             1106
         ]
     }

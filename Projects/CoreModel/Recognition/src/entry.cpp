@@ -126,9 +126,7 @@ private:
               };
             g_recognizer.refresh_image(image, move(improc_callback));
 
-            if (lock_type lck(mtx_); true) {
-                table_.erase(it);
-            }
+            table_.erase(it);
         }
     }
 
@@ -348,6 +346,7 @@ int main(void)
         this_thread::sleep_for(100ms);
     } catch (exception e) {
         cout << e.what() << endl;
+        getchar();
     }
     return 0;
 }

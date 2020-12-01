@@ -405,7 +405,7 @@ MonoBehaviour:
   BinPort: 16668
   IpAddr: 127.0.0.1
   TrackingTransform: {fileID: 2131405480}
-  SendImageTimeout: 0.3
+  SendImageTimeout: 0.033
   Zed: {fileID: 1359819196}
   Handler: {fileID: 1148930599}
   Pixels: {fileID: 0}
@@ -592,7 +592,7 @@ PrefabInstance:
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
       propertyPath: inputType
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
@@ -617,6 +617,16 @@ PrefabInstance:
     - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
         type: 3}
       propertyPath: videoSettingsInitMode
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
+        type: 3}
+      propertyPath: svoInputFileName
+      value: E:/User/Video/Recording-2-imuenable.svo
+      objectReference: {fileID: 0}
+    - target: {fileID: 114711245158774928, guid: e13ee7e0790c7d243b7aa67fe604acac,
+        type: 3}
+      propertyPath: svoRealTimeMode
       value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
@@ -723,6 +733,16 @@ PrefabInstance:
         type: 3}
       propertyPath: m_LocalScale.z
       value: 0.823
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810251362575, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1999053810251362575, guid: 663baa869fdc6a342856b54d68f78961,
+        type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.000001
       objectReference: {fileID: 0}
     - target: {fileID: 1999053810251362576, guid: 663baa869fdc6a342856b54d68f78961,
         type: 3}
