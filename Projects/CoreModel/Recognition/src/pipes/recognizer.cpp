@@ -48,7 +48,7 @@ struct marker_search_to_solve {
         // Weight map으로부터 마커 목록 찾기
         using namespace std;
         using namespace cv;
-        Mat1b mat = o.marker_weight_map > 0.1f;
+        Mat1b mat = o.marker_weight_map > 0.02f;
         Mat1b expand;
         dilate(mat, expand, {});
 

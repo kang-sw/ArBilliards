@@ -464,8 +464,8 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         }
 
         out.marker_weight_map = suits;
-        auto      mult = debug::suitability_view_multiply(ec);
-        if (show_debug) { PIPEPP_STORE_DEBUG_DATA("Marker suitability view", (cv::Mat)suits * mult); }
+        auto mult             = debug::suitability_view_multiply(ec);
+        if (show_debug) { PIPEPP_STORE_DEBUG_DATA("Marker suitability view", (cv::Mat)(suits * mult)); }
     }
 
     return {};

@@ -43,7 +43,7 @@ struct shared_state {
 
     struct {
         cv::Vec3f pos = {}, rot = cv::Vec3f(1, 0, 0);
-    } edge_solver_context;
+    } table_tr_context;
 
     ball_position_set balls;
 
