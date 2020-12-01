@@ -316,7 +316,10 @@ void billiards::pipes::shared_data::_on_all_ball_gathered()
     for (auto idx : counter(size(ball_weights))) {
         balls_[idx].first  = descs[idx];
         balls_[idx].second = ball_weights[idx];
+
+        balls_prev_[idx] = balls_[idx].first;   
     }
+
 }
 
 pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)

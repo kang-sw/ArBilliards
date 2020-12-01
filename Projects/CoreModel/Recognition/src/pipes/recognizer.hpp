@@ -149,7 +149,6 @@ public:
         table.pos = state_->table.pos;
         table.rot = state_->table.rot;
 
-        balls_prev_ = state_->balls;
         for (auto& v : balls_) { v.second = 0.f; }
     }
 
