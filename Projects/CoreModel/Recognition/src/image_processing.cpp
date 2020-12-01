@@ -305,7 +305,7 @@ cv::Vec3f billiards::imgproc::set_filtered_table_rot(cv::Vec3f table_rot, cv::Ve
     cv::Vec3f up(0, 1, 0);
     up = rodrigues(new_rot) * up;
     if (up[1] < 0) {
-        new_rot = rotate_euler(new_rot, {CV_PI, 0, 0});
+        new_rot = rotate_euler(new_rot, {0, 0, CV_PI});
     }
 
     // 각 축에 대해, 180도 이상 차이나는 회전을 잡아줍니다.
