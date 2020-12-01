@@ -174,6 +174,7 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
     PIPEPP_ELAPSE_BLOCK("Project points by view")
     {
         // 1 meter 거리에 대해 모든 포인트를 투사합니다.
+        // TODO : Positive kernel만 회전시키기. Negative kernel은 그대로 둠!
         using namespace imgproc;
         auto      vertices  = m.kernel_model;
         cv::Vec3f local_loc = {}, local_rot = in.init_table_rot;
@@ -592,8 +593,18 @@ Ty_ get_align(Ty_ target, int64_t align)
 constexpr auto randgen(uint32_t init_seed) __GPU
 {
     return [seed = init_seed]() mutable __GPU {
+        seed     = mathf::wang_hash(seed);
+        auto ret = seed / float(UINT32_MAX);
+        return ret * (seed & 1 ? 1.f : -1.f);
+    };
+}
+
+constexpr auto rand_sign(uint32_t init_seed) __GPU
+{
+
+    return [seed = init_seed]() mutable __GPU {
         seed = mathf::wang_hash(seed);
-        return seed / float(UINT32_MAX);
+        return 1.0f - 2.f * float(seed & 1);
     };
 }
 
@@ -621,32 +632,52 @@ struct billiards::pipes::marker_solver_gpu::impl_type {
         using namespace concurrency;
         using namespace kangsw::misc;
 
-        float  irotlen = cv::norm(init_rotation);
-        uint   seed    = seed_;
-        float3 iloc    = value_cast<float3>(init_location);
-        float3 irotn   = value_cast<float3>(init_rotation) / irotlen;
+        float  irotlen   = cv::norm(init_rotation);
+        uint   seed      = seed_;
+        float3 iloc      = value_cast<float3>(init_location);
+        float3 irotn     = value_cast<float3>(init_rotation) / irotlen;
+        auto   dst_tvecs = array_view(*_mbuf_tvecs);
+        auto   dst_rvecs = array_view(*_mbuf_rvecs);
+
+        // 테이블의 노멀을 기준으로 회전시킵니다.
+        float3 irotup = value_cast<float3>(imgproc::rodrigues(init_rotation) * cv::Vec3f{0, 1, 0});
 
         parallel_for_each(
-          _mbuf_rvecs->extent,
-          [          =,
-           dst_tvecs = array_view(*_mbuf_tvecs),
-           dst_rvecs = array_view(*_mbuf_rvecs)] //
+          dst_tvecs.extent,
+          [=] //
           (index<1> idx) __GPU {
               auto r = randgen(seed + idx[0]);
+
+              if (idx[0] == 0) {
+                  dst_tvecs[idx] = {};
+                  return;
+              }
 
               float3 tvec;
               tvec.x         = r() * var_loc;
               tvec.y         = r() * var_loc;
               tvec.z         = r() * var_loc;
               dst_tvecs[idx] = tvec + iloc;
+          });
+
+        parallel_for_each(
+          dst_rvecs.extent,
+          [=] //
+          (index<1> idx) __GPU {
+              auto r = randgen(seed + idx[0] * seed);
+
+              if (idx[0] == 0) {
+                  dst_rvecs[idx] = {};
+                  return;
+              }
 
               float3 rvaxis;
-              rvaxis.x = r() * var_loc;
-              rvaxis.y = r() * var_loc;
-              rvaxis.z = r() * var_loc;
+              rvaxis.x = r() * var_axis;
+              rvaxis.y = r() * var_axis;
+              rvaxis.z = r() * var_axis;
 
-              float3 rvec    = mathf::normalize(irotn + rvaxis);
-              dst_rvecs[idx] = rvec * (irotlen + r() * var_rot);
+              float3 rvec    = mathf::normalize(irotup + rvaxis);
+              dst_rvecs[idx] = irotn * irotlen + rvec * r() * var_rot;
           });
 
         seed_ = mathf::wang_hash(seed_);
@@ -697,7 +728,6 @@ struct billiards::pipes::marker_solver_gpu::impl_type {
                           0 <= sample.y && sample.y < img_size[0])   //
                       {
                           suit_sum += weight_map(sample.y, sample.x);
-                          weight_map(sample.y, sample.x) = 1.0f;
                       }
                   }
 
@@ -757,6 +787,7 @@ struct billiards::pipes::marker_solver_gpu::impl_type {
                   u_best[2].x   = max_suit;
                   u_best[2].yz  = {};
               }
+              tidx.barrier.wait_with_all_memory_fence();
           });
 
         u_best.synchronize();
@@ -847,9 +878,30 @@ void billiards::pipes::marker_solver_gpu::operator()(pipepp::execution_context& 
             var_axis *= narrow_axe;
         }
 
-        PIPEPP_CAPTURE_DEBUG_DATA((cv::Mat)_map);
+        o.local_table_pos = tpos;
+        o.local_table_rot = trot;
+        o.confidence      = cur_suit;
+    }
 
-        // TODO: output 구조체 채우기
+    {
+        using namespace cv;
+        using namespace imgproc;
+        auto  table_pos = o.local_table_pos;
+        auto  table_rot = o.local_table_rot;
+        auto& vertexes  = i.marker_model;
+
+        camera_to_world(*i.p_imdesc, table_rot, table_pos);
+        auto world_tr = get_transform_matx_fast(table_pos, table_rot);
+        for (auto pt : vertexes) {
+            Vec4f pt4;
+            (Vec3f&)pt4 = pt;
+            pt4[3]      = 1.0f;
+
+            pt4 = world_tr * pt4;
+            draw_circle(*i.p_imdesc, (Mat&)i.debug_mat, 0.01f, (Vec3f&)pt4, {255, 0, 0}, 2);
+        }
+
+        PIPEPP_STORE_DEBUG_DATA("Result", (Mat)i.debug_mat.clone());
     }
 }
 

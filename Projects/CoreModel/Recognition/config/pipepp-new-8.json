@@ -476,6 +476,20 @@
             "Solver.variant_rot_axis": 0.1,
             "debug.enable_debug_glyphs": true,
             "debug.enable_debug_mats": true
+        },
+        "table marker solver gpu": {
+            "Debug.draw_position_trace": false,
+            "Debug.draw_result": true,
+            "Solve.axis_narrow_rate": 0.4,
+            "Solve.location_narrow_rate": 0.4,
+            "Solve.num_iteration": 1,
+            "Solve.num_location_cands": 324,
+            "Solve.num_rotation_cands": 128,
+            "Solve.rotation_narrow_rate": 0.4,
+            "Solve.suitability_threshold": 0.1,
+            "Solve.var_axis": 1,
+            "Solve.var_location": 0.1,
+            "Solve.var_rotation_deg": 12.0
         }
     },
     "___shared": {
@@ -594,9 +608,9 @@
             "depth-alpha": 32
         },
         "window-position": [
-            2465,
+            1907,
             186,
-            772,
+            1330,
             1106
         ]
     }

@@ -8,34 +8,6 @@ namespace billiards::mathf {
 using namespace concurrency;
 using namespace concurrency::graphics;
 using namespace concurrency::graphics::direct3d;
-inline namespace types {
-struct matx33f {
-    auto& operator()(int idx) const __GPU { return val[idx]; }
-    auto& operator()(int idx) __GPU { return val[idx]; }
-
-    matx33f() __GPU{};
-    matx33f(float3 a, float3 b, float3 c) __GPU { val[0] = a, val[1] = b, val[2] = c; }
-    matx33f(const matx33f& r) __GPU { val[0] = r(0), val[1] = r(1), val[2] = r(2); }
-
-    static matx33f eye() __GPU { return {{1.f, 0.f, 0.f}, {0.f, 1.f, 0.f}, {0.f, 0.f, 1.f}}; }
-
-    friend matx33f operator*(float a, matx33f const& b) __GPU { return {a * b(0), a * b(1), a * b(2)}; }
-    friend matx33f operator*(matx33f const& b, float a) __GPU { return {a * b(0), a * b(1), a * b(2)}; }
-    friend float3  operator*(matx33f const& a, float3 const& b) __GPU { return a(0) * b + a(1) * b + a(2) * b; }
-
-    matx33f operator+(matx33f const& b) const __GPU
-    {
-        return matx33f((*this)(0) + b(0), 
-                       (*this)(1) + b(1), 
-                       (*this)(2) + b(2));
-    }
-
-    float3 val[3];
-};
-
-} // namespace types
-
-
 inline float reduce(float3 v) __GPU { return v.x + v.y + v.z; }
 
 inline float norm(float3 v) __GPU
@@ -121,6 +93,40 @@ inline uint wang_hash(uint seed) __GPU
     return seed;
 }
 
+inline namespace types {
+struct matx33f {
+    auto& operator()(int idx) const __GPU { return val[idx]; }
+    auto& operator()(int idx) __GPU { return val[idx]; }
+
+    matx33f() __GPU{};
+    matx33f(float3 a, float3 b, float3 c) __GPU { val[0] = a, val[1] = b, val[2] = c; }
+    matx33f(const matx33f& r) __GPU { val[0] = r(0), val[1] = r(1), val[2] = r(2); }
+
+    static matx33f eye() __GPU { return {{1.f, 0.f, 0.f}, {0.f, 1.f, 0.f}, {0.f, 0.f, 1.f}}; }
+
+    friend matx33f operator*(float a, matx33f const& b) __GPU { return {a * b(0), a * b(1), a * b(2)}; }
+    friend matx33f operator*(matx33f const& b, float a) __GPU { return {a * b(0), a * b(1), a * b(2)}; }
+
+    friend float3 operator*(matx33f const& a, float3 const& b) __GPU
+    {
+        return {
+          reduce(a(0) * b),
+          reduce(a(1) * b),
+          reduce(a(2) * b)
+        };
+    }
+
+    matx33f operator+(matx33f const& b) const __GPU
+    {
+        return matx33f((*this)(0) + b(0),
+                       (*this)(1) + b(1),
+                       (*this)(2) + b(2));
+    }
+
+    float3 val[3];
+};
+
+} // namespace types
 
 inline matx33f rodrigues(float3 v) __GPU
 {
@@ -145,6 +151,5 @@ inline matx33f rodrigues(float3 v) __GPU
 
     return cosO * matx33f::eye() + sinO * V + (1.f - cosO) * RRt;
 }
-
 
 } // namespace billiards::mathf
