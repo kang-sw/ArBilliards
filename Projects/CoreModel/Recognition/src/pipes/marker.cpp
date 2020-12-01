@@ -459,13 +459,13 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         u_suit.synchronize();
 
         cv::Mat1f suits(in.domain.size());
-        auto      mult = debug::suitability_view_multiply(ec);
         for (auto [idx, value] : zip(valid_marker_pixels, suitabilities)) {
-            suits(roi.tl() + (cv::Point)idx) = value * mult;
+            suits(roi.tl() + (cv::Point)idx) = value;
         }
 
         out.marker_weight_map = suits;
-        if (show_debug) { PIPEPP_STORE_DEBUG_DATA("Marker suitability view", (cv::Mat)suits); }
+        auto      mult = debug::suitability_view_multiply(ec);
+        if (show_debug) { PIPEPP_STORE_DEBUG_DATA("Marker suitability view", (cv::Mat)suits * mult); }
     }
 
     return {};
