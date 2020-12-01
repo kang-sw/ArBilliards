@@ -344,12 +344,15 @@ void billiards::pipes::table_edge_solver::link_from_previous(shared_data const& 
 
 void billiards::pipes::table_edge_solver::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
 {
+    // 항상 출력의 X축을 뒤집습니다.
+    auto out_rot = imgproc::rotate_euler(o.table_rot, {(float)CV_PI, 0, 0});
+
     float pos_alpha = shared_data::table::filter::alpha_pos(sd);
     float rot_alpha = shared_data::table::filter::alpha_rot(sd);
     float jump_thr  = !o.can_jump * 1e10 + shared_data::table::filter::jump_threshold_distance(sd);
     sd.table.pos    = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence, jump_thr);
     if (jump_thr < 1e3 && pos_alpha > jump_thr) { jump_thr = 0; }
-    sd.table.rot        = imgproc::set_filtered_table_rot(sd.table.rot, o.table_rot, rot_alpha * o.confidence, jump_thr);
+    sd.table.rot        = imgproc::set_filtered_table_rot(sd.table.rot, out_rot, rot_alpha * o.confidence, jump_thr);
     sd.table.confidence = std::max(sd.table.confidence, o.confidence);
 }
 
