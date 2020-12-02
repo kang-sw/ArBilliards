@@ -122,7 +122,7 @@ struct marker_solver_cpu {
     struct solver {
         PIPEPP_DECLARE_OPTION_CATEGORY("Solver");
 
-        PIPEPP_OPTION(iteration, 5);
+        PIPEPP_OPTION(num_iter, 5);
         PIPEPP_OPTION(error_base, 1.14);
         PIPEPP_OPTION(variant_rot, 0.1);
         PIPEPP_OPTION(variant_pos, 0.1);
@@ -130,7 +130,6 @@ struct marker_solver_cpu {
         PIPEPP_OPTION(narrow_rate_pos, 0.5);
         PIPEPP_OPTION(narrow_rate_rot, 0.5);
         PIPEPP_OPTION(num_cands, 600);
-        PIPEPP_OPTION(num_iter, 5);
         PIPEPP_OPTION(do_parallel, true);
         PIPEPP_OPTION(confidence_amp, 1.5);
         PIPEPP_OPTION(min_valid_marker_size, 1.2);

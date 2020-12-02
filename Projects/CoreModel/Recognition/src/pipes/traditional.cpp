@@ -347,13 +347,17 @@ void billiards::pipes::table_edge_solver::output_handler(pipepp::pipe_error, sha
     // 항상 출력의 X축을 뒤집습니다.
     auto out_rot = imgproc::rotate_euler(o.table_rot, {(float)CV_PI, 0, 0});
 
-    float pos_alpha = shared_data::table::filter::alpha_pos(sd);
-    float rot_alpha = shared_data::table::filter::alpha_rot(sd);
-    float jump_thr  = !o.can_jump * 1e10 + shared_data::table::filter::jump_threshold_distance(sd);
-    sd.table.pos    = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence, jump_thr);
-    if (jump_thr < 1e3 && o.confidence > jump_thr) { jump_thr = 0; }
-    sd.table.rot        = imgproc::set_filtered_table_rot(sd.table.rot, out_rot, rot_alpha * o.confidence, jump_thr);
-    sd.table.confidence = std::max(sd.table.confidence, o.confidence);
+    float pos_alpha     = shared_data::table::filter::alpha_pos(sd);
+    float rot_alpha     = shared_data::table::filter::alpha_rot(sd);
+    float jump_thr      = shared_data::table::filter::jump_threshold_distance(sd);
+    sd.table.pos        = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence,
+                                                   (o.confidence < jump_thr) * 1e6);
+    sd.table.confidence = o.confidence;
+    if (o.confidence < jump_thr) {
+        // edge solver는 jump가 아니라면 rotation을 손대지 않습니다.
+        return;
+    }
+    sd.table.rot = imgproc::set_filtered_table_rot(sd.table.rot, out_rot, rot_alpha * o.confidence, jump_thr);
 }
 
 pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
@@ -537,7 +541,7 @@ pipepp::pipe_error billiards::pipes::marker_solver_cpu::invoke(pipepp::execution
     auto& centers        = i.markers;
     auto& marker_weights = i.weights;
 
-    auto& debug = *i.debug_mat;
+    auto debug = *i.debug_mat;
     if (table_contour.empty() || centers.empty()) {
         return pipepp::pipe_error::ok;
     }
@@ -587,13 +591,15 @@ pipepp::pipe_error billiards::pipes::marker_solver_cpu::invoke(pipepp::execution
         auto    narrow_rate_pos       = solver::narrow_rate_pos(ec);
         auto    narrow_rate_rot       = solver::narrow_rate_rot(ec);
 
-        auto const& detected = centers;
+        auto const& detected  = centers;
+        bool const  draw_dots = enable_debug_glyphs(ec);
 
         for (int iteration = 0, max_iteration = solver::num_iter(ec);
              iteration < max_iteration;
              ++iteration) {
             PIPEPP_ELAPSE_SCOPE_DYNAMIC(fmt::format("Iteration {0:>2}", iteration).c_str());
             auto const& pivot_candidate = candidates.front();
+            auto        pivot_up_vector = rodrigues(pivot_candidate.rotation) * Vec3f(0, 1, 0);
 
             // candidate 목록 작성.
             // 임의의 방향으로 회전
@@ -607,12 +613,16 @@ pipepp::pipe_error billiards::pipes::marker_solver_cpu::invoke(pipepp::execution
                 cand.position += pivot_candidate.position;
 
                 uniform_real_distribution<float> distr_rot{-rotation_variant, rotation_variant};
-                auto                             rot_norm   = norm(pivot_candidate.rotation);
-                auto                             rot_amount = rot_norm + distr_rot(rengine);
-                auto                             rotator    = pivot_candidate.rotation / rot_norm;
+
                 random_vector(rengine, cand.rotation, rotation_axis_variant);
-                cand.rotation = normalize(cand.rotation + rotator);
-                cand.rotation *= rot_amount;
+                cand.rotation = pivot_candidate.rotation + (cand.rotation + pivot_up_vector) * distr_rot(rengine);
+
+                // auto rot_norm   = norm(pivot_candidate.rotation);
+                // auto rot_amount = rot_norm + distr_rot(rengine);
+                // auto rotator    = pivot_candidate.rotation / rot_norm;
+                // random_vector(rengine, cand.rotation, rotation_axis_variant);
+                // cand.rotation = normalize(cand.rotation + rotator);
+                // cand.rotation *= rot_amount;
 
                 // 임의의 확률로 180도 회전시킵니다.
                 // bool rotate180 = uniform_int_distribution{0, 1}(rengine);
@@ -622,6 +632,7 @@ pipepp::pipe_error billiards::pipes::marker_solver_cpu::invoke(pipepp::execution
             }
 
             // 평가 병렬 실행
+            Rect img_rect({}, i.img_size);
             for_each(execution::par_unseq, candidates.begin(), candidates.end(), [&](candidate_t& elem) {
                 thread_local static vector<Vec3f> cc_model;
                 thread_local static vector<Vec2f> cc_projected;
@@ -634,7 +645,16 @@ pipepp::pipe_error billiards::pipes::marker_solver_cpu::invoke(pipepp::execution
                 cc_projected.clear();
                 cc_detected = detected;
                 transform_points_to_camera(img, pos, rot, cc_model);
-                project_model_points(img, cc_projected, cc_model, true, view_planes);
+                project_model_points(img, cc_projected, cc_model, false, view_planes);
+                for (auto idx : kangsw::rcounter(cc_projected.size())) {
+                    auto& dot = cc_projected[idx];
+                    if (img_rect.contains((Vec2i)dot) == false) {
+                        kangsw::swap_remove(cc_projected, idx);
+                        continue;
+                    }
+
+                    if (draw_dots) { debug.at<cv::Vec3b>(Point(Vec2i(dot))) = {0, 255, 0}; }
+                }
 
                 // 각각의 점에 대해 독립적으로 거리를 계산합니다.
                 auto suitability = contour_min_dist_for_each(cc_projected, cc_detected, [error_base](float min_dist_sqr) { return pow(error_base, -sqrtf(min_dist_sqr)); });
@@ -710,10 +730,9 @@ void billiards::pipes::marker_solver_cpu::output_handler(pipepp::pipe_error, sha
     auto& prv_rot = sd.state_->table_tr_context.rot;
     bool  do_jump = false;
 
-    if (sd.table.confidence > 0.5 && cv::norm(prv_pos - sd.table.pos) > 1) {
+    if (sd.table.confidence > 0.5) {
         prv_pos = sd.table.pos;
         prv_rot = sd.table.rot;
-        return;
     }
     float pos_alpha = shared_data::table::filter::alpha_pos(sd);
     float rot_alpha = shared_data::table::filter::alpha_rot(sd);
