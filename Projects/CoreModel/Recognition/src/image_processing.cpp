@@ -138,18 +138,25 @@ void billiards::imgproc::transform_points_to_camera(img_t const& img, cv::Vec3f 
 {
     // cv::Mat world_transform;
     // get_world_transform_matx(world_pos, world_rot, world_transform);
-    auto world_transform      = get_transform_matx_fast(world_pos, world_rot);
-    auto inv_camera_transform = img.camera_transform.inv();
+    //auto world_transform      = get_transform_matx_fast(world_pos, world_rot);
+    //auto inv_camera_transform = img.camera_transform.inv();
 
-    for (auto& opt : model_vertexes) {
-        auto pt = (cv::Vec4f&)opt;
-        pt[3]   = 1.0f;
+    //for (auto& opt : model_vertexes) {
+    //    auto pt = (cv::Vec4f&)opt;
+    //    pt[3]   = 1.0f;
 
-        pt = inv_camera_transform * world_transform * pt;
+    //    pt = inv_camera_transform * world_transform * pt;
 
-        // 좌표계 변환
-        pt[1] *= -1.0f;
-        opt = (cv::Vec3f&)pt;
+    //    // 좌표계 변환
+    //    pt[1] *= -1.0f;
+    //    opt = (cv::Vec3f&)pt;
+    //}
+
+    world_to_camera(img, world_rot, world_pos);
+    auto tr = get_transform_matx_fast(world_pos, world_rot);
+
+    for (auto& pt : model_vertexes) {
+        pt = subvec<0, 3>(tr * concat_vec(pt, 1.f));
     }
 }
 
@@ -226,12 +233,9 @@ void billiards::imgproc::camera_to_world(img_t const& img, cv::Vec3f& rvec, cv::
     Matx33f rot = rodrigues(rvec);
 
     for (auto& pt : uvw) {
-        pt = (rot * pt) + tvec;
-
-        auto pt4 = (Vec4f&)pt;
-        pt4[3]   = 1.0f, pt4[1] *= -1.0f;
-        pt4      = img.camera_transform * pt4;
-        pt       = (Vec3f&)pt4;
+        pt    = (rot * pt) + tvec;
+        pt[1] = -pt[1];
+        pt    = subvec<0, 3>(img.camera_transform * concat_vec(pt, 1.f));
     }
 
     Matx31f u = normalize(uvw[0] - uvw[3]);

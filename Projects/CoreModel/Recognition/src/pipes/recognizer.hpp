@@ -39,10 +39,6 @@ struct shared_state {
 
     struct {
         cv::Vec3f pos = {}, rot = cv::Vec3f(1, 0, 0);
-    } table;
-
-    struct {
-        cv::Vec3f pos = {}, rot = cv::Vec3f(1, 0, 0);
     } table_tr_context;
 
     ball_position_set balls;
@@ -146,9 +142,6 @@ public:
     void reload() override
     {
         converted_resources_.clear();
-        table.pos = state_->table.pos;
-        table.rot = state_->table.rot;
-
         for (auto& v : balls_) { v.second = 0.f; }
     }
 

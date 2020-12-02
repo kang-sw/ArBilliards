@@ -1,4 +1,6 @@
 #include "traditional.hpp"
+
+#include "../image_processing.hpp"
 #include "fmt/format.h"
 
 void build_traditional_path(pipepp::pipeline<billiards::pipes::shared_data, billiards::pipes::input_resize>::initial_proxy_type input_proxy, pipepp::pipe_proxy<billiards::pipes::shared_data, billiards::pipes::output_pipe> output_pipe_proxy)
@@ -219,6 +221,12 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
                 continue;
             }
 
+            cv::Vec3f rv = rot, tv = pos;
+
+            camera_to_world(img, rv, tv);
+            world_to_camera(img, rv, tv);
+            rot = rv, pos = tv;
+
             // confidence 계산
             auto vertexes = obj_pts;
             for (auto& vtx : vertexes) {
@@ -226,27 +234,33 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
             }
 
             PIPEPP_ELAPSE_SCOPE("Projection");
-            vector<vector<Vec2i>> contours;
-            vector<Vec2f>         mapped;
+            vector<Vec2f> mapped;
             project_model_local(img, mapped, vertexes, false, {});
-            contours.emplace_back().assign(mapped.begin(), mapped.end());
 
             // 각 점을 비교하여 에러를 계산합니다.
-            auto&  proj      = contours.front();
             double error_sum = 0;
             for (size_t index = 0; index < 4; index++) {
-                Vec2f projpt = proj[index];
+                Vec2f projpt = mapped[index];
                 error_sum += norm(projpt - table_contour[index], NORM_L2SQR);
             }
 
+            PIPEPP_STORE_DEBUG_DATA_DYNAMIC((std::to_string(iter) + " iteration error").c_str(), error_sum);
             auto conf = pow(pnp_error_exp_fn_base(ec), -sqrt(error_sum));
             if (conf > max_confidence) {
                 max_confidence = conf, tvec = pos, rvec = rot;
             }
 
+            {
+                vector<Vec2i> pp;
+                pp.assign(mapped.begin(), mapped.end());
+                drawContours(i.debug_mat, vector{{pp}}, -1, {255, 65, 65}, 3);
+            }
+
             // 점 배열 1개 회전
-            table_contour.push_back(table_contour.front());
-            table_contour.erase(table_contour.begin());
+            if (iter == 0) {
+                table_contour.push_back(table_contour.front());
+                table_contour.erase(table_contour.begin());
+            }
         }
 
         if (max_confidence > pnp_conf_threshold(ec)) {
@@ -256,63 +270,67 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
             o.table_pos  = tvec;
             o.table_rot  = rvec;
             o.can_jump   = true;
+            draw_axes(img, i.debug_mat, rvec, tvec, 0.05f, 3);
 
             PIPEPP_STORE_DEBUG_DATA("Full PNP data confidence", o.confidence);
+            PIPEPP_STORE_DEBUG_STR("RVEC", rvec);
+        } else {
+            o.confidence = 0;
         }
     }
 
-    if (enable_partial_solver(ec) && table_contour.empty() == false && o.confidence == 0) {
-        // full-point PnP 알고리즘이 실패한 경우, partial view를 수행합니다.
+    //if (enable_partial_solver(ec) && table_contour.empty() == false && o.confidence == 0) {
+    //    // full-point PnP 알고리즘이 실패한 경우, partial view를 수행합니다.
 
-        vector<Vec3f> model;
-        get_table_model(model, i.table_fit_size);
+    //    vector<Vec3f> model;
+    //    get_table_model(model, i.table_fit_size);
 
-        auto init_pos = i.table_pos_init;
-        auto init_rot = i.table_rot_init;
+    //    auto init_pos = i.table_pos_init;
+    //    auto init_rot = i.table_rot_init;
 
-        int   num_iteration        = partial::solver::iteration(ec);
-        int   num_candidates       = partial::solver::candidates(ec);
-        float rot_axis_variant     = partial::solver::rotation_axis_variant(ec);
-        float rot_variant          = partial::solver::rotation_amount_variant(ec);
-        float pos_initial_distance = partial::solver::distance_variant(ec);
+    //    int   num_iteration        = partial::solver::iteration(ec);
+    //    int   num_candidates       = partial::solver::candidates(ec);
+    //    float rot_axis_variant     = partial::solver::rotation_axis_variant(ec);
+    //    float rot_variant          = partial::solver::rotation_amount_variant(ec);
+    //    float pos_initial_distance = partial::solver::distance_variant(ec);
 
-        vector<Vec2f>                input = table_contour;
-        transform_estimation_param_t param = {num_iteration, num_candidates, rot_axis_variant, rot_variant, pos_initial_distance, partial::solver::border_margin(ec)};
-        Vec2f                        FOV   = i.FOV_degree;
-        param.FOV                          = {FOV[0], FOV[1]};
-        param.debug_render_mat             = i.debug_mat;
-        param.render_debug_glyphs          = true;
-        param.do_parallel                  = enable_partial_parallel_solve(ec);
-        param.iterative_narrow_ratio       = partial::solver::iteration_narrow_rate(ec);
-        param.confidence_calc_base         = partial::solver::error_function_base(ec);
+    //    vector<Vec2f>                input = table_contour;
+    //    transform_estimation_param_t param = {num_iteration, num_candidates, rot_axis_variant, rot_variant, pos_initial_distance, partial::solver::border_margin(ec)};
+    //    Vec2f                        FOV   = i.FOV_degree;
+    //    param.FOV                          = {FOV[0], FOV[1]};
+    //    param.debug_render_mat             = i.debug_mat;
+    //    param.render_debug_glyphs          = true;
+    //    param.do_parallel                  = enable_partial_parallel_solve(ec);
+    //    param.iterative_narrow_ratio       = partial::solver::iteration_narrow_rate(ec);
+    //    param.confidence_calc_base         = partial::solver::error_function_base(ec);
 
-        // contour 컬링 사각형을 계산합니다.
-        {
-            Vec2d tl       = partial::cull_window_top_left(ec);
-            Vec2d br       = partial::cull_window_bottom_right(ec);
-            Vec2i img_size = static_cast<Point>(i.img_size);
+    //    // contour 컬링 사각형을 계산합니다.
+    //    {
+    //        Vec2d tl       = partial::cull_window_top_left(ec);
+    //        Vec2d br       = partial::cull_window_bottom_right(ec);
+    //        Vec2i img_size = static_cast<Point>(i.img_size);
 
-            Rect r{(Point)(Vec2i)tl.mul(img_size), (Point)(Vec2i)br.mul(img_size)};
-            if (get_safe_ROI_rect(i.debug_mat, r)) {
-                param.contour_cull_rect = r;
-            } else {
-                param.contour_cull_rect = Rect{{}, img_size};
-            }
-        }
+    //        Rect r{(Point)(Vec2i)tl.mul(img_size), (Point)(Vec2i)br.mul(img_size)};
+    //        if (get_safe_ROI_rect(i.debug_mat, r)) {
+    //            param.contour_cull_rect = r;
+    //        } else {
+    //            param.contour_cull_rect = Rect{{}, img_size};
+    //        }
+    //    }
 
-        PIPEPP_ELAPSE_SCOPE("Partial iterative search");
-        auto result = estimate_matching_transform(img, input, model, init_pos, init_rot, param);
+    //    PIPEPP_ELAPSE_SCOPE("Partial iterative search");
+    //    auto result = estimate_matching_transform(img, input, model, init_pos, init_rot, param);
 
-        if (result.has_value()) {
-            auto& res    = *result;
-            o.confidence = res.confidence * partial::apply_weight(ec);
-            o.table_pos  = res.position;
-            o.table_rot  = res.rotation;
+    //    if (result.has_value()) {
+    //        auto& res    = *result;
+    //        o.confidence = res.confidence * partial::apply_weight(ec);
+    //        o.table_pos  = res.position;
+    //        o.table_rot  = res.rotation;
 
-            o.can_jump = false;
-            PIPEPP_STORE_DEBUG_DATA("Partial data confidence", res.confidence);
-        }
-    }
+    //        o.can_jump = false;
+    //        PIPEPP_STORE_DEBUG_DATA("Partial data confidence", res.confidence);
+    //    }
+    //}
 
     if (o.confidence > 0.1) {
         using namespace cv;
@@ -320,11 +338,9 @@ pipepp::pipe_error billiards::pipes::table_edge_solver::invoke(pipepp::execution
         auto& rvec = o.table_rot;
         auto& tvec = o.table_pos;
         draw_axes(img, i.debug_mat, rvec, tvec, 0.05f, 3);
-        Scalar color = o.can_jump ? Scalar{0, 255, 0} : Scalar{0, 255, 255};
-        project_contours(img, i.debug_mat, obj_pts, tvec, rvec, color, 2, {86, 58});
+        Scalar color = o.can_jump ? Scalar{255, 0, 255} : Scalar{0, 255, 255};
+        project_contours(img, i.debug_mat, obj_pts, tvec, rvec, color, 3, {86, 58});
     }
-
-    PIPEPP_STORE_DEBUG_DATA_COND("Result", i.debug_mat.clone(), debug_show_mats(ec));
 
     return pipepp::pipe_error::ok;
 }
@@ -345,19 +361,15 @@ void billiards::pipes::table_edge_solver::link_from_previous(shared_data const& 
 void billiards::pipes::table_edge_solver::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
 {
     // 항상 출력의 X축을 뒤집습니다.
-    auto out_rot = imgproc::rotate_euler(o.table_rot, {(float)CV_PI, 0, 0});
+    auto out_rot = imgproc::rotate_euler(o.table_rot, {0, 0, (float)CV_PI});
 
-    float pos_alpha     = shared_data::table::filter::alpha_pos(sd);
-    float rot_alpha     = shared_data::table::filter::alpha_rot(sd);
-    float jump_thr      = shared_data::table::filter::jump_threshold_distance(sd);
-    sd.table.pos        = imgproc::set_filtered_table_pos(sd.table.pos, o.table_pos, pos_alpha * o.confidence,
-                                                   (o.confidence < jump_thr) * 1e6);
     sd.table.confidence = o.confidence;
-    if (o.confidence < jump_thr) {
+    if (o.confidence < 1e-6f) {
         // edge solver는 jump가 아니라면 rotation을 손대지 않습니다.
         return;
     }
-    sd.table.rot = imgproc::set_filtered_table_rot(sd.table.rot, out_rot, rot_alpha * o.confidence, jump_thr);
+    sd.table.pos = o.table_pos;
+    sd.table.rot = imgproc::set_filtered_table_rot(sd.table.rot, out_rot, 1);
 }
 
 pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
@@ -730,15 +742,20 @@ void billiards::pipes::marker_solver_cpu::output_handler(pipepp::pipe_error, sha
     auto& prv_rot = sd.state_->table_tr_context.rot;
     bool  do_jump = false;
 
-    if (sd.table.confidence > 0.5) {
+    if (sd.table.confidence) {
+        // Edge solver에서 confidnece를 반환한 경우로, 항상 절대적입니다.
         prv_pos = sd.table.pos;
         prv_rot = sd.table.rot;
+        return;
     }
+
+    if (o.confidence < 1e-6) { return; }
+
     float pos_alpha = shared_data::table::filter::alpha_pos(sd);
     float rot_alpha = shared_data::table::filter::alpha_rot(sd);
 
-    prv_pos = sd.table.pos = imgproc::set_filtered_table_pos(prv_pos, o.table_pos, pos_alpha * o.confidence, do_jump ? 0 : 1e9);
-    prv_rot = sd.table.rot = imgproc::set_filtered_table_rot(prv_rot, o.table_rot, rot_alpha * o.confidence, do_jump ? 0 : 1e9);
+    prv_pos = sd.table.pos = imgproc::set_filtered_table_pos(prv_pos, o.table_pos, pos_alpha * o.confidence);
+    prv_rot = sd.table.rot = imgproc::set_filtered_table_rot(prv_rot, o.table_rot, rot_alpha * o.confidence);
     sd.table.confidence    = std::max(sd.table.confidence, o.confidence);
 }
 
