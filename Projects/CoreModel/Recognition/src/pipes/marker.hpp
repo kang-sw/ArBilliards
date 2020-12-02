@@ -168,6 +168,59 @@ private:
     std::unique_ptr<impl> impl_;
 };
 
+
+struct marker_solver_cpu {
+    PIPEPP_DECLARE_OPTION_CLASS(marker_solver_cpu);
+    PIPEPP_OPTION_AUTO(enable_debug_glyphs, true, "debug");
+    PIPEPP_OPTION_AUTO(enable_debug_mats, true, "debug");
+
+    struct solver {
+        PIPEPP_DECLARE_OPTION_CATEGORY("Solver");
+
+        PIPEPP_OPTION(num_iter, 5);
+        PIPEPP_OPTION(error_base, 1.14);
+        PIPEPP_OPTION(variant_rot, 0.1);
+        PIPEPP_OPTION(variant_pos, 0.1);
+        PIPEPP_OPTION(variant_rot_axis, 0.005);
+        PIPEPP_OPTION(narrow_rate_pos, 0.5);
+        PIPEPP_OPTION(narrow_rate_rot, 0.5);
+        PIPEPP_OPTION(num_cands, 600);
+        PIPEPP_OPTION(do_parallel, true);
+        PIPEPP_OPTION(confidence_amp, 1.5);
+        PIPEPP_OPTION(min_valid_marker_size, 1.2);
+    };
+
+    struct input_type {
+        imgproc::img_t const* img_ptr;
+        cv::Size              img_size;
+
+        cv::Vec3f table_pos_init;
+        cv::Vec3f table_rot_init;
+
+        cv::Mat const*                debug_mat;
+        std::vector<cv::Vec2f> const* p_table_contour;
+
+        cv::UMat const* u_hsv;
+
+        cv::Vec2f FOV_degree;
+
+        std::vector<cv::Vec3f> marker_model;
+        std::vector<cv::Vec2f> markers;
+        std::vector<float>     weights;
+    };
+
+    struct output_type {
+        cv::Vec3f table_pos;
+        cv::Vec3f table_rot;
+        float     confidence;
+    };
+
+    pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& i, output_type& out);
+    static void        output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
+
+private:
+};
+
 /**
  * GPU를 활용하는 solver입니다. GPU에서 candidate를 생성하고 투영하여, tvec 및 rvec, suitability sum 리스트를 생성합니다.
  */
