@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cmath>
 
+#include <boost/mpl/times.hpp>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/matx.hpp>
 #include <opencv2/imgproc.hpp>
@@ -248,6 +249,90 @@ void billiards::pipes::shared_data::_on_all_ball_gathered()
     using namespace std;
     using kangsw::counter;
 
+    auto& prev_balls                                  = state_->balls;
+    auto& [prv_red1, prv_red2, prv_orange, prv_white] = prev_balls;
+    auto& [red1, red2, orange, white]                 = balls_;
+
+    // 입력이 들어온 시점을 기준으로 합니다.
+    auto now = launch_time_point();
+
+    // 1번 및 2번 공의 위치를 이전 위치와 비교합니다.
+    // 공이 충돌 후 바뀌는 부분까지 고려하기 위해, 이전 위치에 이전 속도를 곱한 예측 위치와
+    //각 공의 현재 위치를 비교해 더 가까운 쪽의 공을 선택합니다. 이 때, 시야에 없는 공도 알 수 있도록
+    //만약 공이 하나밖에 인식되지 않았다면 이전 위치를 끌어와 사용합니다.
+    if (red1.second != 0 && red2.second == 0) {
+        // 탐색된 공이 하나뿐인 경우, 이전 후보 두 개 위치를 비교해 더 가까운 쪽으로 붙입니다.
+        auto curpt = red1.first.pos;
+        auto prv_a = prv_red1.ps(now);
+        auto prv_b = prv_red2.ps(now);
+
+        if (norm(prv_a - curpt, NORM_L2SQR) < norm(prv_b - curpt, NORM_L2SQR)) {
+            // A와 더 가까운 경우, 이미 알맞은 배열이므로 내버려 둡니다.
+            red2.first = prv_red2; // 나머지 공은 이전 항목으로 채워줍니다.
+        } else {
+            // B와 더 가깝다면 자리가 바뀌어야 합니다.
+            swap(red1, red2);
+            red1.first = prv_red1;
+        }
+    } else if (red2.second != 0) {
+        // Red 2도 있다면, 두공의 두 경우를 각각 분석해야 합니다.
+        // 바꾸는 것과 바꾸지 않는 경우의 오차 합이 더 작은 쌍을 선택합니다.
+        // 오차 제곱 합의 근을 비교합니다.
+        auto prv_a = prv_red1.ps(now);
+        auto prv_b = prv_red2.ps(now);
+        auto a     = red1.first.pos;
+        auto b     = red2.first.pos;
+
+        auto e         = [](auto const& a, auto const& b) { return norm(a - b, NORM_L2SQR); };
+        auto case_keep = sqrt(e(a, prv_a) + e(b, prv_b));
+        auto case_swap = sqrt(e(a, prv_b) + e(b, prv_a));
+
+        if (case_swap > case_keep) {
+            swap(a, b);
+        }
+    }
+
+    // 각 공의 위치를 분석하고 보정합니다. 대부분의 시나리오에서 당구공은 정지한 상태이므로,
+    //갑작스러운 움직임은 대부분 노이즈에 해당합니다. 따라서 당구공의 delta velocity를 분석,
+    //일정 속도 이상의 변화를 노이즈로 취급합니다.
+    auto max_delta_speed = ball::movement::correction::max_speed(*this);
+    auto halt_tolerance  = ball::movement::correction::halted_tolerance(*this);
+    auto halt_alpha      = ball::movement::correction::halt_filter_alpha(*this);
+
+    for (auto idx : kangsw::counter(4)) {
+        auto& [b, conf] = balls_[idx];
+        auto& prev      = prev_balls[idx];
+
+        if (conf == 0) {
+            b = prev;
+            continue;
+        } // 생략
+
+        auto dt        = chrono::duration<float>(now - prev.tp).count();
+        auto vel       = (b.pos - prev.pos) / dt;
+        auto spd_delta = norm(vel - prev.vel) / dt;
+        std::cout << "IDX " << idx << " DT: " << dt << ", DELTA_SPD :" << spd_delta << endl;
+
+        if (spd_delta > max_delta_speed) {
+            // 최대 속도를 넘기면 해당 candidate를 invalidate합니다.
+            conf = 0;
+            b    = prev;
+            continue;
+        }
+
+        if (norm(b.pos - prev.pos) < halt_tolerance) {
+            // halt tolerance 이내이면 스무딩, 속도는 정지로 칩니다.
+            b.pos = prev.pos * (1 - halt_alpha) + b.pos * halt_alpha;
+            b.vel = {};
+        } else {
+            // 아니라면 속도만 갱신
+            b.vel = vel;
+        }
+        b.tp = now;
+        prev = b; // 상태 현 시점으로 갱신
+    }
+
+    // 3구 룰은 언젠가 ... ?
 }
 
 pipepp::pipe_error billiards::pipes::input_resize::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)

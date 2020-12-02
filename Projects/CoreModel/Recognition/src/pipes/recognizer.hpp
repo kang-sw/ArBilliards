@@ -24,8 +24,8 @@ namespace billiards::pipes {
 struct ball_position_desc {
     using clock = std::chrono::system_clock;
 
-    cv::Vec3f pos;
-    cv::Vec3f vel;
+    cv::Vec3f pos = {};
+    cv::Vec3f vel = {};
 
     clock::time_point tp = clock::now();
     double            dt(clock::time_point now) const { return std::chrono::duration<double>(now - tp).count(); }
@@ -142,7 +142,7 @@ public:
     void reload() override
     {
         converted_resources_.clear();
-        for (auto& v : balls_) { v.second = 0.f; }
+        for (auto& v : balls_) { v.second = 0; }
     }
 
     void    get_marker_points_model(std::vector<cv::Vec3f>& model) const;
@@ -246,7 +246,7 @@ struct output_pipe {
                 PIPEPP_OPTION(table_velocity_to_roll_coeff, 0.77);
             };
 
-            PIPEPP_OPTION(table_output_offset, cv::Vec3f{}, 
+            PIPEPP_OPTION(table_output_offset, cv::Vec3f{},
                           u8"테이블 위치를 얼마만큼 오프셋 시켜 출력할지 결정합니다.");
         };
     };

@@ -593,6 +593,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
 
     size_t search_range = sample_suitability.size();
     auto   conf_thres   = search::confidence_threshold(ec);
+    auto   ampl          = search::conf_amp(ec);
     for (int ballidx = 0, max = search::n_balls(ec); ballidx < max; ++ballidx) //
     {
         // 모든 suitability를 iterate해, 가장 높은 엘리먼트를 찾습니다.
@@ -603,7 +604,7 @@ void billiards::pipes::ball_finder_executor::_internal_loop(pipepp::execution_co
             break;
         }
 
-        auto conf = *max_elem;
+        auto conf = *max_elem * ampl;
         if (conf < conf_thres) { break; }
 
         auto center = sample_coords[max_index];
