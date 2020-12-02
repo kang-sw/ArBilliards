@@ -114,8 +114,8 @@ struct DEPRECATED_marker_finder {
     static void        link_from_previous(shared_data const& sd, table_edge_solver::output_type const& i, input_type& o);
 };
 
-struct marker_solver_OLD {
-    PIPEPP_DECLARE_OPTION_CLASS(marker_solver_OLD);
+struct marker_solver_cpu {
+    PIPEPP_DECLARE_OPTION_CLASS(marker_solver_cpu);
     PIPEPP_OPTION_AUTO(enable_debug_glyphs, true, "debug");
     PIPEPP_OPTION_AUTO(enable_debug_mats, true, "debug");
 
@@ -272,7 +272,7 @@ struct DEPRECATED_ball_search {
     };
 
     pipepp::pipe_error invoke(pipepp::execution_context& ec, input_type const& input, output_type& out);
-    static void        link_from_previous(shared_data const& sd, marker_solver_OLD::output_type const& i, input_type& o);
+    static void        link_from_previous(shared_data const& sd, marker_solver_cpu::output_type const& i, input_type& o);
     static void        output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o);
 
 private:

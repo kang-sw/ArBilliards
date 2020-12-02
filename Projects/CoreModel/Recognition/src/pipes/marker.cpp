@@ -5,6 +5,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/core/matx.hpp>
 #include <random>
+#include <span>
 
 #include "../amp-math/helper.hxx"
 #include "../image_processing.hpp"
@@ -176,7 +177,9 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         // 1 meter 거리에 대해 모든 포인트를 투사합니다.
         // TODO : Positive kernel만 회전시키기. Negative kernel은 그대로 둠!
         using namespace imgproc;
-        auto      vertices  = m.kernel_model;
+        decltype(m.kernel_model) vertices;
+        vertices.assign(m.kernel_model.begin(), m.kernel_model.begin() + m.positive_index_fence);
+
         cv::Vec3f local_loc = {}, local_rot = in.init_table_rot;
         world_to_camera(imdesc, local_rot, local_loc);
 
@@ -195,6 +198,18 @@ pipepp::pipe_error billiards::pipes::table_marker_finder::operator()(pipepp::exe
         for (cv::Vec2f cam_center(imdesc.camera.cx, imdesc.camera.cy);
              auto&     vt : rotated_kernel) {
             vt -= cam_center;
+        }
+
+        // negative 인덱스 append
+        vertices.insert(vertices.end(), m.kernel_model.begin() + m.positive_index_fence, m.kernel_model.end());
+        std::span nkernel = vertices;
+        nkernel           = nkernel.subspan(m.positive_index_fence);
+        auto marker_rad   = marker_radius(ec);
+        auto pixel_radius = imgproc::get_pixel_length(imdesc, marker_rad, 1);
+        for (auto& vt : nkernel) {
+            vt = vt / marker_rad * pixel_radius;
+            std::swap(vt[1], vt[2]);
+            rotated_kernel.push_back(subvec<0, 2>(vt));
         }
 
         if (show_debug) {
@@ -700,7 +715,6 @@ struct billiards::pipes::marker_solver_gpu::impl_type {
 
         float3             tv_rv_suit_00[3];
         array_view<float3> u_best(3, tv_rv_suit_00);
-
         u_best.discard_data();
 
         int const n_models = u_model.extent[0];
@@ -734,7 +748,7 @@ struct billiards::pipes::marker_solver_gpu::impl_type {
                   local_suits[tidx.local[0]][tidx.local[1]] = suit_sum;
               }
 
-              tidx.barrier.wait_with_tile_static_memory_fence();
+              tidx.barrier.wait_with_all_memory_fence();
 
               // Find local best
               if (tidx.local[0] == 0 && tidx.local[1] == 0) {
@@ -848,6 +862,7 @@ void billiards::pipes::marker_solver_gpu::operator()(pipepp::execution_context& 
 
         auto& imdesc = *i.p_imdesc;
         auto  _map   = i.marker_weight_map;
+        PIPEPP_STORE_DEBUG_DATA("Input", (cv::Mat)_map);
 
         if (_map.isContinuous() == false) _map = _map.clone();
         array_view<float, 2> u_weight_map(_map.rows, _map.cols, &_map(0));
@@ -866,6 +881,27 @@ void billiards::pipes::marker_solver_gpu::operator()(pipepp::execution_context& 
 
             PIPEPP_STORE_DEBUG_DATA_DYNAMIC(fmt::format("Accuracy ({})", iter).c_str(), suitability);
 
+            {
+                using namespace cv;
+                using namespace imgproc;
+                auto  table_pos = tpos;
+                auto  table_rot = trot;
+                auto& vertexes  = i.marker_model;
+
+                camera_to_world(*i.p_imdesc, table_rot, table_pos);
+                auto world_tr = get_transform_matx_fast(table_pos, table_rot);
+                for (auto pt : vertexes) {
+                    Vec4f pt4;
+                    (Vec3f&)pt4 = pt;
+                    pt4[3]      = 1.0f;
+
+                    pt4 = world_tr * pt4;
+                    draw_circle(*i.p_imdesc, (Mat&)i.debug_mat, 0.01f, (Vec3f&)pt4, {255, 0, 0}, 2);
+                }
+
+                PIPEPP_STORE_DEBUG_DATA("Result", (Mat)i.debug_mat.clone());
+            }
+
             if (suitability < cur_suit) {
                 tpos = prev_pos;
                 trot = prev_rot;
@@ -881,27 +917,6 @@ void billiards::pipes::marker_solver_gpu::operator()(pipepp::execution_context& 
         o.local_table_pos = tpos;
         o.local_table_rot = trot;
         o.confidence      = cur_suit;
-    }
-
-    {
-        using namespace cv;
-        using namespace imgproc;
-        auto  table_pos = o.local_table_pos;
-        auto  table_rot = o.local_table_rot;
-        auto& vertexes  = i.marker_model;
-
-        camera_to_world(*i.p_imdesc, table_rot, table_pos);
-        auto world_tr = get_transform_matx_fast(table_pos, table_rot);
-        for (auto pt : vertexes) {
-            Vec4f pt4;
-            (Vec3f&)pt4 = pt;
-            pt4[3]      = 1.0f;
-
-            pt4 = world_tr * pt4;
-            draw_circle(*i.p_imdesc, (Mat&)i.debug_mat, 0.01f, (Vec3f&)pt4, {255, 0, 0}, 2);
-        }
-
-        PIPEPP_STORE_DEBUG_DATA("Result", (Mat)i.debug_mat.clone());
     }
 }
 

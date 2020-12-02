@@ -27,14 +27,14 @@ struct marker_search_to_solve {
     static void link(
       shared_data&                            sd,
       table_marker_finder::output_type const& o,
-      marker_solver_OLD::input_type&          i)
+      marker_solver_cpu::input_type&          i)
     {
         if (o.marker_weight_map.empty()) {
             i.p_table_contour = nullptr;
             return;
         }
 
-        i = marker_solver_OLD::input_type{
+        i = marker_solver_cpu::input_type{
           .img_ptr         = &sd.imdesc_bkup,
           .img_size        = sd.rgb.size(),
           .table_pos_init  = sd.table.pos,
@@ -97,7 +97,7 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         auto contour_search_proxy  = pl->create("table contour searcher", 1, &pipepp::make_executor<table_contour_geometric_search>);
         auto pnp_solver_proxy      = pl->create("solve table edge", 1, &pipepp::make_executor<table_edge_solver>);
         auto marker_search_proxy   = pl->create("table marker search", 1, &pipepp::make_executor<table_marker_finder>);
-        auto marker_solver_proxy   = pl->create("table marker solver", 1, &pipepp::make_executor<marker_solver_OLD>);
+        auto marker_solver_proxy   = pl->create("table marker solver", 1, &pipepp::make_executor<marker_solver_cpu>);
         auto marker_solver_2_proxy = pl->create("table marker solver gpu", 1, &pipepp::make_executor<marker_solver_gpu>);
 
         input_proxy.link_output(contour_search_proxy, &table_contour_geometric_search_link);
@@ -115,7 +115,7 @@ auto billiards::pipes::build_pipe() -> std::shared_ptr<pipepp::pipeline<shared_d
         marker_search_proxy.link_output(marker_solver_proxy, &marker_search_to_solve::link);
         marker_search_proxy.link_output(marker_solver_2_proxy, &marker_solver_gpu::link);
 
-        marker_solver_proxy.add_output_handler(&marker_solver_OLD::output_handler);
+        marker_solver_proxy.add_output_handler(&marker_solver_cpu::output_handler);
         for (auto ballidx : kangsw::counter(3)) {
             constexpr char const* BALL_NAME[]  = {"Red", "Orange", "White"};
             constexpr int         IDX_OFFSET[] = {0, 2, 3};
