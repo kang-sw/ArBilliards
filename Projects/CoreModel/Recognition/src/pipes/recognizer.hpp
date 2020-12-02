@@ -159,7 +159,6 @@ public:
     void _on_all_ball_gathered();
 
 private:
-    ball_position_set                    balls_prev_;
     std::pair<ball_position_desc, float> balls_[4];
 
     std::map<kangsw::hash_index, cv::Mat3b> converted_resources_;
