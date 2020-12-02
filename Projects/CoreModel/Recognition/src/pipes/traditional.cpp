@@ -363,13 +363,14 @@ void billiards::pipes::table_edge_solver::output_handler(pipepp::pipe_error, sha
     // 항상 출력의 X축을 뒤집습니다.
     auto out_rot = imgproc::rotate_euler(o.table_rot, {0, 0, (float)CV_PI});
 
-    sd.table.confidence = o.confidence;
     if (o.confidence < 1e-6f) {
         // edge solver는 jump가 아니라면 rotation을 손대지 않습니다.
+        sd.table.confidence = 0;
         return;
     }
-    sd.table.pos = o.table_pos;
-    sd.table.rot = imgproc::set_filtered_table_rot(sd.table.rot, out_rot, 1);
+    sd.table.confidence = o.confidence;
+    sd.table.pos        = o.table_pos;
+    sd.table.rot        = imgproc::set_filtered_table_rot(sd.table.rot, out_rot, 1);
 }
 
 pipepp::pipe_error billiards::pipes::DEPRECATED_marker_finder::invoke(pipepp::execution_context& ec, input_type const& i, output_type& out)
@@ -742,7 +743,6 @@ void billiards::pipes::marker_solver_cpu::output_handler(pipepp::pipe_error, sha
 {
     auto& prv_pos = sd.state_->table_tr_context.pos;
     auto& prv_rot = sd.state_->table_tr_context.rot;
-    bool  do_jump = false;
 
     if (sd.table.confidence) {
         // Edge solver에서 confidnece를 반환한 경우로, 항상 절대적입니다.
