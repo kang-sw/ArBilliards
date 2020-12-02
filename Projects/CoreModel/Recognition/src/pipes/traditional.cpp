@@ -613,17 +613,6 @@ pipepp::pipe_error billiards::pipes::marker_solver_cpu::invoke(pipepp::execution
                 cand.rotation = pivot_candidate.rotation + cand.rotation
                                 + (pivot_up_vector)*distr_rot(rengine);
 
-                // auto rot_norm   = norm(pivot_candidate.rotation);
-                // auto rot_amount = rot_norm + distr_rot(rengine);
-                // auto rotator    = pivot_candidate.rotation / rot_norm;
-                // random_vector(rengine, cand.rotation, rotation_axis_variant);
-                // cand.rotation = normalize(cand.rotation + rotator);
-                // cand.rotation *= rot_amount;
-
-                // 임의의 확률로 180도 회전시킵니다.
-                // bool rotate180 = uniform_int_distribution{0, 1}(rengine);
-                // if (rotate180) { cand.rotation = rotate_euler(cand.rotation, {0, CV_PI, 0}); }
-
                 candidates.push_back(cand);
             }
 
@@ -751,7 +740,12 @@ void billiards::pipes::marker_solver_cpu::output_handler(pipepp::pipe_error, sha
         return;
     }
 
-    if (o.confidence < 1e-6) { return; }
+    if (o.confidence < 1e-6) {
+        sd.table.pos        = prv_pos;
+        sd.table.rot        = prv_rot;
+        sd.table.confidence = 0;
+        return;
+    }
 
     float pos_alpha = shared_data::table::filter::alpha_pos(sd);
     float rot_alpha = shared_data::table::filter::alpha_rot(sd);
