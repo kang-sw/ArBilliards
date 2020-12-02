@@ -558,25 +558,6 @@ pipepp::pipe_error billiards::pipes::marker_solver_cpu::invoke(pipepp::execution
         return pipepp::pipe_error::ok;
     }
 
-    PIPEPP_ELAPSE_BLOCK("Render Markers")
-    {
-        Vec2f           fov         = i.FOV_degree;
-        constexpr float DtoR        = CV_PI / 180.f;
-        auto const      view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
-
-        auto& vertexes = i.marker_model;
-
-        auto world_tr = get_transform_matx_fast(table_pos, table_rot);
-        for (auto pt : vertexes) {
-            Vec4f pt4;
-            (Vec3f&)pt4 = pt;
-            pt4[3]      = 1.0f;
-
-            pt4 = world_tr * pt4;
-            draw_circle(img, (Mat&)debug, 0.01f, (Vec3f&)pt4, {255, 255, 255}, 2);
-        }
-    }
-
     PIPEPP_ELAPSE_BLOCK("Solve")
     if (centers.empty() == false) {
         auto& model = i.marker_model;
@@ -625,9 +606,11 @@ pipepp::pipe_error billiards::pipes::marker_solver_cpu::invoke(pipepp::execution
                 cand.position += pivot_candidate.position;
 
                 uniform_real_distribution<float> distr_rot{-rotation_variant, rotation_variant};
+                uniform_real_distribution<float> distr_axe{-rotation_axis_variant, rotation_axis_variant};
 
-                random_vector(rengine, cand.rotation, rotation_axis_variant);
-                cand.rotation = pivot_candidate.rotation + (cand.rotation + pivot_up_vector) * distr_rot(rengine);
+                random_vector(rengine, cand.rotation, distr_axe(rengine));
+                cand.rotation = pivot_candidate.rotation + cand.rotation
+                                + (pivot_up_vector)*distr_rot(rengine);
 
                 // auto rot_norm   = norm(pivot_candidate.rotation);
                 // auto rot_amount = rot_norm + distr_rot(rengine);
@@ -715,6 +698,25 @@ pipepp::pipe_error billiards::pipes::marker_solver_cpu::invoke(pipepp::execution
         out.confidence = apply_rate;
         out.table_pos  = best.position;
         out.table_rot  = best.rotation;
+    }
+
+    PIPEPP_ELAPSE_BLOCK("Render Markers")
+    {
+        Vec2f           fov         = i.FOV_degree;
+        constexpr float DtoR        = CV_PI / 180.f;
+        auto const      view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
+
+        auto& vertexes = i.marker_model;
+
+        auto world_tr = get_transform_matx_fast(table_pos, table_rot);
+        for (auto pt : vertexes) {
+            Vec4f pt4;
+            (Vec3f&)pt4 = pt;
+            pt4[3]      = 1.0f;
+
+            pt4 = world_tr * pt4;
+            draw_circle(img, (Mat&)debug, 0.01f, (Vec3f&)pt4, {255, 255, 255}, 2);
+        }
     }
 
     return pipepp::pipe_error::ok;
