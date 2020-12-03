@@ -11,7 +11,7 @@
 
 #undef max
 #undef min
-#define DO_PERSPECTIVE_SEARCH 1
+#define DO_PERSPECTIVE_SEARCH 0
 
 #include "fmt/format.h"
 #include "kangsw/ndarray.hxx"
