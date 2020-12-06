@@ -276,9 +276,9 @@
                 1.0
             ],
             "Colors.Lights.ambient_rgb": [
-                0.15,
-                0.15,
-                0.15
+                0.25,
+                0.25,
+                0.25
             ],
             "Colors.Lights.n_lightings": 2,
             "Colors.base_rgb": [
@@ -502,7 +502,7 @@
         "Ball.Movement.Correction.halt_filter_alpha": 0.20000000298023224,
         "Ball.Movement.Correction.halted_tolerance": 0.01,
         "Ball.Movement.Correction.max_speed": 30,
-        "Ball.offset_from_table_plane": 0.002,
+        "Ball.offset_from_table_plane": -0.01,
         "Ball.radius": 0.030239439175,
         "Ballradius": 0.0302,
         "Common.camera_FOV": [
