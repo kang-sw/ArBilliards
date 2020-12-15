@@ -79,7 +79,7 @@ void billiards::pipes::helpers::table_edge_extender::operator()(pipepp::executio
             // auto drag_width_outer = min(300.f, get_pixel_length(img, frame_width_outer, depth));
             // auto drag_width_inner = min(300.f, get_pixel_length(img, frame_width_inner, depth));
 
-            //*/
+            /*/
             float drag_width_outer = table_border_range_outer * 100;
             float drag_width_inner = table_border_range_inner * 100;
             /*/
