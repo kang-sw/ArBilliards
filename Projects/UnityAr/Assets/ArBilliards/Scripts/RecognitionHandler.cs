@@ -87,7 +87,7 @@ public class RecognitionHandler : MonoBehaviour
 
 		[Serializable]
 		public class BallRecognitionDesc
-		{
+		{ 
 			public float[] Position;
 			public float Confidence;
 		}
@@ -309,9 +309,9 @@ public class RecognitionHandler : MonoBehaviour
 
 		// 더 가까운 것을 가져갑니다. 
 		// 가중치는 속도 벡터의 차이와 위치 벡터의 차이로 계산됩니다.
-		if (result.Red1.Confidence > 0.5f)
+		if (result.Red1.Confidence > 0f)
 		{
-			if (result.Red2.Confidence > 0.5f)
+			if (result.Red2.Confidence > 0f)
 			{
 				// 가장 오차가 작은 쌍을 찾습니다.
 				var aDist1 = (toVector3(result.Red1) - Red1.position).magnitude;
@@ -354,7 +354,7 @@ public class RecognitionHandler : MonoBehaviour
 			var ballResult = ballResults[index];
 			Vector3 ballPos = toVector3(ballResult);
 
-			if (ballResult.Confidence > 0.5f)
+			if (ballResult.Confidence > 0f)
 			{
 				// ballTr.position = ballPos;
 				var now = DateTime.Now;
@@ -395,7 +395,7 @@ public class RecognitionHandler : MonoBehaviour
 
 	private void UpdateTableTransform(ref RecognitionResult result)
 	{
-		if (result.Table != null && result.Table.Confidence > 0.5f)
+		if (result.Table != null && result.Table.Confidence > 0f)
 		{
 			var vec = new Vector3();
 			vec.x = result.Table.Translation[0];

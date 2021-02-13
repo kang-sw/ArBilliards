@@ -266,7 +266,9 @@ void billiards::pipes::shared_data::_on_all_ball_gathered()
         auto prv_a = prv_red1.ps(now);
         auto prv_b = prv_red2.ps(now);
 
-        if (norm(prv_a - curpt, NORM_L2SQR) < norm(prv_b - curpt, NORM_L2SQR)) {
+        auto error_swap = norm(prv_b - curpt, NORM_L2SQR);
+        auto error_keep = norm(prv_a - curpt, NORM_L2SQR);
+        if (error_keep < error_swap) {
             // A와 더 가까운 경우, 이미 알맞은 배열이므로 내버려 둡니다.
             red2.first = prv_red2; // 나머지 공은 이전 항목으로 채워줍니다.
         } else {
@@ -283,12 +285,12 @@ void billiards::pipes::shared_data::_on_all_ball_gathered()
         auto a     = red1.first.pos;
         auto b     = red2.first.pos;
 
-        auto e         = [](auto const& a, auto const& b) { return norm(a - b, NORM_L2SQR); };
-        auto case_keep = sqrt(e(a, prv_a) + e(b, prv_b));
-        auto case_swap = sqrt(e(a, prv_b) + e(b, prv_a));
+        auto e          = [](auto const& a, auto const& b) { return norm(a - b, NORM_L2SQR); };
+        auto error_keep = sqrt(e(a, prv_a) + e(b, prv_b));
+        auto error_swap = sqrt(e(a, prv_b) + e(b, prv_a));
 
-        if (case_swap > case_keep) {
-            swap(a, b);
+        if (error_swap < error_keep) {
+            swap(red1, red2);
         }
     }
 
@@ -311,7 +313,6 @@ void billiards::pipes::shared_data::_on_all_ball_gathered()
         auto dt        = chrono::duration<float>(now - prev.tp).count();
         auto vel       = (b.pos - prev.pos) / dt;
         auto spd_delta = norm(vel - prev.vel) / dt;
-        std::cout << "IDX " << idx << " DT: " << dt << ", DELTA_SPD :" << spd_delta << endl;
 
         if (spd_delta > max_delta_speed) {
             // 최대 속도를 넘기면 해당 candidate를 invalidate합니다.

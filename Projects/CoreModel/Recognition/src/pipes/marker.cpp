@@ -718,6 +718,25 @@ pipepp::pipe_error billiards::pipes::marker_solver_cpu::invoke(pipepp::execution
         // 디버그 그리기
         auto best = candidates.front();
 
+        PIPEPP_ELAPSE_BLOCK("Render Markers")
+        {
+            // Vec2f           fov         = i.FOV_degree;
+            // constexpr float DtoR        = CV_PI / 180.f;
+            // auto const      view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
+
+            auto& vertexes = i.marker_model;
+
+            auto world_tr = get_transform_matx_fast(table_pos, table_rot);
+            for (auto pt : vertexes) {
+                Vec4f pt4;
+                (Vec3f&)pt4 = pt;
+                pt4[3]      = 1.0f;
+
+                pt4 = world_tr * pt4;
+                draw_circle(img, (Mat&)debug, 0.01f, (Vec3f&)pt4, {255, 255, 255}, 2);
+            }
+        }
+
         PIPEPP_ELAPSE_BLOCK("Render debug glyphs")
         {
             auto          vertexes = model;
@@ -748,27 +767,8 @@ pipepp::pipe_error billiards::pipes::marker_solver_cpu::invoke(pipepp::execution
         out.table_rot  = best.rotation;
     }
 
-    PIPEPP_ELAPSE_BLOCK("Render Markers")
-    {
-        Vec2f           fov         = i.FOV_degree;
-        constexpr float DtoR        = CV_PI / 180.f;
-        auto const      view_planes = generate_frustum(fov[0] * DtoR, fov[1] * DtoR);
-
-        auto& vertexes = i.marker_model;
-
-        auto world_tr = get_transform_matx_fast(table_pos, table_rot);
-        for (auto pt : vertexes) {
-            Vec4f pt4;
-            (Vec3f&)pt4 = pt;
-            pt4[3]      = 1.0f;
-
-            pt4 = world_tr * pt4;
-            draw_circle(img, (Mat&)debug, 0.01f, (Vec3f&)pt4, {255, 255, 255}, 2);
-        }
-    }
-
     return pipepp::pipe_error::ok;
-} 
+}
 
 void billiards::pipes::marker_solver_cpu::output_handler(pipepp::pipe_error, shared_data& sd, output_type const& o)
 {
