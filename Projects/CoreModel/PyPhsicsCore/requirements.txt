@@ -14,7 +14,7 @@ pickleshare==0.7.5
 prompt-toolkit==3.0.8
 pybullet==3.0.7
 pycodestyle==2.6.0
-Pygments==2.7.2
+Pygments==2.7.4
 python-dateutil==2.8.1
 pywin32==301
 pyzmq==20.0.0
